@@ -1140,10 +1140,22 @@ export function PDFRenderer({
           
           const dynamicHeight = calculateHeight();
           
+          // Set offsetX and offsetY to center the rotation pivot point
+          // This makes the Group rotate around its center instead of top-left corner
+          const offsetX = elementWidth / 2;
+          const offsetY = dynamicHeight / 2;
+          
+          // Adjust x and y position to compensate for offset, so visual position stays the same
+          // When offsetX/offsetY are set, the visual origin shifts, so we need to adjust position
+          const adjustedX = elementX + offsetX;
+          const adjustedY = elementY + offsetY;
+          
           // Create Group for QnA textbox (rotates as a unit)
           const qnaGroup = new Konva.Group({
-            x: elementX,
-            y: elementY,
+            x: adjustedX,
+            y: adjustedY,
+            offsetX: offsetX,
+            offsetY: offsetY,
             rotation: elementRotation,
             opacity: elementOpacity,
             listening: false,
@@ -2140,9 +2152,26 @@ export function PDFRenderer({
             const fontOpacity = textStyle.fontOpacity ?? 1;
             const padding = textStyle.padding || element.padding || 4;
             
+            // Set offsetX and offsetY to center the rotation pivot point
+            const offsetX = elementWidth / 2;
+            const offsetY = elementHeight / 2;
+            const adjustedX = elementX + offsetX;
+            const adjustedY = elementY + offsetY;
+            
+            // Create Group for free text (rotates as a unit)
+            const freeTextGroup = new Konva.Group({
+              x: adjustedX,
+              y: adjustedY,
+              offsetX: offsetX,
+              offsetY: offsetY,
+              rotation: elementRotation,
+              opacity: elementOpacity,
+              listening: false,
+            });
+            
             const textNode = new Konva.Text({
-              x: elementX + padding,
-              y: elementY + padding,
+              x: -offsetX + padding, // Relative to Group
+              y: -offsetY + padding, // Relative to Group
               text: textContent,
               fontSize: fontSize,
               fontFamily: fontFamily,
@@ -2154,17 +2183,21 @@ export function PDFRenderer({
               align: textStyle.align || element.align || 'left',
               verticalAlign: 'top',
               wrap: 'word',
-              rotation: elementRotation,
-              opacity: elementOpacity * fontOpacity,
+              // rotation removed - inherited from Group
+              opacity: fontOpacity,
               visible: true,
               listening: false
             });
             
-            layer.add(textNode);
-            // Store z-order on text node
+            freeTextGroup.add(textNode);
+            layer.add(freeTextGroup);
+            
+            // Store z-order on Group
             const zOrderIndex = elementIdToZOrder.get(element.id);
             if (zOrderIndex !== undefined) {
-              textNode.setAttr('__zOrderIndex', zOrderIndex);
+              freeTextGroup.setAttr('__zOrderIndex', zOrderIndex);
+              freeTextGroup.setAttr('__elementId', element.id);
+              freeTextGroup.setAttr('__nodeType', 'free-text-group');
             }
           }
         }
@@ -2189,9 +2222,26 @@ export function PDFRenderer({
             const fontWeight = element.fontWeight || element.font?.fontWeight || (fontBold ? 'bold' : 'normal');
             const fontStyle = element.fontStyle || element.font?.fontStyle || (fontItalic ? 'italic' : 'normal');
             
+            // Set offsetX and offsetY to center the rotation pivot point
+            const offsetX = elementWidth / 2;
+            const offsetY = elementHeight / 2;
+            const adjustedX = elementX + offsetX;
+            const adjustedY = elementY + offsetY;
+            
+            // Create Group for text (rotates as a unit)
+            const textGroup = new Konva.Group({
+              x: adjustedX,
+              y: adjustedY,
+              offsetX: offsetX,
+              offsetY: offsetY,
+              rotation: elementRotation,
+              opacity: elementOpacity,
+              listening: false,
+            });
+            
             const textNode = new Konva.Text({
-              x: elementX,
-              y: elementY,
+              x: -offsetX, // Relative to Group
+              y: -offsetY, // Relative to Group
               text: textContent,
               fontSize: fontSize,
               fontFamily: fontFamily,
@@ -2203,17 +2253,21 @@ export function PDFRenderer({
               align: element.align || 'left',
               verticalAlign: element.verticalAlign || 'top',
               wrap: 'word',
-              rotation: elementRotation,
-              opacity: elementOpacity,
+              // rotation removed - inherited from Group
+              opacity: 1,
               visible: true,
               listening: false
             });
             
-            layer.add(textNode);
-            // Store z-order on text node
+            textGroup.add(textNode);
+            layer.add(textGroup);
+            
+            // Store z-order on Group
             const zOrderIndex = elementIdToZOrder.get(element.id);
             if (zOrderIndex !== undefined) {
-              textNode.setAttr('__zOrderIndex', zOrderIndex);
+              textGroup.setAttr('__zOrderIndex', zOrderIndex);
+              textGroup.setAttr('__elementId', element.id);
+              textGroup.setAttr('__nodeType', 'text-group');
             }
           }
         }
@@ -2245,9 +2299,17 @@ export function PDFRenderer({
           
           // Handle placeholder: render placeholder UI
           if (element.type === 'placeholder') {
+            // Set offsetX and offsetY to center the rotation pivot point
+            const offsetX = elementWidth / 2;
+            const offsetY = elementHeight / 2;
+            const adjustedX = elementX + offsetX;
+            const adjustedY = elementY + offsetY;
+            
             const placeholderGroup = new Konva.Group({
-              x: elementX,
-              y: elementY,
+              x: adjustedX,
+              y: adjustedY,
+              offsetX: offsetX,
+              offsetY: offsetY,
               rotation: elementRotation,
               opacity: elementOpacity,
               listening: false
@@ -2255,6 +2317,8 @@ export function PDFRenderer({
             
             // Background rectangle
             const bgRect = new Konva.Rect({
+              x: -offsetX, // Relative to Group
+              y: -offsetY, // Relative to Group
               width: elementWidth,
               height: elementHeight,
               fill: '#f3f4f6',
@@ -2268,8 +2332,8 @@ export function PDFRenderer({
             // Image-plus icon (simplified)
             const iconSize = Math.min(elementWidth, elementHeight) * 0.3;
             const iconGroup = new Konva.Group({
-              x: elementWidth / 2,
-              y: elementHeight / 2,
+              x: 0, // Relative to placeholderGroup (center)
+              y: 0, // Relative to placeholderGroup (center)
               listening: false
             });
             
@@ -2307,6 +2371,15 @@ export function PDFRenderer({
             
             placeholderGroup.add(iconGroup);
             layer.add(placeholderGroup);
+            
+            // Store z-order on Group
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (zOrderIndex !== undefined) {
+              placeholderGroup.setAttr('__zOrderIndex', zOrderIndex);
+              placeholderGroup.setAttr('__elementId', element.id);
+              placeholderGroup.setAttr('__nodeType', 'placeholder-group');
+            }
+            
             continue;
           }
           
@@ -2403,15 +2476,44 @@ export function PDFRenderer({
                 }
               }
               
+              // For simple images/stickers, only use Group if rotation is needed
+              // Without rotation, render directly with absolute coordinates (like before)
+              const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
+              
+              let imageGroup: Konva.Group | null = null;
+              let offsetX = 0;
+              let offsetY = 0;
+              
+              if (needsRotation) {
+                // Set offsetX and offsetY to center the rotation pivot point
+                offsetX = elementWidth / 2;
+                offsetY = elementHeight / 2;
+                const adjustedX = elementX + offsetX;
+                const adjustedY = elementY + offsetY;
+                
+                // Create Group for image (rotates as a unit)
+                imageGroup = new Konva.Group({
+                  x: adjustedX,
+                  y: adjustedY,
+                  offsetX: offsetX,
+                  offsetY: offsetY,
+                  rotation: elementRotation,
+                  opacity: elementOpacity,
+                  listening: false,
+                });
+              }
+              
               // Create image node
               const imageNode = new Konva.Image({
-                x: elementX,
-                y: elementY,
+                x: needsRotation ? 0 : elementX, // Relative to Group (0,0) or absolute
+                y: needsRotation ? 0 : elementY, // Relative to Group (0,0) or absolute
                 image: img,
                 width: elementWidth,
                 height: elementHeight,
-                rotation: elementRotation,
-                opacity: (element.imageOpacity !== undefined ? element.imageOpacity : 1) * elementOpacity,
+                rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
+                opacity: needsRotation 
+                  ? (element.imageOpacity !== undefined ? element.imageOpacity : 1) // Group handles elementOpacity
+                  : ((element.imageOpacity !== undefined ? element.imageOpacity : 1) * elementOpacity), // Multiply when no Group
                 cornerRadius: element.cornerRadius || 0,
                 listening: false,
                 ...cropProps
@@ -2420,13 +2522,14 @@ export function PDFRenderer({
               // Get z-order index for this element
               const zOrderIndex = elementIdToZOrder.get(element.id);
               
-              // Add image to layer
-              layer.add(imageNode);
-              
-              // Store z-order on image node for final reordering
-              if (zOrderIndex !== undefined) {
-                imageNode.setAttr('__zOrderIndex', zOrderIndex);
-                imageNode.setAttr('__elementId', element.id);
+              if (needsRotation && imageGroup) {
+                imageGroup.add(imageNode);
+              } else {
+                layer.add(imageNode);
+                if (zOrderIndex !== undefined) {
+                  imageNode.setAttr('__zOrderIndex', zOrderIndex);
+                  imageNode.setAttr('__elementId', element.id);
+                }
               }
               
               console.log('[PDFRenderer] Image node added to layer:', {
@@ -2542,12 +2645,12 @@ export function PDFRenderer({
                     if (pathData) {
                         return new Konva.Path({
                         data: pathData,
-                        x: elementX,
-                        y: elementY,
-                        rotation: elementRotation,
+                        x: needsRotation ? -offsetX : elementX,
+                        y: needsRotation ? -offsetY : elementY,
+                        rotation: needsRotation ? undefined : elementRotation,
                         stroke: strokeProps.stroke || stroke,
                         strokeWidth: strokeProps.strokeWidth || strokeWidth,
-                        opacity: borderOpacity * elementOpacity,
+                        opacity: borderOpacity,
                         fill: 'transparent',
                         strokeScaleEnabled: true,
                         listening: false,
@@ -2564,16 +2667,20 @@ export function PDFRenderer({
                     }
                   }
                   // Fallback to default Rect (convert to Path for compatibility)
-                  const rectPath = `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + elementHeight} L ${elementX} ${elementY + elementHeight} Z`;
+                  // For rotation: Path data is relative to Group origin (0,0), so we use (0, 0, width, height)
+                  // For no rotation: Path data uses absolute coordinates
+                  const rectPath = needsRotation 
+                    ? `M 0 0 L ${elementWidth} 0 L ${elementWidth} ${elementHeight} L 0 ${elementHeight} Z`
+                    : `M ${elementX} ${elementY} L ${elementX + elementWidth} ${elementY} L ${elementX + elementWidth} ${elementY + elementHeight} L ${elementX} ${elementY + elementHeight} Z`;
                   return new Konva.Path({
                     data: rectPath,
                     x: 0,
                     y: 0,
-                    rotation: elementRotation,
+                    rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
                     fill: 'transparent',
                     stroke: stroke,
                     strokeWidth: strokeWidth,
-                    opacity: borderOpacity * elementOpacity,
+                    opacity: borderOpacity,
                     strokeScaleEnabled: true,
                     listening: false,
                     visible: true
@@ -2581,10 +2688,20 @@ export function PDFRenderer({
                 });
                 
                 if (frameNode) {
-                  // Set position and rotation
-                  frameNode.x(elementX);
-                  frameNode.y(elementY);
-                  frameNode.rotation(elementRotation);
+                  // Position based on whether we're using a Group or not
+                  if (needsRotation) {
+                    // renderThemedBorderKonva sets x/y based on pathOffsetX/pathOffsetY
+                    // For rects: pathOffsetX = 0, so path is at (0,0) relative to element top-left
+                    // Since the Group has offsetX/offsetY, the visual origin is already shifted
+                    // So we position at (0, 0) relative to Group, not (-offsetX, -offsetY)
+                    frameNode.x(0);
+                    frameNode.y(0);
+                    frameNode.rotation(0); // Explicitly set to 0 to ensure rotation comes from Group
+                  } else {
+                    frameNode.x(elementX);
+                    frameNode.y(elementY);
+                    frameNode.rotation(elementRotation);
+                  }
                   frameNode.visible(true);
                   
                   // Ensure shadow properties are set (for Glow theme)
@@ -2600,15 +2717,17 @@ export function PDFRenderer({
                     }
                   }
                   
-                  layer.add(frameNode);
-                  
-                  // Set z-order attributes
-                  if (zOrderIndex !== undefined) {
-                    frameNode.setAttr('__zOrderIndex', zOrderIndex);
-                    frameNode.setAttr('__isFrame', true);
-                    frameNode.setAttr('__parentImageId', element.id);
-                    frameNode.setAttr('__elementId', element.id + '-frame');
-                    frameNode.setAttr('__nodeType', 'frame');
+                  if (needsRotation && imageGroup) {
+                    imageGroup.add(frameNode);
+                  } else {
+                    layer.add(frameNode);
+                    if (zOrderIndex !== undefined) {
+                      frameNode.setAttr('__zOrderIndex', zOrderIndex);
+                      frameNode.setAttr('__isFrame', true);
+                      frameNode.setAttr('__parentImageId', element.id);
+                      frameNode.setAttr('__elementId', element.id + '-frame');
+                      frameNode.setAttr('__nodeType', 'frame');
+                    }
                   }
                   
                   console.log('[PDFRenderer] Frame added to layer:', {
@@ -2621,6 +2740,18 @@ export function PDFRenderer({
                 } catch (frameError) {
                   console.error('[PDFRenderer] Error rendering frame for element:', element.id, frameError);
                   // Continue without frame - don't block image rendering
+                }
+              }
+              
+              // Add imageGroup to layer only if it exists (i.e., needsRotation is true)
+              if (needsRotation && imageGroup) {
+                layer.add(imageGroup);
+                
+                // Store z-order on Group
+                if (zOrderIndex !== undefined) {
+                  imageGroup.setAttr('__zOrderIndex', zOrderIndex);
+                  imageGroup.setAttr('__elementId', element.id);
+                  imageGroup.setAttr('__nodeType', 'image-group');
                 }
               }
               
@@ -2709,30 +2840,84 @@ export function PDFRenderer({
           const hasFill = fill !== 'transparent' && fill !== undefined;
           const useTheme = themeRenderer && theme !== 'default' && (hasBorder || hasFill);
 
-          console.log('[PDFRenderer] Shape analysis:', {
-            elementId: element.id,
-            theme,
-            borderWidth,
-            strokeWidth,
-            fill,
-            hasBorder,
-            hasFill,
-            useTheme,
-            hasThemeRenderer: !!themeRenderer,
-            elementType: element.type
-          });
+          console.log('[PDFRenderer] Shape analysis:',
+            'elementId:', String(element.id),
+            'theme:', String(theme),
+            'borderWidth:', Number(borderWidth),
+            'strokeWidth:', Number(strokeWidth),
+            'fill:', String(fill),
+            'hasBorder:', Boolean(hasBorder),
+            'hasFill:', Boolean(hasFill),
+            'useTheme:', Boolean(useTheme),
+            'hasThemeRenderer:', Boolean(!!themeRenderer),
+            'elementType:', String(element.type),
+            'elementRotation:', Number(elementRotation),
+            'needsRotation:', Boolean(elementRotation !== 0 && elementRotation !== undefined)
+          );
 
-          console.log('[PDFRenderer] Shape rendering:', {
-            elementId: element.id,
-            elementType: element.type,
-            theme,
-            borderWidth,
-            useTheme,
-            hasThemeRenderer: !!themeRenderer
-          });
+          console.log('[PDFRenderer] Shape rendering:',
+            'elementId:', String(element.id),
+            'elementType:', String(element.type),
+            'theme:', String(theme),
+            'borderWidth:', Number(borderWidth),
+            'useTheme:', Boolean(useTheme),
+            'hasThemeRenderer:', Boolean(!!themeRenderer)
+          );
+          
+          // For simple shapes, only use Group if rotation is needed
+          // Without rotation, render directly with absolute coordinates (like before)
+          const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
+          
+          let shapeGroup: Konva.Group | null = null;
+          let offsetX = 0;
+          let offsetY = 0;
+          
+          if (needsRotation) {
+            // Set offsetX and offsetY to center the rotation pivot point
+            offsetX = elementWidth / 2;
+            offsetY = elementHeight / 2;
+            const adjustedX = elementX + offsetX;
+            const adjustedY = elementY + offsetY;
+            
+            // DEBUG: Log Group positioning
+            console.log('[PDFRenderer] Shape Group positioning:', 
+              'elementId:', String(element.id),
+              'elementType:', String(element.type),
+              'elementX:', Number(elementX),
+              'elementY:', Number(elementY),
+              'elementWidth:', Number(elementWidth),
+              'elementHeight:', Number(elementHeight),
+              'offsetX:', Number(offsetX),
+              'offsetY:', Number(offsetY),
+              'adjustedX:', Number(adjustedX),
+              'adjustedY:', Number(adjustedY),
+              'rotation:', Number(elementRotation)
+            );
+            
+            // Create Group for shape (rotates as a unit)
+            shapeGroup = new Konva.Group({
+              x: adjustedX,
+              y: adjustedY,
+              offsetX: offsetX,
+              offsetY: offsetY,
+              rotation: elementRotation,
+              opacity: elementOpacity,
+              listening: false,
+            });
+          }
+          
+          // DEBUG: Log which path we're taking
+          console.log('[PDFRenderer] Shape rendering path decision:',
+            'elementId:', String(element.id),
+            'useTheme:', Boolean(useTheme),
+            'willEnterIfBlock:', Boolean(useTheme),
+            'willEnterElseBlock:', Boolean(!useTheme)
+          );
           
           if (useTheme) {
             // Use theme renderer for themed borders
+            // Theme engine generates coordinates relative to (0, 0), regardless of element.x/y
+            // So we always use (0, 0) for shapeElement - positioning is handled separately
             const shapeElement = {
               type: element.type as any,
               id: element.id,
@@ -2752,6 +2937,14 @@ export function PDFRenderer({
 
             const pathData = themeRenderer.generatePath(shapeElement);
             const strokeProps = themeRenderer.getStrokeProps(shapeElement);
+            
+            // DEBUG: Log pathData
+            console.log('[PDFRenderer] Theme renderer result:',
+              'elementId:', String(element.id),
+              'useTheme:', Boolean(useTheme),
+              'hasPathData:', Boolean(pathData),
+              'pathDataPreview:', pathData ? String(pathData).substring(0, 100) : 'null'
+            );
 
             // Debug: Log theme rendering
             // console.log('[PDFRenderer] Theme rendering:', {
@@ -2779,6 +2972,10 @@ export function PDFRenderer({
             // }
             
             if (pathData) {
+              console.log('[PDFRenderer] pathData exists, entering themed rendering block:',
+                'elementId:', String(element.id),
+                'theme:', String(theme)
+              );
               // Special handling for Candy and Wobbly themes - use borderElement exactly like textbox-qna.tsx
               if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
                 // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
@@ -2825,25 +3022,76 @@ export function PDFRenderer({
                   }
 
                   if (pathFill && pathFill !== 'transparent') {
+                    const fillPathX = needsRotation ? 0 : elementX;
+                    const fillPathY = needsRotation ? 0 : elementY;
+                    
+                    // DEBUG: Log Fill Path positioning
+                    if (needsRotation) {
+                      console.log('[PDFRenderer] Fill Path positioning (rotated):',
+                        'elementId:', String(element.id),
+                        'elementType:', String(element.type),
+                        'pathX:', Number(fillPathX),
+                        'pathY:', Number(fillPathY),
+                        'elementX:', Number(elementX),
+                        'elementY:', Number(elementY),
+                        'offsetX:', Number(offsetX),
+                        'offsetY:', Number(offsetY),
+                        'pathDataPreview:', String(pathData || '').substring(0, 100)
+                      );
+                    }
+                    
                     const fillPath = new Konva.Path({
                       data: pathData,
-                      x: elementX,
-                      y: elementY,
+                      // Position based on whether we're using a Group or not
+                      // For rotated shapes: Group has offsetX/offsetY, so (0,0) relative to Group
+                      // is visually at (elementX, elementY) absolute (same as in base-canvas-item.tsx)
+                      // For non-rotated shapes: use absolute coordinates
+                      x: fillPathX,
+                      y: fillPathY,
                       fill: pathFill,
                       stroke: 'transparent',
                       strokeWidth: 0,
-                      opacity: element.type === 'rect' && backgroundOpacity < 1 ? 1 : elementOpacity,
+                      opacity: element.type === 'rect' && backgroundOpacity < 1 ? 1 : 1,
                       strokeScaleEnabled: true,
-                      rotation: elementRotation,
+                      rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
                       listening: false,
                       lineCap: 'round',
                       lineJoin: 'round',
                     });
-                    layer.add(fillPath);
-                    const themedZOrderIndex = elementIdToZOrder.get(element.id);
-                    if (themedZOrderIndex !== undefined) {
-                      fillPath.setAttr('__zOrderIndex', themedZOrderIndex);
-                      fillPath.setAttr('__elementId', element.id);
+                    
+                    if (needsRotation && shapeGroup) {
+                      shapeGroup.add(fillPath);
+                      // DEBUG: Log actual absolute position after adding to Group
+                      const groupX = shapeGroup.x();
+                      const groupY = shapeGroup.y();
+                      const groupOffsetX = shapeGroup.offsetX();
+                      const groupOffsetY = shapeGroup.offsetY();
+                      const pathRelativeX = fillPath.x();
+                      const pathRelativeY = fillPath.y();
+                      const absoluteX = groupX - groupOffsetX + pathRelativeX;
+                      const absoluteY = groupY - groupOffsetY + pathRelativeY;
+                      console.log('[PDFRenderer] Fill Path absolute position after Group:',
+                        'elementId:', String(element.id),
+                        'groupX:', Number(groupX),
+                        'groupY:', Number(groupY),
+                        'groupOffsetX:', Number(groupOffsetX),
+                        'groupOffsetY:', Number(groupOffsetY),
+                        'pathRelativeX:', Number(pathRelativeX),
+                        'pathRelativeY:', Number(pathRelativeY),
+                        'calculatedAbsoluteX:', Number(absoluteX),
+                        'calculatedAbsoluteY:', Number(absoluteY),
+                        'expectedAbsoluteX:', Number(elementX),
+                        'expectedAbsoluteY:', Number(elementY),
+                        'differenceX:', Number(absoluteX - elementX),
+                        'differenceY:', Number(absoluteY - elementY)
+                      );
+                    } else {
+                      layer.add(fillPath);
+                      const themedZOrderIndex = elementIdToZOrder.get(element.id);
+                      if (themedZOrderIndex !== undefined) {
+                        fillPath.setAttr('__zOrderIndex', themedZOrderIndex);
+                        fillPath.setAttr('__elementId', element.id);
+                      }
                     }
                   }
 
@@ -2894,14 +3142,17 @@ export function PDFRenderer({
                     // Fallback: use existing manual implementation
                     return new Konva.Path({
                     data: borderPathData,
-                    x: elementX,
-                    y: elementY,
+                    // For rotated shapes: Group has offsetX/offsetY, so (0,0) relative to Group
+                    // is visually at (elementX, elementY) absolute (same as in base-canvas-item.tsx)
+                    // For non-rotated shapes: use absolute coordinates
+                    x: needsRotation ? 0 : elementX,
+                    y: needsRotation ? 0 : elementY,
                     stroke: pathStroke,
                     strokeWidth: borderStrokeProps.strokeWidth || borderWidth,
-                    opacity: element.type === 'rect' && borderOpacity < 1 ? 1 : elementOpacity,
+                    opacity: element.type === 'rect' && borderOpacity < 1 ? 1 : 1,
                     fill: borderStrokeProps.fill || 'transparent',
                     strokeScaleEnabled: true,
-                    rotation: elementRotation,
+                    rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
                     listening: false,
                     lineCap: 'round',
                     lineJoin: 'round',
@@ -2914,10 +3165,40 @@ export function PDFRenderer({
                   });
                   
                   if (borderPath) {
-                    // Set position and rotation
-                    borderPath.x(elementX);
-                    borderPath.y(elementY);
-                    borderPath.rotation(elementRotation);
+                    // Position based on whether we're using a Group or not
+                    if (needsRotation) {
+                      // renderThemedBorderKonva sets x/y based on pathOffsetX/pathOffsetY
+                      // For rects: pathOffsetX = 0, so path is at (0,0) relative to element top-left
+                      // For circles: path is centered, so pathOffsetX = 0 but path data is centered
+                      // For rotated shapes: Group has offsetX/offsetY, so (0,0) relative to Group
+                      // is visually at (elementX, elementY) absolute (same as in base-canvas-item.tsx)
+                      // IMPORTANT: Set position BEFORE adding to Group to ensure correct positioning
+                      
+                      // DEBUG: Log Border Path positioning before setting
+                      const initialBorderX = borderPath.x();
+                      const initialBorderY = borderPath.y();
+                      console.log('[PDFRenderer] Border Path positioning (rotated):',
+                        'elementId:', String(element.id),
+                        'elementType:', String(element.type),
+                        'initialX:', Number(initialBorderX),
+                        'initialY:', Number(initialBorderY),
+                        'elementX:', Number(elementX),
+                        'elementY:', Number(elementY),
+                        'offsetX:', Number(offsetX),
+                        'offsetY:', Number(offsetY),
+                        'settingToX:', 0,
+                        'settingToY:', 0
+                      );
+                      
+                      borderPath.x(0);
+                      borderPath.y(0);
+                      borderPath.rotation(0); // Explicitly set to 0 to ensure rotation comes from Group
+                    } else {
+                      // No rotation, use absolute coordinates
+                      borderPath.x(elementX);
+                      borderPath.y(elementY);
+                      borderPath.rotation(elementRotation);
+                    }
                     borderPath.visible(true);
                     
                     // Ensure shadow properties are set (for Glow theme)
@@ -2930,16 +3211,43 @@ export function PDFRenderer({
                         borderPath.shadowOffsetY(borderStrokeProps.shadowOffsetY || 0);
                       }
                     }
-                    
-                  layer.add(borderPath);
-                  // Set z-order attributes for ALL borders
-                  const borderZOrderIndex = elementIdToZOrder.get(element.id);
-                  if (borderZOrderIndex !== undefined) {
-                    borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
-                    borderPath.setAttr('__elementId', element.id);
-                    borderPath.setAttr('__isQnaNode', element.textType === 'qna');
-                    borderPath.setAttr('__nodeType', element.textType === 'qna' ? 'qna-border' : undefined);
-                  }
+                  
+                    if (needsRotation && shapeGroup) {
+                      shapeGroup.add(borderPath);
+                      // DEBUG: Log actual absolute position after adding to Group
+                      const borderGroupX = shapeGroup.x();
+                      const borderGroupY = shapeGroup.y();
+                      const borderGroupOffsetX = shapeGroup.offsetX();
+                      const borderGroupOffsetY = shapeGroup.offsetY();
+                      const borderPathRelativeX = borderPath.x();
+                      const borderPathRelativeY = borderPath.y();
+                      const borderAbsoluteX = borderGroupX - borderGroupOffsetX + borderPathRelativeX;
+                      const borderAbsoluteY = borderGroupY - borderGroupOffsetY + borderPathRelativeY;
+                      console.log('[PDFRenderer] Border Path absolute position after Group:',
+                        'elementId:', String(element.id),
+                        'groupX:', Number(borderGroupX),
+                        'groupY:', Number(borderGroupY),
+                        'groupOffsetX:', Number(borderGroupOffsetX),
+                        'groupOffsetY:', Number(borderGroupOffsetY),
+                        'pathRelativeX:', Number(borderPathRelativeX),
+                        'pathRelativeY:', Number(borderPathRelativeY),
+                        'calculatedAbsoluteX:', Number(borderAbsoluteX),
+                        'calculatedAbsoluteY:', Number(borderAbsoluteY),
+                        'expectedAbsoluteX:', Number(elementX),
+                        'expectedAbsoluteY:', Number(elementY),
+                        'differenceX:', Number(borderAbsoluteX - elementX),
+                        'differenceY:', Number(borderAbsoluteY - elementY)
+                      );
+                    } else {
+                      layer.add(borderPath);
+                      const borderZOrderIndex = elementIdToZOrder.get(element.id);
+                      if (borderZOrderIndex !== undefined) {
+                        borderPath.setAttr('__zOrderIndex', borderZOrderIndex);
+                        borderPath.setAttr('__elementId', element.id);
+                        borderPath.setAttr('__isQnaNode', element.textType === 'qna');
+                        borderPath.setAttr('__nodeType', element.textType === 'qna' ? 'qna-border' : undefined);
+                      }
+                    }
                   }
 
                   // console.log('[PDFRenderer] Created themed shape (Candy/Wobbly):', {
@@ -2983,72 +3291,134 @@ export function PDFRenderer({
                 // For other themes, create combined fill + stroke path
                 // Note: Fill is handled separately above, so we only need to handle stroke here
                 // But since the pathData includes both fill and stroke, we create a single path
+                const shapePathX = needsRotation ? 0 : elementX;
+                const shapePathY = needsRotation ? 0 : elementY;
+                
+                // DEBUG: Log Shape Path positioning
+                if (needsRotation) {
+                  console.log('[PDFRenderer] Shape Path positioning (rotated, regular theme):',
+                    'elementId:', String(element.id),
+                    'elementType:', String(element.type),
+                    'pathX:', Number(shapePathX),
+                    'pathY:', Number(shapePathY),
+                    'elementX:', Number(elementX),
+                    'elementY:', Number(elementY),
+                    'offsetX:', Number(offsetX),
+                    'offsetY:', Number(offsetY),
+                    'pathDataPreview:', String(pathData || '').substring(0, 100)
+                  );
+                }
+                
                 const shapePath = new Konva.Path({
                   data: pathData,
-                  x: elementX,
-                  y: elementY,
+                  // For rotated shapes: Group has offsetX/offsetY, so (0,0) relative to Group
+                  // is visually at (elementX, elementY) absolute (same as in base-canvas-item.tsx)
+                  // For non-rotated shapes: use absolute coordinates
+                  x: shapePathX,
+                  y: shapePathY,
                   fill: pathFill,
                   stroke: pathStroke,
                   strokeWidth: strokeProps.strokeWidth || strokeWidth, // Use strokeProps.strokeWidth for themed borders
-                  opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : (strokeProps.opacity !== undefined ? strokeProps.opacity : elementOpacity),
+                  opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : (strokeProps.opacity !== undefined ? strokeProps.opacity : 1),
                   shadowColor: strokeProps.shadowColor,
                   shadowBlur: strokeProps.shadowBlur,
                   shadowOpacity: strokeProps.shadowOpacity,
                   shadowOffsetX: strokeProps.shadowOffsetX,
                   shadowOffsetY: strokeProps.shadowOffsetY,
                   strokeScaleEnabled: true,
-                  rotation: elementRotation,
+                  rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
                   listening: false,
                   lineCap: strokeProps.lineCap || 'round',
                   lineJoin: strokeProps.lineJoin || 'round',
                 });
-                layer.add(shapePath);
-              // Store z-order on themed shape node
-              const themedZOrderIndex = elementIdToZOrder.get(element.id);
-
-              // console.log('[PDFRenderer] Created themed shape:', {
-              //   elementId: element.id,
-              //   theme,
-              //   pathDataLength: pathData.length,
-              //   strokeProps,
-              //   hasFill: !!pathFill,
-              //   hasStroke: !!pathStroke,
-              //   pathFill,
-              //   pathStroke,
-              //   strokeWidth: strokeProps.strokeWidth || strokeWidth
-              // });
-              if (themedZOrderIndex !== undefined) {
-                shapePath.setAttr('__zOrderIndex', themedZOrderIndex);
-                shapePath.setAttr('__elementId', element.id);
-              }
+                if (needsRotation && shapeGroup) {
+                  shapeGroup.add(shapePath);
+                  // DEBUG: Log actual absolute position after adding to Group
+                  const shapeGroupX = shapeGroup.x();
+                  const shapeGroupY = shapeGroup.y();
+                  const shapeGroupOffsetX = shapeGroup.offsetX();
+                  const shapeGroupOffsetY = shapeGroup.offsetY();
+                  const shapePathRelativeX = shapePath.x();
+                  const shapePathRelativeY = shapePath.y();
+                  const shapeAbsoluteX = shapeGroupX - shapeGroupOffsetX + shapePathRelativeX;
+                  const shapeAbsoluteY = shapeGroupY - shapeGroupOffsetY + shapePathRelativeY;
+                  console.log('[PDFRenderer] Shape Path absolute position after Group:',
+                    'elementId:', String(element.id),
+                    'groupX:', Number(shapeGroupX),
+                    'groupY:', Number(shapeGroupY),
+                    'groupOffsetX:', Number(shapeGroupOffsetX),
+                    'groupOffsetY:', Number(shapeGroupOffsetY),
+                    'pathRelativeX:', Number(shapePathRelativeX),
+                    'pathRelativeY:', Number(shapePathRelativeY),
+                    'calculatedAbsoluteX:', Number(shapeAbsoluteX),
+                    'calculatedAbsoluteY:', Number(shapeAbsoluteY),
+                    'expectedAbsoluteX:', Number(elementX),
+                    'expectedAbsoluteY:', Number(elementY),
+                    'differenceX:', Number(shapeAbsoluteX - elementX),
+                    'differenceY:', Number(shapeAbsoluteY - elementY)
+                  );
+                } else {
+                  layer.add(shapePath);
+                  const themedZOrderIndex = elementIdToZOrder.get(element.id);
+                  if (themedZOrderIndex !== undefined) {
+                    shapePath.setAttr('__zOrderIndex', themedZOrderIndex);
+                    shapePath.setAttr('__elementId', element.id);
+                  }
+                }
             }
           } else {
               // Fallback to regular shape
+              console.log('[PDFRenderer] ✅ ENTERING ELSE BLOCK - Using non-themed rendering path:',
+                'elementId:', String(element.id),
+                'elementType:', String(element.type),
+                'needsRotation:', Boolean(needsRotation),
+                'hasShapeGroup:', Boolean(shapeGroup),
+                'elementX:', Number(elementX),
+                'elementY:', Number(elementY),
+                'elementWidth:', Number(elementWidth),
+                'elementHeight:', Number(elementHeight)
+              );
               let shapeNode;
               if (element.type === 'circle') {
                 const circleRadius = Math.min(elementWidth, elementHeight) / 2;
                 shapeNode = new Konva.Circle({
-                  x: elementX + elementWidth / 2,
-                  y: elementY + elementHeight / 2,
+                  x: needsRotation ? 0 : (elementX + elementWidth / 2), // Relative to Group (center) or absolute center
+                  y: needsRotation ? 0 : (elementY + elementHeight / 2), // Relative to Group (center) or absolute center
                   radius: circleRadius,
                   fill: fill !== 'transparent' ? fill : undefined,
                   stroke: strokeWidth > 0 ? stroke : undefined,
                   strokeWidth: strokeWidth,
-                  rotation: elementRotation,
-                  opacity: elementOpacity,
+                  rotation: needsRotation ? undefined : elementRotation,
+                  opacity: 1,
                   listening: false
                 });
               } else if (element.type === 'line') {
+                // For lines, convert points based on whether we're using a Group or not
+                const absolutePoints = element.points || [elementX, elementY, elementX + elementWidth, elementY + elementHeight];
+                const points = needsRotation 
+                  ? absolutePoints.map((point, index) => {
+                      return index % 2 === 0 ? point - elementX - offsetX : point - elementY - offsetY;
+                    })
+                  : absolutePoints;
                 shapeNode = new Konva.Line({
-                  points: element.points || [elementX, elementY, elementX + elementWidth, elementY + elementHeight],
+                  points: points,
                   stroke: stroke,
                   strokeWidth: strokeWidth,
-                  rotation: elementRotation,
-                  opacity: elementOpacity,
+                  rotation: needsRotation ? undefined : elementRotation,
+                  opacity: 1,
                   listening: false
                 });
               } else {
                 // For rect elements, apply backgroundOpacity to fill color (RGBA) instead of using opacity property
+                console.log('[PDFRenderer] ✅ ENTERING RECT CREATION - Creating Rect node (non-themed):',
+                  'elementId:', String(element.id),
+                  'needsRotation:', Boolean(needsRotation),
+                  'hasShapeGroup:', Boolean(shapeGroup),
+                  'elementX:', Number(elementX),
+                  'elementY:', Number(elementY),
+                  'elementWidth:', Number(elementWidth),
+                  'elementHeight:', Number(elementHeight)
+                );
                 let rectFill = fill !== 'transparent' ? fill : undefined;
                 if (element.type === 'rect' && rectFill && backgroundOpacity < 1) {
                   if (rectFill.startsWith('#')) {
@@ -3076,26 +3446,72 @@ export function PDFRenderer({
                   }
                 }
 
+                const rectX = needsRotation ? 0 : elementX;
+                const rectY = needsRotation ? 0 : elementY;
+                
+                // DEBUG: Log Rect positioning
+                if (needsRotation) {
+                  console.log('[PDFRenderer] Rect positioning (rotated, non-themed):',
+                    'elementId:', String(element.id),
+                    'elementType:', String(element.type),
+                    'rectX:', Number(rectX),
+                    'rectY:', Number(rectY),
+                    'elementX:', Number(elementX),
+                    'elementY:', Number(elementY),
+                    'offsetX:', Number(offsetX),
+                    'offsetY:', Number(offsetY),
+                    'elementWidth:', Number(elementWidth),
+                    'elementHeight:', Number(elementHeight)
+                  );
+                }
+                
                 shapeNode = new Konva.Rect({
-                  x: elementX,
-                  y: elementY,
+                  x: rectX, // Relative to Group (0,0) or absolute
+                  y: rectY, // Relative to Group (0,0) or absolute
                   width: elementWidth,
                   height: elementHeight,
                   fill: rectFill,
                   stroke: rectStroke,
                   strokeWidth: element.type === 'line' ? strokeWidth : borderWidth,
                   cornerRadius: element.cornerRadius || 0,
-                  rotation: elementRotation,
-                  opacity: (element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1)) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                  rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
+                  opacity: (element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1)) ? 1 : 1, // Set to 1 if opacity is in colors
                   listening: false
                 });
               }
-              layer.add(shapeNode);
-              // Store z-order on shape node
-              const zOrderIndex = elementIdToZOrder.get(element.id);
-              if (zOrderIndex !== undefined) {
-                shapeNode.setAttr('__zOrderIndex', zOrderIndex);
-                shapeNode.setAttr('__elementId', element.id);
+              if (needsRotation && shapeGroup) {
+                shapeGroup.add(shapeNode);
+                // DEBUG: Log actual absolute position after adding to Group
+                const rectGroupX = shapeGroup.x();
+                const rectGroupY = shapeGroup.y();
+                const rectGroupOffsetX = shapeGroup.offsetX();
+                const rectGroupOffsetY = shapeGroup.offsetY();
+                const rectRelativeX = shapeNode.x();
+                const rectRelativeY = shapeNode.y();
+                const rectAbsoluteX = rectGroupX - rectGroupOffsetX + rectRelativeX;
+                const rectAbsoluteY = rectGroupY - rectGroupOffsetY + rectRelativeY;
+                console.log('[PDFRenderer] Rect absolute position after Group:',
+                  'elementId:', String(element.id),
+                  'groupX:', Number(rectGroupX),
+                  'groupY:', Number(rectGroupY),
+                  'groupOffsetX:', Number(rectGroupOffsetX),
+                  'groupOffsetY:', Number(rectGroupOffsetY),
+                  'rectRelativeX:', Number(rectRelativeX),
+                  'rectRelativeY:', Number(rectRelativeY),
+                  'calculatedAbsoluteX:', Number(rectAbsoluteX),
+                  'calculatedAbsoluteY:', Number(rectAbsoluteY),
+                  'expectedAbsoluteX:', Number(elementX),
+                  'expectedAbsoluteY:', Number(elementY),
+                  'differenceX:', Number(rectAbsoluteX - elementX),
+                  'differenceY:', Number(rectAbsoluteY - elementY)
+                );
+              } else {
+                layer.add(shapeNode);
+                const zOrderIndex = elementIdToZOrder.get(element.id);
+                if (zOrderIndex !== undefined) {
+                  shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+                  shapeNode.setAttr('__elementId', element.id);
+                }
               }
             }
           } else {
@@ -3104,35 +3520,31 @@ export function PDFRenderer({
             if (element.type === 'circle') {
               const circleRadius = Math.min(elementWidth, elementHeight) / 2;
               
-              // Debug: Log circle dimensions - ALWAYS log for circles
-              // console.log('[DEBUG PDFRenderer] Circle rendered (no theme):');
-              // console.log('  elementId:', element.id);
-              // console.log('  elementWidth:', elementWidth);
-              // console.log('  elementHeight:', elementHeight);
-              // console.log('  radius:', circleRadius, '(calculated: Math.min(' + elementWidth + ', ' + elementHeight + ') / 2 = ' + circleRadius + ')');
-              // console.log('  centerX:', elementX + elementWidth / 2);
-              // console.log('  centerY:', elementY + elementHeight / 2);
-              // console.log('  strokeWidth:', strokeWidth);
-              // console.log('  useTheme: false');
-              
               shapeNode = new Konva.Circle({
-                x: elementX + elementWidth / 2,
-                y: elementY + elementHeight / 2,
+                x: needsRotation ? 0 : (elementX + elementWidth / 2), // Relative to Group (center) or absolute center
+                y: needsRotation ? 0 : (elementY + elementHeight / 2), // Relative to Group (center) or absolute center
                 radius: circleRadius,
                 fill: fill !== 'transparent' ? fill : undefined,
                 stroke: strokeWidth > 0 ? stroke : undefined,
                 strokeWidth: strokeWidth,
-                rotation: elementRotation,
-                opacity: elementOpacity,
+                rotation: needsRotation ? undefined : elementRotation,
+                opacity: 1,
                 listening: false
               });
             } else if (element.type === 'line') {
+              // For lines, convert points based on whether we're using a Group or not
+              const absolutePoints = element.points || [elementX, elementY, elementX + elementWidth, elementY + elementHeight];
+              const points = needsRotation 
+                ? absolutePoints.map((point, index) => {
+                    return index % 2 === 0 ? point - elementX - offsetX : point - elementY - offsetY;
+                  })
+                : absolutePoints;
               shapeNode = new Konva.Line({
-                points: element.points || [elementX, elementY, elementX + elementWidth, elementY + elementHeight],
+                points: points,
                 stroke: stroke,
                 strokeWidth: strokeWidth,
-                rotation: elementRotation,
-                opacity: elementOpacity,
+                rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
+                opacity: 1,
                 listening: false
               });
             } else {
@@ -3166,26 +3578,53 @@ export function PDFRenderer({
               }
 
               shapeNode = new Konva.Rect({
-                x: elementX,
-                y: elementY,
+                x: needsRotation ? 0 : elementX, // Relative to Group (0,0) or absolute
+                y: needsRotation ? 0 : elementY, // Relative to Group (0,0) or absolute
                 width: elementWidth,
                 height: elementHeight,
                 fill: rectFill,
                 stroke: rectStroke,
                 strokeWidth: strokeWidth,
                 cornerRadius: element.cornerRadius || 0,
-                rotation: elementRotation,
-                opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : elementOpacity, // Set to 1 if opacity is in colors
+                rotation: needsRotation ? undefined : elementRotation,
+                opacity: element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1) ? 1 : 1, // Set to 1 if opacity is in colors
                 listening: false
               });
             }
             
-            layer.add(shapeNode);
-            // Store z-order on shape node
+            if (needsRotation && shapeGroup) {
+              shapeGroup.add(shapeNode);
+            } else {
+              layer.add(shapeNode);
+              const zOrderIndex = elementIdToZOrder.get(element.id);
+              if (zOrderIndex !== undefined) {
+                shapeNode.setAttr('__zOrderIndex', zOrderIndex);
+                shapeNode.setAttr('__elementId', element.id);
+              }
+            }
+          }
+          
+          // Add shapeGroup to layer only if it exists (i.e., needsRotation is true)
+          if (needsRotation && shapeGroup) {
+            // DEBUG: Log Group before adding to layer
+            console.log('[PDFRenderer] Adding Group to layer:',
+              'elementId:', String(element.id),
+              'groupX:', Number(shapeGroup.x()),
+              'groupY:', Number(shapeGroup.y()),
+              'groupOffsetX:', Number(shapeGroup.offsetX()),
+              'groupOffsetY:', Number(shapeGroup.offsetY()),
+              'groupRotation:', Number(shapeGroup.rotation()),
+              'childrenCount:', Number(shapeGroup.children.length)
+            );
+            
+            layer.add(shapeGroup);
+            
+            // Store z-order on Group
             const zOrderIndex = elementIdToZOrder.get(element.id);
             if (zOrderIndex !== undefined) {
-              shapeNode.setAttr('__zOrderIndex', zOrderIndex);
-              shapeNode.setAttr('__elementId', element.id);
+              shapeGroup.setAttr('__zOrderIndex', zOrderIndex);
+              shapeGroup.setAttr('__elementId', element.id);
+              shapeGroup.setAttr('__nodeType', 'shape-group');
             }
           }
         }
