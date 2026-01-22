@@ -4086,6 +4086,40 @@ export default function Canvas() {
     return { x: result.x, y: result.y };
   };
 
+  const handleTransformEnd = useCallback((e: Konva.KonvaEventObject<Event>) => {
+    const node = e.target;
+    const elementId = node.id();
+    const element = currentPage?.elements.find(el => el.id === elementId);
+    
+    if (element && element.type === 'text') {
+      const oldWidth = element.width || 100;
+      const oldHeight = element.height || 100;
+      const newWidth = node.width() * node.scaleX();
+      const newHeight = node.height() * node.scaleY();
+      
+      const deltaOffsetX = (oldWidth - newWidth) / 2;
+      const deltaOffsetY = (oldHeight - newHeight) / 2;
+      
+      const correctedX = element.x + deltaOffsetX;
+      const correctedY = element.y + deltaOffsetY;
+      
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: elementId,
+          updates: {
+            x: correctedX,
+            y: correctedY,
+            width: newWidth,
+            height: newHeight,
+            scaleX: 1,
+            scaleY: 1
+          }
+        }
+      });
+    }
+  }, [currentPage, dispatch]);
+
   // Auto-fit function to show entire CanvasPageEditArea
   const fitToView = useCallback(() => {
     if (!containerRef.current) return;

@@ -924,8 +924,13 @@ export function PDFRenderer({
         // Ensure element position is correctly set
         const elementX = typeof element.x === 'number' ? element.x : 0;
         const elementY = typeof element.y === 'number' ? element.y : 0;
-        const elementWidth = typeof element.width === 'number' ? element.width : 100;
-        const elementHeight = typeof element.height === 'number' ? element.height : 100;
+        // Apply scaleX and scaleY to width/height for shapes (they store scale separately)
+        const baseWidth = typeof element.width === 'number' ? element.width : 100;
+        const baseHeight = typeof element.height === 'number' ? element.height : 100;
+        const scaleX = typeof element.scaleX === 'number' ? element.scaleX : 1;
+        const scaleY = typeof element.scaleY === 'number' ? element.scaleY : 1;
+        const elementWidth = baseWidth * scaleX;
+        const elementHeight = baseHeight * scaleY;
         const elementRotation = typeof element.rotation === 'number' ? element.rotation : 0;
         const elementOpacity = typeof element.opacity === 'number' ? element.opacity : 1;
         
@@ -2864,20 +2869,20 @@ export function PDFRenderer({
             'hasThemeRenderer:', Boolean(!!themeRenderer)
           );
           
-          // For simple shapes, only use Group if rotation is needed
-          // Without rotation, render directly with absolute coordinates (like before)
+          // For shapes, always calculate offset based on scaled size (matching base-canvas-item.tsx)
+          // Position is stored without offset, so we need to add it back
+          const offsetX = elementWidth / 2;
+          const offsetY = elementHeight / 2;
+          const adjustedX = elementX + offsetX;
+          const adjustedY = elementY + offsetY;
+          
+          // Only use Group if rotation is needed
           const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
           
           let shapeGroup: Konva.Group | null = null;
-          let offsetX = 0;
-          let offsetY = 0;
           
           if (needsRotation) {
-            // Set offsetX and offsetY to center the rotation pivot point
-            offsetX = elementWidth / 2;
-            offsetY = elementHeight / 2;
-            const adjustedX = elementX + offsetX;
-            const adjustedY = elementY + offsetY;
+            // Set offsetX and offsetY to center the rotation pivot point (already calculated above)
             
             // DEBUG: Log Group positioning
             console.log('[PDFRenderer] Shape Group positioning:', 
@@ -3382,8 +3387,8 @@ export function PDFRenderer({
               if (element.type === 'circle') {
                 const circleRadius = Math.min(elementWidth, elementHeight) / 2;
                 shapeNode = new Konva.Circle({
-                  x: needsRotation ? 0 : (elementX + elementWidth / 2), // Relative to Group (center) or absolute center
-                  y: needsRotation ? 0 : (elementY + elementHeight / 2), // Relative to Group (center) or absolute center
+                  x: needsRotation ? 0 : adjustedX,
+                  y: needsRotation ? 0 : adjustedY,
                   radius: circleRadius,
                   fill: fill !== 'transparent' ? fill : undefined,
                   stroke: strokeWidth > 0 ? stroke : undefined,
@@ -3446,36 +3451,17 @@ export function PDFRenderer({
                   }
                 }
 
-                const rectX = needsRotation ? 0 : elementX;
-                const rectY = needsRotation ? 0 : elementY;
-                
-                // DEBUG: Log Rect positioning
-                if (needsRotation) {
-                  console.log('[PDFRenderer] Rect positioning (rotated, non-themed):',
-                    'elementId:', String(element.id),
-                    'elementType:', String(element.type),
-                    'rectX:', Number(rectX),
-                    'rectY:', Number(rectY),
-                    'elementX:', Number(elementX),
-                    'elementY:', Number(elementY),
-                    'offsetX:', Number(offsetX),
-                    'offsetY:', Number(offsetY),
-                    'elementWidth:', Number(elementWidth),
-                    'elementHeight:', Number(elementHeight)
-                  );
-                }
-                
                 shapeNode = new Konva.Rect({
-                  x: rectX, // Relative to Group (0,0) or absolute
-                  y: rectY, // Relative to Group (0,0) or absolute
+                  x: needsRotation ? 0 : adjustedX,
+                  y: needsRotation ? 0 : adjustedY,
                   width: elementWidth,
                   height: elementHeight,
                   fill: rectFill,
                   stroke: rectStroke,
                   strokeWidth: element.type === 'line' ? strokeWidth : borderWidth,
                   cornerRadius: element.cornerRadius || 0,
-                  rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
-                  opacity: (element.type === 'rect' && (backgroundOpacity < 1 || borderOpacity < 1)) ? 1 : 1, // Set to 1 if opacity is in colors
+                  rotation: needsRotation ? 0 : elementRotation,
+                  opacity: 1,
                   listening: false
                 });
               }
