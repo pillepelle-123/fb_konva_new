@@ -5882,6 +5882,23 @@ export default function Canvas() {
                     detail: { elementId }
                   }));
                 });
+                
+                // Store original position and dimensions for each transforming element
+                const nodes = transformerRef.current?.nodes() || [];
+                nodes.forEach(node => {
+                  const elementId = node.id();
+                  const element = currentPage?.elements.find(el => el.id === elementId);
+                  if (element && (element.type === 'image' || element.type === 'sticker')) {
+                    // Store original state for position recalculation at transformEnd
+                    (node as any).__transformStartState = {
+                      x: element.x || 0,
+                      y: element.y || 0,
+                      width: element.width || 150,
+                      height: element.height || 100,
+                      rotation: element.rotation || 0
+                    };
+                  }
+                });
               }}
               onTransform={() => {
                 // Handle image crop updates directly here for real-time updates
@@ -6037,17 +6054,8 @@ export default function Canvas() {
                     if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {
                       // Only update position and rotation, not dimensions
                       // Dimensions are handled by textbox-qna.tsx's or textbox-free-text.tsx's handleTransformEnd
-                      // Convert from adjusted position (with offset) back to original position (without offset)
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const actualX = node.x() - offsetX;
-                      const actualY = node.y() - offsetY;
-                      
+                      // Don't update position - let the component handle it
                       const updates: any = {
-                        x: actualX,
-                        y: actualY,
                         rotation: node.rotation()
                       };
                       
@@ -6076,31 +6084,36 @@ export default function Canvas() {
                         const imageNode = groupNode.findOne('Image') as Konva.Image;
                         
                         if (imageNode) {
-                          // For image elements, scale was converted to size during onTransform
-                          // Get the final size from the size state (via element.width/height which should be updated)
-                          // But during transformEnd, element.width/height might not be updated yet,
-                          // so we need to calculate from Group scale
+                          // Get original state stored at transformStart
+                          const startState = (node as any).__transformStartState;
+                          
+                          // Calculate final dimensions from Group scale
                           const groupScaleX = groupNode.scaleX();
                           const groupScaleY = groupNode.scaleY();
-                          const baseWidth = element.width || 150;
-                          const baseHeight = element.height || 100;
-
-                          // Calculate final dimensions from Group scale
+                          const baseWidth = startState?.width || element.width || 150;
+                          const baseHeight = startState?.height || element.height || 100;
                           const finalWidth = Math.max(20, baseWidth * groupScaleX);
                           const finalHeight = Math.max(20, baseHeight * groupScaleY);
 
-                          // Get rotation from Group node (Transformer is on Group now)
+                          // Get rotation from Group node
                           const groupRotation = groupNode.rotation();
+
+                          // Get position from Group node
+                          // The Transformer changes the Group position when using left/top resize handles
+                          // IMPORTANT: Group is rendered at element.x + offsetX, so we must subtract offset
+                          const offsetX = finalWidth / 2;
+                          const offsetY = finalHeight / 2;
+                          const groupX = groupNode.x();
+                          const groupY = groupNode.y();
 
                           updates.width = finalWidth;
                           updates.height = finalHeight;
-                          // Convert from adjusted position (with offset) back to original position (without offset)
-                          const offsetX = groupNode.offsetX() || 0;
-                          const offsetY = groupNode.offsetY() || 0;
-                          updates.x = groupNode.x() - offsetX;
-                          updates.y = groupNode.y() - offsetY;
-                          // Always save rotation, even if it's 0 - explicitly set to ensure it's saved
                           updates.rotation = typeof groupRotation === 'number' ? groupRotation : 0;
+                          updates.x = groupX - offsetX;
+                          updates.y = groupY - offsetY;
+                          
+                          // Clean up stored state
+                          delete (node as any).__transformStartState;
 
                           // Calculate and store crop values for PDF export consistency
                           // This ensures server and client use exactly the same crop values

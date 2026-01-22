@@ -2139,18 +2139,18 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         groupNode.scaleY(1);
         
         // Adjust position to maintain anchor point
-        // Use the original position and resize direction to calculate the new position
-        // This avoids feedback loops by using fixed reference values
+        // The Konva Transformer already handles rotation internally
+        // We only need to adjust for dimension changes from left/top anchors
         let newX = startPos.x;
         let newY = startPos.y;
         
         if (resizeDirection.fromLeft) {
-          // Resizing from left: anchor is at right, so move left by width change
+          // Resizing from left: anchor is at right, move left by width change
           newX = startPos.x - widthChange;
         }
         
         if (resizeDirection.fromTop) {
-          // Resizing from top: anchor is at bottom, so move up by height change
+          // Resizing from top: anchor is at bottom, move up by height change
           newY = startPos.y - heightChange;
         }
         
