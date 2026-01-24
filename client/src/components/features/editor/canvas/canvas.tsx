@@ -2266,13 +2266,13 @@ export default function Canvas() {
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
     // DEBUG: Log mouseup event
-    console.log('[handleMouseUp] Called', { 
-      isSelecting, 
-      selectionStart, 
-      currentPage: !!currentPage,
-      target: e.target.getClassName(),
-      isStage: e.target === e.target.getStage()
-    });
+    // console.log('[handleMouseUp] Called', { 
+    //   isSelecting, 
+    //   selectionStart, 
+    //   currentPage: !!currentPage,
+    //   target: e.target.getClassName(),
+    //   isStage: e.target === e.target.getStage()
+    // });
     
     // Block all mouse up interactions for no_access users except panning
     if (state.editorInteractionLevel === 'no_access') {
@@ -2686,7 +2686,7 @@ export default function Canvas() {
       setIsSelecting(false);
       setSelectionStart(null);
     } else {
-      console.log('[handleMouseUp] Not completing selection', { isSelecting, selectionStart: !!selectionStart, currentPage: !!currentPage });
+      // console.log('[handleMouseUp] Not completing selection', { isSelecting, selectionStart: !!selectionStart, currentPage: !!currentPage });
     }
     setIsDrawing(false);
     setCurrentPath([]);
@@ -4333,13 +4333,13 @@ export default function Canvas() {
       // hasn't updated the state yet
       const stage = stageRef.current;
       const pointerPos = stage.getPointerPosition();
-      console.log('[handleGlobalSelectionMouseUp] Pointer position', pointerPos);
-      console.log('[handleGlobalSelectionMouseUp] Stage pos', stagePos);
-      console.log('[handleGlobalSelectionMouseUp] Zoom', zoom);
-      console.log('[handleGlobalSelectionMouseUp] Selection start', selectionStart);
+      // console.log('[handleGlobalSelectionMouseUp] Pointer position', pointerPos);
+      // console.log('[handleGlobalSelectionMouseUp] Stage pos', stagePos);
+      // console.log('[handleGlobalSelectionMouseUp] Zoom', zoom);
+      // console.log('[handleGlobalSelectionMouseUp] Selection start', selectionStart);
       
       if (!pointerPos) {
-        console.log('[handleGlobalSelectionMouseUp] No pointer position');
+        // console.log('[handleGlobalSelectionMouseUp] No pointer position');
         return;
       }
       
@@ -4350,7 +4350,7 @@ export default function Canvas() {
       const width = x - selectionStart.x;
       const height = y - selectionStart.y;
       
-      console.log('[handleGlobalSelectionMouseUp] Calculated coords', { x, y, width, height });
+      // console.log('[handleGlobalSelectionMouseUp] Calculated coords', { x, y, width, height });
       
       const finalRect = {
         x: width < 0 ? x : selectionStart.x,
@@ -4360,7 +4360,7 @@ export default function Canvas() {
         visible: true
       };
       
-      console.log('[handleGlobalSelectionMouseUp] Final rect', finalRect);
+      // console.log('[handleGlobalSelectionMouseUp] Final rect', finalRect);
       
       // Only select if rectangle is large enough
       if (finalRect.width >= 5 && finalRect.height >= 5) {
@@ -4371,7 +4371,7 @@ export default function Canvas() {
           pageOffsetY
         );
         
-        console.log('[handleGlobalSelectionMouseUp] Selected IDs', selectedIds);
+        // console.log('[handleGlobalSelectionMouseUp] Selected IDs', selectedIds);
         
         // Add linked question-answer pairs
         const finalSelectedIds = new Set(selectedIds);
@@ -4385,7 +4385,7 @@ export default function Canvas() {
           }
         });
         
-        console.log('[handleGlobalSelectionMouseUp] Final selected IDs', Array.from(finalSelectedIds));
+        // console.log('[handleGlobalSelectionMouseUp] Final selected IDs', Array.from(finalSelectedIds));
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
         // Mark that we just completed a selection to prevent handleStageClick from clearing it
         justCompletedSelectionRef.current = true;
@@ -4394,7 +4394,7 @@ export default function Canvas() {
           justCompletedSelectionRef.current = false;
         }, 200);
       } else {
-        console.log('[handleGlobalSelectionMouseUp] Rectangle too small, clearing selection');
+        // console.log('[handleGlobalSelectionMouseUp] Rectangle too small, clearing selection');
         // Clear selection if rectangle is too small
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       }
@@ -5704,6 +5704,23 @@ export default function Canvas() {
               rotationSnapTolerance={5}
               resizeEnabled={!(state.editorSettings?.editor?.lockElements)}
               rotateEnabled={!(state.editorSettings?.editor?.lockElements)}
+              boundBoxFunc={(oldBox, newBox) => {
+                // Check if any selected elements are text elements (qna, free_text)
+                const hasTextElements = state.selectedElementIds.some(id => {
+                  const element = currentPage?.elements.find(el => el.id === id);
+                  return element && element.type === 'text' &&
+                         (element.textType === 'qna' || element.textType === 'free_text');
+                });
+
+                // Use appropriate minimum sizes based on element type
+                const minWidth = hasTextElements ? 50 : 5;
+                const minHeight = hasTextElements ? 30 : 5;
+
+                if (newBox.width < minWidth || newBox.height < minHeight) {
+                  return oldBox;
+                }
+                return newBox;
+              }}
               onDragStart={() => {
                 dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
               }}

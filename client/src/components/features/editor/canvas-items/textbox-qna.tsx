@@ -1217,21 +1217,9 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   // Refs must be declared before they are used
   const textShapeRef = useRef<Konva.Shape>(null);
   const textRef = useRef<Konva.Rect>(null);
-  const isTransformingRef = useRef(false);
-  const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
-  const transformOriginalDimensionsRef = useRef<{ width: number; height: number } | null>(null);
-  const transformStartPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const transformResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean; fromBottom?: boolean; fromRight?: boolean } | null>(null);
-  // Store resize direction for use in handleTransformEnd (after cleanup)
-  const storedResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean; fromBottom?: boolean; fromRight?: boolean } | null>(null);
-  // Add ref to track minimum dimensions when opposite edge is reached
-  const minDimensionReachedRef = useRef<{ width: boolean; height: boolean }>({ width: false, height: false });
-  
-  // Local state for dimensions during transform (to update visually without dispatch)
-  // ONLY used during active transform, NOT during initial load
-  const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
-  const transformDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  // Store resize direction for position correction during transform
+  const storedResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean } | null>(null);
   
   // State to track if answer editor is open (to hide only answer text, not question)
   const [isAnswerEditorOpen, setIsAnswerEditorOpen] = useState(false);
@@ -1252,16 +1240,10 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     addElementRef.current = null;
   }
   
-  // Sync ref with state
-  useEffect(() => {
-    transformDimensionsRef.current = transformDimensions;
-  }, [transformDimensions]);
   
-  // Use transform dimensions during active transform OR if transformDimensions are set (waiting for element update)
-  // Otherwise use element dimensions
-  // This ensures we keep the visual state until element dimensions are actually updated
-  const boxWidth = transformDimensions ? transformDimensions.width : elementWidth;
-  const boxHeight = transformDimensions ? transformDimensions.height : elementHeight;
+  // Use element dimensions (Konva handles transformations naturally)
+  const boxWidth = elementWidth;
+  const boxHeight = elementHeight;
   
   const textShapeBoxRef = useRef<{ width: number; height: number }>({
     width: boxWidth,
@@ -1901,376 +1883,118 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   }, [boxWidth, boxHeight]);
   
   // Track the last dispatched dimensions to detect when props are updated
-  const lastDispatchedDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   
-  // Reset transform dimensions when element dimensions change to match transform dimensions
-  // This ensures we keep the visual state until the element is actually updated
-  // ONLY reset after transform is complete AND element dimensions have been updated
-  useEffect(() => {
-    // Don't reset during active transform
-    if (isTransformingRef.current) return;
-    
-    // Don't reset if element dimensions are invalid (0 or undefined)
-    if (!elementWidth || !elementHeight || elementWidth <= 0 || elementHeight <= 0) return;
-    
-    if (transformDimensions) {
-      // Only reset if element dimensions match transform dimensions (update was successful)
-      // Use a small tolerance to account for floating point precision
-      const widthMatch = Math.abs(elementWidth - transformDimensions.width) < 0.1;
-      const heightMatch = Math.abs(elementHeight - transformDimensions.height) < 0.1;
-      
-      if (widthMatch && heightMatch) {
-        // Reset transformDimensions after successful update
-        // Use a small delay to ensure the element update has been processed
-        const timeoutId = setTimeout(() => {
-          if (!isTransformingRef.current) {
-            setTransformDimensions(null);
-            lastDispatchedDimensionsRef.current = null;
-          }
-        }, 50);
-        
-        return () => clearTimeout(timeoutId);
-      }
-    }
-  }, [elementWidth, elementHeight, transformDimensions, element.id, element.textType]);
 
   // Handle transform events to resize text properly (as per Konva documentation)
   // Reset scale to 1 and update width/height instead
   // We update dimensions only at transformEnd to avoid interrupting the transform process
+  // Transform handling with proper position adjustments for resize handles
   useEffect(() => {
     const handleTransformStart = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
 
-      isTransformingRef.current = true;
       setIsTransforming(true);
 
-      // Get the Group node to access position and determine resize direction
+      // Store resize direction for position correction
       const rectNode = textRef.current;
       if (!rectNode) return;
 
       const groupNode = rectNode.getParent();
       if (!groupNode || groupNode.getClassName() !== 'Group') return;
 
-      // Use current transformDimensions if available, otherwise use element dimensions
-      // This ensures we start from the correct visual state (prevents jumping)
-      const currentTransformDims = transformDimensionsRef.current;
-      const currentWidth = currentTransformDims?.width ?? elementWidth;
-      const currentHeight = currentTransformDims?.height ?? elementHeight;
-
-      // Store initial dimensions and position at transform start
-      transformStartDimensionsRef.current = {
-        width: currentWidth,
-        height: currentHeight
-      };
-
-      // Store original dimensions (from element state) for position calculation
-      transformOriginalDimensionsRef.current = {
-        width: elementWidth,
-        height: elementHeight
-      };
-
-      transformStartPositionRef.current = {
-        x: groupNode.x(),
-        y: groupNode.y()
-      };
-      
-      // Determine resize direction from active anchor (only once at start)
       const stage = groupNode.getStage();
       const transformer = stage?.findOne('Transformer') as Konva.Transformer | null;
-      
-      let fromTop = false;
-      let fromLeft = false;
-      let fromBottom = false;
-      let fromRight = false;
-      
+
       if (transformer) {
         const activeAnchor = transformer.getActiveAnchor();
         if (activeAnchor) {
-          fromTop = activeAnchor.includes('top');
-          fromLeft = activeAnchor.includes('left');
-          fromBottom = activeAnchor.includes('bottom');
-          fromRight = activeAnchor.includes('right');
+          const fromTop = activeAnchor.includes('top');
+          const fromLeft = activeAnchor.includes('left');
+          storedResizeDirectionRef.current = { fromTop, fromLeft };
         }
       }
-      
-      transformResizeDirectionRef.current = { fromTop, fromLeft, fromBottom, fromRight };
-      // Store for use in handleTransformEnd
-      storedResizeDirectionRef.current = { fromTop, fromLeft, fromBottom, fromRight };
-      
-      // Reset minimum dimension flags
-      minDimensionReachedRef.current = { width: false, height: false };
-      
-      // Initialize transformDimensions immediately to prevent visual jump
-      // This ensures boxWidth/boxHeight use the correct values from the start
-      setTransformDimensions({
-        width: currentWidth,
-        height: currentHeight
-      });
     };
-    
-    const handleTransform = (e: CustomEvent) => {
-      if (e.detail?.elementId !== element.id) return;
-      if (!isTransformingRef.current) return;
-      
-      // Get the Group node from the textRef (which is a child of the Group)
-      const rectNode = textRef.current;
-      if (!rectNode) return;
-      
-      const groupNode = rectNode.getParent();
-      if (!groupNode || groupNode.getClassName() !== 'Group') return;
-      
-      const stage = groupNode.getStage();
-      if (!stage) return;
-      
-      // Get current mouse position in stage coordinates
-      const pointerPos = stage.getPointerPosition();
-      if (!pointerPos) return;
-      
-      const scaleX = groupNode.scaleX();
-      const scaleY = groupNode.scaleY();
-      
-      // Only reset scale if it's not already 1 (to avoid unnecessary operations)
-      if (scaleX !== 1 || scaleY !== 1) {
-        // Get initial dimensions from when transform started
-        const startDims = transformStartDimensionsRef.current || { width: elementWidth, height: elementHeight };
-        const originalDims = transformOriginalDimensionsRef.current || { width: elementWidth, height: elementHeight };
-        const startPos = transformStartPositionRef.current || { x: element.x || 0, y: element.y || 0 };
-        const resizeDirection = transformResizeDirectionRef.current || { fromTop: false, fromLeft: false, fromBottom: false, fromRight: false };
-        
-        // Convert mouse position to local coordinates (relative to element's local coordinate system)
-        // This is critical: we need the pointer position in the element's local space
-        // to compare against the opposite edges
-        const groupTransform = groupNode.getAbsoluteTransform().copy().invert();
-        const localPointerPos = groupTransform.point(pointerPos);
-        
-        // Configuration: Buffer zone and minimum dimension
-        const BUFFER = 60; // Puffer in Pixeln - Dimension wird eingefroren, wenn Maus noch BUFFER Pixel vor der Grenze ist
-        const MIN_DIMENSION = 70; // Minimale Größe der Textbox (größer als vorher)
-        
-        // ============================================
-        // HANDLE WIDTH DIMENSION (X-direction)
-        // ============================================
-        // This applies to handles that resize width:
-        // - left, right (middle handles)
-        // - top-left, top-right, bottom-left, bottom-right (corner handles)
-        let newWidth = startDims.width * scaleX;
-        
-        if (resizeDirection.fromLeft || resizeDirection.fromRight) {
-          // Determine opposite edge position in local coordinates
-          // For left-side handles (left, top-left, bottom-left): opposite edge is RIGHT (x = startDims.width)
-          // For right-side handles (right, top-right, bottom-right): opposite edge is LEFT (x = 0)
-          const oppositeX = resizeDirection.fromLeft ? startDims.width : 0;
-          
-          // Calculate buffer zone: freeze dimension when pointer is within BUFFER pixels of the opposite edge
-          // For left-side: freeze when pointer is at or beyond (oppositeX - BUFFER)
-          // For right-side: freeze when pointer is at or before (oppositeX + BUFFER)
-          const bufferThresholdX = resizeDirection.fromLeft 
-            ? oppositeX - BUFFER  // Left-side: freeze when pointer reaches this point (BUFFER pixels before right edge)
-            : oppositeX + BUFFER; // Right-side: freeze when pointer reaches this point (BUFFER pixels after left edge)
-          
-          // Check if pointer has crossed the buffer threshold in X direction
-          const hasCrossedBufferX = resizeDirection.fromLeft 
-            ? localPointerPos.x >= bufferThresholdX  // Left-side: pointer at or beyond buffer threshold
-            : localPointerPos.x <= bufferThresholdX;  // Right-side: pointer at or before buffer threshold
-          
-          if (hasCrossedBufferX) {
-            // Freeze width dimension at minimum
-            if (!minDimensionReachedRef.current.width) {
-              minDimensionReachedRef.current.width = true;
-            }
-            newWidth = MIN_DIMENSION;
-          } else {
-            // Pointer is back on the correct side in X direction - allow resizing again
-            minDimensionReachedRef.current.width = false;
-            newWidth = Math.max(MIN_DIMENSION, newWidth);
-          }
-        } else {
-          // Not resizing width (e.g., top-center or bottom-center handle) - reset flag
-          minDimensionReachedRef.current.width = false;
-          newWidth = Math.max(MIN_DIMENSION, newWidth);
-        }
-        
-        // ============================================
-        // HANDLE HEIGHT DIMENSION (Y-direction)
-        // ============================================
-        // This applies to handles that resize height:
-        // - top, bottom (middle handles)
-        // - top-left, top-right, bottom-left, bottom-right (corner handles)
-        let newHeight = startDims.height * scaleY;
-        
-        if (resizeDirection.fromTop || resizeDirection.fromBottom) {
-          // Determine opposite edge position in local coordinates
-          // For top-side handles (top, top-left, top-right): opposite edge is BOTTOM (y = startDims.height)
-          // For bottom-side handles (bottom, bottom-left, bottom-right): opposite edge is TOP (y = 0)
-          const oppositeY = resizeDirection.fromTop ? startDims.height : 0;
-          
-          // Calculate buffer zone: freeze dimension when pointer is within BUFFER pixels of the opposite edge
-          // For top-side: freeze when pointer is at or beyond (oppositeY - BUFFER)
-          // For bottom-side: freeze when pointer is at or before (oppositeY + BUFFER)
-          const bufferThresholdY = resizeDirection.fromTop
-            ? oppositeY - BUFFER  // Top-side: freeze when pointer reaches this point (BUFFER pixels before bottom edge)
-            : oppositeY + BUFFER; // Bottom-side: freeze when pointer reaches this point (BUFFER pixels after top edge)
-          
-          // Check if pointer has crossed the buffer threshold in Y direction
-          const hasCrossedBufferY = resizeDirection.fromTop
-            ? localPointerPos.y >= bufferThresholdY  // Top-side: pointer at or beyond buffer threshold
-            : localPointerPos.y <= bufferThresholdY; // Bottom-side: pointer at or before buffer threshold
-          
-          if (hasCrossedBufferY) {
-            // Freeze height dimension at minimum
-            if (!minDimensionReachedRef.current.height) {
-              minDimensionReachedRef.current.height = true;
-            }
-            newHeight = MIN_DIMENSION;
-          } else {
-            // Pointer is back on the correct side in Y direction - allow resizing again
-            minDimensionReachedRef.current.height = false;
-            newHeight = Math.max(MIN_DIMENSION, newHeight);
-          }
-        } else {
-          // Not resizing height (e.g., middle-left or middle-right handle) - reset flag
-          minDimensionReachedRef.current.height = false;
-          newHeight = Math.max(MIN_DIMENSION, newHeight);
-        }
-        
-        // Calculate dimension changes from original dimensions
-        const widthChange = newWidth - originalDims.width;
-        const heightChange = newHeight - originalDims.height;
-        
-        // Reset scale to 1 immediately (this is the key part from Konva docs)
-        // This allows the transform to continue smoothly
-        groupNode.scaleX(1);
-        groupNode.scaleY(1);
-        
-        // Position adjustments are now handled in handleTransformEnd to avoid
-        // interfering with the Transformer during active transformation
-        
-        // Update textShapeBoxRef for getClientRect calculations immediately
-        // This ensures the selection rectangle stays correct during transform
-        textShapeBoxRef.current = { width: newWidth, height: newHeight };
-        
-        // Update local state to visually update the component during transform
-        // This updates the boxWidth/boxHeight used for rendering without dispatch
-        setTransformDimensions({ width: newWidth, height: newHeight });
-        
-        // Store the new dimensions for update at transformEnd
-        transformStartDimensionsRef.current = {
-          width: newWidth,
-          height: newHeight
-        };
-      }
-    };
-    
+
     const handleTransformEnd = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
-      
-      // Get the Group node to adjust position if needed
+
+      // Get the transformed node (Konva handles the transformation)
       const rectNode = textRef.current;
       const groupNode = rectNode?.getParent();
-      
-      // Apply the final dimensions update
-      const finalDims = transformStartDimensionsRef.current;
-      
-      if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
-        // Get final position from groupNode (already adjusted during transform)
-        const finalVisualX = groupNode ? groupNode.x() : (element.x || 0);
-        const finalVisualY = groupNode ? groupNode.y() : (element.y || 0);
+      if (!groupNode || groupNode.getClassName() !== 'Group') return;
 
-        // CRITICAL FIX: Get CURRENT offsets from BaseCanvasItem, not stored old ones
-        // BaseCanvasItem recalculates offsets when dimensions change
-        const currentOffsetX = groupNode ? (groupNode.offsetX() || 0) : 0;
-        const currentOffsetY = groupNode ? (groupNode.offsetY() || 0) : 0;
-        const offsets = { offsetX: currentOffsetX, offsetY: currentOffsetY };
+      // Calculate final dimensions including any scaling applied by the transformer
+      const scaleX = groupNode.scaleX();
+      const scaleY = groupNode.scaleY();
 
-        // Convert visual coordinates back to element coordinates by subtracting offsets
-        let finalElementX = finalVisualX - offsets.offsetX;
-        let finalElementY = finalVisualY - offsets.offsetY;
+      // Debug: Log scale and dimensions before reset
+      console.log(`  Scale values: x=${scaleX}, y=${scaleY}`);
+      console.log(`  Group dimensions before scale reset: ${groupNode.width()} x ${groupNode.height()}`);
+      console.log(`  Group position before scale reset: (${groupNode.x()}, ${groupNode.y()})`);
 
-        // Apply position adjustments to maintain anchor points based on dimension changes
-        // Ensure all values are valid numbers to prevent NaN issues
-        const dimensionChangeX = (finalDims.width || 0) - (elementWidth || 0);
-        const dimensionChangeY = (finalDims.height || 0) - (elementHeight || 0);
+      // Reset scale back to 1 (Konva best practice)
+      groupNode.scaleX(1);
+      groupNode.scaleY(1);
 
-        // Validate that our calculations don't produce NaN
-        if (isNaN(dimensionChangeX) || isNaN(dimensionChangeY)) {
-          console.warn('[textbox-qna] Dimension changes produced NaN:', {
-            finalDimsWidth: finalDims.width,
-            elementWidth,
-            finalDimsHeight: finalDims.height,
-            elementHeight
-          });
-        }
+      // Calculate actual dimensions and ensure minimum size for text readability
+      const finalWidth = Math.max(50, groupNode.width() * scaleX);
+      const finalHeight = Math.max(30, groupNode.height() * scaleY);
 
-        if (storedResizeDirectionRef.current?.fromLeft && !isNaN(dimensionChangeX)) {
-          // Resizing from left: anchor is at right, move left by width change
-          finalElementX = finalElementX - dimensionChangeX;
-        }
+      // Calculate position adjustments based on resize direction
+      // When resizing from left/top handles, we need to adjust position to maintain visual center
+      const widthChange = finalWidth - elementWidth;
+      const heightChange = finalHeight - elementHeight;
 
-        if (storedResizeDirectionRef.current?.fromTop && !isNaN(dimensionChangeY)) {
-          // Resizing from top: anchor is at bottom, move up by height change
-          finalElementY = finalElementY - dimensionChangeY;
-        }
+      const resizeDirection = storedResizeDirectionRef.current;
+      let positionUpdates: { x?: number; y?: number } = {};
 
-        // Final validation to ensure we don't dispatch NaN values
-        if (isNaN(finalElementX) || isNaN(finalElementY)) {
-          console.error('[textbox-qna] Final position contains NaN:', {
-            finalElementX,
-            finalElementY,
-            finalVisualX,
-            finalVisualY,
-            offsets
-          });
-          // Fallback to original position if calculation failed
-          finalElementX = finalVisualX - (offsets.offsetX || 0);
-          finalElementY = finalVisualY - (offsets.offsetY || 0);
-        }
+      // Debug logging for resize behavior
+      console.log(`[TextboxTransform] Element ${element.id}:`);
+      console.log(`  Resize direction: ${JSON.stringify(resizeDirection)}`);
+      console.log(`  Dimension changes: (${widthChange}, ${heightChange})`);
+      console.log(`  Original position: (${element.x}, ${element.y})`);
 
-        // Store the dispatched dimensions so we can track when props are updated
-        lastDispatchedDimensionsRef.current = {
-          width: finalDims.width,
-          height: finalDims.height
-        };
-
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: element.id,
-            updates: {
-              width: finalDims.width,
-              height: finalDims.height,
-              x: finalElementX,
-              y: finalElementY
-            }
-          }
-        });
-        
-        // Keep transformDimensions until element dimensions are updated
-        // The useEffect will reset it when element dimensions match
-      } else {
-        // If dimensions didn't change, reset immediately
-        setTransformDimensions(null);
+      // Adjust position when resizing from left or top handles
+      if (resizeDirection?.fromLeft && widthChange !== 0) {
+        // When resizing from left, move position by half the width change
+        positionUpdates.x = element.x - widthChange / 2;
+        console.log(`  Left handle adjustment: ${positionUpdates.x} (moved by ${-widthChange / 2})`);
       }
-      
-      // Reset flags and refs (but keep transformDimensions until element updates)
-      isTransformingRef.current = false;
+
+      if (resizeDirection?.fromTop && heightChange !== 0) {
+        // When resizing from top, move position by half the height change
+        positionUpdates.y = element.y - heightChange / 2;
+        console.log(`  Top handle adjustment: ${positionUpdates.y} (moved by ${-heightChange / 2})`);
+      }
+
+      console.log(`  Final position updates: ${JSON.stringify(positionUpdates)}`);
+
+      // Update element with new dimensions and corrected position
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            width: finalWidth,
+            height: finalHeight,
+            ...positionUpdates
+          }
+        }
+      });
+
+      // Reset transform state
       setIsTransforming(false);
-      transformStartDimensionsRef.current = null;
-      transformOriginalDimensionsRef.current = null;
-      transformStartPositionRef.current = null;
-      transformResizeDirectionRef.current = null;
       storedResizeDirectionRef.current = null;
     };
-    
+
     window.addEventListener('transformStart', handleTransformStart as EventListener);
-    window.addEventListener('transform', handleTransform as EventListener);
     window.addEventListener('transformEnd', handleTransformEnd as EventListener);
-    
+
     return () => {
       window.removeEventListener('transformStart', handleTransformStart as EventListener);
-      window.removeEventListener('transform', handleTransform as EventListener);
       window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
     };
-  }, [element.id, elementWidth, elementHeight, dispatch]);
+  }, [element.id, elementWidth, elementHeight, element.x, element.y, dispatch]);
 
   useEffect(() => {
     const shape = textShapeRef.current;
