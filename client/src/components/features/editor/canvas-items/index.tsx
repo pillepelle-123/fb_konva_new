@@ -58,17 +58,17 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
       if (prev.onDragEnd !== props.onDragEnd) changed.push(`onDragEnd callback changed`);
       
       if (changed.length > 0) {
-        console.log(`[CanvasItemComponent] Re-render #${renderCountRef.current} for element "${element.id}" (${element.type}):`, changed);
+        // console.log(`[CanvasItemComponent] Re-render #${renderCountRef.current} for element "${element.id}" (${element.type}):`, changed);
       } else {
         // This can happen if useEditor() is still being called (fallback case)
         // or if React batches multiple state updates and renders before props are updated
-        console.warn(`[CanvasItemComponent] Re-render #${renderCountRef.current} for element "${element.id}" (${element.type}) but NO PROPS CHANGED! This should not happen with React.memo!`);
-        console.debug(`[CanvasItemComponent] Debug info:`, {
-          hasDispatchProp: !!props.dispatch,
-          hasEditorContext: !!editorContext,
-          elementId: element.id,
-          elementType: element.type
-        });
+        // console.warn(`[CanvasItemComponent] Re-render #${renderCountRef.current} for element "${element.id}" (${element.type}) but NO PROPS CHANGED! This should not happen with React.memo!`);
+        // console.debug(`[CanvasItemComponent] Debug info:`, {
+        //   hasDispatchProp: !!props.dispatch,
+        //   hasEditorContext: !!editorContext,
+        //   elementId: element.id,
+        //   elementType: element.type
+        // });
       }
     }
     prevPropsRef.current = { ...props };
@@ -177,7 +177,7 @@ const arePropsEqual = (
 ): boolean => {
   // Debug: Log IMMER wenn Vergleichsfunktion aufgerufen wird (für alle Elemente, um zu sehen ob sie aufgerufen wird)
   if (prevProps.element.type === 'text' && prevProps.element.textType === 'qna') {
-    console.log(`[CanvasItemComponent memo] Comparison function CALLED for ${prevProps.element.id}`);
+    // console.log(`[CanvasItemComponent memo] Comparison function CALLED for ${prevProps.element.id}`);
   }
   
   // Debug: Log wenn Vergleichsfunktion aufgerufen wird (nur für QNA-Elemente)
@@ -187,12 +187,12 @@ const arePropsEqual = (
     
     // Prüfe ob Element-Referenz gleich ist
     if (prevEl === nextEl) {
-      console.log(`[CanvasItemComponent memo] Element reference is SAME for ${prevEl.id} - but checking other props...`);
+      // console.log(`[CanvasItemComponent memo] Element reference is SAME for ${prevEl.id} - but checking other props...`);
       // Wenn Referenz gleich ist, bedeutet das, dass sich das Element-Objekt nicht geändert hat
       // ABER: Andere Props könnten sich geändert haben (z.B. Callbacks, State-Werte)
       // Wir müssen trotzdem alle anderen Props prüfen!
     } else {
-      console.log(`[CanvasItemComponent memo] Element reference is DIFFERENT for ${prevEl.id} - comparing properties...`);
+      // console.log(`[CanvasItemComponent memo] Element reference is DIFFERENT for ${prevEl.id} - comparing properties...`);
     }
   }
   
@@ -222,109 +222,109 @@ const arePropsEqual = (
     
     // Layout-Eigenschaften
     if (prevQnaEl.layoutVariant !== nextQnaEl.layoutVariant) {
-      console.log(`[CanvasItemComponent memo] layoutVariant changed for ${prevEl.id}: ${prevQnaEl.layoutVariant} -> ${nextQnaEl.layoutVariant}`);
+      // console.log(`[CanvasItemComponent memo] layoutVariant changed for ${prevEl.id}: ${prevQnaEl.layoutVariant} -> ${nextQnaEl.layoutVariant}`);
       return false;
     }
     if (prevQnaEl.qnaIndividualSettings !== nextQnaEl.qnaIndividualSettings) {
-      console.log(`[CanvasItemComponent memo] qnaIndividualSettings changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] qnaIndividualSettings changed for ${prevEl.id}`);
       return false;
     }
     if (prevQnaEl.answerInNewRow !== nextQnaEl.answerInNewRow) {
-      console.log(`[CanvasItemComponent memo] answerInNewRow changed for ${prevEl.id}: ${prevQnaEl.answerInNewRow} -> ${nextQnaEl.answerInNewRow}`);
+      // console.log(`[CanvasItemComponent memo] answerInNewRow changed for ${prevEl.id}: ${prevQnaEl.answerInNewRow} -> ${nextQnaEl.answerInNewRow}`);
       return false;
     }
     if (prevQnaEl.questionAnswerGap !== nextQnaEl.questionAnswerGap) {
-      console.log(`[CanvasItemComponent memo] questionAnswerGap changed for ${prevEl.id}: ${prevQnaEl.questionAnswerGap} -> ${nextQnaEl.questionAnswerGap}`);
+      // console.log(`[CanvasItemComponent memo] questionAnswerGap changed for ${prevEl.id}: ${prevQnaEl.questionAnswerGap} -> ${nextQnaEl.questionAnswerGap}`);
       return false;
     }
     if (prevQnaEl.blockQuestionAnswerGap !== nextQnaEl.blockQuestionAnswerGap) {
-      console.log(`[CanvasItemComponent memo] blockQuestionAnswerGap changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] blockQuestionAnswerGap changed for ${prevEl.id}`);
       return false;
     }
     if (prevQnaEl.questionPosition !== nextQnaEl.questionPosition) {
-      console.log(`[CanvasItemComponent memo] questionPosition changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] questionPosition changed for ${prevEl.id}`);
       return false;
     }
     if (prevQnaEl.questionWidth !== nextQnaEl.questionWidth) {
-      console.log(`[CanvasItemComponent memo] questionWidth changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] questionWidth changed for ${prevEl.id}`);
       return false;
     }
     
     // Visual Properties
     if (prevEl.backgroundColor !== nextEl.backgroundColor) {
-      console.log(`[CanvasItemComponent memo] backgroundColor changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] backgroundColor changed for ${prevEl.id}`);
       return false;
     }
     if (prevEl.backgroundOpacity !== nextEl.backgroundOpacity) {
-      console.log(`[CanvasItemComponent memo] backgroundOpacity changed for ${prevEl.id}: ${prevEl.backgroundOpacity} -> ${nextEl.backgroundOpacity}`);
+      // console.log(`[CanvasItemComponent memo] backgroundOpacity changed for ${prevEl.id}: ${prevEl.backgroundOpacity} -> ${nextEl.backgroundOpacity}`);
       return false;
     }
     if (prevQnaEl.backgroundEnabled !== nextQnaEl.backgroundEnabled) {
-      console.log(`[CanvasItemComponent memo] backgroundEnabled changed for ${prevEl.id}: ${prevQnaEl.backgroundEnabled} -> ${nextQnaEl.backgroundEnabled}`);
+      // console.log(`[CanvasItemComponent memo] backgroundEnabled changed for ${prevEl.id}: ${prevQnaEl.backgroundEnabled} -> ${nextQnaEl.backgroundEnabled}`);
       return false;
     }
     if (prevEl.borderColor !== nextEl.borderColor) {
-      console.log(`[CanvasItemComponent memo] borderColor changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] borderColor changed for ${prevEl.id}`);
       return false;
     }
     if (prevEl.borderWidth !== nextEl.borderWidth) {
-      console.log(`[CanvasItemComponent memo] borderWidth changed for ${prevEl.id}: ${prevEl.borderWidth} -> ${nextEl.borderWidth}`);
+      // console.log(`[CanvasItemComponent memo] borderWidth changed for ${prevEl.id}: ${prevEl.borderWidth} -> ${nextEl.borderWidth}`);
       return false;
     }
     if (prevEl.borderOpacity !== nextEl.borderOpacity) {
-      console.log(`[CanvasItemComponent memo] borderOpacity changed for ${prevEl.id}: ${prevEl.borderOpacity} -> ${nextEl.borderOpacity}`);
+      // console.log(`[CanvasItemComponent memo] borderOpacity changed for ${prevEl.id}: ${prevEl.borderOpacity} -> ${nextEl.borderOpacity}`);
       return false;
     }
     if (prevQnaEl.borderEnabled !== nextQnaEl.borderEnabled) {
-      console.log(`[CanvasItemComponent memo] borderEnabled changed for ${prevEl.id}: ${prevQnaEl.borderEnabled} -> ${nextQnaEl.borderEnabled}`);
+      // console.log(`[CanvasItemComponent memo] borderEnabled changed for ${prevEl.id}: ${prevQnaEl.borderEnabled} -> ${nextQnaEl.borderEnabled}`);
       return false;
     }
     if (prevQnaEl.borderTheme !== nextQnaEl.borderTheme) {
-      console.log(`[CanvasItemComponent memo] borderTheme changed for ${prevEl.id}: ${prevQnaEl.borderTheme} -> ${nextQnaEl.borderTheme}`);
+      // console.log(`[CanvasItemComponent memo] borderTheme changed for ${prevEl.id}: ${prevQnaEl.borderTheme} -> ${nextQnaEl.borderTheme}`);
       return false;
     }
     if (prevEl.cornerRadius !== nextEl.cornerRadius) {
-      console.log(`[CanvasItemComponent memo] cornerRadius changed for ${prevEl.id}: ${prevEl.cornerRadius} -> ${nextEl.cornerRadius}`);
+      // console.log(`[CanvasItemComponent memo] cornerRadius changed for ${prevEl.id}: ${prevEl.cornerRadius} -> ${nextEl.cornerRadius}`);
       return false;
     }
     if (prevEl.padding !== nextEl.padding) {
-      console.log(`[CanvasItemComponent memo] padding changed for ${prevEl.id}: ${prevEl.padding} -> ${nextEl.padding}`);
+      // console.log(`[CanvasItemComponent memo] padding changed for ${prevEl.id}: ${prevEl.padding} -> ${nextEl.padding}`);
       return false;
     }
     
     // Ruled Lines
     if (prevQnaEl.ruledLines !== nextQnaEl.ruledLines) {
-      console.log(`[CanvasItemComponent memo] ruledLines changed for ${prevEl.id}: ${prevQnaEl.ruledLines} -> ${nextQnaEl.ruledLines}`);
+      // console.log(`[CanvasItemComponent memo] ruledLines changed for ${prevEl.id}: ${prevQnaEl.ruledLines} -> ${nextQnaEl.ruledLines}`);
       return false;
     }
     if (prevQnaEl.ruledLinesWidth !== nextQnaEl.ruledLinesWidth) {
-      console.log(`[CanvasItemComponent memo] ruledLinesWidth changed for ${prevEl.id}: ${prevQnaEl.ruledLinesWidth} -> ${nextQnaEl.ruledLinesWidth}`);
+      // console.log(`[CanvasItemComponent memo] ruledLinesWidth changed for ${prevEl.id}: ${prevQnaEl.ruledLinesWidth} -> ${nextQnaEl.ruledLinesWidth}`);
       return false;
     }
     if (prevQnaEl.ruledLinesTheme !== nextQnaEl.ruledLinesTheme) {
-      console.log(`[CanvasItemComponent memo] ruledLinesTheme changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] ruledLinesTheme changed for ${prevEl.id}`);
       return false;
     }
     if (prevQnaEl.ruledLinesColor !== nextQnaEl.ruledLinesColor) {
-      console.log(`[CanvasItemComponent memo] ruledLinesColor changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] ruledLinesColor changed for ${prevEl.id}`);
       return false;
     }
     if (prevQnaEl.ruledLinesOpacity !== nextQnaEl.ruledLinesOpacity) {
-      console.log(`[CanvasItemComponent memo] ruledLinesOpacity changed for ${prevEl.id}: ${prevQnaEl.ruledLinesOpacity} -> ${nextQnaEl.ruledLinesOpacity}`);
+      // console.log(`[CanvasItemComponent memo] ruledLinesOpacity changed for ${prevEl.id}: ${prevQnaEl.ruledLinesOpacity} -> ${nextQnaEl.ruledLinesOpacity}`);
       return false;
     }
     if (prevQnaEl.ruledLinesTarget !== nextQnaEl.ruledLinesTarget) {
-      console.log(`[CanvasItemComponent memo] ruledLinesTarget changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] ruledLinesTarget changed for ${prevEl.id}`);
       return false;
     }
     
     // Question/Answer Settings (für Style-Berechnung)
     if (JSON.stringify(prevQnaEl.questionSettings) !== JSON.stringify(nextQnaEl.questionSettings)) {
-      console.log(`[CanvasItemComponent memo] questionSettings changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] questionSettings changed for ${prevEl.id}`);
       return false;
     }
     if (JSON.stringify(prevQnaEl.answerSettings) !== JSON.stringify(nextQnaEl.answerSettings)) {
-      console.log(`[CanvasItemComponent memo] answerSettings changed for ${prevEl.id}`);
+      // console.log(`[CanvasItemComponent memo] answerSettings changed for ${prevEl.id}`);
       return false;
     }
     
@@ -403,9 +403,9 @@ const arePropsEqual = (
       prevProps.onDragEnd !== nextProps.onDragEnd;
     
     if (callbacksChanged) {
-      console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id}, but callbacks changed (will be ignored by React.memo)`);
+      // console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id}, but callbacks changed (will be ignored by React.memo)`);
     } else {
-      console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id} - NO RE-RENDER`);
+      // console.log(`[CanvasItemComponent memo] Comparison returned TRUE for ${prevProps.element.id} - NO RE-RENDER`);
     }
   }
   

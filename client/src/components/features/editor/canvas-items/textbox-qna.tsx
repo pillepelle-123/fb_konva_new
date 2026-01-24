@@ -1153,12 +1153,12 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         );
         
         if (!stateValuesChanged && changed.length === 0) {
-          console.warn(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}" but NO PROPS/STATE CHANGED! React.memo should have prevented this. This happens because useEditor() returns a new state object on every update, even when relevant values haven't changed.`);
+          // console.warn(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}" but NO PROPS/STATE CHANGED! React.memo should have prevented this. This happens because useEditor() returns a new state object on every update, even when relevant values haven't changed.`);
         }
       }
       
       if (changed.length > 0) {
-        console.log(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}":`, changed);
+        // console.log(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}":`, changed);
       }
     }
     prevPropsRef.current = { ...props };
@@ -1222,6 +1222,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   const transformOriginalDimensionsRef = useRef<{ width: number; height: number } | null>(null);
   const transformStartPositionRef = useRef<{ x: number; y: number } | null>(null);
   const transformResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean; fromBottom?: boolean; fromRight?: boolean } | null>(null);
+  // Store resize direction for use in handleTransformEnd (after cleanup)
+  const storedResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean; fromBottom?: boolean; fromRight?: boolean } | null>(null);
   // Add ref to track minimum dimensions when opposite edge is reached
   const minDimensionReachedRef = useRef<{ width: boolean; height: boolean }>({ width: false, height: false });
   
@@ -1938,35 +1940,35 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   useEffect(() => {
     const handleTransformStart = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
-      
+
       isTransformingRef.current = true;
       setIsTransforming(true);
-      
+
       // Get the Group node to access position and determine resize direction
       const rectNode = textRef.current;
       if (!rectNode) return;
-      
+
       const groupNode = rectNode.getParent();
       if (!groupNode || groupNode.getClassName() !== 'Group') return;
-      
+
       // Use current transformDimensions if available, otherwise use element dimensions
       // This ensures we start from the correct visual state (prevents jumping)
       const currentTransformDims = transformDimensionsRef.current;
       const currentWidth = currentTransformDims?.width ?? elementWidth;
       const currentHeight = currentTransformDims?.height ?? elementHeight;
-      
+
       // Store initial dimensions and position at transform start
       transformStartDimensionsRef.current = {
         width: currentWidth,
         height: currentHeight
       };
-      
+
       // Store original dimensions (from element state) for position calculation
       transformOriginalDimensionsRef.current = {
         width: elementWidth,
         height: elementHeight
       };
-      
+
       transformStartPositionRef.current = {
         x: groupNode.x(),
         y: groupNode.y()
@@ -1992,6 +1994,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       }
       
       transformResizeDirectionRef.current = { fromTop, fromLeft, fromBottom, fromRight };
+      // Store for use in handleTransformEnd
+      storedResizeDirectionRef.current = { fromTop, fromLeft, fromBottom, fromRight };
       
       // Reset minimum dimension flags
       minDimensionReachedRef.current = { width: false, height: false };
@@ -2138,30 +2142,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         groupNode.scaleX(1);
         groupNode.scaleY(1);
         
-        // Adjust position to maintain anchor point
-        // The Konva Transformer already handles rotation internally
-        // We only need to adjust for dimension changes from left/top anchors
-        let newX = startPos.x;
-        let newY = startPos.y;
-        
-        if (resizeDirection.fromLeft) {
-          // Resizing from left: anchor is at right, move left by width change
-          newX = startPos.x - widthChange;
-        }
-        
-        if (resizeDirection.fromTop) {
-          // Resizing from top: anchor is at bottom, move up by height change
-          newY = startPos.y - heightChange;
-        }
-        
-        // Update position to maintain anchor point, but only if it changed
-        // This avoids unnecessary updates that could cause feedback loops
-        const currentX = groupNode.x();
-        const currentY = groupNode.y();
-        if (Math.abs(currentX - newX) > 0.01 || Math.abs(currentY - newY) > 0.01) {
-          groupNode.x(newX);
-          groupNode.y(newY);
-        }
+        // Position adjustments are now handled in handleTransformEnd to avoid
+        // interfering with the Transformer during active transformation
         
         // Update textShapeBoxRef for getClientRect calculations immediately
         // This ensures the selection rectangle stays correct during transform
@@ -2191,15 +2173,64 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       
       if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
         // Get final position from groupNode (already adjusted during transform)
-        const finalX = groupNode ? groupNode.x() : (element.x || 0);
-        const finalY = groupNode ? groupNode.y() : (element.y || 0);
-        
+        const finalVisualX = groupNode ? groupNode.x() : (element.x || 0);
+        const finalVisualY = groupNode ? groupNode.y() : (element.y || 0);
+
+        // CRITICAL FIX: Get CURRENT offsets from BaseCanvasItem, not stored old ones
+        // BaseCanvasItem recalculates offsets when dimensions change
+        const currentOffsetX = groupNode ? (groupNode.offsetX() || 0) : 0;
+        const currentOffsetY = groupNode ? (groupNode.offsetY() || 0) : 0;
+        const offsets = { offsetX: currentOffsetX, offsetY: currentOffsetY };
+
+        // Convert visual coordinates back to element coordinates by subtracting offsets
+        let finalElementX = finalVisualX - offsets.offsetX;
+        let finalElementY = finalVisualY - offsets.offsetY;
+
+        // Apply position adjustments to maintain anchor points based on dimension changes
+        // Ensure all values are valid numbers to prevent NaN issues
+        const dimensionChangeX = (finalDims.width || 0) - (elementWidth || 0);
+        const dimensionChangeY = (finalDims.height || 0) - (elementHeight || 0);
+
+        // Validate that our calculations don't produce NaN
+        if (isNaN(dimensionChangeX) || isNaN(dimensionChangeY)) {
+          console.warn('[textbox-qna] Dimension changes produced NaN:', {
+            finalDimsWidth: finalDims.width,
+            elementWidth,
+            finalDimsHeight: finalDims.height,
+            elementHeight
+          });
+        }
+
+        if (storedResizeDirectionRef.current?.fromLeft && !isNaN(dimensionChangeX)) {
+          // Resizing from left: anchor is at right, move left by width change
+          finalElementX = finalElementX - dimensionChangeX;
+        }
+
+        if (storedResizeDirectionRef.current?.fromTop && !isNaN(dimensionChangeY)) {
+          // Resizing from top: anchor is at bottom, move up by height change
+          finalElementY = finalElementY - dimensionChangeY;
+        }
+
+        // Final validation to ensure we don't dispatch NaN values
+        if (isNaN(finalElementX) || isNaN(finalElementY)) {
+          console.error('[textbox-qna] Final position contains NaN:', {
+            finalElementX,
+            finalElementY,
+            finalVisualX,
+            finalVisualY,
+            offsets
+          });
+          // Fallback to original position if calculation failed
+          finalElementX = finalVisualX - (offsets.offsetX || 0);
+          finalElementY = finalVisualY - (offsets.offsetY || 0);
+        }
+
         // Store the dispatched dimensions so we can track when props are updated
         lastDispatchedDimensionsRef.current = {
           width: finalDims.width,
           height: finalDims.height
         };
-        
+
         dispatch({
           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
           payload: {
@@ -2207,8 +2238,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
             updates: {
               width: finalDims.width,
               height: finalDims.height,
-              x: finalX,
-              y: finalY
+              x: finalElementX,
+              y: finalElementY
             }
           }
         });
@@ -2227,6 +2258,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       transformOriginalDimensionsRef.current = null;
       transformStartPositionRef.current = null;
       transformResizeDirectionRef.current = null;
+      storedResizeDirectionRef.current = null;
     };
     
     window.addEventListener('transformStart', handleTransformStart as EventListener);
