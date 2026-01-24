@@ -5712,6 +5712,12 @@ export default function Canvas() {
                          (element.textType === 'qna' || element.textType === 'free_text');
                 });
 
+                // Prevent inversion: if size would decrease, revert to original
+                // This prevents elements from "flipping over" when resizing past the opposite edge
+                if (newBox.width < oldBox.width || newBox.height < oldBox.height) {
+                  return oldBox; // Prevent inversion
+                }
+
                 // Use appropriate minimum sizes based on element type
                 const minWidth = hasTextElements ? 50 : 5;
                 const minHeight = hasTextElements ? 30 : 5;
