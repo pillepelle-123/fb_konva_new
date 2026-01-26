@@ -250,6 +250,17 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   
   // Inline layout (existing logic)
   const availableWidth = Math.max(10, width - padding * 2);
+  
+  // DEBUG: Log width calculation for PDF export
+  if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+    console.log('[DEBUG qna-layout.ts] Width calculation:',
+      'width:', Math.round(width * 100) / 100,
+      'padding:', Math.round(padding * 100) / 100,
+      'availableWidth:', Math.round(availableWidth * 100) / 100,
+      'calculation:', `${Math.round(width * 100) / 100} - ${Math.round(padding * 100) / 100} * 2 = ${Math.round((width - padding * 2) * 100) / 100}`
+    );
+  }
+  
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
   

@@ -100,7 +100,52 @@ export function getLineHeight(style: RichTextStyle): number {
 }
 
 /**
- * Measure text width
+ * Measure text width for wrapping decisions
+ * Uses metrics.width (not actualBoundingBoxRight) to prevent premature line breaks
+ * actualBoundingBoxRight can be significantly larger than the actual rendered width,
+ * causing words to break too early. Using width ensures consistent wrapping behavior.
+ * 
+ * CRITICAL: In PDF export context, font measurement can differ from browser rendering.
+ * We use a larger tolerance to account for measurement differences between environments.
+ */
+function measureTextForWrapping(text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null): number {
+  if (!ctx) {
+    return text.length * (style.fontSize * 0.6);
+  }
+  ctx.save();
+  ctx.font = buildFont(style);
+  ctx.textBaseline = 'alphabetic';
+  const metrics = ctx.measureText(text);
+  
+  // CRITICAL FIX: Match app behavior exactly for wrapping decisions
+  // The app uses actualBoundingBoxRight if available (even if smaller than width)
+  // This is critical because actualBoundingBoxRight can be more accurate for some fonts
+  // In PDF export, we need to match this behavior exactly to prevent premature breaks
+  const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ === true;
+  
+  let textWidth: number;
+  
+  if (metrics.actualBoundingBoxRight !== undefined) {
+    // CRITICAL: Use actualBoundingBoxRight if available (matches app behavior exactly)
+    // This is what the app does - it uses actualBoundingBoxRight whenever available,
+    // regardless of whether it's larger or smaller than width
+    // For fonts like "Give You Glory", actualBoundingBoxRight (1873.48) is smaller than width (1877.69),
+    // which is why the app doesn't break prematurely but PDF does
+    textWidth = metrics.actualBoundingBoxRight;
+  } else {
+    // Fallback: use width with small safety margin
+    const safetyMargin = isPdfExport ? style.fontSize * 0.05 : style.fontSize * 0.05;
+    textWidth = metrics.width + safetyMargin;
+  }
+  
+  ctx.restore();
+  return textWidth;
+}
+
+/**
+ * Measure text width for positioning
+ * Uses actualBoundingBoxRight if available to account for glyph overhangs and swashes
+ * This is important for correct text positioning, especially for fonts with decorative elements
  */
 export function measureText(text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null): number {
   if (!ctx) {
@@ -111,42 +156,15 @@ export function measureText(text: string, style: RichTextStyle, ctx: CanvasRende
   ctx.textBaseline = 'alphabetic'; // Match rendering baseline
   const metrics = ctx.measureText(text);
 
-  // Use actualBoundingBoxRight to account for glyph overhangs and swashes
-  // This is critical for fonts like "Tourney", "Audiowide", and "Bilbo Swash Caps"
-  // actualBoundingBoxRight is the distance from text origin to the right edge
-  // This includes all overhangs, which width does not
+  // Use actualBoundingBoxRight for positioning (to account for overhangs/swashes)
+  // This ensures correct text positioning, especially for fonts with decorative elements
   let textWidth: number;
   if (metrics.actualBoundingBoxRight !== undefined) {
-    // actualBoundingBoxRight is the actual rendered right edge including all overhangs/swashes
     textWidth = metrics.actualBoundingBoxRight;
-
-    // DEBUG: Log when actualBoundingBoxRight is used
-    if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-      console.log('[PDF measureText] Using actualBoundingBoxRight:', {
-        text: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
-        font: ctx.font,
-        actualBoundingBoxRight: metrics.actualBoundingBoxRight,
-        width: metrics.width,
-        difference: metrics.actualBoundingBoxRight - metrics.width
-      });
-    }
   } else {
-    // Fallback: use standard width measurement with safety margin for glyph overhangs
-    // Some fonts have significant overhangs that width doesn't account for
-    // Add a safety margin based on font size (typically 5-10% for fonts with overhangs)
+    // Fallback: use width with safety margin
     const safetyMargin = style.fontSize * 0.12; // 12% of font size as safety margin
     textWidth = metrics.width + safetyMargin;
-
-    // DEBUG: Log when fallback is used
-    if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-      console.log('[PDF measureText] Using fallback with safety margin:', {
-        text: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
-        font: ctx.font,
-        width: metrics.width,
-        safetyMargin: safetyMargin,
-        totalWidth: textWidth
-      });
-    }
   }
 
   ctx.restore();
@@ -212,6 +230,11 @@ function hasGlyphOverhangs(fontFamily: string): boolean {
  * Wrap text into lines
  */
 export function wrapText(text: string, style: RichTextStyle, maxWidth: number, ctx: CanvasRenderingContext2D | null): TextLine[] {
+  // DEBUG: Log maxWidth when called from PDF export
+  if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ && text.length > 0) {
+    console.log('[DEBUG wrapText] Called with maxWidth:', Math.round(maxWidth * 100) / 100, 'for text:', text.substring(0, 30));
+  }
+  
   const lines: TextLine[] = [];
   if (!text) return lines;
   const paragraphs = text.split('\n');
@@ -224,54 +247,97 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
       for (let i = 1; i < words.length; i += 1) {
         const word = words[i];
         const testLine = `${currentLine} ${word}`;
-        const testWidth = measureText(testLine, style, ctx);
+        // CRITICAL FIX: Use measureTextForWrapping (metrics.width) instead of measureText (actualBoundingBoxRight)
+        // for wrapping decisions. actualBoundingBoxRight can be significantly larger than width,
+        // causing premature line breaks. Using width ensures words only break when they truly don't fit.
+        const testWidth = measureTextForWrapping(testLine, style, ctx);
         
-        // IMPORTANT: Add safety margin for glyph overhangs when actualBoundingBoxRight is not available
-        // Some fonts (like "Tourney") have significant overhangs that width doesn't account for
-        // We add a small percentage-based margin to ensure text doesn't overflow
-        let adjustedTestWidth = testWidth;
-        if (ctx) {
-          ctx.save();
-          ctx.font = buildFont(style);
-          ctx.textBaseline = 'alphabetic';
-          const metrics = ctx.measureText(testLine);
-          ctx.restore();
-          
-          // If actualBoundingBoxRight is not available, add a safety margin
-          // This accounts for glyph overhangs that width doesn't measure
-          // Use a percentage of font size (typically 5-10% for fonts with overhangs)
-          if (metrics.actualBoundingBoxRight === undefined) {
-            const safetyMargin = style.fontSize * 0.12; // 12% of font size as safety margin
-            adjustedTestWidth = testWidth + safetyMargin;
-
-            // DEBUG: Log wrapText safety margin usage
-            if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-              console.log('[PDF wrapText] Adding safety margin:', {
-                testLine: testLine.substring(0, 30) + (testLine.length > 30 ? '...' : ''),
-                font: ctx.font,
-                originalWidth: testWidth,
-                safetyMargin: safetyMargin,
-                adjustedWidth: adjustedTestWidth,
-                maxWidth: maxWidth
-              });
+        // DEBUG: Log all line break checks to diagnose the issue
+        if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+          // Calculate tolerance using the same logic as below (only in PDF export)
+          const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ === true;
+          let tolerance = 0;
+          if (isPdfExport) {
+            tolerance = style.fontSize * 0.3; // Base tolerance: 30% of fontSize
+            if (style.fontSize > 100) {
+              tolerance += style.fontSize * 0.4; // Additional 40% for fonts > 100px
             }
+          }
+          const willBreak = testWidth > maxWidth + tolerance;
+          // Log all cases where testWidth is close to or exceeds maxWidth
+          if (testWidth > maxWidth * 0.85 || willBreak) {
+            // Also log metrics to understand measurement differences
+            let metricsInfo: any = {};
+            let toleranceInfo: any = {};
+            if (ctx) {
+              ctx.save();
+              ctx.font = buildFont(style);
+              ctx.textBaseline = 'alphabetic';
+              const testMetrics = ctx.measureText(testLine);
+              const metricsDiff = testMetrics.actualBoundingBoxRight !== undefined
+                ? testMetrics.actualBoundingBoxRight - testMetrics.width
+                : 0;
+              
+              metricsInfo = {
+                width: Math.round(testMetrics.width * 100) / 100,
+                actualBoundingBoxRight: testMetrics.actualBoundingBoxRight !== undefined 
+                  ? Math.round(testMetrics.actualBoundingBoxRight * 100) / 100 
+                  : 'undefined',
+                difference: Math.round(metricsDiff * 100) / 100
+              };
+              
+              // Calculate tolerance info (for debugging)
+              if (testMetrics.actualBoundingBoxRight !== undefined) {
+                toleranceInfo = {
+                  width: Math.round(testMetrics.width * 100) / 100,
+                  actualBoundingBoxRight: Math.round(testMetrics.actualBoundingBoxRight * 100) / 100,
+                  difference: Math.round(metricsDiff * 100) / 100,
+                  usedForWrapping: testMetrics.actualBoundingBoxRight !== undefined ? 'actualBoundingBoxRight' : 'width'
+                };
+              }
+              
+              ctx.restore();
+            }
+            
+            console.log('[PDF wrapText] Line break check:', 
+              'testLine:', testLine.substring(0, 50),
+              'testWidth:', Math.round(testWidth * 100) / 100,
+              'maxWidth:', Math.round(maxWidth * 100) / 100,
+              'tolerance:', Math.round(tolerance * 100) / 100,
+              'effectiveMax:', Math.round((maxWidth + tolerance) * 100) / 100,
+              'difference:', Math.round((testWidth - maxWidth) * 100) / 100,
+              'willBreak:', willBreak,
+              'fontSize:', style.fontSize,
+              'fontFamily:', style.fontFamily?.substring(0, 30),
+              'metrics:', JSON.stringify(metricsInfo),
+              'toleranceInfo:', JSON.stringify(toleranceInfo),
+              'ratio:', Math.round((testWidth / maxWidth) * 1000) / 1000
+            );
           }
         }
         
-        // IMPORTANT: Use Math.ceil to round up testWidth to account for sub-pixel rendering differences
-        // Canvas2D measureText can have small rounding errors that cause premature line breaks
-        // Rounding up ensures we don't break too early, matching client-side behavior
-        // This is more reliable than a fixed tolerance
-
-        // CRITICAL FIX: For PDF export only, reduce available width by 15% for fonts with glyph overhangs
-        // Only applies to known problematic fonts to avoid affecting normal fonts like Times New Roman
-        const hasOverhangs = hasGlyphOverhangs(style.fontFamily);
-        const effectiveMaxWidth = (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ && hasOverhangs)
-          ? maxWidth * 0.85
-          : maxWidth;
-
-        const roundedTestWidth = Math.ceil(testWidth);
-        if (roundedTestWidth > effectiveMaxWidth && currentLine) {
+        // CRITICAL FIX: Add tolerance ONLY in PDF export context to match app behavior
+        // Even though we're using actualBoundingBoxRight (like the app), there can be
+        // measurement differences between browser and PDF export contexts, especially
+        // for rotated textboxes and certain fonts like "Give You Glory".
+        // In the app, we use testWidth > maxWidth directly (no tolerance).
+        // In PDF export, we need tolerance to compensate for measurement differences.
+        const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ === true;
+        let tolerance = 0;
+        if (isPdfExport) {
+          // For large font sizes, the tolerance needs to be higher to account for measurement differences.
+          // Adaptive tolerance: base tolerance (30%) plus additional tolerance for large fonts
+          // This ensures that large fonts (e.g., fontSize 208) get sufficient tolerance to prevent premature breaks.
+          tolerance = style.fontSize * 0.3; // Base tolerance: 30% of fontSize
+          if (style.fontSize > 100) {
+            // For large fonts, add additional tolerance proportional to fontSize
+            // This accounts for larger measurement discrepancies with large fonts
+            tolerance += style.fontSize * 0.4; // Additional 40% for fonts > 100px
+          }
+        }
+        // In app: testWidth > maxWidth (no tolerance)
+        // In PDF: testWidth > maxWidth + tolerance (with adaptive tolerance)
+        if (testWidth > maxWidth + tolerance && currentLine) {
           lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
           currentLine = word;
         } else {

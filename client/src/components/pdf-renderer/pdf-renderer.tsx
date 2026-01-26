@@ -1018,6 +1018,21 @@ export function PDFRenderer({
             });
           }
           
+          // DEBUG: Log elementWidth and elementHeight before createLayout
+          console.log('[DEBUG PDFRenderer] Before createLayout:',
+            'elementId:', element.id,
+            'elementWidth:', Math.round(elementWidth * 100) / 100,
+            'elementHeight:', Math.round(elementHeight * 100) / 100,
+            'elementRotation:', Math.round(elementRotation * 100) / 100,
+            'padding:', Math.round(padding * 100) / 100,
+            'baseWidth:', Math.round(baseWidth * 100) / 100,
+            'baseHeight:', Math.round(baseHeight * 100) / 100,
+            'scaleX:', Math.round(scaleX * 100) / 100,
+            'scaleY:', Math.round(scaleY * 100) / 100,
+            'width passed to createLayout:', Math.round(elementWidth * 100) / 100,
+            'height passed to createLayout:', Math.round(elementHeight * 100) / 100
+          );
+          
           const layout = sharedCreateLayout({
             questionText: questionText || '',
             answerText: answerText || '',
@@ -1028,7 +1043,9 @@ export function PDFRenderer({
               fontItalic: questionStyle.fontItalic ?? false,
               fontColor: questionStyle.fontColor || '#666666',
               fontOpacity: questionStyle.fontOpacity ?? 1,
-              paragraphSpacing: questionStyle.paragraphSpacing || 'small',
+              // CRITICAL FIX: Also check element.paragraphSpacing (matches textbox-qna.tsx logic)
+              // This ensures paragraphSpacing from element is properly passed to layout calculation
+              paragraphSpacing: questionStyle.paragraphSpacing || element.paragraphSpacing || 'small',
               align: element.align || 'left'
             },
             answerStyle: {
@@ -1038,7 +1055,9 @@ export function PDFRenderer({
               fontItalic: answerStyle.fontItalic ?? false,
               fontColor: answerStyle.fontColor || '#1f2937',
               fontOpacity: answerStyle.fontOpacity ?? 1,
-              paragraphSpacing: answerStyle.paragraphSpacing || 'medium',
+              // CRITICAL FIX: Also check element.paragraphSpacing (matches textbox-qna.tsx logic)
+              // This ensures paragraphSpacing from element is properly passed to layout calculation
+              paragraphSpacing: answerStyle.paragraphSpacing || element.paragraphSpacing || 'medium',
               align: element.align || 'left'
             },
             width: elementWidth,
@@ -1147,8 +1166,13 @@ export function PDFRenderer({
           
           // Set offsetX and offsetY to center the rotation pivot point
           // This makes the Group rotate around its center instead of top-left corner
+          // IMPORTANT: Use elementHeight (not dynamicHeight) for offsetY to ensure
+          // the rotation pivot point matches the canvas editor, preventing position shifts
+          // when textboxes are rotated. dynamicHeight may differ from elementHeight
+          // based on content, but the pivot should always be based on the element's
+          // actual dimensions for consistent positioning.
           const offsetX = elementWidth / 2;
-          const offsetY = dynamicHeight / 2;
+          const offsetY = elementHeight / 2;
           
           // Adjust x and y position to compensate for offset, so visual position stays the same
           // When offsetX/offsetY are set, the visual origin shifts, so we need to adjust position
