@@ -465,14 +465,31 @@ function createLayoutLocal(params: {
       // Use actualBoundingBoxRight for positioning (distance from text origin to right edge)
       // This is the actual rendered right edge including all overhangs/swashes
       // This is what we need to calculate where the answer text should start
+      // CRITICAL FIX: Use actualBoundingBoxRight directly, even if it's smaller than width.
+      // For fonts like "Give You Glory" where actualBoundingBoxRight < width, using actualBoundingBoxRight
+      // reduces the gap to match app behavior. The app uses actualBoundingBoxRight directly.
       if (metrics.actualBoundingBoxRight !== undefined) {
-        // actualBoundingBoxRight is the distance from the text origin (left edge) to the right edge
-        // This is exactly what we need for positioning the answer text
+        // Use actualBoundingBoxRight directly (matches app behavior)
+        // This ensures correct gap positioning, especially for fonts where actualBoundingBoxRight < width
         lastQuestionLineWidth = metrics.actualBoundingBoxRight;
       } else {
         // Fallback: use standard width measurement
         lastQuestionLineWidth = metrics.width;
       }
+      
+      // DEBUG: Log lastQuestionLineWidth calculation for PDF export
+      if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+        console.log('[DEBUG textbox-qna.tsx] lastQuestionLineWidth calculation:',
+          'text:', lastQuestionLine.text.substring(0, 50),
+          'fontSize:', questionStyle.fontSize,
+          'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
+          'metrics.width:', Math.round(metrics.width * 100) / 100,
+          'metrics.actualBoundingBoxRight:', metrics.actualBoundingBoxRight !== undefined ? Math.round(metrics.actualBoundingBoxRight * 100) / 100 : 'undefined',
+          'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
+          'difference (actualBoundingBoxRight - width):', metrics.actualBoundingBoxRight !== undefined ? Math.round((metrics.actualBoundingBoxRight - metrics.width) * 100) / 100 : 'N/A'
+        );
+      }
+      
       ctx.restore();
     }
   }
@@ -614,33 +631,19 @@ function createLayoutLocal(params: {
               inlineTextX = padding + lastQuestionLineWidth + inlineGap;
             }
             
+            
             // Update the last question line Y position and X position to use combined baseline and alignment
             const lastQuestionRunIndex = runs.length - 1;
             if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
               runs[lastQuestionRunIndex].y = combinedBaselineY;
               runs[lastQuestionRunIndex].x = questionX;
               
-              // CRITICAL: Recalculate inlineTextX using the actual run's X position + measured width
-              // This ensures we use the actual rendered position, not just the calculated position
-              // This accounts for font-specific rendering differences and ensures accuracy
-              // This matches the server-side logic in shared/utils/qna-layout.ts
-              if (ctx && runs[lastQuestionRunIndex].text) {
-                ctx.save();
-                ctx.font = buildFont(questionStyle);
-                ctx.textBaseline = 'alphabetic';
-                const runMetrics = ctx.measureText(runs[lastQuestionRunIndex].text);
-                
-                // Use actualBoundingBoxRight for the right edge position
-                const questionRightEdge = runMetrics.actualBoundingBoxRight !== undefined 
-                  ? runMetrics.actualBoundingBoxRight 
-                  : runMetrics.width;
-                
-                // Calculate inlineTextX as: question run X position + question right edge + gap
-                // This uses the actual run position, not the calculated position
-                inlineTextX = questionX + questionRightEdge + inlineGap;
-                
-                ctx.restore();
-              }
+              // CRITICAL: Use lastQuestionLineWidth directly instead of re-measuring
+              // Re-measuring can produce different results between browser and PDF export,
+              // especially for fonts like "Give You Glory" where actualBoundingBoxRight < width
+              // Using lastQuestionLineWidth ensures consistency with the initial measurement
+              // Calculate inlineTextX as: question run X position + lastQuestionLineWidth + gap
+              inlineTextX = questionX + lastQuestionLineWidth + inlineGap;
             }
           
           // Add answer text aligned to the same baseline
@@ -654,7 +657,15 @@ function createLayoutLocal(params: {
           
           // Update cursorY to account for combined line height (use larger line height)
           const combinedLineHeight = Math.max(questionLineHeight, answerLineHeight);
-          cursorY = padding + ((questionLines.length - 1) * questionLineHeight) + combinedLineHeight;
+          // CRITICAL: Position cursor after the combined line using the combined line height
+          // Reduce spacing by font-size dependent offset to match other answer lines
+          // Convert actual fontSize to common fontSize for calculation
+          const questionCommonSize = Math.round(questionStyle.fontSize * 12 / 50);
+          const answerCommonSize = Math.round(answerStyle.fontSize * 12 / 50);
+          const sizeDiff = questionCommonSize - answerCommonSize;
+          const multiplier = sizeDiff <= 0 ? 0 : 3.23 * Math.pow(sizeDiff / 64, 1.8);
+          const spacingAdjustment = answerStyle.fontSize * multiplier * 0.6;
+          cursorY = padding + (questionLines.length * questionLineHeight) - questionLineHeight + combinedLineHeight - spacingAdjustment;
           
           // Update the last line position for ruled lines (use combined line height)
           if (linePositions.length > 0) {

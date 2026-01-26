@@ -254,16 +254,7 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
         
         // DEBUG: Log all line break checks to diagnose the issue
         if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-          // Calculate tolerance using the same logic as below (only in PDF export)
-          const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ === true;
-          let tolerance = 0;
-          if (isPdfExport) {
-            tolerance = style.fontSize * 0.3; // Base tolerance: 30% of fontSize
-            if (style.fontSize > 100) {
-              tolerance += style.fontSize * 0.4; // Additional 40% for fonts > 100px
-            }
-          }
-          const willBreak = testWidth > maxWidth + tolerance;
+          const willBreak = testWidth > maxWidth;
           // Log all cases where testWidth is close to or exceeds maxWidth
           if (testWidth > maxWidth * 0.85 || willBreak) {
             // Also log metrics to understand measurement differences
@@ -303,8 +294,6 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
               'testLine:', testLine.substring(0, 50),
               'testWidth:', Math.round(testWidth * 100) / 100,
               'maxWidth:', Math.round(maxWidth * 100) / 100,
-              'tolerance:', Math.round(tolerance * 100) / 100,
-              'effectiveMax:', Math.round((maxWidth + tolerance) * 100) / 100,
               'difference:', Math.round((testWidth - maxWidth) * 100) / 100,
               'willBreak:', willBreak,
               'fontSize:', style.fontSize,
@@ -316,28 +305,10 @@ export function wrapText(text: string, style: RichTextStyle, maxWidth: number, c
           }
         }
         
-        // CRITICAL FIX: Add tolerance ONLY in PDF export context to match app behavior
-        // Even though we're using actualBoundingBoxRight (like the app), there can be
-        // measurement differences between browser and PDF export contexts, especially
-        // for rotated textboxes and certain fonts like "Give You Glory".
-        // In the app, we use testWidth > maxWidth directly (no tolerance).
-        // In PDF export, we need tolerance to compensate for measurement differences.
-        const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__ === true;
-        let tolerance = 0;
-        if (isPdfExport) {
-          // For large font sizes, the tolerance needs to be higher to account for measurement differences.
-          // Adaptive tolerance: base tolerance (30%) plus additional tolerance for large fonts
-          // This ensures that large fonts (e.g., fontSize 208) get sufficient tolerance to prevent premature breaks.
-          tolerance = style.fontSize * 0.3; // Base tolerance: 30% of fontSize
-          if (style.fontSize > 100) {
-            // For large fonts, add additional tolerance proportional to fontSize
-            // This accounts for larger measurement discrepancies with large fonts
-            tolerance += style.fontSize * 0.4; // Additional 40% for fonts > 100px
-          }
-        }
-        // In app: testWidth > maxWidth (no tolerance)
-        // In PDF: testWidth > maxWidth + tolerance (with adaptive tolerance)
-        if (testWidth > maxWidth + tolerance && currentLine) {
+        // Use the same logic as the app: testWidth > maxWidth (no tolerance)
+        // Now that element.width and element.height are correctly calculated,
+        // we should be able to use the same wrapping logic without tolerance
+        if (testWidth > maxWidth && currentLine) {
           lines.push({ text: currentLine, width: measureText(currentLine, style, ctx) });
           currentLine = word;
         } else {

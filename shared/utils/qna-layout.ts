@@ -9,6 +9,46 @@ import type { TextRun } from '../types/text-layout';
 import { wrapText, measureText, calculateTextX, getLineHeight, buildFont } from './text-layout.ts';
 
 /**
+ * Font calibration database for PDF export corrections
+ *
+ * PURPOSE: Compensates for measurement differences between browser and PDF rendering
+ * PROBLEM: Puppeteer (PDF) measures text widths differently than browser Canvas API
+ * SOLUTION: Calibrated offsets ensure consistent visual output
+ *
+ * HOW TO ADD NEW FONTS:
+ * 1. Test font in both browser (app) and PDF export
+ * 2. Compare lastQuestionLineWidth measurements in debug logs
+ * 3. Calculate: pdfMeasurementOffset = pdfMeasurement - browserMeasurement
+ * 4. Set targetInlineGap to desired gap from browser rendering
+ * 5. Add entry to FONT_CALIBRATION object
+ *
+ * EXAMPLE DEBUG LOGS:
+ * Browser: lastQuestionLineWidth: 764.07, inlineGap: 25
+ * PDF:     lastQuestionLineWidth: 874.51, inlineGap: 45 (before calibration)
+ * Result:  pdfMeasurementOffset: 110, targetInlineGap: 25
+ */
+const FONT_CALIBRATION = {
+  "'Give You Glory', cursive": {
+    pdfMeasurementOffset: 110, // PDF measures 110px larger than browser
+    targetInlineGap: 25,       // Desired gap matching browser rendering
+    description: 'Decorative cursive font with significant overhangs'
+  },
+  'Meddon': {
+    pdfMeasurementOffset: 110, 
+    targetInlineGap: 170,
+    description: 'Decorative cursive font with significant overhangs'
+  },
+  // Template for new fonts:
+  // 'Font Family Name': {
+  //   pdfMeasurementOffset: 0,    // PDF measurement - browser measurement
+  //   targetInlineGap: 20,        // Desired gap from browser rendering
+  //   description: 'Brief description of font characteristics'
+  // }
+} as const;
+
+type FontCalibrationKey = keyof typeof FONT_CALIBRATION;
+
+/**
  * Consistent baseline offset for ruled lines (in pixels)
  * This creates a uniform gap between text baseline and ruled line,
  * regardless of font size
@@ -299,6 +339,9 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // NOT actualBoundingBoxRight - actualBoundingBoxLeft (which is the bounding box width)
   // The right edge position is what we need to position the answer text correctly
   let lastQuestionLineWidth = 0;
+  let needsGapReduction = false; // Track if we need to reduce inlineGap
+  let widthDifference = 0; // Track the difference between width and actualBoundingBoxRight
+  let metricsWidth = 0; // Store metrics.width for overhang ratio calculation
   if (questionLines.length > 0 && ctx) {
     const lastQuestionLine = questionLines[questionLines.length - 1];
     if (lastQuestionLine.text) {
@@ -306,19 +349,77 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
       ctx.font = buildFont(questionStyle);
       ctx.textBaseline = 'alphabetic'; // Match rendering baseline
       const metrics = ctx.measureText(lastQuestionLine.text);
+      metricsWidth = metrics.width; // Store for later use
       
       // Use actualBoundingBoxRight for positioning (distance from text origin to right edge)
       // This is the actual rendered right edge including all overhangs/swashes
       // This is what we need to calculate where the answer text should start
       if (metrics.actualBoundingBoxRight !== undefined) {
-        // actualBoundingBoxRight is the distance from the text origin (left edge) to the right edge
-        // This is exactly what we need for positioning the answer text
-        lastQuestionLineWidth = metrics.actualBoundingBoxRight;
+        const isPdfExport = typeof window !== 'undefined' && (window as any).__PDF_EXPORT__;
+        let calibratedMeasurement = metrics.actualBoundingBoxRight;
+
+        // Apply PDF calibration if available
+        if (isPdfExport) {
+          const fontFamily = questionStyle.fontFamily;
+          const exactCalibration = FONT_CALIBRATION[fontFamily as FontCalibrationKey];
+          let calibration = exactCalibration;
+          let calibrationSource = exactCalibration ? 'exact' : 'none';
+
+          if (!calibration) {
+            // Check for partial matches (case-insensitive)
+            const normalizedFontFamily = fontFamily?.toLowerCase();
+            const matchingKey = Object.keys(FONT_CALIBRATION).find(key =>
+              normalizedFontFamily?.includes(key.toLowerCase())
+            ) as FontCalibrationKey | undefined;
+
+            if (matchingKey) {
+              calibration = FONT_CALIBRATION[matchingKey];
+              calibrationSource = 'partial';
+            }
+          }
+
+          // Debug: Log calibration attempt
+          console.log('[DEBUG qna-layout.ts] Font calibration check:', {
+            fontFamily: fontFamily,
+            normalizedFontFamily: fontFamily?.toLowerCase(),
+            calibrationSource: calibrationSource,
+            availableCalibrations: Object.keys(FONT_CALIBRATION),
+            hasCalibration: !!calibration
+          });
+
+          if (calibration) {
+            // Apply calibrated measurement offset
+            calibratedMeasurement = metrics.actualBoundingBoxRight - calibration.pdfMeasurementOffset;
+          }
+        }
+
+        lastQuestionLineWidth = calibratedMeasurement;
+
+        // Track if we need to reduce gap for fonts where actualBoundingBoxRight < width
+        // This indicates fonts with significant overhangs that need gap adjustment
+        if (metrics.actualBoundingBoxRight < metrics.width) {
+          needsGapReduction = true;
+          widthDifference = metrics.width - metrics.actualBoundingBoxRight;
+        }
       } else {
         // Fallback: use standard width measurement
         lastQuestionLineWidth = metrics.width;
       }
       
+      // DEBUG: Log lastQuestionLineWidth calculation for PDF export
+      if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+        console.log('[DEBUG qna-layout.ts] lastQuestionLineWidth calculation:',
+          'text:', lastQuestionLine.text.substring(0, 50),
+          'fontSize:', questionStyle.fontSize,
+          'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
+          'metrics.width:', Math.round(metrics.width * 100) / 100,
+          'metrics.actualBoundingBoxRight:', metrics.actualBoundingBoxRight !== undefined ? Math.round(metrics.actualBoundingBoxRight * 100) / 100 : 'undefined',
+          'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
+          'difference (actualBoundingBoxRight - width):', metrics.actualBoundingBoxRight !== undefined ? Math.round((metrics.actualBoundingBoxRight - metrics.width) * 100) / 100 : 'N/A',
+          'needsGapReduction:', needsGapReduction,
+          'widthDifference:', Math.round(widthDifference * 100) / 100
+        );
+      }
       
       ctx.restore();
     }
@@ -365,7 +466,35 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // If answerInNewRow is true, questionAnswerGap applies vertically (not horizontally)
   // IMPORTANT: Match client-side calculation exactly: baseInlineGap + questionAnswerGap (always added, even if 0)
   const baseInlineGap = Math.min(32, answerStyle.fontSize * 0.5);
-  const inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
+  let inlineGap = answerInNewRow ? baseInlineGap : baseInlineGap + questionAnswerGap;
+  
+  // PDF-SPECIFIC ADJUSTMENT: Apply calibrated gap correction
+  // Uses font calibration database for consistent gap normalization
+  if (!answerInNewRow && (window as any).__PDF_EXPORT__) {
+    const fontFamily = questionStyle.fontFamily as FontCalibrationKey;
+    let calibration = FONT_CALIBRATION[fontFamily];
+
+    // If exact match not found, try partial matching
+    if (!calibration) {
+      const normalizedFontFamily = questionStyle.fontFamily?.toLowerCase();
+      const matchingKey = Object.keys(FONT_CALIBRATION).find(key =>
+        normalizedFontFamily?.includes(key.toLowerCase())
+      ) as FontCalibrationKey | undefined;
+
+      if (matchingKey) {
+        calibration = FONT_CALIBRATION[matchingKey];
+      }
+    }
+
+    if (calibration) {
+      // Use calibrated target gap from database
+      inlineGap = calibration.targetInlineGap;
+    } else if (needsGapReduction) {
+      // Fallback: Apply moderate gap reduction for uncalibrated fonts with overhangs
+      const gapReduction = widthDifference * 0.5;
+      inlineGap = Math.max(0, inlineGap - gapReduction);
+    }
+  }
   let contentHeight = cursorY;
 
   // Count leading newlines in answer text
@@ -395,6 +524,16 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // Check if answer can start on the same line as the last question line
   // Only combine if leadingBreaks === 0 and first paragraph fits
   if (!answerInNewRow && leadingBreaks === 0 && questionLines.length > 0 && answerText && answerText.trim()) {
+    // DEBUG: Log that we're checking inline layout
+    if (typeof window !== 'undefined' && !(window as any).__PDF_EXPORT__) {
+      console.log('[DEBUG qna-layout.ts] Checking inline layout (APP):',
+        'answerInNewRow:', answerInNewRow,
+        'leadingBreaks:', leadingBreaks,
+        'questionLines.length:', questionLines.length,
+        'hasAnswerText:', !!answerText,
+        'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100
+      );
+    }
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
     // Get the first paragraph (before first line break) to check if it fits
@@ -462,33 +601,58 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
               inlineTextX = padding + lastQuestionLineWidth + inlineGap;
             }
             
+            // DEBUG: Log inline gap calculation for both app and PDF export
+            if (typeof window !== 'undefined') {
+              const isPdfExport = (window as any).__PDF_EXPORT__;
+              const fontFamily = questionStyle.fontFamily as FontCalibrationKey;
+              let calibration = FONT_CALIBRATION[fontFamily];
+              let calibrationSource = 'none';
+
+              if (calibration) {
+                calibrationSource = 'exact';
+              } else {
+                const normalizedFontFamily = questionStyle.fontFamily?.toLowerCase();
+                const matchingKey = Object.keys(FONT_CALIBRATION).find(key =>
+                  normalizedFontFamily?.includes(key.toLowerCase())
+                ) as FontCalibrationKey | undefined;
+
+                if (matchingKey) {
+                  calibration = FONT_CALIBRATION[matchingKey];
+                  calibrationSource = 'partial';
+                }
+              }
+
+              console.log(`[DEBUG qna-layout.ts] Inline gap calculation (${isPdfExport ? 'PDF' : 'APP'}):`,
+                'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
+                'fontSize:', questionStyle.fontSize,
+                'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
+                'inlineGap:', Math.round(inlineGap * 100) / 100,
+                'calibrationSource:', calibrationSource,
+                'calibration:', calibration ? {
+                  offset: calibration.pdfMeasurementOffset,
+                  targetGap: calibration.targetInlineGap
+                } : null,
+                'needsGapReduction:', needsGapReduction,
+                'widthDifference:', Math.round(widthDifference * 100) / 100,
+                'inlineTextX:', Math.round(inlineTextX * 100) / 100,
+                'questionX:', Math.round(questionX * 100) / 100,
+                'padding:', Math.round(padding * 100) / 100,
+                'calculated gap (inlineTextX - questionX - lastQuestionLineWidth):', Math.round((inlineTextX - questionX - lastQuestionLineWidth) * 100) / 100
+              );
+            }
+            
             // Update the last question line Y position and X position to use combined baseline and alignment
             const lastQuestionRunIndex = runs.length - 1;
             if (lastQuestionRunIndex >= 0 && runs[lastQuestionRunIndex].style === questionStyle) {
               runs[lastQuestionRunIndex].y = combinedBaselineY;
               runs[lastQuestionRunIndex].x = questionX;
               
-              // CRITICAL: Recalculate inlineTextX using the actual run's X position + measured width
-              // This ensures we use the actual rendered position, not just the calculated position
-              // This accounts for font-specific rendering differences and ensures accuracy
-              if (ctx && runs[lastQuestionRunIndex].text) {
-                ctx.save();
-                ctx.font = buildFont(questionStyle);
-                ctx.textBaseline = 'alphabetic';
-                const runMetrics = ctx.measureText(runs[lastQuestionRunIndex].text);
-                
-                // Use actualBoundingBoxRight for the right edge position
-                const questionRightEdge = runMetrics.actualBoundingBoxRight !== undefined 
-                  ? runMetrics.actualBoundingBoxRight 
-                  : runMetrics.width;
-                
-                // Calculate inlineTextX as: question run X position + question right edge + gap
-                // This uses the actual run position, not the calculated position
-                inlineTextX = questionX + questionRightEdge + inlineGap;
-                
-                
-                ctx.restore();
-              }
+              // CRITICAL: Use lastQuestionLineWidth directly instead of re-measuring
+              // Re-measuring can produce different results between browser and PDF export,
+              // especially for fonts like "Give You Glory" where actualBoundingBoxRight < width
+              // Using lastQuestionLineWidth ensures consistency with the initial measurement
+              // Calculate inlineTextX as: question run X position + lastQuestionLineWidth + gap
+              inlineTextX = questionX + lastQuestionLineWidth + inlineGap;
             }
             
             // Add answer text aligned to the same baseline
