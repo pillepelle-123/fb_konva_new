@@ -133,7 +133,9 @@ export default function Canvas() {
   const [panelOffset, setPanelOffset] = useState(0);
 
   // Partner page rendering optimization
-  // Render partner page with reduced opacity and no event listeners for better performance
+  // Hide partner page during interactions and use Konva cache for better performance
+  const partnerPageGroupRef = useRef<Konva.Group>(null);
+  const [hidePartnerDuringInteraction, setHidePartnerDuringInteraction] = useState(false);
 
   // Track zooming state for disabling interactions during zoom
   const isZoomingRef = useRef(false);
@@ -391,10 +393,12 @@ export default function Canvas() {
     const handleZoomStart = () => {
       isZoomingRef.current = true;
       isInteractingRef.current = true;
+      setHidePartnerDuringInteraction(true);
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
+        setHidePartnerDuringInteraction(false);
       }, 200);
     };
 
@@ -1629,6 +1633,9 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Hide partner page during drag operations
+    setHidePartnerDuringInteraction(true);
+    
     // Deactivate style painter on any click
     if (state.stylePainterActive && e.evt.button === 0) {
       dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
@@ -2052,6 +2059,7 @@ export default function Canvas() {
     }
     
     if (isPanning) {
+      setHidePartnerDuringInteraction(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setHasPanned(true);
@@ -2070,6 +2078,7 @@ export default function Canvas() {
         }
       }
     } else if (drawingState.isDrawing && state.activeTool === 'brush') {
+      setHidePartnerDuringInteraction(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -2114,6 +2123,7 @@ export default function Canvas() {
         });
       }
     } else if ((isMovingGroup || isMovingGroupRef.current) && (groupMoveStart || groupMoveStartRef.current)) {
+      setHidePartnerDuringInteraction(true);
       // Block group move if elements are locked
       if (state.editorSettings?.editor?.lockElements) {
         setIsMovingGroup(false);
@@ -2174,6 +2184,7 @@ export default function Canvas() {
         }
       }
     } else if (isSelecting && selectionStart) {
+      setHidePartnerDuringInteraction(true);
       // Update selection rectangle
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -2200,6 +2211,8 @@ export default function Canvas() {
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Show partner page after interaction ends
+    setTimeout(() => setHidePartnerDuringInteraction(false), 100);
     
     // Block all mouse up interactions for no_access users except panning
     if (state.editorInteractionLevel === 'no_access') {
@@ -2938,11 +2951,13 @@ export default function Canvas() {
     
     if (e.evt.shiftKey) {
       // Horizontal scroll with Shift + mousewheel
+      setHidePartnerDuringInteraction(true);
       // Set interacting flag for shift+wheel pan
       isInteractingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isInteractingRef.current = false;
+        setHidePartnerDuringInteraction(false);
         
         // Clear transform cache after pan ends
         requestAnimationFrame(() => {
@@ -2967,6 +2982,7 @@ export default function Canvas() {
       );
     } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
+      setHidePartnerDuringInteraction(true);
       const stage = stageRef.current;
       if (!stage) return;
 
@@ -2990,6 +3006,7 @@ export default function Canvas() {
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
+        setHidePartnerDuringInteraction(false);
         
         // Clear transform cache after zoom ends
         requestAnimationFrame(() => {
@@ -3012,11 +3029,13 @@ export default function Canvas() {
       setZoom(newScale, pointer);
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
+      setHidePartnerDuringInteraction(true);
       // Set interacting flag for touchpad pan
       isInteractingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isInteractingRef.current = false;
+        setHidePartnerDuringInteraction(false);
         
         // Clear transform cache after pan ends
         requestAnimationFrame(() => {
@@ -4244,6 +4263,20 @@ export default function Canvas() {
     }
   }, [state.activePageIndex, state.isMiniPreview]);
 
+  // Cache partner page group for better performance
+  useEffect(() => {
+    if (partnerPageGroupRef.current && partnerPage) {
+      const group = partnerPageGroupRef.current;
+      // Cache the group as bitmap for faster rendering
+      group.cache();
+      
+      return () => {
+        // Clear cache when partner page changes
+        group.clearCache();
+      };
+    }
+  }, [partnerPage?.id, partnerPage?.elements?.length]);
+
   // Listen for fitToView trigger events (e.g., when modal opens)
   useEffect(() => {
     if (!state.isMiniPreview) return;
@@ -5318,8 +5351,9 @@ export default function Canvas() {
                 />
               )}
             </Group>
-            {partnerPage && previewPageOffsetX !== null && (
+            {partnerPage && previewPageOffsetX !== null && !hidePartnerDuringInteraction && (
               <Group
+                ref={partnerPageGroupRef}
                 x={previewPageOffsetX}
                 y={pageOffsetY}
                 listening={false}
