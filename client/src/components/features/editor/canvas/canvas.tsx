@@ -17,6 +17,7 @@ import CanvasErrorBoundary from './CanvasErrorBoundary';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
 import { CanvasBackground } from './CanvasBackground';
 import { CanvasOverlays } from './CanvasOverlays';
+import { PerformanceMonitor } from './PerformanceMonitor';
 import { useCanvasDrawing } from './hooks/useCanvasDrawing';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasZoomPan } from './hooks/useCanvasZoomPan';
@@ -131,9 +132,15 @@ export default function Canvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
+  // Partner page rendering optimization
+  // Render partner page with reduced opacity and no event listeners for better performance
+
   // Track zooming state for disabling interactions during zoom
   const isZoomingRef = useRef(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track panning state for disabling transformer updates
+  const isInteractingRef = useRef(false);
 
   // Direct Panning Optimization: Store pending stage position to avoid state updates during panning
   const [pendingStagePos, setPendingStagePos] = useState<{x: number, y: number} | null>(null);
@@ -383,9 +390,11 @@ export default function Canvas() {
   useEffect(() => {
     const handleZoomStart = () => {
       isZoomingRef.current = true;
+      isInteractingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
+        isInteractingRef.current = false;
       }, 200);
     };
 
@@ -701,6 +710,7 @@ export default function Canvas() {
   }, [state.currentBook, state.activePageIndex, partnerInfo, ensurePagesLoaded]);
   const partnerPage = partnerInfo?.page ?? null;
   const hasPartnerPage = Boolean(partnerPage);
+  const partnerPageIndex = partnerInfo?.index ?? -1;
   const totalPages = state.currentBook?.pages.length ?? 0;
   const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex + 1;
   const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
@@ -1178,6 +1188,7 @@ export default function Canvas() {
 
   useEffect(() => {
     if (isDragging) return; // Don't update transformer during drag
+    if (isInteractingRef.current) return; // Don't update transformer during zoom/pan
     
     if (transformerRef.current && stageRef.current) {
       const transformer = transformerRef.current;
@@ -1653,6 +1664,7 @@ export default function Canvas() {
     if (e.evt.button === 2) {
       setIsPanning(true);
       setHasPanned(false);
+      isInteractingRef.current = true;
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
@@ -1671,6 +1683,7 @@ export default function Canvas() {
     // Only handle mouseDown for brush, select, and pan tools
     if (state.activeTool === 'pan') {
       setIsPanning(true);
+      isInteractingRef.current = true;
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
@@ -2015,9 +2028,23 @@ export default function Canvas() {
             stageRef.current.x(newPos.x);
             stageRef.current.y(newPos.y);
             throttledSetStagePos(newPos);
+            
+            // Clear transform cache to prevent items from freezing after long pan sessions
+            const layer = stageRef.current.findOne('Layer');
+            if (layer) {
+              layer.find('Group').forEach(node => node.clearCache());
+            }
           } else {
             // Fallback to state updates
             throttledSetStagePos(newPos);
+            
+            // Clear transform cache to prevent items from freezing after long pan sessions
+            if (stageRef.current) {
+              const layer = stageRef.current.findOne('Layer');
+              if (layer) {
+                layer.find('Group').forEach(node => node.clearCache());
+              }
+            }
           }
         }
       }
@@ -2039,15 +2066,7 @@ export default function Canvas() {
           stageRef.current.y(newPos.y);
           throttledSetStagePos(newPos);
         } else {
-          // Fallback to state updates
           throttledSetStagePos(newPos);
-        }
-
-        // Force transformer update during panning to prevent selection rectangle delay
-        if (transformerRef.current) {
-          transformerRef.current.forceUpdate();
-          // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
-          smartCanvasUpdate(false);
         }
       }
     } else if (drawingState.isDrawing && state.activeTool === 'brush') {
@@ -2205,6 +2224,21 @@ export default function Canvas() {
     if (isPanning) {
       setIsPanning(false);
       setPanStart({ x: 0, y: 0 });
+      isInteractingRef.current = false;
+      
+      // Clear transform cache after panning ends
+      requestAnimationFrame(() => {
+        try {
+          if (stageRef.current) {
+            const layer = stageRef.current.findOne('Layer');
+            if (layer) {
+              layer.find('Group').forEach(node => node.clearCache());
+            }
+          }
+        } catch (error) {
+          console.debug('Cache clear error:', error);
+        }
+      });
     } else if (isDrawing && state.activeTool === 'brush' && currentPath.length > 2) {
       // Block adding brush strokes if elements are locked
       if (state.editorSettings?.editor?.lockElements) {
@@ -2904,19 +2938,33 @@ export default function Canvas() {
     
     if (e.evt.shiftKey) {
       // Horizontal scroll with Shift + mousewheel
+      // Set interacting flag for shift+wheel pan
+      isInteractingRef.current = true;
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      zoomTimeoutRef.current = setTimeout(() => {
+        isInteractingRef.current = false;
+        
+        // Clear transform cache after pan ends
+        requestAnimationFrame(() => {
+          try {
+            if (stageRef.current) {
+              const layer = stageRef.current.findOne('Layer');
+              if (layer) {
+                layer.find('Group').forEach(node => node.clearCache());
+              }
+            }
+          } catch (error) {
+            console.debug('Cache clear error:', error);
+          }
+        });
+      }, 200);
+      
       setStagePos(
         clampStagePosition({
           x: stagePos.x - e.evt.deltaY,
           y: stagePos.y
         }, zoom)
       );
-
-      // Force transformer update during panning to prevent selection rectangle delay
-      if (transformerRef.current) {
-        transformerRef.current.forceUpdate();
-        // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
-        smartCanvasUpdate(false);
-      }
     } else if (e.evt.ctrlKey) {
       // Zoom with Ctrl + mousewheel
       const stage = stageRef.current;
@@ -2937,9 +2985,25 @@ export default function Canvas() {
 
       // Set zooming state to disable interactions
       isZoomingRef.current = true;
+      isInteractingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
+        isInteractingRef.current = false;
+        
+        // Clear transform cache after zoom ends
+        requestAnimationFrame(() => {
+          try {
+            if (stageRef.current) {
+              const layer = stageRef.current.findOne('Layer');
+              if (layer) {
+                layer.find('Group').forEach(node => node.clearCache());
+              }
+            }
+          } catch (error) {
+            console.debug('Cache clear error:', error);
+          }
+        });
       }, 200);
 
       // During zoom minimal mode, use direct zoom update for smooth experience
@@ -2948,19 +3012,33 @@ export default function Canvas() {
       setZoom(newScale, pointer);
     } else {
       // Pan with two-finger touchpad (mousewheel without Ctrl)
+      // Set interacting flag for touchpad pan
+      isInteractingRef.current = true;
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      zoomTimeoutRef.current = setTimeout(() => {
+        isInteractingRef.current = false;
+        
+        // Clear transform cache after pan ends
+        requestAnimationFrame(() => {
+          try {
+            if (stageRef.current) {
+              const layer = stageRef.current.findOne('Layer');
+              if (layer) {
+                layer.find('Group').forEach(node => node.clearCache());
+              }
+            }
+          } catch (error) {
+            console.debug('Cache clear error:', error);
+          }
+        });
+      }, 200);
+      
       setStagePos(
         clampStagePosition({
           x: stagePos.x - e.evt.deltaX,
           y: stagePos.y - e.evt.deltaY
         }, zoom)
       );
-
-      // Force transformer update during panning to prevent selection rectangle delay
-      if (transformerRef.current) {
-        transformerRef.current.forceUpdate();
-        // PERFORMANCE OPTIMIZATION: Use debounced canvas update during panning for better performance
-        smartCanvasUpdate(false);
-      }
     }
   };
 
@@ -3803,6 +3881,8 @@ export default function Canvas() {
       }
     };
   }, [currentPage, editingElement, selectedQuestionElementId, user]);
+
+
 
 
   // Expose stage reference for PDF export
@@ -5244,7 +5324,7 @@ export default function Canvas() {
                 y={pageOffsetY}
                 listening={false}
                 name="no-print preview-page"
-                opacity={1}
+                opacity={0.3}
                 // Wenn diese Seite nur als Vorschau angezeigt wird (Partnerseite),
                 // clippen wir ihre Elemente auf ihre eigene Seitenfläche, damit
                 // Überstände nicht in die aktive Seite "hineinragen".
@@ -5292,7 +5372,7 @@ export default function Canvas() {
                  y={pageOffsetY-10}
                  width={canvasWidth+20}
                  height={canvasHeight+20}
-                 fill="rgba(255, 255, 255, 0.9)"
+                 fill="rgba(255, 255, 255, 0.7)"
                  fillPatternImage={undefined}
                  fillPatternRepeat="repeat"
                  opacity={1}
@@ -6009,73 +6089,7 @@ export default function Canvas() {
             </div>
           </CanvasOverlayPortal>
         )}
-        {!state.isMiniPreview && previewPageBadgeMeta && previewPageBadgePosition && (
-          <CanvasOverlayPortal>
-            <div
-              className="absolute"
-              style={{
-                left: previewPageBadgePosition.x,
-                top: previewPageBadgePosition.y,
-                transform: 'translate(-50%, -100%)',
-                pointerEvents: previewTargetLocked ? 'none' : 'auto',
-                minWidth: 0,
-                width: 'max-content'
-              }}
-            >
-              {partnerPage?.pageNumber && state.pageAssignments[partnerPage.pageNumber] ? (
-                <Tooltip side="top" content="Click to enter this page.">
-                  <button
-                    type="button"
-                    onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                    disabled={previewTargetLocked}
-                    style={createBadgeStyleWithProfile(false, previewTargetLocked, state.pageAssignments[partnerPage.pageNumber])}
-                  >
-                    {renderBadgeSegments(previewPageBadgeMeta, false, state.pageAssignments[partnerPage.pageNumber])}
-                  </button>
-                </Tooltip>
-              ) : (
-                <Tooltip side="top" content="Click to enter this page.">
-                  <button
-                    type="button"
-                    onClick={previewTargetLocked ? undefined : handlePreviewBadgeClick}
-                    disabled={previewTargetLocked}
-                    style={createBadgeStyleWithoutProfile(false, previewTargetLocked)}
-                  >
-                    {renderBadgeSegments(previewPageBadgeMeta, false, null)}
-                  </button>
-                </Tooltip>
-              )}
-            </div>
-          </CanvasOverlayPortal>
-        )}
-        {!state.isMiniPreview && previewLockBadgeScreen && (
-          <CanvasOverlayPortal>
-            <div
-              className="pointer-events-none absolute flex items-center justify-center"
-              style={{
-                width: 120,
-                height: 40,
-                left: previewLockBadgeScreen.x - 60,
-                top: previewLockBadgeScreen.y - 20,
-                borderRadius: 44,
-                backgroundColor: '#ffffff',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 20px 45px rgba(15,23,42,0.08)',
-              }}
-            >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                fontFamily: 'Inter, system-ui, sans-serif',
-                color: '#64748b',
-              }}
-            >
-              Not editable
-            </span>
-          </div>
-          </CanvasOverlayPortal>
-        )}
+
         {safetyMarginTooltip && (
           <Tooltip
             content="Safety Margin"
@@ -6161,6 +6175,9 @@ export default function Canvas() {
         inactivePageTooltip={inactivePageTooltip}
         outsidePageTooltip={outsidePageTooltip}
       />
+
+      <PerformanceMonitor stageRef={stageRef} />
+
     </CanvasOverlayProvider>
   );
 }
