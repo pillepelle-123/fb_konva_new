@@ -1111,7 +1111,10 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   const prevStateRef = useRef<typeof relevantState | null>(null);
   renderCountRef.current += 1;
   
+  // Log every render with reason
   useEffect(() => {
+    console.log(`[PERF] TextboxQna RENDER #${renderCountRef.current} for element ${element.id.substring(0, 8)}`);
+    
     if (prevPropsRef.current) {
       const prev = prevPropsRef.current;
       const changed: string[] = [];
@@ -1608,6 +1611,9 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   const ruledLinesTarget = qnaElement.ruledLinesTarget || 'answer';
   const blockQuestionAnswerGap = qnaElement.blockQuestionAnswerGap ?? 10;
 
+  // PERFORMANCE OPTIMIZATION: Memoize layout with minimal dependencies
+  // Only recalculate when text content, dimensions, or style properties actually change
+  // This prevents expensive layout recalculations during pan/zoom operations
   const layout = useMemo(() => {
     // CRITICAL FIX: Don't calculate layout until fonts are ready
     // This prevents incorrect text wrapping and positioning on initial page load
@@ -1627,14 +1633,25 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     // PERFORMANCE OPTIMIZATION: Use debounced text content for layout calculations
     // During debounce phase, use previous layout to avoid flickering
     if (isCalculatingLayout && previousLayoutRef.current) {
+      console.log(`[PERF] Layout cache HIT (debouncing) for element ${element.id.substring(0, 8)}`);
       return previousLayoutRef.current;
     }
+    
+    // DEBUG: Log layout recalculation
+    console.log(`[PERF] Layout RECALCULATION for element ${element.id.substring(0, 8)}`, {
+      questionText: debouncedPreparedQuestionText.substring(0, 30),
+      answerText: debouncedAnswerContent.substring(0, 30),
+      dimensions: `${boxWidth}x${boxHeight}`,
+      questionFontSize: effectiveQuestionStyle.fontSize,
+      answerFontSize: answerStyle.fontSize
+    });
     
     // PERFORMANCE OPTIMIZATION: Reuse cached canvas context instead of creating new one
     const canvasContext = canvasContextRef.current;
     
     // If using shared layout, it will handle its own context
     // Otherwise, use cached context for local layout calculations
+    const startTime = performance.now();
     const newLayout = createLayout({
       questionText: debouncedPreparedQuestionText,
       answerText: debouncedAnswerContent,
@@ -1651,12 +1668,45 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       questionWidth,
       blockQuestionAnswerGap
     });
+    const endTime = performance.now();
+    console.log(`[PERF] Layout calculation took ${(endTime - startTime).toFixed(2)}ms for element ${element.id.substring(0, 8)}`);
     
     // Store layout for use during debounce phase
     previousLayoutRef.current = newLayout;
     
     return newLayout;
-  }, [fontsReady, debouncedAnswerContent, debouncedPreparedQuestionText, isCalculatingLayout, answerStyle, effectiveQuestionStyle, boxHeight, boxWidth, padding, answerInNewRow, questionAnswerGap, layoutVariant, questionPosition, questionWidth, blockQuestionAnswerGap]);
+  }, [
+    // CRITICAL: Only include dependencies that affect layout calculation
+    // Exclude: isSelected, zoom, rotation, position (x, y) - these don't affect text layout
+    fontsReady,
+    debouncedAnswerContent,
+    debouncedPreparedQuestionText,
+    isCalculatingLayout,
+    // Style properties (only the ones that affect layout)
+    effectiveQuestionStyle.fontSize,
+    effectiveQuestionStyle.fontFamily,
+    effectiveQuestionStyle.fontBold,
+    effectiveQuestionStyle.fontItalic,
+    effectiveQuestionStyle.paragraphSpacing,
+    effectiveQuestionStyle.align,
+    answerStyle.fontSize,
+    answerStyle.fontFamily,
+    answerStyle.fontBold,
+    answerStyle.fontItalic,
+    answerStyle.paragraphSpacing,
+    answerStyle.align,
+    // Dimensions
+    boxHeight,
+    boxWidth,
+    padding,
+    // Layout settings
+    answerInNewRow,
+    questionAnswerGap,
+    layoutVariant,
+    questionPosition,
+    questionWidth,
+    blockQuestionAnswerGap
+  ]);
   
   // Filter runs to show only question runs when answer editor is open
   const visibleRuns = useMemo(() => {
