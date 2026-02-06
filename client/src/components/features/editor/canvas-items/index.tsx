@@ -127,7 +127,7 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
         } : undefined}
       >
         {element.groupedElements.map(groupedEl => (
-          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} hoveredElementId={hoveredElementId} interactive={interactive} dispatch={dispatch} />
+          <CanvasItemComponent key={groupedEl.id} {...props} element={groupedEl} isSelected={false} isInsideGroup={true} hoveredElementId={hoveredElementId} interactive={interactive} dispatch={dispatch} isZoomingRef={props.isZoomingRef} />
         ))}
       </Group>
     );

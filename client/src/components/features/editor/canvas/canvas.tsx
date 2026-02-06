@@ -131,11 +131,8 @@ export default function Canvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
 
-  // Zoom minimal mode: Hide elements during zooming for better performance
-  // Use ref + state: ref for immediate access without re-renders during wheel events,
-  // state for triggering React updates when zoom mode changes
+  // Track zooming state for disabling interactions during zoom
   const isZoomingRef = useRef(false);
-  const [isZoomingState, setIsZoomingState] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Direct Panning Optimization: Store pending stage position to avoid state updates during panning
@@ -382,30 +379,19 @@ export default function Canvas() {
     };
   }, []);
 
-  // Handle zoom minimal mode events from zoom popover
+  // Handle zoom events to disable interactions during zoom
   useEffect(() => {
     const handleZoomStart = () => {
-      if (!isZoomingRef.current) {
-        isZoomingRef.current = true;
-        setIsZoomingState(true);
-      }
+      isZoomingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
-        setIsZoomingState(false);
       }, 200);
     };
 
-    const handleZoomEnd = () => {
-      // Zoom end is handled by the timeout in zoom start
-    };
-
     window.addEventListener('zoom-start', handleZoomStart);
-    window.addEventListener('zoom-end', handleZoomEnd);
-
     return () => {
       window.removeEventListener('zoom-start', handleZoomStart);
-      window.removeEventListener('zoom-end', handleZoomEnd);
     };
   }, []);
 
@@ -1531,77 +1517,7 @@ export default function Canvas() {
   // Selection rectangle is now only for drag-selection, not for selected items
   // The Transformer handles visualization of selected items
 
-  // Restore transformer nodes after zoom ends
-  // During zoom, skeletons are rendered instead of actual elements, so transformer loses node references
-  // After zoom ends, we need to restore the nodes to the transformer
-  useEffect(() => {
-    // Only run when zoom ends (isZoomingState changes from true to false)
-    if (isZoomingState) {
-      return; // Still zooming, don't update
-    }
-    
-    // Only restore if we have selected elements
-    if (state.selectedElementIds.length === 0 || !transformerRef.current || !stageRef.current) {
-      return;
-    }
-    
-    // Wait a bit after zoom ends to ensure nodes are rendered again (skeletons are replaced with actual elements)
-    const timer = setTimeout(() => {
-      try {
-        if (!transformerRef.current || !stageRef.current) return;
-        
-        const transformer = transformerRef.current;
-        const stage = stageRef.current;
-        
-        // Find and restore nodes to transformer
-        const selectedNodes = state.selectedElementIds.map(id => {
-          try {
-            let node = stage.findOne(`#${id}`);
-            if (!node) {
-              const allNodes = stage.find('*');
-              node = allNodes.find(n => n.id() === id);
-            }
-            
-            // For image elements, select the Group directly (not the Image node)
-            // For text elements, select the entire group
-            if (node && node.getClassName() === 'Group') {
-              const element = currentPage?.elements.find(el => el.id === id);
-              if (element?.type === 'image') {
-                return node;
-              } else if (element?.type === 'text') {
-                return node; // Select the group itself for text elements
-              }
-            }
-            
-            return node;
-          } catch {
-            return null;
-          }
-        }).filter((node): node is Konva.Node => {
-          if (!node) return false;
-          try {
-            const stage = node.getStage();
-            const parent = node.getParent();
-            const nodeId = node.id();
-            return stage !== null && parent !== null && nodeId !== undefined;
-          } catch {
-            return false;
-          }
-        });
-        
-        if (selectedNodes.length > 0) {
-          // Restore nodes to transformer
-          transformer.nodes(selectedNodes);
-          transformer.moveToTop();
-          batchedTransformerUpdate();
-        }
-      } catch (error) {
-        console.debug('Transformer restore after zoom error:', error);
-      }
-    }, 250); // Wait after zoom ends (zoom timeout is 200ms, so wait a bit longer to ensure nodes are rendered)
-    
-    return () => clearTimeout(timer);
-  }, [isZoomingState, state.selectedElementIds, currentPage]);
+
 
   // Force transformer update after group movement ends
   useEffect(() => {
@@ -3040,19 +2956,11 @@ export default function Canvas() {
 
       const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
 
-      // Set zooming state: Update ref immediately, state only on first event
-      // This must happen before zoom update to ensure elements are hidden immediately
-      const wasZooming = isZoomingRef.current;
-      if (!wasZooming) {
-        isZoomingRef.current = true;
-        setIsZoomingState(true);
-      }
-
-      // Clear existing timeout and set new one
+      // Set zooming state to disable interactions
+      isZoomingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
-        setIsZoomingState(false);
       }, 200);
 
       // During zoom minimal mode, use direct zoom update for smooth experience
@@ -4863,25 +4771,7 @@ export default function Canvas() {
               listening={false}
             />
 
-            {/* Zoom level text - only visible during zooming */}
-            {isZoomingState && (
-              <Text
-                x={activePageOffsetX + (canvasWidth * zoom) / 2}
-                y={pageOffsetY + (canvasHeight * zoom) / 2}
-                text={`${Math.round(zoom * 100)}%`}
-                fontSize={24}
-                fill="white"
-                stroke="black"
-                strokeWidth={2}
-                align="center"
-                verticalAlign="middle"
-                listening={false}
-                shadowColor="black"
-                shadowBlur={4}
-                shadowOffset={{ x: 2, y: 2 }}
-                offset={{ x: 0, y: 12 }} // Center the text vertically
-              />
-            )}
+
 
             {/* Page boundary */}
             <CanvasPageEditArea
@@ -5093,91 +4983,7 @@ export default function Canvas() {
                     }
                     (window as any)[elementRefKey] = element;
                   }
-                  // During zoom, render elements as skeletons
-                  if (isZoomingState) {
-                    if (element.type === 'text') {
-                      // Calculate number of skeleton lines based on element height
-                      // Typical line height is about 1.2-1.5 times font size, but we'll use a simple calculation
-                      const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
-                      const numLines = Math.max(1, Math.round(element.height / lineHeight));
-
-                      // Account for rotation and offset (same as base-canvas-item.tsx)
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
-                      const adjustedX = element.x + offsetX;
-                      const adjustedY = element.y + offsetY;
-
-                      return (
-                        <Group
-                          key={`${element.id}-skeleton-${index}`}
-                          x={adjustedX}
-                          y={adjustedY}
-                          width={elementWidth}
-                          height={elementHeight}
-                          offsetX={offsetX}
-                          offsetY={offsetY}
-                          rotation={rotation}
-                          listening={false}
-                        >
-                          {/* Render skeleton lines */}
-                          {Array.from({ length: numLines }, (_, lineIndex) => (
-                            <Rect
-                              key={`skeleton-line-${lineIndex}`}
-                              x={0}
-                              y={lineIndex * lineHeight}
-                              width={elementWidth}
-                              height={Math.min(lineHeight * 0.8, elementHeight - lineIndex * lineHeight)} // Don't exceed element height
-                              fill="#e5e7eb" // Gray color similar to shadcn skeleton
-                              opacity={0.6}
-                              cornerRadius={32}
-                            />
-                          ))}
-                        </Group>
-                      );
-                    } else if (element.type === 'image' || element.type === 'placeholder') {
-                      // Account for rotation and offset (same as base-canvas-item.tsx)
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
-                      const adjustedX = element.x + offsetX;
-                      const adjustedY = element.y + offsetY;
-
-                      // Render single skeleton rectangle for images and placeholders
-                      return (
-                        <Group
-                          key={`${element.id}-skeleton-${index}`}
-                          x={adjustedX}
-                          y={adjustedY}
-                          width={elementWidth}
-                          height={elementHeight}
-                          offsetX={offsetX}
-                          offsetY={offsetY}
-                          rotation={rotation}
-                          listening={false}
-                        >
-                          <Rect
-                            x={0}
-                            y={0}
-                            width={elementWidth}
-                            height={elementHeight}
-                            fill="#e5e7eb" // Gray color similar to shadcn skeleton
-                            opacity={0.6}
-                            cornerRadius={32}
-                          />
-                        </Group>
-                      );
-                    } else {
-                      // For other element types, don't render anything during zoom
-                      return null;
-                    }
-                  }
-
-                  // Normal rendering for non-text elements or when not zooming
+                  // Normal rendering
                   return (
                     <Group
                       key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
@@ -5193,6 +4999,7 @@ export default function Canvas() {
                     activeTool={state.activeTool}
                     lockElements={state.editorSettings?.editor?.lockElements ?? false}
                     dispatch={dispatch}
+                    isZoomingRef={isZoomingRef}
                     questionText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionText : undefined}
                     answerText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerText : undefined}
                     questionStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionStyle : undefined}
@@ -5523,91 +5330,7 @@ export default function Canvas() {
                   
                   return sorted;
                 })().map((element, index) => {
-                  // During zoom, render partner page elements as skeletons
-                  if (isZoomingState) {
-                    if (element.type === 'text') {
-                      // Calculate number of skeleton lines based on element height
-                      // Typical line height is about 1.2-1.5 times font size, but we'll use a simple calculation
-                      const lineHeight = element.fontSize ? element.fontSize * 1.3 : 24; // Default 24px if no font size
-                      const numLines = Math.max(1, Math.round(element.height / lineHeight));
-
-                      // Account for rotation and offset (same as base-canvas-item.tsx)
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
-                      const adjustedX = element.x + offsetX;
-                      const adjustedY = element.y + offsetY;
-
-                      return (
-                        <Group
-                          key={`preview-skeleton-${element.id}-${index}`}
-                          x={adjustedX}
-                          y={adjustedY}
-                          width={elementWidth}
-                          height={elementHeight}
-                          offsetX={offsetX}
-                          offsetY={offsetY}
-                          rotation={rotation}
-                          listening={false}
-                        >
-                          {/* Render skeleton lines */}
-                          {Array.from({ length: numLines }, (_, lineIndex) => (
-                            <Rect
-                              key={`preview-skeleton-line-${lineIndex}`}
-                              x={0}
-                              y={lineIndex * lineHeight}
-                              width={elementWidth}
-                              height={Math.min(lineHeight * 0.8, elementHeight - lineIndex * lineHeight)} // Don't exceed element height
-                              fill="#e5e7eb" // Gray color similar to shadcn skeleton
-                              opacity={0.4} // Slightly more transparent for preview
-                              cornerRadius={32}
-                            />
-                          ))}
-                        </Group>
-                      );
-                    } else if (element.type === 'image' || element.type === 'placeholder') {
-                      // Account for rotation and offset (same as base-canvas-item.tsx)
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const rotation = typeof element.rotation === 'number' ? element.rotation : 0;
-                      const adjustedX = element.x + offsetX;
-                      const adjustedY = element.y + offsetY;
-
-                      // Render single skeleton rectangle for images and placeholders
-                      return (
-                        <Group
-                          key={`preview-skeleton-${element.id}-${index}`}
-                          x={adjustedX}
-                          y={adjustedY}
-                          width={elementWidth}
-                          height={elementHeight}
-                          offsetX={offsetX}
-                          offsetY={offsetY}
-                          rotation={rotation}
-                          listening={false}
-                        >
-                          <Rect
-                            x={0}
-                            y={0}
-                            width={elementWidth}
-                            height={elementHeight}
-                            fill="#e5e7eb" // Gray color similar to shadcn skeleton
-                            opacity={0.4} // Slightly more transparent for preview
-                            cornerRadius={32}
-                          />
-                        </Group>
-                      );
-                    } else {
-                      // For other element types, don't render anything during zoom
-                      return null;
-                    }
-                  }
-
-                  // Normal rendering when not zooming
+                  // Normal rendering
                   return (
                     <Group key={`preview-${element.id}`}>
                       <CanvasItemComponent

@@ -12,7 +12,7 @@ import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { ColorPalette } from '../../../../types/template-types';
 import type { RichTextStyle } from '../../../../../../shared/types/text-layout';
 
-export interface CanvasItemProps {
+interface CanvasItemProps {
   element: CanvasElement;
   isSelected: boolean;
   onSelect: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
@@ -40,6 +40,7 @@ export interface CanvasItemProps {
   questionStyle?: RichTextStyle;
   answerStyle?: RichTextStyle;
   assignedUser?: { id: string } | null;
+  isZoomingRef?: React.MutableRefObject<boolean>; // Ref to track zooming state
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {
@@ -50,6 +51,7 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   onMouseLeave?: () => void;
   hoveredElementId?: string | null;
   interactive?: boolean; // If false, disables all interactions (for PDF export)
+  isZoomingRef?: React.MutableRefObject<boolean>; // Ref to track zooming state
 }
 
 export default function BaseCanvasItem({ 
@@ -68,6 +70,7 @@ export default function BaseCanvasItem({
   onMouseLeave,
   hoveredElementId,
   interactive = true, // Default to interactive mode
+  isZoomingRef,
 }: BaseCanvasItemProps) {
   const { state, dispatch } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
@@ -308,6 +311,7 @@ export default function BaseCanvasItem({
       scaleY={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleY || 1)}
       rotation={typeof element?.rotation === 'number' ? element.rotation : 0}
       draggable={interactive && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
+      listening={interactive && !(isZoomingRef?.current)}
       onMouseDown={interactive ? handleMouseDown : undefined}
       onClick={interactive ? handleClick : undefined}
       onDblClick={interactive ? handleDoubleClick : undefined}
