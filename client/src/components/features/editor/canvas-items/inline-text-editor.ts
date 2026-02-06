@@ -602,37 +602,20 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     return () => {}; // Return empty cleanup function if groupNode is not available
   }
   
-  // Calculate absolute position relative to viewport
+  // Position editor outside canvas context (centered in viewport)
   const stageBox = stage.container().getBoundingClientRect();
   
-  // Get zoom factor from stage (scaleX and scaleY should be the same for uniform scaling)
-  const zoom = stage.scaleX();
+  // Editor dimensions (percentage-based, independent of canvas zoom)
+  const editorWidth = window.innerWidth * 0.8;
+  const editorMinHeight = window.innerHeight * 0.7;
   
-  // Apply zoom to dimensions and font size (needed for line height calculation)
-  const scaledFontSize = answerStyle.fontSize * zoom;
-  const lineHeightValue = getLineHeight(answerStyle);
-  const scaledLineHeight = lineHeightValue * zoom;
+  // Center editor in viewport
+  const editorLeft = (window.innerWidth - editorWidth) / 2;
+  const editorTop = (window.innerHeight - editorMinHeight) / 2;
   
-  // Position editor directly over the entire textbox (not just the answer area)
-  // Use the top-left corner of the textbox (0, 0 in local coordinates)
-  const textboxX = 0;
-  const textboxY = 0;
-  
-  // Transform textbox position through the group's transform to get stage coordinates
-  const groupTransform = groupNode.getAbsoluteTransform();
-  const textboxStagePos = groupTransform.point({ x: textboxX, y: textboxY });
-  
-  // Convert to viewport coordinates (stage container position + transformed textbox position)
-  const areaPosition = {
-    x: stageBox.left + textboxStagePos.x,
-    y: stageBox.top + textboxStagePos.y,
-  };
-  
-  // Use full textbox width and height for textarea
-  // This ensures textarea covers the entire textbox
-  const scaledWidth = boxWidth * zoom;
-  // Use full textbox height, but ensure minimum height for usability
-  const scaledHeight = Math.max(boxHeight * zoom, scaledLineHeight * 2);
+  // Font size without zoom (use original style, but scale down more)
+  const fontSize = answerStyle.fontSize * 0.5;
+  const lineHeight = getLineHeight(answerStyle) * 0.5;
   
   // Create textarea
   const textarea = document.createElement('textarea');
@@ -641,153 +624,45 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Set initial value and position
   textarea.value = answerText || '';
   textarea.style.position = 'fixed';
-  textarea.style.top = areaPosition.y + 'px';
-  textarea.style.left = areaPosition.x + 'px';
-  textarea.style.width = scaledWidth + 'px';
-  textarea.style.height = scaledHeight + 'px';
+  textarea.style.left = editorLeft + 'px';
+  textarea.style.top = editorTop + 'px';
+  textarea.style.width = editorWidth + 'px';
+  textarea.style.minHeight = editorMinHeight + 'px';
 
   // Apply shared styling
-  applyInlineEditorStyling(textarea, answerStyle, scaledFontSize, scaledLineHeight);
+  applyInlineEditorStyling(textarea, answerStyle, fontSize, lineHeight);
   
-  // Override styling for QnA editor: white background with opacity, rounded corners, shadow
-  textarea.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-  textarea.style.background = 'rgba(255, 255, 255, 0.8)';
-  textarea.style.borderRadius = '8px'; // Slightly rounded corners
-  textarea.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'; // shadow-lg equivalent
-  textarea.style.border = 'none'; // Remove dashed border
-  
-  // Calculate padding to position text in the answer area
-  // The textarea covers the entire textbox, but text should start at the answer area position
-  const answerAreaX = answerArea.x * zoom;
-  const answerAreaY = answerArea.y * zoom;
-  textarea.style.paddingLeft = `${answerAreaX}px`;
-  textarea.style.paddingTop = `${answerAreaY}px`;
-  textarea.style.paddingRight = `${(boxWidth - answerArea.x - answerArea.width) * zoom}px`;
-  textarea.style.paddingBottom = `${(boxHeight - answerArea.y - answerArea.height) * zoom}px`;
-  
-  // Handle rotation if needed
-  const rotation = textRef.current?.rotation() || 0;
-  let transform = '';
-  if (rotation) {
-    transform += 'rotateZ(' + rotation + 'deg)';
-  }
-  textarea.style.transform = transform;
+  // Override styling for QnA editor: white background, rounded corners, shadow
+  textarea.style.backgroundColor = '#ffffff';
+  textarea.style.background = '#ffffff';
+  textarea.style.borderRadius = '8px';
+  textarea.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+  textarea.style.border = 'none';
+  textarea.style.padding = '16px';
   
   // Focus textarea
   textarea.focus();
   
-  // Create white overlay to cover the canvas when editor is open
-  // We'll create 4 overlay sections (top, bottom, left, right) to exclude the textarea area
-  const canvasRect = stageBox; // Use stageBox which contains the canvas position and size
-  
-  // Ensure we have valid dimensions
-  const overlayTop = canvasRect.top || 0;
-  const overlayLeft = canvasRect.left || 0;
-  const overlayWidth = canvasRect.width || window.innerWidth;
-  const overlayHeight = canvasRect.height || window.innerHeight;
-  
-  // Create overlay container
+  // Create fullscreen overlay to cover entire viewport
   const canvasOverlayContainer = document.createElement('div');
   canvasOverlayContainer.style.position = 'fixed';
-  canvasOverlayContainer.style.top = overlayTop + 'px';
-  canvasOverlayContainer.style.left = overlayLeft + 'px';
-  canvasOverlayContainer.style.width = overlayWidth + 'px';
-  canvasOverlayContainer.style.height = overlayHeight + 'px';
-  canvasOverlayContainer.style.zIndex = '9999'; // High z-index to ensure it's above canvas
-  canvasOverlayContainer.style.pointerEvents = 'none'; // Allow clicks to pass through
+  canvasOverlayContainer.style.top = '0';
+  canvasOverlayContainer.style.left = '0';
+  canvasOverlayContainer.style.width = '100vw';
+  canvasOverlayContainer.style.height = '100vh';
+  canvasOverlayContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+  canvasOverlayContainer.style.zIndex = '9999';
+  canvasOverlayContainer.style.pointerEvents = 'auto';
   canvasOverlayContainer.id = 'inline-editor-canvas-overlay-container';
   
-  // Function to update overlay sections based on current textarea dimensions
-  const updateOverlaySections = () => {
-    // Clear existing sections
-    canvasOverlayContainer.innerHTML = '';
-    
-    // Get current textarea dimensions (including border)
-    const textareaRect = textarea.getBoundingClientRect();
-    const textareaTop = textareaRect.top;
-    const textareaLeft = textareaRect.left;
-    const textareaWidth = textareaRect.width;
-    const textareaHeight = textareaRect.height;
-    
-    // Create 4 overlay sections to cover canvas but exclude textarea area
-    const createOverlaySection = (top: number, left: number, width: number, height: number) => {
-      if (width <= 0 || height <= 0) return null; // Skip invalid sections
-      const section = document.createElement('div');
-      section.style.position = 'absolute';
-      section.style.top = (top - overlayTop) + 'px';
-      section.style.left = (left - overlayLeft) + 'px';
-      section.style.width = width + 'px';
-      section.style.height = height + 'px';
-      section.style.backgroundColor = '#ffffff';
-      section.style.opacity = '0.6';
-      return section;
-    };
-    
-    // Top section (above textarea)
-    if (textareaTop > overlayTop) {
-      const topSection = createOverlaySection(
-        overlayTop,
-        overlayLeft,
-        overlayWidth,
-        textareaTop - overlayTop
-      );
-      if (topSection) canvasOverlayContainer.appendChild(topSection);
+  // Close editor when clicking on overlay
+  canvasOverlayContainer.addEventListener('click', (e) => {
+    if (e.target === canvasOverlayContainer) {
+      removeTextarea();
     }
-    
-    // Bottom section (below textarea)
-    const textareaBottom = textareaTop + textareaHeight;
-    const overlayBottom = overlayTop + overlayHeight;
-    if (textareaBottom < overlayBottom) {
-      const bottomSection = createOverlaySection(
-        textareaBottom,
-        overlayLeft,
-        overlayWidth,
-        overlayBottom - textareaBottom
-      );
-      if (bottomSection) canvasOverlayContainer.appendChild(bottomSection);
-    }
-    
-    // Left section (left of textarea)
-    if (textareaLeft > overlayLeft) {
-      const leftSectionTop = Math.max(overlayTop, textareaTop);
-      const leftSectionBottom = Math.min(overlayBottom, textareaBottom);
-      if (leftSectionTop < leftSectionBottom) {
-        const leftSection = createOverlaySection(
-          leftSectionTop,
-          overlayLeft,
-          textareaLeft - overlayLeft,
-          leftSectionBottom - leftSectionTop
-        );
-        if (leftSection) canvasOverlayContainer.appendChild(leftSection);
-      }
-    }
-    
-    // Right section (right of textarea)
-    const textareaRight = textareaLeft + textareaWidth;
-    const overlayRight = overlayLeft + overlayWidth;
-    if (textareaRight < overlayRight) {
-      const rightSectionTop = Math.max(overlayTop, textareaTop);
-      const rightSectionBottom = Math.min(overlayBottom, textareaBottom);
-      if (rightSectionTop < rightSectionBottom) {
-        const rightSection = createOverlaySection(
-          rightSectionTop,
-          textareaRight,
-          overlayRight - textareaRight,
-          rightSectionBottom - rightSectionTop
-        );
-        if (rightSection) canvasOverlayContainer.appendChild(rightSection);
-      }
-    }
-  };
-  
-  // Initial overlay creation
-  updateOverlaySections();
-  
-  // Update overlay when textarea size changes (e.g., when text is added and height increases)
-  let overlayResizeObserver: ResizeObserver | null = new ResizeObserver(() => {
-    updateOverlaySections();
   });
-  overlayResizeObserver.observe(textarea);
+  
+  let overlayResizeObserver: ResizeObserver | null = null;
   
   // Insert before textarea to ensure proper stacking
   document.body.insertBefore(canvasOverlayContainer, textarea);
@@ -1292,19 +1167,8 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Initial height calculation
   updateHeight();
   
-  // Update height on input - use a small debounce to batch rapid changes
-  let updateHeightTimeout: ReturnType<typeof setTimeout> | null = null;
-  textarea.addEventListener('input', function () {
-    if (updateHeightTimeout) {
-      clearTimeout(updateHeightTimeout);
-    }
-    
-    // Use a very short delay to allow the browser to update scrollHeight
-    updateHeightTimeout = setTimeout(() => {
-      updateHeight();
-      updateHeightTimeout = null;
-    }, 10); // Very short delay to allow DOM update
-  });
+  // Update height on input
+  textarea.addEventListener('input', updateHeight);
   
   // Store this editor instance globally
   activeEditorInstance = {

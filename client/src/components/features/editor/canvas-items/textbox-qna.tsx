@@ -2352,7 +2352,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         </>
       ) : (
         <>
-          <Group cache listening={false}>
+          <Group cache listening={false} perfectDrawEnabled={false}>
             {showBackground && (
               <Rect
                 width={boxWidth}
@@ -2363,17 +2363,13 @@ function TextboxQnaComponent(props: CanvasItemProps) {
                 listening={false}
               />
             )}
-          </Group>
-
-          <Group cache listening={false}>
+            
             {ruledLines && ruledLinesElements.length > 0 && (
               <>
                 {ruledLinesElements}
               </>
             )}
-          </Group>
-
-          <Group cache listening={false}>
+            
             {showBorder && (() => {
               const borderColor = qnaElement.borderColor || '#000000';
               const borderWidth = qnaElement.borderWidth || 1;
@@ -2481,7 +2477,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         />
       )}
       
-          {/* Hit area for double-click detection and mouse move - limited to box dimensions */}
+          {/* Hit area for double-click detection and mouse move - must be on top */}
           <Rect
             ref={textRef}
             x={0}
