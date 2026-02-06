@@ -121,16 +121,7 @@ const isPdfExport = typeof window !== 'undefined' && (
   navigator.userAgent.includes('HeadlessChrome')
 );
 
-// Debug logging for PDF export detection
-// if (typeof window !== 'undefined') {
-//   console.log('[Ruled Lines Debug] PDF Export Detection:', {
-//     isPdfExport,
-//     __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
-//     pathname: window.location.pathname,
-//     userAgent: navigator.userAgent.includes('HeadlessChrome'),
-//     windowLocation: window.location.href
-//   });
-// }
+
 
 // CRITICAL FIX: Force PDF export detection for pdf-renderer.html
 // The HTML template sets __PDF_EXPORT__ = true, but detection might fail
@@ -144,12 +135,7 @@ const forcePdfExport = typeof window !== 'undefined' &&
 const pdfOverride = typeof window !== 'undefined' ? (window as any).PDF_RULED_LINE_BASELINE_OFFSET : undefined;
 const RULED_LINE_BASELINE_OFFSET = pdfOverride !== undefined ? pdfOverride : 12;
 
-// console.log('[Ruled Lines Debug] Final offset:', {
-//   isPdfExport,
-//   forcePdfExport,
-//   pdfOverride,
-//   finalOffset: RULED_LINE_BASELINE_OFFSET
-// });
+
 
 function stripHtml(text: string) {
   if (!text) return '';
@@ -477,18 +463,7 @@ function createLayoutLocal(params: {
         lastQuestionLineWidth = metrics.width;
       }
       
-      // DEBUG: Log lastQuestionLineWidth calculation for PDF export
-      if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-        console.log('[DEBUG textbox-qna.tsx] lastQuestionLineWidth calculation:',
-          'text:', lastQuestionLine.text.substring(0, 50),
-          'fontSize:', questionStyle.fontSize,
-          'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
-          'metrics.width:', Math.round(metrics.width * 100) / 100,
-          'metrics.actualBoundingBoxRight:', metrics.actualBoundingBoxRight !== undefined ? Math.round(metrics.actualBoundingBoxRight * 100) / 100 : 'undefined',
-          'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
-          'difference (actualBoundingBoxRight - width):', metrics.actualBoundingBoxRight !== undefined ? Math.round((metrics.actualBoundingBoxRight - metrics.width) * 100) / 100 : 'N/A'
-        );
-      }
+
       
       ctx.restore();
     }
@@ -1105,79 +1080,6 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     state.currentBook?.colorPaletteId,
   ]);
   
-  // DEBUG: Track re-renders
-  const renderCountRef = useRef(0);
-  const prevPropsRef = useRef<CanvasItemProps | null>(null);
-  const prevStateRef = useRef<typeof relevantState | null>(null);
-  renderCountRef.current += 1;
-  
-  // Log every render with reason
-  useEffect(() => {
-    console.log(`[PERF] TextboxQna RENDER #${renderCountRef.current} for element ${element.id.substring(0, 8)}`);
-    
-    if (prevPropsRef.current) {
-      const prev = prevPropsRef.current;
-      const changed: string[] = [];
-      
-      // Basic element properties
-      if (prev.element.id !== props.element.id) changed.push(`element.id: ${prev.element.id} -> ${props.element.id}`);
-      if (prev.element.x !== props.element.x) changed.push(`element.x: ${prev.element.x} -> ${props.element.x}`);
-      if (prev.element.y !== props.element.y) changed.push(`element.y: ${prev.element.y} -> ${props.element.y}`);
-      if (prev.element.width !== props.element.width) changed.push(`element.width: ${prev.element.width} -> ${props.element.width}`);
-      if (prev.element.height !== props.element.height) changed.push(`element.height: ${prev.element.height} -> ${props.element.height}`);
-      if (prev.element.rotation !== props.element.rotation) changed.push(`element.rotation: ${prev.element.rotation} -> ${props.element.rotation}`);
-      if (prev.isSelected !== props.isSelected) changed.push(`isSelected: ${prev.isSelected} -> ${props.isSelected}`);
-      if (prev.zoom !== props.zoom) changed.push(`zoom: ${prev.zoom} -> ${props.zoom}`);
-      if (prev.activeTool !== props.activeTool) changed.push(`activeTool: ${prev.activeTool} -> ${props.activeTool}`);
-      
-      // QNA-specific properties
-      const prevEl = prev.element as QnaCanvasElement;
-      const nextEl = props.element as QnaCanvasElement;
-      if (prevEl.questionId !== nextEl.questionId) changed.push(`questionId: ${prevEl.questionId} -> ${nextEl.questionId}`);
-      if (prevEl.text !== nextEl.text) changed.push(`text: ${prevEl.text?.substring(0, 20)}... -> ${nextEl.text?.substring(0, 20)}...`);
-      if (prevEl.formattedText !== nextEl.formattedText) changed.push(`formattedText changed`);
-      if (JSON.stringify(prevEl.questionSettings) !== JSON.stringify(nextEl.questionSettings)) changed.push(`questionSettings changed`);
-      if (JSON.stringify(prevEl.answerSettings) !== JSON.stringify(nextEl.answerSettings)) changed.push(`answerSettings changed`);
-      
-      // State-dependent values (these will cause re-renders when they change)
-      if (prevStateRef.current) {
-        const prevState = prevStateRef.current;
-        if (prevState.tempAnswers !== relevantState.tempAnswers) changed.push(`state.tempAnswers changed`);
-        if (prevState.tempQuestions !== relevantState.tempQuestions) changed.push(`state.tempQuestions changed`);
-        if (prevState.pageAssignments !== relevantState.pageAssignments) changed.push(`state.pageAssignments changed`);
-        if (prevState.activePageIndex !== relevantState.activePageIndex) changed.push(`state.activePageIndex: ${prevState.activePageIndex} -> ${relevantState.activePageIndex}`);
-        if (prevState.currentPage !== relevantState.currentPage) changed.push(`state.currentPage changed`);
-        if (prevState.bookTheme !== relevantState.bookTheme) changed.push(`state.bookTheme changed`);
-        if (prevState.bookLayoutTemplateId !== relevantState.bookLayoutTemplateId) changed.push(`state.bookLayoutTemplateId changed`);
-        if (prevState.bookColorPaletteId !== relevantState.bookColorPaletteId) changed.push(`state.bookColorPaletteId changed`);
-      }
-      
-      // Check if state object reference changed (this happens on every state update)
-      if (prevStateRef.current && prevStateRef.current !== relevantState) {
-        // Check if any relevant values actually changed
-        const stateValuesChanged = prevStateRef.current && (
-          prevStateRef.current.tempAnswers !== relevantState.tempAnswers ||
-          prevStateRef.current.tempQuestions !== relevantState.tempQuestions ||
-          prevStateRef.current.pageAssignments !== relevantState.pageAssignments ||
-          prevStateRef.current.activePageIndex !== relevantState.activePageIndex ||
-          prevStateRef.current.currentPage !== relevantState.currentPage ||
-          prevStateRef.current.bookTheme !== relevantState.bookTheme ||
-          prevStateRef.current.bookLayoutTemplateId !== relevantState.bookLayoutTemplateId ||
-          prevStateRef.current.bookColorPaletteId !== relevantState.bookColorPaletteId
-        );
-        
-        if (!stateValuesChanged && changed.length === 0) {
-          // console.warn(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}" but NO PROPS/STATE CHANGED! React.memo should have prevented this. This happens because useEditor() returns a new state object on every update, even when relevant values haven't changed.`);
-        }
-      }
-      
-      if (changed.length > 0) {
-        // console.log(`[TextboxQna] Re-render #${renderCountRef.current} for element "${element.id}":`, changed);
-      }
-    }
-    prevPropsRef.current = { ...props };
-    prevStateRef.current = relevantState;
-  });
   // Get element dimensions - use actual values, don't default to 0
   // This ensures we use the correct dimensions when loading
   const elementWidth = element.width ?? 0;
@@ -1633,18 +1535,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     // PERFORMANCE OPTIMIZATION: Use debounced text content for layout calculations
     // During debounce phase, use previous layout to avoid flickering
     if (isCalculatingLayout && previousLayoutRef.current) {
-      console.log(`[PERF] Layout cache HIT (debouncing) for element ${element.id.substring(0, 8)}`);
       return previousLayoutRef.current;
     }
-    
-    // DEBUG: Log layout recalculation
-    console.log(`[PERF] Layout RECALCULATION for element ${element.id.substring(0, 8)}`, {
-      questionText: debouncedPreparedQuestionText.substring(0, 30),
-      answerText: debouncedAnswerContent.substring(0, 30),
-      dimensions: `${boxWidth}x${boxHeight}`,
-      questionFontSize: effectiveQuestionStyle.fontSize,
-      answerFontSize: answerStyle.fontSize
-    });
     
     // PERFORMANCE OPTIMIZATION: Reuse cached canvas context instead of creating new one
     const canvasContext = canvasContextRef.current;
@@ -1669,7 +1561,6 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       blockQuestionAnswerGap
     });
     const endTime = performance.now();
-    console.log(`[PERF] Layout calculation took ${(endTime - startTime).toFixed(2)}ms for element ${element.id.substring(0, 8)}`);
     
     // Store layout for use during debounce phase
     previousLayoutRef.current = newLayout;
@@ -1988,11 +1879,6 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       const scaleX = groupNode.scaleX();
       const scaleY = groupNode.scaleY();
 
-      // Debug: Log scale and dimensions before reset
-      console.log(`  Scale values: x=${scaleX}, y=${scaleY}`);
-      console.log(`  Group dimensions before scale reset: ${groupNode.width()} x ${groupNode.height()}`);
-      console.log(`  Group position before scale reset: (${groupNode.x()}, ${groupNode.y()})`);
-
       // Reset scale back to 1 (Konva best practice)
       groupNode.scaleX(1);
       groupNode.scaleY(1);
@@ -2009,26 +1895,16 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       const resizeDirection = storedResizeDirectionRef.current;
       let positionUpdates: { x?: number; y?: number } = {};
 
-      // Debug logging for resize behavior
-      console.log(`[TextboxTransform] Element ${element.id}:`);
-      console.log(`  Resize direction: ${JSON.stringify(resizeDirection)}`);
-      console.log(`  Dimension changes: (${widthChange}, ${heightChange})`);
-      console.log(`  Original position: (${element.x}, ${element.y})`);
-
       // Adjust position when resizing from left or top handles
       if (resizeDirection?.fromLeft && widthChange !== 0) {
         // When resizing from left, move position by half the width change
         positionUpdates.x = element.x - widthChange / 2;
-        console.log(`  Left handle adjustment: ${positionUpdates.x} (moved by ${-widthChange / 2})`);
       }
 
       if (resizeDirection?.fromTop && heightChange !== 0) {
         // When resizing from top, move position by half the height change
         positionUpdates.y = element.y - heightChange / 2;
-        console.log(`  Top handle adjustment: ${positionUpdates.y} (moved by ${-heightChange / 2})`);
       }
-
-      console.log(`  Final position updates: ${JSON.stringify(positionUpdates)}`);
 
       // Update element with new dimensions and corrected position
       dispatch({

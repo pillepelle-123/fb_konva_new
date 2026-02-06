@@ -2181,14 +2181,6 @@ export default function Canvas() {
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // DEBUG: Log mouseup event
-    // console.log('[handleMouseUp] Called', { 
-    //   isSelecting, 
-    //   selectionStart, 
-    //   currentPage: !!currentPage,
-    //   target: e.target.getClassName(),
-    //   isStage: e.target === e.target.getStage()
-    // });
     
     // Block all mouse up interactions for no_access users except panning
     if (state.editorInteractionLevel === 'no_access') {
@@ -2535,15 +2527,12 @@ export default function Canvas() {
     // Complete selection rectangle if active
     // This must be checked AFTER all other conditions to ensure selection works
     // even when mouse is released on background (not over any element)
-    if (isSelecting && selectionStart && currentPage) {
-      console.log('[handleMouseUp] Completing selection', { isSelecting, selectionStart, currentPage: !!currentPage });
-      
+    if (isSelecting && selectionStart && currentPage) {      
       // CRITICAL: Calculate selection rectangle from current mouse position, not from state
       // This ensures we use the most up-to-date position even if throttledSetSelectionRect
       // hasn't updated the state yet
       const stage = e.target.getStage();
       const pos = stage?.getPointerPosition();
-      console.log('[handleMouseUp] Mouse position', { pos, stage: !!stage });
       
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom;
@@ -2558,9 +2547,7 @@ export default function Canvas() {
           height: Math.abs(height),
           visible: true
         };
-        
-        console.log('[handleMouseUp] Final rect', finalRect);
-        
+                
         // Only select if rectangle is large enough
         if (finalRect.width >= 5 && finalRect.height >= 5) {
           const selectedIds = getElementsInSelection(
@@ -2569,9 +2556,7 @@ export default function Canvas() {
             activePageOffsetX,
             pageOffsetY
           );
-          
-          console.log('[handleMouseUp] Selected IDs', selectedIds);
-          
+                    
           // Add linked question-answer pairs
           const finalSelectedIds = new Set(selectedIds);
           selectedIds.forEach(elementId => {
@@ -2584,26 +2569,20 @@ export default function Canvas() {
             }
           });
           
-          console.log('[handleMouseUp] Final selected IDs', Array.from(finalSelectedIds));
           dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
           // Mark that we just completed a selection to prevent handleStageClick from clearing it
           (window as any).__lastSelectionMouseUp = Date.now();
         } else {
-          console.log('[handleMouseUp] Rectangle too small, clearing selection');
           // Clear selection if rectangle is too small
           dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
         }
-      } else {
-        console.log('[handleMouseUp] No mouse position available');
-      }
+      } 
       
       // Final update is immediate (not throttled) to ensure correct state
       setSelectionRect({ x: 0, y: 0, width: 0, height: 0, visible: false });
       setIsSelecting(false);
       setSelectionStart(null);
-    } else {
-      // console.log('[handleMouseUp] Not completing selection', { isSelecting, selectionStart: !!selectionStart, currentPage: !!currentPage });
-    }
+    } 
     setIsDrawing(false);
     setCurrentPath([]);
   };
@@ -3032,7 +3011,6 @@ export default function Canvas() {
     // Don't clear selection if we just completed a selection rectangle
     // But complete the selection first if we're still selecting
     if (isSelecting) {
-      console.log('[handleStageClick] isSelecting is true, completing selection');
       // Complete selection rectangle if active
       if (selectionStart && currentPage && stageRef.current) {
         const pointerPos = stageRef.current.getPointerPosition();
@@ -3120,8 +3098,6 @@ export default function Canvas() {
       if (!justCompletedSelectionRef.current) {
         // Clear selection for all tools when clicking background
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
-      } else {
-        console.log('[handleStageClick] Skipping clear selection - just completed selection');
       }
       
       // Don't switch away from pan tool or pipette tool
@@ -4241,13 +4217,8 @@ export default function Canvas() {
       // hasn't updated the state yet
       const stage = stageRef.current;
       const pointerPos = stage.getPointerPosition();
-      // console.log('[handleGlobalSelectionMouseUp] Pointer position', pointerPos);
-      // console.log('[handleGlobalSelectionMouseUp] Stage pos', stagePos);
-      // console.log('[handleGlobalSelectionMouseUp] Zoom', zoom);
-      // console.log('[handleGlobalSelectionMouseUp] Selection start', selectionStart);
       
       if (!pointerPos) {
-        // console.log('[handleGlobalSelectionMouseUp] No pointer position');
         return;
       }
       
@@ -4258,7 +4229,6 @@ export default function Canvas() {
       const width = x - selectionStart.x;
       const height = y - selectionStart.y;
       
-      // console.log('[handleGlobalSelectionMouseUp] Calculated coords', { x, y, width, height });
       
       const finalRect = {
         x: width < 0 ? x : selectionStart.x,
@@ -4267,9 +4237,7 @@ export default function Canvas() {
         height: Math.abs(height),
         visible: true
       };
-      
-      // console.log('[handleGlobalSelectionMouseUp] Final rect', finalRect);
-      
+            
       // Only select if rectangle is large enough
       if (finalRect.width >= 5 && finalRect.height >= 5) {
         const selectedIds = getElementsInSelection(
@@ -4278,9 +4246,7 @@ export default function Canvas() {
           activePageOffsetX,
           pageOffsetY
         );
-        
-        // console.log('[handleGlobalSelectionMouseUp] Selected IDs', selectedIds);
-        
+                
         // Add linked question-answer pairs
         const finalSelectedIds = new Set(selectedIds);
         selectedIds.forEach(elementId => {
@@ -4293,7 +4259,6 @@ export default function Canvas() {
           }
         });
         
-        // console.log('[handleGlobalSelectionMouseUp] Final selected IDs', Array.from(finalSelectedIds));
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: Array.from(finalSelectedIds) });
         // Mark that we just completed a selection to prevent handleStageClick from clearing it
         justCompletedSelectionRef.current = true;
@@ -4302,7 +4267,6 @@ export default function Canvas() {
           justCompletedSelectionRef.current = false;
         }, 200);
       } else {
-        // console.log('[handleGlobalSelectionMouseUp] Rectangle too small, clearing selection');
         // Clear selection if rectangle is too small
         dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       }
@@ -4410,9 +4374,7 @@ export default function Canvas() {
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       return;
     }
-    
-    console.log('Loading sticker:', { id: sticker.id, url: sticker.url, thumbnailUrl: sticker.thumbnailUrl });
-    
+        
     // If we have a pending element ID, update the existing sticker element
     if (pendingStickerElementId) {
       // Load sticker image to get original dimensions
@@ -4460,7 +4422,6 @@ export default function Canvas() {
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      console.log('Sticker image loaded successfully:', { width: img.width, height: img.height, url: sticker.url });
       const maxWidth = 300;
       const aspectRatio = img.width / img.height;
       const width = maxWidth;
@@ -4498,7 +4459,6 @@ export default function Canvas() {
       });
       // Try using thumbnailUrl as fallback
       if (sticker.thumbnailUrl && sticker.thumbnailUrl !== sticker.url) {
-        console.log('Trying thumbnailUrl as fallback:', sticker.thumbnailUrl);
         const fallbackImg = new window.Image();
         fallbackImg.crossOrigin = 'anonymous';
         fallbackImg.onload = () => {
@@ -4962,27 +4922,6 @@ export default function Canvas() {
                 // not by zIndex. So we need to ensure elements are rendered in the sorted order.
                 // The sorted array is already in the correct order, so we just need to render them in that order.
                 return sorted.map((element, index) => {
-                  // Debug: Log element reference for QNA elements to check if it changes
-                  if (element.type === 'text' && element.textType === 'qna') {
-                    // Store element reference in a ref to compare across renders
-                    const elementRefKey = `element-ref-${element.id}`;
-                    const prevRef = (window as any)[elementRefKey];
-                    if (prevRef && prevRef !== element) {
-                      console.log(`[Canvas] Element reference CHANGED for ${element.id}`, {
-                        prevRef,
-                        newRef: element,
-                        borderEnabled: (element as any).borderEnabled,
-                        padding: element.padding
-                      });
-                    } else if (!prevRef) {
-                      console.log(`[Canvas] First render for element ${element.id}`, {
-                        elementRef: element,
-                        borderEnabled: (element as any).borderEnabled,
-                        padding: element.padding
-                      });
-                    }
-                    (window as any)[elementRefKey] = element;
-                  }
                   // Normal rendering
                   return (
                     <Group
@@ -5969,16 +5908,6 @@ export default function Canvas() {
                             updates.cropY = y;
                             updates.cropWidth = newWidth;
                             updates.cropHeight = newHeight;
-
-                            console.log('Storing crop values for image:', element.id, {
-                              cropX: x,
-                              cropY: y,
-                              cropWidth: newWidth,
-                              cropHeight: newHeight,
-                              finalSize: { width: finalWidth, height: finalHeight },
-                              imageSize: { width: imageNode.image().width, height: imageNode.image().height },
-                              clipPosition: clipPosition
-                            });
                           }
 
                           // Reset scale to 1 on Group (scale was converted to width/height)

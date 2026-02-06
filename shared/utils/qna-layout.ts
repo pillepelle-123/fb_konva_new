@@ -110,18 +110,6 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   const questionLineHeight = getLineHeight(questionStyle);
   const answerLineHeight = getLineHeight(answerStyle);
   
-  // DEBUG: Log line height calculations for PDF export
-  if (isPdfExport && typeof console !== 'undefined') {
-    console.log('[DEBUG qna-layout.ts Block] Line Heights:', {
-      questionLineHeight,
-      answerLineHeight,
-      questionFontSize: questionStyle.fontSize,
-      answerFontSize: answerStyle.fontSize,
-      questionParagraphSpacing: questionStyle.paragraphSpacing,
-      answerParagraphSpacing: answerStyle.paragraphSpacing
-    });
-  }
-  
   // Baseline offsets
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
   const answerBaselineOffset = answerStyle.fontSize * 0.8;
@@ -225,20 +213,6 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
             lineHeight: answerLineHeight,
             style: answerStyle
           });
-          
-          // DEBUG: Log first answer line position for PDF export
-          if (isPdfExport && idx === 0 && typeof console !== 'undefined') {
-            console.log('[DEBUG qna-layout.ts Block] First Answer Line:', {
-              lineIndex: idx,
-              cursorY,
-              answerBaselineOffset,
-              baselineY,
-              RULED_LINE_BASELINE_OFFSET,
-              ruledLineY,
-              answerAreaY: answerArea.y,
-              text: line.text.substring(0, 30)
-            });
-          }
         }
         cursorY += answerLineHeight;
       } else {
@@ -290,17 +264,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   
   // Inline layout (existing logic)
   const availableWidth = Math.max(10, width - padding * 2);
-  
-  // DEBUG: Log width calculation for PDF export
-  if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-    console.log('[DEBUG qna-layout.ts] Width calculation:',
-      'width:', Math.round(width * 100) / 100,
-      'padding:', Math.round(padding * 100) / 100,
-      'availableWidth:', Math.round(availableWidth * 100) / 100,
-      'calculation:', `${Math.round(width * 100) / 100} - ${Math.round(padding * 100) / 100} * 2 = ${Math.round((width - padding * 2) * 100) / 100}`
-    );
-  }
-  
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
   
@@ -309,19 +272,7 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // Both question and answer now use same line height calculation for consistency
   const questionLineHeight = getLineHeight(questionStyle);
   const answerLineHeight = getLineHeight(answerStyle);
-  
-  // DEBUG: Log line height calculations for PDF export
-  if (isPdfExport && typeof console !== 'undefined') {
-    console.log('[DEBUG qna-layout.ts Inline] Line Heights:', {
-      questionLineHeight,
-      answerLineHeight,
-      questionFontSize: questionStyle.fontSize,
-      answerFontSize: answerStyle.fontSize,
-      questionParagraphSpacing: questionStyle.paragraphSpacing,
-      answerParagraphSpacing: answerStyle.paragraphSpacing
-    });
-  }
-  
+
   // Baseline offset: text baseline is typically at fontSize * 0.8 from top
   // When using textBaseline = 'top', we need to adjust Y position
   const questionBaselineOffset = questionStyle.fontSize * 0.8;
@@ -378,15 +329,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             }
           }
 
-          // Debug: Log calibration attempt
-          console.log('[DEBUG qna-layout.ts] Font calibration check:', {
-            fontFamily: fontFamily,
-            normalizedFontFamily: fontFamily?.toLowerCase(),
-            calibrationSource: calibrationSource,
-            availableCalibrations: Object.keys(FONT_CALIBRATION),
-            hasCalibration: !!calibration
-          });
-
           if (calibration) {
             // Apply calibrated measurement offset
             calibratedMeasurement = metrics.actualBoundingBoxRight - calibration.pdfMeasurementOffset;
@@ -405,22 +347,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
         // Fallback: use standard width measurement
         lastQuestionLineWidth = metrics.width;
       }
-      
-      // DEBUG: Log lastQuestionLineWidth calculation for PDF export
-      if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
-        console.log('[DEBUG qna-layout.ts] lastQuestionLineWidth calculation:',
-          'text:', lastQuestionLine.text.substring(0, 50),
-          'fontSize:', questionStyle.fontSize,
-          'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
-          'metrics.width:', Math.round(metrics.width * 100) / 100,
-          'metrics.actualBoundingBoxRight:', metrics.actualBoundingBoxRight !== undefined ? Math.round(metrics.actualBoundingBoxRight * 100) / 100 : 'undefined',
-          'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
-          'difference (actualBoundingBoxRight - width):', metrics.actualBoundingBoxRight !== undefined ? Math.round((metrics.actualBoundingBoxRight - metrics.width) * 100) / 100 : 'N/A',
-          'needsGapReduction:', needsGapReduction,
-          'widthDifference:', Math.round(widthDifference * 100) / 100
-        );
-      }
-      
       ctx.restore();
     }
   }
@@ -524,16 +450,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
   // Check if answer can start on the same line as the last question line
   // Only combine if leadingBreaks === 0 and first paragraph fits
   if (!answerInNewRow && leadingBreaks === 0 && questionLines.length > 0 && answerText && answerText.trim()) {
-    // DEBUG: Log that we're checking inline layout
-    if (typeof window !== 'undefined' && !(window as any).__PDF_EXPORT__) {
-      console.log('[DEBUG qna-layout.ts] Checking inline layout (APP):',
-        'answerInNewRow:', answerInNewRow,
-        'leadingBreaks:', leadingBreaks,
-        'questionLines.length:', questionLines.length,
-        'hasAnswerText:', !!answerText,
-        'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100
-      );
-    }
     const inlineAvailable = availableWidth - lastQuestionLineWidth - inlineGap;
     
     // Get the first paragraph (before first line break) to check if it fits
@@ -621,24 +537,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
                   calibrationSource = 'partial';
                 }
               }
-
-              console.log(`[DEBUG qna-layout.ts] Inline gap calculation (${isPdfExport ? 'PDF' : 'APP'}):`,
-                'fontFamily:', questionStyle.fontFamily?.substring(0, 30),
-                'fontSize:', questionStyle.fontSize,
-                'lastQuestionLineWidth:', Math.round(lastQuestionLineWidth * 100) / 100,
-                'inlineGap:', Math.round(inlineGap * 100) / 100,
-                'calibrationSource:', calibrationSource,
-                'calibration:', calibration ? {
-                  offset: calibration.pdfMeasurementOffset,
-                  targetGap: calibration.targetInlineGap
-                } : null,
-                'needsGapReduction:', needsGapReduction,
-                'widthDifference:', Math.round(widthDifference * 100) / 100,
-                'inlineTextX:', Math.round(inlineTextX * 100) / 100,
-                'questionX:', Math.round(questionX * 100) / 100,
-                'padding:', Math.round(padding * 100) / 100,
-                'calculated gap (inlineTextX - questionX - lastQuestionLineWidth):', Math.round((inlineTextX - questionX - lastQuestionLineWidth) * 100) / 100
-              );
             }
             
             // Update the last question line Y position and X position to use combined baseline and alignment
@@ -675,8 +573,6 @@ export function createLayout(params: CreateLayoutParams): LayoutResult {
             const multiplier = sizeDiff <= 0 ? 0 : 3.23 * Math.pow(sizeDiff / 64, 1.8);
             const spacingAdjustment = answerStyle.fontSize * multiplier * 0.6;
             cursorY = padding + (questionLines.length * questionLineHeight) - questionLineHeight + combinedLineHeight - spacingAdjustment;
-
-            // console.log("questionLineHeight", questionLineHeight, "answerLineHeight", answerLineHeight, "combinedLineHeight", combinedLineHeight, "sizeDiff", sizeDiff, "multiplier", multiplier, "spacingAdjustment", spacingAdjustment, "cursorY", cursorY);
             
             // Update the last line position for ruled lines (use combined line height)
             if (linePositions.length > 0) {
