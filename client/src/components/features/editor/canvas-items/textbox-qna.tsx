@@ -17,6 +17,16 @@ import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBl
 import { createInlineTextEditor } from './inline-text-editor';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, THEME_STROKE_RANGES } from '../../../../utils/stroke-width-converter';
 
+// Global canvas context for text measurement (shared across all instances)
+let globalCanvasContext: CanvasRenderingContext2D | null = null;
+const getGlobalCanvasContext = () => {
+  if (!globalCanvasContext) {
+    const canvas = document.createElement('canvas');
+    globalCanvasContext = canvas.getContext('2d');
+  }
+  return globalCanvasContext;
+};
+
 type QnaSettings = {
   fontSize?: number;
   fontFamily?: string;
@@ -160,29 +170,47 @@ function parseQuestionPayload(payload: string | undefined | null) {
   return payload;
 }
 
-// Global measureText function (fallback for when cached version is not available)
-// This will be used by global functions like wrapText and calculateTextX
-// The component will use the cached version (cachedMeasureText) instead
+// Measurement cache (shared across all instances)
+const measureTextCache = new Map<string, number>();
+
+// Global measureText function with caching
 const measureText = FEATURE_FLAGS.USE_SHARED_TEXT_LAYOUT ? sharedMeasureText : (text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null) => {
+  const cacheKey = `${text}|${style.fontSize}|${style.fontFamily}|${style.fontBold}|${style.fontItalic}`;
+  
+  if (measureTextCache.has(cacheKey)) {
+    return measureTextCache.get(cacheKey)!;
+  }
+  
+  if (!ctx) {
+    ctx = getGlobalCanvasContext();
+  }
+  
   if (!ctx) {
     return text.length * (style.fontSize * 0.6);
   }
+  
   ctx.save();
   ctx.font = buildFont(style);
   ctx.textBaseline = 'alphabetic';
   const metrics = ctx.measureText(text);
   
-  // Use actualBoundingBoxRight if available (for fonts with overhangs)
   let textWidth: number;
   if (metrics.actualBoundingBoxRight !== undefined) {
     textWidth = metrics.actualBoundingBoxRight;
   } else {
-    // Fallback with safety margin for glyph overhangs
     const safetyMargin = style.fontSize * 0.12;
     textWidth = metrics.width + safetyMargin;
   }
   
   ctx.restore();
+  
+  measureTextCache.set(cacheKey, textWidth);
+  
+  if (measureTextCache.size > 1000) {
+    const firstKey = measureTextCache.keys().next().value;
+    measureTextCache.delete(firstKey);
+  }
+  
   return textWidth;
 };
 
@@ -1517,14 +1545,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   // Only recalculate when text content, dimensions, or style properties actually change
   // This prevents expensive layout recalculations during pan/zoom operations
   const layout = useMemo(() => {
-    // CRITICAL FIX: Don't calculate layout until fonts are ready
-    // This prevents incorrect text wrapping and positioning on initial page load
-    // When fonts aren't loaded, measureText returns incorrect values, causing:
-    // - Text to wrap too early
-    // - Question and answer text to overlap in combined lines
-    if (!fontsReady || !canvasContextRef.current) {
-      // Return empty layout as fallback until fonts are ready
-      // This ensures the component renders but with minimal layout
+    if (!fontsReady) {
       return {
         runs: [],
         contentHeight: boxHeight,
@@ -1532,18 +1553,12 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       };
     }
     
-    // PERFORMANCE OPTIMIZATION: Use debounced text content for layout calculations
-    // During debounce phase, use previous layout to avoid flickering
     if (isCalculatingLayout && previousLayoutRef.current) {
       return previousLayoutRef.current;
     }
     
-    // PERFORMANCE OPTIMIZATION: Reuse cached canvas context instead of creating new one
-    const canvasContext = canvasContextRef.current;
+    const ctx = getGlobalCanvasContext();
     
-    // If using shared layout, it will handle its own context
-    // Otherwise, use cached context for local layout calculations
-    const startTime = performance.now();
     const newLayout = createLayout({
       questionText: debouncedPreparedQuestionText,
       answerText: debouncedAnswerContent,
@@ -1552,7 +1567,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       width: boxWidth,
       height: boxHeight,
       padding,
-      ctx: canvasContext,
+      ctx,
       answerInNewRow,
       questionAnswerGap,
       layoutVariant,
@@ -1560,20 +1575,15 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       questionWidth,
       blockQuestionAnswerGap
     });
-    const endTime = performance.now();
     
-    // Store layout for use during debounce phase
     previousLayoutRef.current = newLayout;
     
     return newLayout;
   }, [
-    // CRITICAL: Only include dependencies that affect layout calculation
-    // Exclude: isSelected, zoom, rotation, position (x, y) - these don't affect text layout
     fontsReady,
     debouncedAnswerContent,
     debouncedPreparedQuestionText,
     isCalculatingLayout,
-    // Style properties (only the ones that affect layout)
     effectiveQuestionStyle.fontSize,
     effectiveQuestionStyle.fontFamily,
     effectiveQuestionStyle.fontBold,
@@ -1586,11 +1596,9 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     answerStyle.fontItalic,
     answerStyle.paragraphSpacing,
     answerStyle.align,
-    // Dimensions
     boxHeight,
     boxWidth,
     padding,
-    // Layout settings
     answerInNewRow,
     questionAnswerGap,
     layoutVariant,
@@ -2308,30 +2316,28 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         onMouseLeave={handleMouseLeave}
       hitArea={hitArea}
     >
-      {/* During transformation, render only a simple skeleton rectangle */}
       {isTransforming ? (
         <>
-          {/* Skeleton lines - exactly like zoom skeleton */}
-          {(() => {
-            // Calculate line height similar to zoom skeleton (based on font size if available)
-            const fontSize = answerStyle?.fontSize || questionStyle?.fontSize || 16;
-            const lineHeight = fontSize * 1.3; // Same calculation as zoom skeleton
-            const numLines = Math.max(1, Math.round(boxHeight / lineHeight));
-            return Array.from({ length: numLines }, (_, lineIndex) => (
-              <Rect
-                key={`skeleton-line-${lineIndex}`}
-                x={0}
-                y={lineIndex * lineHeight}
-                width={boxWidth}
-                height={Math.min(lineHeight * 0.8, boxHeight - lineIndex * lineHeight)} // Don't exceed element height
-                fill="#e5e7eb" // Gray color similar to shadcn skeleton - same as zoom
-                opacity={0.6} // Same opacity as zoom skeleton
-                cornerRadius={32} // Same corner radius as zoom skeleton
-                listening={false}
-              />
-            ));
-          })()}
-          {/* Hit area for transformer interaction - always needed */}
+          <Group cache listening={false}>
+            {(() => {
+              const fontSize = answerStyle?.fontSize || questionStyle?.fontSize || 16;
+              const lineHeight = fontSize * 1.3;
+              const numLines = Math.max(1, Math.round(boxHeight / lineHeight));
+              return Array.from({ length: numLines }, (_, lineIndex) => (
+                <Rect
+                  key={`skeleton-line-${lineIndex}`}
+                  x={0}
+                  y={lineIndex * lineHeight}
+                  width={boxWidth}
+                  height={Math.min(lineHeight * 0.8, boxHeight - lineIndex * lineHeight)}
+                  fill="#e5e7eb"
+                  opacity={0.6}
+                  cornerRadius={32}
+                  listening={false}
+                />
+              ));
+            })()}
+          </Group>
           <Rect
             ref={textRef}
             x={0}
@@ -2346,69 +2352,70 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         </>
       ) : (
         <>
-          {showBackground && (
-            <Rect
-              width={boxWidth}
-              height={boxHeight}
-              fill={qnaElement.backgroundColor}
-              opacity={qnaElement.backgroundOpacity ?? 1}
-              cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
-              listening={false}
-            />
-          )}
+          <Group cache listening={false}>
+            {showBackground && (
+              <Rect
+                width={boxWidth}
+                height={boxHeight}
+                fill={qnaElement.backgroundColor}
+                opacity={qnaElement.backgroundOpacity ?? 1}
+                cornerRadius={qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0}
+                listening={false}
+              />
+            )}
+          </Group>
 
-          {/* Ruled lines underneath each text row - render after background, before border and text */}
-          {/* Wrap in Group to ensure they stay together with other body parts */}
-          {ruledLines && ruledLinesElements.length > 0 && (
-            <Group listening={false}>
-              {ruledLinesElements}
-            </Group>
-          )}
+          <Group cache listening={false}>
+            {ruledLines && ruledLinesElements.length > 0 && (
+              <>
+                {ruledLinesElements}
+              </>
+            )}
+          </Group>
 
-          {showBorder && (() => {
-        const borderColor = qnaElement.borderColor || '#000000';
-        const borderWidth = qnaElement.borderWidth || 1;
-        const borderOpacity = qnaElement.borderOpacity ?? 1;
-        const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-        // Get theme from element or defaults
-        // Check element.borderTheme first, then fallback to element.theme, then 'default'
-        const themeValue = qnaElement.borderTheme || element.theme || 'default';
-        const theme = themeValue as Theme; // Use the selected theme directly (don't map 'default' to 'rough')
+          <Group cache listening={false}>
+            {showBorder && (() => {
+              const borderColor = qnaElement.borderColor || '#000000';
+              const borderWidth = qnaElement.borderWidth || 1;
+              const borderOpacity = qnaElement.borderOpacity ?? 1;
+              const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+              const themeValue = qnaElement.borderTheme || element.theme || 'default';
+              const theme = themeValue as Theme;
 
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-        
-        const borderElement = renderThemedBorder({
-          width: borderWidth,
-          color: borderColor,
-          opacity: borderOpacity,
-          cornerRadius: cornerRadius,
-          path: createRectPath(0, 0, boxWidth, boxHeight),
-          theme: theme,
-          themeSettings: {
-            roughness: theme === 'rough' ? 8 : undefined,
-            seed: seed
-          },
-          strokeScaleEnabled: true,
-          listening: false
-        });
+              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+              
+              const borderElement = renderThemedBorder({
+                width: borderWidth,
+                color: borderColor,
+                opacity: borderOpacity,
+                cornerRadius: cornerRadius,
+                path: createRectPath(0, 0, boxWidth, boxHeight),
+                theme: theme,
+                themeSettings: {
+                  roughness: theme === 'rough' ? 8 : undefined,
+                  seed: seed
+                },
+                strokeScaleEnabled: true,
+                listening: false
+              });
 
-        // Fallback to simple rect border if theme rendering fails
-        if (!borderElement) {
-          return (
-            <Rect
-              width={boxWidth}
-              height={boxHeight}
-              stroke={borderColor}
-              strokeWidth={borderWidth}
-              opacity={borderOpacity}
-              cornerRadius={cornerRadius}
-              listening={false}
-            />
-          );
-        }
+              if (!borderElement) {
+                return (
+                  <Rect
+                    width={boxWidth}
+                    height={boxHeight}
+                    stroke={borderColor}
+                    strokeWidth={borderWidth}
+                    opacity={borderOpacity}
+                    cornerRadius={cornerRadius}
+                    listening={false}
+                  />
+                );
+              }
 
-        return borderElement;
-      })()}
+              return borderElement;
+            })()}
+          </Group>
 
       {/* Text that can extend beyond the box */}
       {/* When answer editor is open, only show question runs */}
