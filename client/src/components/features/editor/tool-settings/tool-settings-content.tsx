@@ -1246,131 +1246,7 @@ export function ToolSettingsContent({
     }
   };
 
-  const renderBackButton = () => {
-    const navigationState = {
-      showColorSelector,
-      showFontSelector,
-      showBackgroundSettings,
-      showPatternSettings,
-      showEditorSettings: showEditorSettings ?? false,
-      showPagePalette: showPagePalette ?? false,
-      showBookPalette: showBookPalette ?? false,
-      showPageLayout: showPageLayout ?? false,
-      showBookLayout: showBookLayout ?? false,
-      showPageThemeSelector: showPageThemeSelector ?? false,
-      showBookThemeSelector: showBookThemeSelector ?? false,
-      selectedElementIds: state.selectedElementIds,
-      currentBook: state.currentBook,
-      activePageIndex: state.activePageIndex,
-    };
-    
-    const currentMenu = getCurrentMenu(navigationState);
-    if (!currentMenu) return null;
-    
-    const parentMenu = getParentMenu(currentMenu, navigationState);
-    if (!parentMenu) return null; // Kein Parent = kein Back-Button
-    
-    const parentTitle = getMenuTitle(parentMenu);
-    
-    // Check if we're in a selector that needs Apply button
-    const isSelectorOpen = currentMenu === 'palette-selector' || currentMenu === 'layout-selector' || currentMenu === 'theme-selector';
-    
-    const handleBack = () => {
-      // Reset applyToEntireBook when closing
-      setApplyToEntireBook(false);
-      
-      // Schließe aktuelles Menü basierend auf Typ
-      switch (currentMenu) {
-        case 'color-selector':
-          setShowColorSelector(null);
-          break;
-        case 'font-selector':
-          setShowFontSelector(false);
-          break;
-        case 'pattern':
-          setShowPatternSettings(false);
-          break;
-        case 'background':
-          setShowBackgroundSettings(false);
-          break;
-        case 'editor-settings':
-          setShowEditorSettings?.(false);
-          break;
-        case 'palette-selector':
-          setShowPagePalette?.(false);
-          setShowBookPalette?.(false);
-          break;
-        case 'layout-selector':
-          setShowPageLayout?.(false);
-          setShowBookLayout?.(false);
-          break;
-        case 'theme-selector':
-          setShowPageThemeSelector?.(false);
-          setShowBookThemeSelector?.(false);
-          break;
-      }
-    };
-    
-    const handleApply = () => {
-      // Call apply method on the appropriate selector ref
-      if (generalSettingsRef?.current) {
-        generalSettingsRef.current.applyCurrentSelector(applyToEntireBook);
-      }
-      handleBack();
-    };
-    
-    // Determine if Apply button should be enabled
-    const canApply = isSelectorOpen;
-    
-    // Determine if "Apply to entire book" checkbox should be shown
-    // Only show for page-level selectors (not book-level)
-    const showApplyToEntireBook = isSelectorOpen && !showBookPalette && !showBookLayout && !showBookThemeSelector;
-    
-    return (
-      <div className="p-2 pb-2 flex-shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <Tooltip content={`Back to ${parentTitle}`} side="top">
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={handleBack}
-              className="justify-start px-2 gap-1"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-          </Tooltip>
-          <div className="flex items-center gap-2">
-            {showApplyToEntireBook && (
-              <div className="flex items-center gap-1">
-                <Tooltip content="Apply to entire book" side="top">
-                  <Checkbox
-                    id="apply-to-entire-book"
-                    checked={applyToEntireBook}
-                    onCheckedChange={(checked) => setApplyToEntireBook(checked === true)}
-                  />
-                </Tooltip>
-                <BookCheck className="h-4 w-4" />
-              </div>
-            )}
-            {isSelectorOpen && (
-              <Button
-                variant="default"
-                size="xs"
-                onClick={handleApply}
-                disabled={!canApply}
-                className="gap-1 px-2"
-                title={applyToEntireBook ? "Apply to all Pages" : "Apply"}
-              >
-                <Check className="h-4 w-4" />
-                <span className="text-xs">{applyToEntireBook ? "Apply to all Pages" : "Apply"}</span>
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -1381,7 +1257,6 @@ export function ToolSettingsContent({
           </div>
         )}
       </div>
-      {renderBackButton()}
     </div>
   );
 }

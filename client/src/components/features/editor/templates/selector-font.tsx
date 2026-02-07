@@ -1,57 +1,36 @@
+import { Type } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Type } from 'lucide-react';
-import { Label } from '../../../ui/primitives/label';
-import { Separator } from '../../../ui/primitives/separator';
+import { Separator } from '../../../ui';
 import { FONT_GROUPS, getFontFamily } from '../../../../utils/font-families';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { SelectorBase } from './selector-base';
 
 interface FontSelectorProps {
   currentFont: string;
   isBold: boolean;
   isItalic: boolean;
   onFontSelect: (fontName: string) => void;
-  element?: any;
-  state?: any;
+  onBack?: () => void;
 }
 
-export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, element, state }: FontSelectorProps) {
-  let fontFamily = currentFont || element?.font?.fontFamily || element?.fontFamily;
-  
-  if (!fontFamily && element && state) {
-    const currentPage = state.currentBook?.pages[state.activePageIndex];
-    const pageTheme = currentPage?.background?.pageTheme;
-    const bookTheme = state.currentBook?.bookTheme;
-    const activeTheme = pageTheme || bookTheme;
-    
-    if (activeTheme) {
-      const themeDefaults = getGlobalThemeDefaults(activeTheme, element.textType || element.type || 'text', undefined);
-      fontFamily = themeDefaults?.font?.fontFamily || themeDefaults?.fontFamily;
-    }
-  }
-  
-  if (!fontFamily) fontFamily = "Arial, sans-serif";
-  
+export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack }: FontSelectorProps) {
   let currentFontName = "Arial";
   for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => 
-      f.family === fontFamily || 
-      f.bold === fontFamily || 
-      f.italic === fontFamily
-    );
+    const font = group.fonts.find(f => f.family === currentFont || f.bold === currentFont || f.italic === currentFont);
     if (font) {
       currentFontName = font.name;
       break;
     }
   }
 
+  const allFonts = FONT_GROUPS.flatMap(group => group.fonts);
+  const selectedFont = allFonts.find(f => f.name === currentFontName) || allFonts[0];
+
   return (
     <div className="space-y-3">
       {FONT_GROUPS.map((group, groupIndex) => (
         <div key={group.name}>
           {groupIndex > 0 && <Separator />}
-          <Label variant="xs" className="text-muted-foreground mb-2 block">
-            {group.name}
-          </Label>
+          <div className="text-xs text-muted-foreground mb-2 font-medium">{group.name}</div>
           <div className="space-y-1">
             {group.fonts.map((font) => {
               const fontFamily = getFontFamily(font.name, isBold, isItalic);
@@ -68,7 +47,6 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, elem
                 >
                   <Type className="h-4 w-4 mr-2 flex-shrink-0" />
                   <span className="truncate">{font.name}</span>
-                  <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
                 </Button>
               );
             })}

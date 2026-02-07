@@ -864,7 +864,8 @@ type EditorAction =
   | { type: 'MERGE_BOOK_PAGES'; payload: { pages: Page[]; pagination?: PagePaginationState } }
   | { type: 'SET_PAGE_PREVIEW'; payload: { pageId: number; dataUrl: string | null; version: number } }
   | { type: 'MARK_WIZARD_SETUP_APPLIED' }
-  | { type: 'CLEAR_MODIFIED_PAGES' };
+  | { type: 'CLEAR_MODIFIED_PAGES' }
+  | { type: 'RESTORE_PAGE_STATE'; payload: { pageIndex: number; pageState: Page } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -910,7 +911,7 @@ const initialState: EditorState = {
   modifiedPageIds: new Set<number>(),
 };
 
-const BASE_HISTORY_LIMIT = 50;
+const BASE_HISTORY_LIMIT = 20;
 const PAGE_CHUNK_SIZE = 20;
 
 type PagePaginationState = {
@@ -920,23 +921,7 @@ type PagePaginationState = {
 };
 
 function getHistoryLimitForBook(book: Book | null | undefined): number {
-  const defaultLimit = BASE_HISTORY_LIMIT;
-  if (!book?.pages) {
-    return defaultLimit;
-  }
-
-  const pageCount = book.pages.length;
-  const totalElementCount = book.pages.reduce((sum, page) => sum + (page.elements?.length ?? 0), 0);
-
-  if (pageCount <= 16 && totalElementCount < 400) {
-    return 60;
-  }
-  if (pageCount <= 32 && totalElementCount < 800) {
-    return 45;
-  }
-  if (pageCount <= 64 && totalElementCount < 1500) {
-    return 30;
-  }
+  // Fixed limit of 20 snapshots for all books
   return 20;
 }
 
@@ -4887,6 +4872,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'CLEAR_MODIFIED_PAGES':
       return { ...state, modifiedPageIds: new Set<number>() };
+    
+    case 'RESTORE_PAGE_STATE':
+      if (!state.currentBook) return state;
+      const updatedBookRestore = { ...state.currentBook };
+      updatedBookRestore.pages[action.payload.pageIndex] = cloneData(action.payload.pageState);
+      return { ...state, currentBook: updatedBookRestore };
     
     default:
       return state;

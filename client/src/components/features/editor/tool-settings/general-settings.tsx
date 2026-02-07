@@ -4,15 +4,12 @@ import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog } from 'lucide-react';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
-import { ThemeSelector } from '../templates/theme-selector';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
-import { PaletteSelector, type PaletteSelectorRef } from '../templates/palette-selector';
-import { type LayoutSelectorWrapperRef } from '../layout-selector-wrapper';
-import { type ThemeSelectorWrapperRef } from '../theme-selector-wrapper';
+import { PaletteSelector } from '../templates/selector-palette';
+import { SelectorTheme } from '../templates/selector-theme';
+import { SelectorLayout } from '../templates/selector-layout';
 import { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
-import { LayoutSelectorWrapper } from '../layout-selector-wrapper';
-import { ThemeSelectorWrapper } from '../theme-selector-wrapper';
 import { pageTemplates } from '../../../../data/templates/page-templates';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
@@ -127,21 +124,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const [pageThemeKey, setPageThemeKey] = useState(0);
   const [pagePaletteKey, setPagePaletteKey] = useState(0);
 
-  // Refs for selector components
-  const pagePaletteRef = useRef<PaletteSelectorRef>(null);
-  const pageLayoutRef = useRef<LayoutSelectorWrapperRef>(null);
-  const pageThemeRef = useRef<ThemeSelectorWrapperRef>(null);
-
   // Expose applyCurrentSelector method to parent
   useImperativeHandle(ref, () => ({
     applyCurrentSelector: (applyToEntireBook?: boolean) => {
-      if (showPagePalette && pagePaletteRef.current) {
-        pagePaletteRef.current.apply(applyToEntireBook);
-      } else if (showPageLayout && pageLayoutRef.current) {
-        pageLayoutRef.current.apply(applyToEntireBook);
-      } else if (showPageThemeSelector && pageThemeRef.current) {
-        pageThemeRef.current.apply(applyToEntireBook);
-      }
+      // No longer needed - selectors handle apply internally
     }
   }));
 
@@ -177,269 +163,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
 
 
-  const renderPageThemeSettings = () => {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowPageTheme(false)}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-        <ThemeSelector
-          currentTheme={(() => {
-            const currentPage = state.currentBook?.pages[state.activePageIndex];
-            return currentPage?.themeId || state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-          })()}
-          title="Page Theme"
-          onThemeSelect={(themeId) => {
-            
-            // Set page theme (saves history)
-            dispatch({ type: 'SET_PAGE_THEME', payload: { pageIndex: state.activePageIndex, themeId } });
-
-            // Apply theme to all elements on current page (no history, part of theme application)
-            dispatch({
-              type: 'APPLY_THEME_TO_ELEMENTS',
-              payload: {
-                pageIndex: state.activePageIndex,
-                themeId,
-                skipHistory: true,
-                preserveColors: true
-              }
-            });
-
-            const theme = getGlobalTheme(themeId);
-            if (!theme) {
-              return;
-            }
-            
-            const currentPage = state.currentBook?.pages[state.activePageIndex];
-            if (!currentPage) {
-              return;
-            }
-            
-            const activePaletteId =
-              currentPage.colorPaletteId ||
-              state.currentBook?.colorPaletteId ||
-              null;
-            const paletteOverride = activePaletteId
-              ? colorPalettes.find(palette => palette.id === activePaletteId) || null
-              : null;
-            const pageColors = getThemePageBackgroundColors(
-              themeId,
-              paletteOverride || undefined
-            );
-            const backgroundOpacity = theme.pageSettings.backgroundOpacity || 1;
-            const backgroundImageConfig = theme.pageSettings.backgroundImage;
-            
-            let newBackground: PageBackground | null = null;
-            
-            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
-              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
-                imageSize: backgroundImageConfig.size,
-                imageRepeat: backgroundImageConfig.repeat,
-                imagePosition: backgroundImageConfig.position,
-                imageWidth: backgroundImageConfig.width,
-                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-                backgroundColor: pageColors.backgroundColor
-              });
-              
-                if (imageBackground) {
-                  newBackground = {
-                    ...imageBackground,
-                    pageTheme: themeId
-                  };
-                }
-            }
-            
-            if (!newBackground && theme.pageSettings.backgroundPattern?.enabled) {
-              newBackground = {
-                type: 'pattern',
-                value: theme.pageSettings.backgroundPattern.style,
-                opacity: backgroundOpacity,
-                pageTheme: themeId,
-                patternSize: theme.pageSettings.backgroundPattern.size,
-                patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
-                patternForegroundColor: pageColors.backgroundColor,
-                patternBackgroundColor: pageColors.patternBackgroundColor
-              };
-            }
-            
-            if (!newBackground) {
-              newBackground = {
-                type: 'color',
-                value: pageColors.backgroundColor,
-                opacity: backgroundOpacity,
-                pageTheme: themeId
-              };
-            }
-            
-            dispatch({
-              type: 'UPDATE_PAGE_BACKGROUND',
-              payload: {
-                pageIndex: state.activePageIndex,
-                background: newBackground
-              }
-            });
-            
-            // Reset tool settings zu Theme-Defaults (ohne Palettenfarben)
-            const pageLayoutTemplateId = currentPage.layoutTemplateId;
-            const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
-            const toolUpdates: Record<string, any> = {};
-            
-            toolTypes.forEach(toolType => {
-              const activeTheme = themeId || state.currentBook?.bookTheme || 'default';
-              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
-              
-              if (toolType === 'brush' || toolType === 'line') {
-                const updates: Record<string, any> = {
-                  strokeColor: themeDefaults.stroke || '#1f2937',
-                  strokeWidth: themeDefaults.strokeWidth || 2
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
-                const updates: Record<string, any> = {
-                  strokeColor: themeDefaults.stroke || '#1f2937',
-                  strokeWidth: themeDefaults.strokeWidth || 2,
-                  fillColor: themeDefaults.fill && themeDefaults.fill !== 'transparent'
-                    ? themeDefaults.fill
-                    : 'transparent'
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              } else {
-                const updates: Record<string, any> = {
-                  fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
-                  borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
-                  backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              }
-            });
-            
-            Object.entries(toolUpdates).forEach(([tool, settings]) => {
-              const cleanSettings = Object.fromEntries(
-                Object.entries(settings).filter(([, value]) => value !== undefined)
-              );
-              
-              dispatch({
-                type: 'UPDATE_TOOL_SETTINGS',
-                payload: { tool, settings: cleanSettings }
-              });
-            });
-          }}
-        />
-        
-      </div>
-    );
-  };
-
-  const renderBookThemeSettings = () => {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowBookTheme(false)}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-        
-        <ThemeSelector
-          currentTheme={state.currentBook?.bookTheme || 'default'}
-          title="Book Theme"
-          onThemeSelect={(themeId) => {
-            dispatch({ type: 'SET_BOOK_THEME', payload: themeId });
-            
-            if (!state.currentBook) {
-              return;
-            }
-            
-            const theme = getGlobalTheme(themeId);
-            if (!theme) {
-              return;
-            }
-            
-            // Tool-Defaults auf Theme-Farben zurücksetzen (ohne Palette)
-            const bookLayoutTemplateId = state.currentBook.layoutTemplateId;
-            const toolTypes = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'];
-            const toolUpdates: Record<string, any> = {};
-            
-            toolTypes.forEach(toolType => {
-              const activeTheme = themeId || 'default';
-              const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, undefined);
-              
-              if (toolType === 'brush' || toolType === 'line') {
-                const updates: Record<string, any> = {
-                  strokeColor: themeDefaults.stroke || '#1f2937',
-                  strokeWidth: themeDefaults.strokeWidth || 2
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(toolType)) {
-                const updates: Record<string, any> = {
-                  strokeColor: themeDefaults.stroke || '#1f2937',
-                  strokeWidth: themeDefaults.strokeWidth || 2,
-                  fillColor: themeDefaults.fill && themeDefaults.fill !== 'transparent'
-                    ? themeDefaults.fill
-                    : 'transparent'
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              } else {
-                const updates: Record<string, any> = {
-                  fontColor: themeDefaults.fontColor || themeDefaults.font?.fontColor || '#1f2937',
-                  borderColor: themeDefaults.borderColor || themeDefaults.border?.borderColor || '#9ca3af',
-                  backgroundColor: themeDefaults.backgroundColor || themeDefaults.background?.backgroundColor || '#FFFFFF'
-                };
-                stripColorFields(updates);
-                if (Object.keys(updates).length > 0) {
-                  toolUpdates[toolType] = updates;
-                }
-              }
-            });
-            
-            Object.entries(toolUpdates).forEach(([tool, settings]) => {
-              const cleanSettings = Object.fromEntries(
-                Object.entries(settings).filter(([, value]) => value !== undefined)
-              );
-              
-              dispatch({
-                type: 'UPDATE_TOOL_SETTINGS',
-                payload: { tool, settings: cleanSettings }
-              });
-            });
-          }}
-          onBack={() => {}}
-        />
-      </div>
-    );
-  };
-
-
 
   if (showEditorSettings) {
     return <EditorSettings />;
@@ -470,11 +193,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
     return (
       <PaletteSelector
-        ref={pagePaletteRef}
         key={`page-palette-${pagePaletteKey}`}
         onBack={() => {
           setShowPagePalette(false);
-          setPagePaletteKey(prev => prev + 1); // Force remount on next open
+          setPagePaletteKey(prev => prev + 1);
         }}
         title="Page Color Palette"
         isBookLevel={false}
@@ -485,14 +207,12 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   
   if (showPageLayout) {
     return (
-      <LayoutSelectorWrapper
-        ref={pageLayoutRef}
+      <SelectorLayout
         key={`page-layout-${pageLayoutKey}`}
         onBack={() => {
           setShowPageLayout(false);
-          setPageLayoutKey(prev => prev + 1); // Force remount on next open
+          setPageLayoutKey(prev => prev + 1);
         }}
-        title="Page Layout"
         isBookLevel={false}
       />
     );
@@ -500,25 +220,15 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   
   if (showPageThemeSelector) {
     return (
-      <ThemeSelectorWrapper
-        ref={pageThemeRef}
+      <SelectorTheme
         key={`page-theme-${pageThemeKey}`}
         onBack={() => {
           setShowPageThemeSelector(false);
-          setPageThemeKey(prev => prev + 1); // Force remount on next open
+          setPageThemeKey(prev => prev + 1);
         }}
-        title="Page Theme"
         isBookLevel={false}
       />
     );
-  }
-
-  if (showPageTheme) {
-    return renderPageThemeSettings();
-  }
-
-  if (showBookTheme) {
-    return renderBookThemeSettings();
   }
 
   // Check if user can access any settings at all
