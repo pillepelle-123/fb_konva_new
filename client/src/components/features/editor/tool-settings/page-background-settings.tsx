@@ -460,7 +460,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-4 p-2">
         <div className="flex gap-2 mb-2">
           <Button
             variant="ghost"

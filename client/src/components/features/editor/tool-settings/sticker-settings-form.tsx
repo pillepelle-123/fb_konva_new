@@ -1,6 +1,8 @@
 import { Button } from '../../../ui/primitives/button';
 import { Palette } from 'lucide-react';
 import { Slider } from '../../../ui/primitives/slider';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
+import { SettingsFormFooter } from './settings-form-footer';
 
 interface StickerSettingsFormProps {
   element: any;
@@ -13,10 +15,12 @@ export function StickerSettingsForm({
   updateElementSettingLocal,
   setShowColorSelector,
 }: StickerSettingsFormProps) {
+  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
   const stickerOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-3 p-2">
       <div>
         <Button
           variant="outline"
@@ -39,6 +43,8 @@ export function StickerSettingsForm({
         step={5}
         unit="%"
       />
+      </div>
+      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
     </div>
   );
 }

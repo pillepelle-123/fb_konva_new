@@ -9,6 +9,8 @@ import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE 
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
+import { SettingsFormFooter } from './settings-form-footer';
 
 interface ImageSettingsFormProps {
   element: any;
@@ -27,6 +29,7 @@ export function ImageSettingsForm({
   setShowImageModal,
   setShowColorSelector
 }: ImageSettingsFormProps) {
+  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
   const frameEnabled = element.frameEnabled !== undefined 
     ? element.frameEnabled 
     : (element.strokeWidth || 0) > 0;
@@ -53,7 +56,8 @@ export function ImageSettingsForm({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-2 p-2">
       {/* Image Opacity */}
       <Slider
         label="Image Opacity"
@@ -205,6 +209,8 @@ export function ImageSettingsForm({
           Remove Image
         </Button>
       )}
+      </div>
+      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
     </div>
   );
 }

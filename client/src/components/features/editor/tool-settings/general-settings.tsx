@@ -284,7 +284,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
   return (
     <>
-      <div className="space-y-3">
+      <div className="space-y-3 p-2">
         {state.editorInteractionLevel === 'full_edit_with_settings' && (
           <>
             <div>

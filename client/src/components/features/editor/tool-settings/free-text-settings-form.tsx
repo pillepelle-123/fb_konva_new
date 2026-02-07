@@ -20,6 +20,8 @@ import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
+import { SettingsFormFooter } from './settings-form-footer';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -56,6 +58,7 @@ export function FreeTextSettingsForm({
 }: FreeTextSettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
 
   // Local state for color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
@@ -242,7 +245,8 @@ export function FreeTextSettingsForm({
   }
   
   return (
-    <>
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-2 p-2">
       {/* Font Controls */}
       <div>
         <div className="flex gap-2">
@@ -628,6 +632,8 @@ export function FreeTextSettingsForm({
           </ButtonGroup>
         </div>
       </div>
-    </>
+      </div>
+      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+    </div>
   );
 }

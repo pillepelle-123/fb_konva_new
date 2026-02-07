@@ -865,7 +865,8 @@ type EditorAction =
   | { type: 'SET_PAGE_PREVIEW'; payload: { pageId: number; dataUrl: string | null; version: number } }
   | { type: 'MARK_WIZARD_SETUP_APPLIED' }
   | { type: 'CLEAR_MODIFIED_PAGES' }
-  | { type: 'RESTORE_PAGE_STATE'; payload: { pageIndex: number; pageState: Page } };
+  | { type: 'RESTORE_PAGE_STATE'; payload: { pageIndex: number; pageState: Page } }
+  | { type: 'RESTORE_ELEMENT_STATE'; payload: { elementId: string; elementState: CanvasElement } };
 
 const initialState: EditorState = {
   currentBook: null,
@@ -4878,6 +4879,24 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookRestore = { ...state.currentBook };
       updatedBookRestore.pages[action.payload.pageIndex] = cloneData(action.payload.pageState);
       return { ...state, currentBook: updatedBookRestore };
+    
+    case 'RESTORE_ELEMENT_STATE':
+      if (!state.currentBook) return state;
+      const updatedBookRestoreElement = {
+        ...state.currentBook,
+        pages: state.currentBook.pages.map((page, index) => {
+          if (index === state.activePageIndex) {
+            return {
+              ...page,
+              elements: page.elements.map(el => 
+                el.id === action.payload.elementId ? cloneData(action.payload.elementState) : el
+              )
+            };
+          }
+          return page;
+        })
+      };
+      return { ...state, currentBook: updatedBookRestoreElement };
     
     default:
       return state;

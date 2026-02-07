@@ -10,11 +10,12 @@ interface FontSelectorProps {
   isBold: boolean;
   isItalic: boolean;
   onFontSelect: (fontName: string) => void;
+  onBack: () => void;
   element?: any;
   state?: any;
 }
 
-export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, element, state }: FontSelectorProps) {
+export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack, element, state }: FontSelectorProps) {
   let fontFamily = currentFont || element?.font?.fontFamily || element?.fontFamily;
   
   if (!fontFamily && element && state) {
@@ -45,36 +46,50 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, elem
   }
 
   return (
-    <div className="space-y-3">
-      {FONT_GROUPS.map((group, groupIndex) => (
-        <div key={group.name}>
-          {groupIndex > 0 && <Separator />}
-          <Label variant="xs" className="text-muted-foreground mb-2 block">
-            {group.name}
-          </Label>
-          <div className="space-y-1">
-            {group.fonts.map((font) => {
-              const fontFamily = getFontFamily(font.name, isBold, isItalic);
-              const isSelected = currentFontName === font.name;
-              
-              return (
-                <Button
-                  key={font.name}
-                  variant={isSelected ? "default" : "ghost_hover"}
-                  size="sm"
-                  onClick={() => onFontSelect(font.name)}
-                  className="w-full justify-start text-left h-auto py-2"
-                  style={{ fontFamily }}
-                >
-                  <Type className="h-4 w-4 mr-2 flex-shrink-0" />
-                  <span className="truncate">{font.name}</span>
-                  <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
-                </Button>
-              );
-            })}
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-3 p-2">
+        {FONT_GROUPS.map((group, groupIndex) => (
+          <div key={group.name}>
+            {groupIndex > 0 && <Separator />}
+            <Label variant="xs" className="text-muted-foreground mb-2 block">
+              {group.name}
+            </Label>
+            <div className="space-y-1">
+              {group.fonts.map((font) => {
+                const fontFamily = getFontFamily(font.name, isBold, isItalic);
+                const isSelected = currentFontName === font.name;
+                
+                return (
+                  <Button
+                    key={font.name}
+                    variant={isSelected ? "default" : "ghost_hover"}
+                    size="sm"
+                    onClick={() => onFontSelect(font.name)}
+                    className="w-full justify-start text-left h-auto py-2"
+                    style={{ fontFamily }}
+                  >
+                    <Type className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">{font.name}</span>
+                    <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
+                  </Button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      
+      <div className="sticky bottom-0 bg-background border-t p-2">
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onBack}
+          className="w-full"
+        >
+          <ChevronLeft className="h-3 w-3 mr-1" />
+          Back
+        </Button>
+      </div>
     </div>
   );
 }

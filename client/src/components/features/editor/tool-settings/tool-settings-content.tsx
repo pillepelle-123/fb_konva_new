@@ -1045,40 +1045,37 @@ export function ToolSettingsContent({
           };
           
           return (
-            <div className="space-y-2">
-              {/* <div className="text-xs font-medium mb-2">QnA Inline Textbox</div> */}
-              <QnASettingsForm
-                sectionType="shared"
-                element={selectedElement}
-                state={state}
-                currentStyle={{
-                  fontSize: selectedElement.questionSettings?.fontSize ?? selectedElement.answerSettings?.fontSize ?? toolDefaults.answerSettings?.fontSize ?? toolDefaults.fontSize ?? 50,
-                  fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || toolDefaults.answerSettings?.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif',
-                  fontBold: selectedElement.questionSettings?.fontBold ?? selectedElement.answerSettings?.fontBold ?? toolDefaults.answerSettings?.fontBold ?? false,
-                  fontItalic: selectedElement.questionSettings?.fontItalic ?? selectedElement.answerSettings?.fontItalic ?? toolDefaults.answerSettings?.fontItalic ?? false,
-                  fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || toolDefaults.answerSettings?.fontColor || toolDefaults.fontColor || '#1f2937',
-                  fontOpacity: selectedElement.questionSettings?.fontOpacity ?? selectedElement.answerSettings?.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1
-                }}
-                updateSetting={(key: string, value: any) => {
-                  updateQuestionSetting(key, value);
-                  updateAnswerSetting(key, value);
-                }}
-                setShowFontSelector={setShowFontSelector}
-                setShowColorSelector={setShowColorSelector}
-                showLayoutControls={true}
-                individualSettings={individualSettings}
-                onIndividualSettingsChange={(enabled: boolean) => {
-                  const updates: any = { qnaIndividualSettings: enabled };
-                  updateElementSetting(selectedElement.id, updates);
-                }}
-                activeSection={activeSection}
-                onActiveSectionChange={setActiveSection}
-                updateQuestionSetting={updateQuestionSetting}
-                updateAnswerSetting={updateAnswerSetting}
-                showFontSelector={showFontSelector}
-                showColorSelector={showColorSelector}
-              />
-            </div>
+            <QnASettingsForm
+              sectionType="shared"
+              element={selectedElement}
+              state={state}
+              currentStyle={{
+                fontSize: selectedElement.questionSettings?.fontSize ?? selectedElement.answerSettings?.fontSize ?? toolDefaults.answerSettings?.fontSize ?? toolDefaults.fontSize ?? 50,
+                fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || toolDefaults.answerSettings?.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif',
+                fontBold: selectedElement.questionSettings?.fontBold ?? selectedElement.answerSettings?.fontBold ?? toolDefaults.answerSettings?.fontBold ?? false,
+                fontItalic: selectedElement.questionSettings?.fontItalic ?? selectedElement.answerSettings?.fontItalic ?? toolDefaults.answerSettings?.fontItalic ?? false,
+                fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || toolDefaults.answerSettings?.fontColor || toolDefaults.fontColor || '#1f2937',
+                fontOpacity: selectedElement.questionSettings?.fontOpacity ?? selectedElement.answerSettings?.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1
+              }}
+              updateSetting={(key: string, value: any) => {
+                updateQuestionSetting(key, value);
+                updateAnswerSetting(key, value);
+              }}
+              setShowFontSelector={setShowFontSelector}
+              setShowColorSelector={setShowColorSelector}
+              showLayoutControls={true}
+              individualSettings={individualSettings}
+              onIndividualSettingsChange={(enabled: boolean) => {
+                const updates: any = { qnaIndividualSettings: enabled };
+                updateElementSetting(selectedElement.id, updates);
+              }}
+              activeSection={activeSection}
+              onActiveSectionChange={setActiveSection}
+              updateQuestionSetting={updateQuestionSetting}
+              updateAnswerSetting={updateAnswerSetting}
+              showFontSelector={showFontSelector}
+              showColorSelector={showColorSelector}
+            />
           );
         }
         return renderElementSettings(selectedElement);
@@ -1250,13 +1247,11 @@ export function ToolSettingsContent({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-2 min-h-0">
-        {shouldShowPanel ? renderToolSettings() : (
-          <div className="text-xs text-muted-foreground">
-            Select a tool or element to view settings.
-          </div>
-        )}
-      </div>
+      {shouldShowPanel ? renderToolSettings() : (
+        <div className="text-xs text-muted-foreground">
+          Select a tool or element to view settings.
+        </div>
+      )}
     </div>
   );
 }

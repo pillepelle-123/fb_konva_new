@@ -23,6 +23,8 @@ import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults 
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getBorderTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
+import { SettingsFormFooter } from './settings-form-footer';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -79,6 +81,7 @@ export function QnASettingsForm({
 }: QnASettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
   
   // Local state for QnA color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
@@ -575,51 +578,11 @@ export function QnASettingsForm({
       switch (localShowColorSelector) {
         case 'element-text-color':
           if (!individualSettings && sectionType === 'shared') {
-            // Shared mode: update both question and answer
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  questionSettings: {
-                    ...element.questionSettings,
-                    fontColor: colorValue
-                  },
-                  answerSettings: {
-                    ...element.answerSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
+            updateSharedSetting('fontColor', colorValue);
           } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
-            // Individual mode: update only question
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  questionSettings: {
-                    ...element.questionSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
+            (updateQuestionSetting || updateSetting)('fontColor', colorValue);
           } else {
-            // Individual mode: update only answer
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  answerSettings: {
-                    ...element.answerSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
+            (updateAnswerSetting || updateSetting)('fontColor', colorValue);
           }
           break;
         case 'element-border-color': {
@@ -764,6 +727,7 @@ export function QnASettingsForm({
   };
   
   // For individual tabs, show font controls and Text Align (if block layout)
+  // No footer for individual tabs
   if (sectionType !== 'shared' && individualSettings) {
     return (
       <>
@@ -775,8 +739,9 @@ export function QnASettingsForm({
   }
   
   return (
-    <>
-      {/* Layout controls - only show when requested */}
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-2 p-2">
+        {/* Layout controls - only show when requested */}
       {showLayoutControls && (
         <>
           <div className="space-y-1">
@@ -1724,6 +1689,13 @@ export function QnASettingsForm({
             />
         </div>
       </div>
-    </>
+      </div>
+      
+      <SettingsFormFooter
+        hasChanges={hasChanges}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+      />
+    </div>
   );
 }

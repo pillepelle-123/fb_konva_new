@@ -10,6 +10,8 @@ import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getElementTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
+import { SettingsFormFooter } from './settings-form-footer';
 
 interface ShapeSettingsFormProps {
   element: any;
@@ -22,6 +24,7 @@ export function ShapeSettingsForm({
   updateSetting,
   setShowColorSelector
 }: ShapeSettingsFormProps) {
+  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
   const getMaxStrokeWidth = () => {
     return getMaxCommonWidth();
   };
@@ -29,7 +32,8 @@ export function ShapeSettingsForm({
   switch (element.type) {
     case 'brush':
       return (
-        <div className="space-y-2">
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto space-y-2 p-2">
           <Slider
             label="Stroke Size"
             value={Math.round(element.strokeWidth || 2)}
@@ -63,12 +67,15 @@ export function ShapeSettingsForm({
             step={5}
             unit="%"
           />
+          </div>
+          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
         </div>
       );
 
     case 'line':
       return (
-        <div className="space-y-2">
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto space-y-2 p-2">
           <div>
             <Label variant="xs">Theme</Label>
             <ThemeSelect 
@@ -123,6 +130,8 @@ export function ShapeSettingsForm({
               hasLabel={false}
             />
           </div>
+          </div>
+          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
         </div>
       );
 
@@ -137,7 +146,8 @@ export function ShapeSettingsForm({
     case 'cat':
     case 'smiley':
       return (
-        <div className="space-y-2">
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto space-y-2 p-2">
           <div>
             <Label variant="xs">Theme</Label>
             <ThemeSelect 
@@ -283,13 +293,20 @@ export function ShapeSettingsForm({
               max={COMMON_CORNER_RADIUS_RANGE.max}
             />
           )}
+          </div>
+          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
         </div>
       );
 
     default:
       return (
-        <div className="text-sm text-muted-foreground">
-          No settings available for this element.
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto">
+            <div className="text-sm text-muted-foreground">
+              No settings available for this element.
+            </div>
+          </div>
+          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
         </div>
       );
   }
