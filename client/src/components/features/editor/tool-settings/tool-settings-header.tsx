@@ -140,7 +140,7 @@ export function ToolSettingsHeader({
         {/* Back Button - only show when a dialog is open */}
         {/* Show button for all color selectors, including element-specific ones (element-ruled-lines-color, element-border-color, element-background-color, element-text-color) */}
         {/* Ensure button is shown even when an element is selected and element-specific color selector is open */}
-        {(hasOpenDialog || (showColorSelector && showColorSelector.startsWith('element-'))) && onBack && (
+        {/* {(hasOpenDialog || (showColorSelector && showColorSelector.startsWith('element-'))) && onBack && (
           <Button
             variant="ghost"
             size="sm"
@@ -150,7 +150,7 @@ export function ToolSettingsHeader({
           >
             <Undo2 className="h-4 w-4 scale-y-[-1]" />
           </Button>
-        )}
+        )} */}
 
         {!(state.userRole === 'author' && !isOnAssignedPage) && (
           <Button

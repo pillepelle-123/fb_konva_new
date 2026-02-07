@@ -220,6 +220,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                 <Link to={`/editor/${book.id}`} className="block w-full">
                   <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
                     <FilePenLine className="h-5 w-5" />
+                    <span>Edit Book</span>
                   </Button>
                 </Link>
                 </Tooltip>
@@ -258,7 +259,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                   </Tooltip>
                   <Tooltip content="Archive" side="bottom">
                     <Button 
-                      variant="outline" 
+                      variant="destructive" 
                       size="sm"
                       onClick={() => onArchive?.(book.id)}
                       className="space-x-2"

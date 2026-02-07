@@ -2415,7 +2415,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
 
       {/* Text that can extend beyond the box */}
       {/* When answer editor is open, only show question runs */}
-      <Group opacity={isCalculatingLayout ? 0.6 : 1}>
+      <Group opacity={isCalculatingLayout ? 0.6 : 1} listening={false}>
         <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
       </Group>
       

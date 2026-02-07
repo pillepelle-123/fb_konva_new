@@ -149,8 +149,9 @@ export function LayoutSelector({
       canApply={canApply}
       applyToEntireBook={applyToEntireBook}
       onApplyToEntireBookChange={skipShell ? undefined : onApplyToEntireBookChange}
-      beforeList={(
-        <div className="space-y-2 mb-3 w-full">
+      afterList={(
+        <div className="space-y-2 mt-3 w-full shrink-0">
+          <Separator />
           <div className="flex items-start gap-2 px-2">
             <div className="flex-1 text-left">
               <div className="text-xs text-gray-500 capitalize font-medium mb-1">
@@ -175,7 +176,6 @@ export function LayoutSelector({
               </div>
             )}
           </div>
-          <Separator />
         </div>
       )}
     >

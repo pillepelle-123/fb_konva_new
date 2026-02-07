@@ -15,6 +15,7 @@ interface SelectorListSectionProps {
   title?: ReactNode;
   headerActions?: ReactNode;
   beforeList?: ReactNode;
+  afterList?: ReactNode;
   children: ReactNode;
   className?: string;
   scrollClassName?: string;
@@ -52,6 +53,7 @@ export function SelectorListSection({
   title,
   headerActions,
   beforeList,
+  afterList,
   children,
   className = '',
   scrollClassName = '',
@@ -73,6 +75,7 @@ export function SelectorListSection({
       <div className={scrollClasses}>
         {children}
       </div>
+      {afterList}
       {showButtons && (title || headerActions || onCancel || onApply) && (
         <div className="flex items-center justify-between mt-4 w-full shrink-0">
           {/* <div className="flex items-center gap-2">
