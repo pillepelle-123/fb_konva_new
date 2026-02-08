@@ -53,7 +53,7 @@ export function SelectorBase<T>({
     <div className="h-full flex flex-col">
       <div className="flex-1 min-h-0 flex flex-col">
         {filterComponent}
-        <div className="space-y-2 flex-1 overflow-y-auto scrollbar-thin min-h-0">
+        <div className="space-y-2 flex-1 overflow-y-auto scrollbar-thin min-h-0 p-2">
           {items.map((item, index) => (
             <div key={getItemKey(item, index)} onClick={() => onItemSelect(item)}>
               {renderItem(item, item === selectedItem)}
@@ -62,7 +62,7 @@ export function SelectorBase<T>({
         </div>
         {renderSelectedPreview(selectedItem) && <div className="shrink-0">{renderSelectedPreview(selectedItem)}</div>}
         {showButtons && (
-          <div className="flex items-center justify-between mt-4 w-full shrink-0">
+          <div className="flex items-center justify-between p-2 shrink-0 gap-2">
             <div className="flex items-center gap-2">
               {headerActions}
               {onApplyToEntireBookChange && (
@@ -78,15 +78,15 @@ export function SelectorBase<T>({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1">
               {onCancel && (
-                <Button variant="outline" size="xs" onClick={onCancel} className="gap-1 px-2">
+                <Button variant="outline" size="xs" onClick={onCancel} className="gap-1 px-2 flex-1">
                   <X className="h-4 w-4" />
                   <span className="text-xs">Cancel</span>
                 </Button>
               )}
               {onApply && (
-                <Button variant="default" size="xs" onClick={onApply} disabled={!canApply} className="gap-1 px-2">
+                <Button variant="default" size="xs" onClick={onApply} disabled={!canApply} className="gap-1 px-2 flex-1">
                   <Check className="h-4 w-4" />
                   <span className="text-xs">{applyToEntireBook ? "Apply to all Pages" : "Apply"}</span>
                 </Button>

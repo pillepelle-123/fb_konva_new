@@ -347,6 +347,9 @@ export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutPr
               </div>
             )}
           </div>
+          <div className="px-2">
+            <Separator />
+          </div>
         </div>
       )}
     />

@@ -1,32 +1,63 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEditor } from '../context/editor-context';
 import type { CanvasElement } from '../context/editor-context';
 
-export function useSettingsFormState(element: CanvasElement) {
+export function useSettingsFormState(element?: CanvasElement | null) {
   const { dispatch } = useEditor();
   const originalElementRef = useRef<CanvasElement | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const hasChangesRef = useRef(false);
+  const elementId = element?.id;
 
   // Capture original element state on mount
   useEffect(() => {
-    originalElementRef.current = structuredClone(element);
-  }, [element.id]);
-
-  // Create a deep snapshot of current element on every render
-  const currentSnapshot = useMemo(() => structuredClone(element), [element]);
-  
-  // Detect changes by comparing current snapshot with original
-  useEffect(() => {
-    if (originalElementRef.current) {
-      const changed = JSON.stringify(currentSnapshot) !== JSON.stringify(originalElementRef.current);
-      setHasChanges(changed);
+    if (!element) {
+      if (hasChangesRef.current && originalElementRef.current) {
+        dispatch({
+          type: 'RESTORE_ELEMENT_STATE',
+          payload: {
+            elementId: originalElementRef.current.id,
+            elementState: originalElementRef.current
+          }
+        });
+      }
+      originalElementRef.current = null;
+      setHasChanges(false);
+      return;
     }
-  }, [currentSnapshot]);
+
+    if (originalElementRef.current && originalElementRef.current.id !== element.id && hasChangesRef.current) {
+      dispatch({
+        type: 'RESTORE_ELEMENT_STATE',
+        payload: {
+          elementId: originalElementRef.current.id,
+          elementState: originalElementRef.current
+        }
+      });
+    }
+
+    originalElementRef.current = structuredClone(element);
+    setHasChanges(false);
+  }, [elementId, dispatch]);
+
+  // Detect changes by comparing current element with original
+  useEffect(() => {
+    if (!element || !originalElementRef.current) {
+      setHasChanges(false);
+      return;
+    }
+    const changed = JSON.stringify(element) !== JSON.stringify(originalElementRef.current);
+    setHasChanges(changed);
+  }, [element]);
+
+  useEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
 
   // Auto-discard on unmount if there are unsaved changes
   useEffect(() => {
     return () => {
-      if (hasChanges && originalElementRef.current) {
+      if (element && hasChanges && originalElementRef.current) {
         dispatch({
           type: 'RESTORE_ELEMENT_STATE',
           payload: {
@@ -39,7 +70,7 @@ export function useSettingsFormState(element: CanvasElement) {
   }, [hasChanges, dispatch]);
 
   const handleSave = () => {
-    if (!hasChanges) return;
+    if (!element || !hasChanges) return;
     
     dispatch({ 
       type: 'SAVE_TO_HISTORY', 
@@ -51,7 +82,7 @@ export function useSettingsFormState(element: CanvasElement) {
   };
 
   const handleDiscard = () => {
-    if (!originalElementRef.current || !hasChanges) return;
+    if (!element || !originalElementRef.current || !hasChanges) return;
     
     dispatch({
       type: 'RESTORE_ELEMENT_STATE',

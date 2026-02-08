@@ -159,6 +159,7 @@ export function ImageSettingsForm({
                     className="w-full"
                   >
                     <Palette className="h-4 w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
                     Frame Color
                   </Button>
                 </div>

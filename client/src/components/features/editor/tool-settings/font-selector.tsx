@@ -4,6 +4,7 @@ import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
 import { FONT_GROUPS, getFontFamily } from '../../../../utils/font-families';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { Tooltip } from '../../../ui/composites/tooltip';
 
 interface FontSelectorProps {
   currentFont: string;
@@ -47,7 +48,7 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-3 p-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 p-2">
         {FONT_GROUPS.map((group, groupIndex) => (
           <div key={group.name}>
             {groupIndex > 0 && <Separator />}
@@ -60,18 +61,19 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
                 const isSelected = currentFontName === font.name;
                 
                 return (
-                  <Button
-                    key={font.name}
-                    variant={isSelected ? "default" : "ghost_hover"}
-                    size="sm"
-                    onClick={() => onFontSelect(font.name)}
-                    className="w-full justify-start text-left h-auto py-2"
-                    style={{ fontFamily }}
-                  >
-                    <Type className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="truncate">{font.name}</span>
-                    <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
-                  </Button>
+                  <Tooltip key={font.name} content={font.name} side="left">
+                    <Button
+                      variant={isSelected ? "default" : "ghost_hover"}
+                      size="sm"
+                      onClick={() => onFontSelect(font.name)}
+                      className="w-full justify-start text-left h-auto py-2"
+                      style={{ fontFamily }}
+                    >
+                      <Type className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="truncate">{font.name}</span>
+                      <span className="ml-2 text-xs" style={{ fontFamily: 'Arial, sans-serif' }}>({font.name})</span>
+                    </Button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -79,16 +81,26 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
         ))}
       </div>
       
-      <div className="sticky bottom-0 bg-background border-t p-2">
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={onBack}
-          className="w-full"
-        >
-          <ChevronLeft className="h-3 w-3 mr-1" />
-          Back
-        </Button>
+      <div className="sticky bottom-0 bg-background border-t">
+        <div className="p-2 border-b">
+          <Label variant="xs" className="text-muted-foreground mb-1 block">
+            Selected Font
+          </Label>
+          <div className="text-sm font-medium" style={{ fontFamily: getFontFamily(currentFontName, isBold, isItalic) }}>
+            {currentFontName}
+          </div>
+        </div>
+        <div className="p-2">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onBack}
+            className="w-full"
+          >
+            <ChevronLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
+        </div>
       </div>
     </div>
   );

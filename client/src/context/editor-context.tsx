@@ -2724,7 +2724,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         return {
           ...state,
           currentBook: restoredBook,
-          activePageIndex: prevState.activePageIndex,
           selectedElementIds: prevState.selectedElementIds,
           toolSettings: prevState.toolSettings,
           editorSettings: prevState.editorSettings,
@@ -2741,7 +2740,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         return {
           ...state,
           currentBook: restoredBook,
-          activePageIndex: nextState.activePageIndex,
           selectedElementIds: nextState.selectedElementIds,
           toolSettings: nextState.toolSettings,
           editorSettings: nextState.editorSettings,

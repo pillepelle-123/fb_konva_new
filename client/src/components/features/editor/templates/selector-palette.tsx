@@ -233,13 +233,16 @@ export function PaletteSelector({
       renderSelectedPreview={(selected) => (
         <div className="space-y-2 mt-3 w-full shrink-0">
           <Separator />
-          <div className="flex items-start gap-2 px-2">
+          <div className="flex items-start p-2">
             <div className="flex-1 text-left">
               <div className="text-xs font-medium mb-1">
                 {useThemePalette ? "Theme's Default Palette" : (selected?.name + ' (selected)' || 'No Palette Selected')}
               </div>
               {selected && renderPalettePreview(selected)}
             </div>
+          </div>
+          <div className="px-2">
+            <Separator />
           </div>
         </div>
       )}

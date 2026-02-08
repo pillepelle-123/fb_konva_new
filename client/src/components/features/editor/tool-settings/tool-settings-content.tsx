@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 
 // UI Components
 import { Button } from '../../../ui/primitives/button';
@@ -161,6 +162,24 @@ export function ToolSettingsContent({
 }: ToolSettingsContentProps) {
   const { state, dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
+
+  const activeSelectedElement = (() => {
+    if (!state.currentBook || state.selectedElementIds.length !== 1) return null;
+    let selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
+      el => el.id === state.selectedElementIds[0]
+    );
+    if (state.selectedGroupedElement && selectedElement?.groupedElements) {
+      const groupedElement = selectedElement.groupedElements.find(
+        el => el.id === state.selectedGroupedElement?.elementId
+      );
+      if (groupedElement) {
+        selectedElement = groupedElement;
+      }
+    }
+    return selectedElement || null;
+  })();
+  const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
+  const qnaFormState = useSettingsFormState(qnaElementForForm);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -1075,6 +1094,9 @@ export function ToolSettingsContent({
               updateAnswerSetting={updateAnswerSetting}
               showFontSelector={showFontSelector}
               showColorSelector={showColorSelector}
+              hasChanges={qnaFormState.hasChanges}
+              onSave={qnaFormState.handleSave}
+              onDiscard={qnaFormState.handleDiscard}
             />
           );
         }

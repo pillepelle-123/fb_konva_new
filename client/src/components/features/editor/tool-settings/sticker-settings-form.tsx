@@ -29,6 +29,7 @@ export function StickerSettingsForm({
           className="w-full"
         >
           <Palette className="h-4 w-4 mr-2" />
+          <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stickerColor || '#000000' }} />
           Sticker Color
         </Button>
       </div>

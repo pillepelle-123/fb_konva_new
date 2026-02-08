@@ -23,7 +23,6 @@ import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults 
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getBorderTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
-import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 import { SettingsFormFooter } from './settings-form-footer';
 
 const getCurrentFontName = (fontFamily: string) => {
@@ -57,6 +56,9 @@ interface QnASettingsFormProps {
   updateAnswerSetting?: (key: string, value: any) => void;
   showFontSelector?: boolean;
   showColorSelector?: string | null;
+  hasChanges?: boolean;
+  onSave?: () => void;
+  onDiscard?: () => void;
 }
 
 export function QnASettingsForm({
@@ -77,11 +79,13 @@ export function QnASettingsForm({
   updateQuestionSetting,
   updateAnswerSetting,
   showFontSelector,
-  showColorSelector
+  showColorSelector,
+  hasChanges,
+  onSave,
+  onDiscard
 }: QnASettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
   
   // Local state for QnA color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
@@ -372,6 +376,7 @@ export function QnASettingsForm({
               className="w-full"
             >
               <Palette className="w-4 mr-2" />
+              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: displayStyle.fontColor }} />
               Font Color
             </Button>
           </Tooltip>
@@ -578,11 +583,51 @@ export function QnASettingsForm({
       switch (localShowColorSelector) {
         case 'element-text-color':
           if (!individualSettings && sectionType === 'shared') {
-            updateSharedSetting('fontColor', colorValue);
+            // Shared mode: update both question and answer
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  questionSettings: {
+                    ...element.questionSettings,
+                    fontColor: colorValue
+                  },
+                  answerSettings: {
+                    ...element.answerSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
           } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
-            (updateQuestionSetting || updateSetting)('fontColor', colorValue);
+            // Individual mode: update only question
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  questionSettings: {
+                    ...element.questionSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
           } else {
-            (updateAnswerSetting || updateSetting)('fontColor', colorValue);
+            // Individual mode: update only answer
+            dispatch({
+              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+              payload: {
+                id: element.id,
+                updates: {
+                  answerSettings: {
+                    ...element.answerSettings,
+                    fontColor: colorValue
+                  }
+                }
+              }
+            });
           }
           break;
         case 'element-border-color': {
@@ -737,6 +782,12 @@ export function QnASettingsForm({
       </>
     );
   }
+
+  const shouldShowFooter =
+    sectionType === 'shared' &&
+    hasChanges !== undefined &&
+    Boolean(onSave) &&
+    Boolean(onDiscard);
   
   return (
     <div className="flex flex-col h-full">
@@ -1374,6 +1425,7 @@ export function QnASettingsForm({
                 className="w-full"
               >
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.ruledLinesColor || '#1f2937' }} />
                 Line Color
               </Button>
             </Tooltip>
@@ -1527,6 +1579,7 @@ export function QnASettingsForm({
                 className="w-full"
               >
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.borderColor || element.border?.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || '#000000' }} />
                 Border Color
               </Button>
             </Tooltip>
@@ -1609,6 +1662,7 @@ export function QnASettingsForm({
                 className="w-full"
               >
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.backgroundColor || element.background?.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || '#ffffff' }} />
                 Background Color
               </Button>
             </Tooltip>
@@ -1691,11 +1745,13 @@ export function QnASettingsForm({
       </div>
       </div>
       
-      <SettingsFormFooter
-        hasChanges={hasChanges}
-        onSave={handleSave}
-        onDiscard={handleDiscard}
-      />
+      {shouldShowFooter && (
+        <SettingsFormFooter
+          hasChanges={hasChanges ?? false}
+          onSave={onSave!}
+          onDiscard={onDiscard!}
+        />
+      )}
     </div>
   );
 }

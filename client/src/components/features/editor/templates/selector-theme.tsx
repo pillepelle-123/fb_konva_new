@@ -295,6 +295,9 @@ export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProp
               <div className="text-xs text-gray-600">{activeThemeObj?.description || 'Theme styling'}</div>
             </div>
           </div>
+          <div className="px-2">
+          <Separator />
+          </div> 
         </div>
       )}
     />
