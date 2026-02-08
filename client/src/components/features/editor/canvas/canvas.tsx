@@ -2530,6 +2530,38 @@ export default function Canvas() {
       setTextboxStart(null);
       setPreviewTextbox(null);
     } else if (isMovingGroup || isMovingGroupRef.current) {
+      // WICHTIG: Finales State-Update mit aktuellen Positionen VOR dem Cleanup
+      if (groupMoveInitialPositionsRef.current && (groupMoveStart || groupMoveStartRef.current)) {
+        const pos = e.target.getStage()?.getPointerPosition();
+        if (pos) {
+          const x = (pos.x - stagePos.x) / zoom;
+          const y = (pos.y - stagePos.y) / zoom;
+          const start = groupMoveStartRef.current || groupMoveStart;
+          
+          if (start) {
+            const deltaX = x - start.x;
+            const deltaY = y - start.y;
+            
+            // Finales Update aller Elemente mit den berechneten Positionen
+            state.selectedElementIds.forEach(elementId => {
+              const initialPos = groupMoveInitialPositionsRef.current?.[elementId];
+              if (initialPos) {
+                dispatch({
+                  type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                  payload: {
+                    id: elementId,
+                    updates: {
+                      x: initialPos.x + deltaX,
+                      y: initialPos.y + deltaY
+                    }
+                  }
+                });
+              }
+            });
+          }
+        }
+      }
+      
       setIsMovingGroup(false);
       isMovingGroupRef.current = false;
       isDraggingGroupRef.current = false;

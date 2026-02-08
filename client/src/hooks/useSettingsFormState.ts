@@ -96,6 +96,7 @@ export function useSettingsFormState(
       setHasChanges(false);
       return;
     }
+    lastElementRef.current = element;
     const currentElement = stripKeys(element, ignoreKeys);
     const originalElement = stripKeys(originalElementRef.current, ignoreKeys);
     const changed = JSON.stringify(currentElement) !== JSON.stringify(originalElement);

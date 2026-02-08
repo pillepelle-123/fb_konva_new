@@ -179,14 +179,24 @@ export function ToolSettingsContent({
     return selectedElement || null;
   })();
   const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
-  const qnaFormState = useSettingsFormState(qnaElementForForm);
+  const positionPreserveOptions = useMemo(
+    () => ({
+      ignoreKeys: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY'],
+      preserveOnRestore: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY']
+    }),
+    []
+  );
+  const qnaFormState = useSettingsFormState(qnaElementForForm, positionPreserveOptions);
   const freeTextSettingsOptions = useMemo(
-    () => ({ ignoreKeys: ['text', 'formattedText'], preserveOnRestore: ['text', 'formattedText'] }),
+    () => ({
+      ignoreKeys: ['text', 'formattedText', 'x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY'],
+      preserveOnRestore: ['text', 'formattedText', 'x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY']
+    }),
     []
   );
   const genericFormState = useSettingsFormState(
     activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null,
-    activeSelectedElement?.textType === 'free_text' ? freeTextSettingsOptions : undefined
+    activeSelectedElement?.textType === 'free_text' ? freeTextSettingsOptions : positionPreserveOptions
   );
   
   const toolSettings = state.toolSettings || {};
