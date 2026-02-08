@@ -465,7 +465,6 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
 
   // Block canvas interactions when editor is open
   const blockCanvasInteractions = () => {
-    console.log('[QnA Editor] Blocking canvas interactions');
     // Set cursor to default (arrow) on canvas when editor is open
     // This prevents the "hand" cursor from showing when hovering over canvas
     stageContainer.style.cursor = 'default';
@@ -477,7 +476,6 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
       if (target === textarea || textarea.contains(target) || buttonFooter.contains(target) || target === questionHeader || questionHeader.contains(target)) {
         return;
       }
-      console.log('[QnA Editor] Blocking mouse event:', e.type);
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -595,7 +593,6 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
 
   // Function to remove textarea and cleanup
   function removeTextarea() {
-    console.log('[QnA Editor] Starting cleanup');
     if (discardTooltipCleanup) {
       discardTooltipCleanup();
       discardTooltipCleanup = null;
@@ -608,7 +605,6 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     window.removeEventListener('resize', updateEditorSize);
     
     // Remove all event handlers with error handling
-    console.log('[QnA Editor] Removing', canvasEventHandlers.length, 'event handlers');
     try {
       canvasEventHandlers.forEach(({ element, event, handler }) => {
         element.removeEventListener(event, handler, true);
@@ -619,12 +615,10 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     canvasEventHandlers = [];
 
     // Restore original cursor on canvas
-    console.log('[QnA Editor] Restoring cursor to:', originalCursor);
     stageContainer.style.cursor = originalCursor;
 
     // Remove canvas overlay container - force removal of all instances
     const overlayContainers = document.querySelectorAll('[id="inline-editor-canvas-overlay-container"]');
-    console.log('[QnA Editor] Removing', overlayContainers.length, 'overlay containers');
     overlayContainers.forEach(container => {
       if (container.parentNode) {
         container.parentNode.removeChild(container);
@@ -654,14 +648,11 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
       // Verify overlay is removed
       const remainingOverlays = document.querySelectorAll('[id="inline-editor-canvas-overlay-container"]');
       if (remainingOverlays.length > 0) {
-        console.warn('[QnA Editor] Found', remainingOverlays.length, 'remaining overlays after cleanup');
         remainingOverlays.forEach(overlay => {
           if (overlay.parentNode) {
             overlay.parentNode.removeChild(overlay);
           }
         });
-      } else {
-        console.log('[QnA Editor] Cleanup complete, no remaining overlays');
       }
     }, 0);
   }
@@ -669,16 +660,18 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Function to save changes
   function saveChanges() {
     const newText = textarea.value;
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: {
-          text: newText,
-          formattedText: newText
+    if (!element.questionId) {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            text: newText,
+            formattedText: newText
+          }
         }
-      }
-    });
+      });
+    }
 
     if (element.questionId && user?.id) {
       dispatch({
@@ -903,16 +896,18 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       const newText = textarea.value;
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: element.id,
-          updates: {
-            text: newText,
-            formattedText: newText
+      if (!element.questionId) {
+        dispatch({
+          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+          payload: {
+            id: element.id,
+            updates: {
+              text: newText,
+              formattedText: newText
+            }
           }
-        }
-      });
+        });
+      }
 
       if (element.questionId && user?.id) {
         dispatch({
@@ -1138,128 +1133,54 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
   };
   window.addEventListener('resize', updateEditorSize);
 
-  // Cleanup function
   const removeTextarea = () => {
     window.removeEventListener('resize', updateEditorSize);
     if (textarea.parentNode) textarea.parentNode.removeChild(textarea);
     if (buttonFooter.parentNode) buttonFooter.parentNode.removeChild(buttonFooter);
     if (canvasOverlayContainer.parentNode) canvasOverlayContainer.parentNode.removeChild(canvasOverlayContainer);
     setIsEditorOpen(false);
-    stage.draw();
     if (activeEditorInstance && activeEditorInstance.textarea === textarea) {
       activeEditorInstance = null;
     }
   };
 
   const saveChanges = () => {
+    const newText = textarea.value;
     dispatch({
       type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: { id: element.id, updates: { text: textarea.value, formattedText: textarea.value } }
+      payload: { id: element.id, updates: { text: newText, formattedText: newText } }
     });
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update Free Text' });
     removeTextarea();
   };
 
-  // Create buttons (same as QnA editor)
   const discardButton = document.createElement('button');
-  discardButton.setAttribute('aria-label', 'Discard changes');
-  discardButton.style.display = 'inline-flex';
-  discardButton.style.alignItems = 'center';
-  discardButton.style.justifyContent = 'center';
-  discardButton.style.whiteSpace = 'nowrap';
-  discardButton.style.borderRadius = '6px';
-  discardButton.style.fontSize = '12px';
-  discardButton.style.height = '36px';
-  discardButton.style.padding = '0 12px';
-  discardButton.style.border = '1px solid hsl(var(--input))';
-  discardButton.style.background = 'hsl(var(--background))';
-  discardButton.style.color = 'hsl(var(--foreground))';
+  discardButton.textContent = 'Discard';
+  discardButton.style.padding = '8px 16px';
   discardButton.style.cursor = 'pointer';
-  discardButton.style.transition = 'all 0.2s';
-
-  const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  xIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  xIcon.setAttribute('width', '20');
-  xIcon.setAttribute('height', '20');
-  xIcon.setAttribute('viewBox', '0 0 24 24');
-  xIcon.setAttribute('fill', 'none');
-  xIcon.setAttribute('stroke', 'currentColor');
-  xIcon.setAttribute('stroke-width', '2');
-  xIcon.setAttribute('stroke-linecap', 'round');
-  xIcon.setAttribute('stroke-linejoin', 'round');
-  xIcon.style.display = 'inline-block';
-  xIcon.style.marginRight = '8px';
-  xIcon.style.flexShrink = '0';
-  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line1.setAttribute('x1', '18');
-  line1.setAttribute('y1', '6');
-  line1.setAttribute('x2', '6');
-  line1.setAttribute('y2', '18');
-  xIcon.appendChild(line1);
-  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line2.setAttribute('x1', '6');
-  line2.setAttribute('y1', '6');
-  line2.setAttribute('x2', '18');
-  line2.setAttribute('y2', '18');
-  xIcon.appendChild(line2);
-  discardButton.appendChild(xIcon);
-  const discardText = document.createElement('span');
-  discardText.textContent = 'Discard changes';
-  discardButton.appendChild(discardText);
-  discardButton.addEventListener('click', (e) => { e.stopPropagation(); removeTextarea(); });
+  discardButton.addEventListener('click', removeTextarea);
   buttonFooter.appendChild(discardButton);
 
   const saveButton = document.createElement('button');
-  saveButton.setAttribute('aria-label', 'Save changes');
-  saveButton.style.display = 'inline-flex';
-  saveButton.style.alignItems = 'center';
-  saveButton.style.justifyContent = 'center';
-  saveButton.style.whiteSpace = 'nowrap';
-  saveButton.style.borderRadius = '6px';
-  saveButton.style.fontSize = '12px';
-  saveButton.style.height = '36px';
-  saveButton.style.padding = '0 12px';
-  saveButton.style.border = '1px solid hsl(var(--primary))';
-  saveButton.style.background = 'hsl(var(--primary))';
-  saveButton.style.color = 'hsl(var(--primary-foreground))';
+  saveButton.textContent = 'Save';
+  saveButton.style.padding = '8px 16px';
   saveButton.style.cursor = 'pointer';
-  saveButton.style.transition = 'all 0.2s';
-
-  const saveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  saveIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  saveIcon.setAttribute('width', '20');
-  saveIcon.setAttribute('height', '20');
-  saveIcon.setAttribute('viewBox', '0 0 24 24');
-  saveIcon.setAttribute('fill', 'none');
-  saveIcon.setAttribute('stroke', 'currentColor');
-  saveIcon.setAttribute('stroke-width', '2');
-  saveIcon.setAttribute('stroke-linecap', 'round');
-  saveIcon.setAttribute('stroke-linejoin', 'round');
-  saveIcon.style.display = 'inline-block';
-  saveIcon.style.marginRight = '8px';
-  saveIcon.style.flexShrink = '0';
-  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z');
-  saveIcon.appendChild(path1);
-  const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  polyline1.setAttribute('points', '17 21 17 13 7 13 7 21');
-  saveIcon.appendChild(polyline1);
-  const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  polyline2.setAttribute('points', '7 3 7 8 15 8');
-  saveIcon.appendChild(polyline2);
-  saveButton.appendChild(saveIcon);
-  const saveText = document.createElement('span');
-  saveText.textContent = 'Save changes';
-  saveButton.appendChild(saveText);
-  saveButton.addEventListener('click', (e) => { e.stopPropagation(); saveChanges(); });
+  saveButton.style.backgroundColor = 'hsl(var(--primary))';
+  saveButton.style.color = 'hsl(var(--primary-foreground))';
+  saveButton.addEventListener('click', saveChanges);
   buttonFooter.appendChild(saveButton);
 
-  // Keyboard events
   textarea.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveChanges(); }
-    if (e.key === 'Escape') { e.preventDefault(); removeTextarea(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveChanges();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      removeTextarea();
+    }
   });
 
-  // Close on overlay click
   canvasOverlayContainer.addEventListener('click', (e) => {
     if (e.target === canvasOverlayContainer) removeTextarea();
   });
@@ -1267,4 +1188,3 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
   activeEditorInstance = { cleanup: removeTextarea, textarea, buttonContainer: buttonFooter };
   return removeTextarea;
 }
-

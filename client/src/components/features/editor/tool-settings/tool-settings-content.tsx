@@ -1,5 +1,5 @@
 // React
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 // Context & Hooks
 import { useEditor } from '../../../../context/editor-context';
@@ -180,8 +180,13 @@ export function ToolSettingsContent({
   })();
   const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
   const qnaFormState = useSettingsFormState(qnaElementForForm);
+  const freeTextSettingsOptions = useMemo(
+    () => ({ ignoreKeys: ['text', 'formattedText'], preserveOnRestore: ['text', 'formattedText'] }),
+    []
+  );
   const genericFormState = useSettingsFormState(
-    activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null
+    activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null,
+    activeSelectedElement?.textType === 'free_text' ? freeTextSettingsOptions : undefined
   );
   
   const toolSettings = state.toolSettings || {};
@@ -1266,6 +1271,9 @@ export function ToolSettingsContent({
             setShowColorSelector={setShowColorSelector}
             showFontSelector={showFontSelector}
             showColorSelector={showColorSelector}
+            hasChanges={genericFormState.hasChanges}
+            onSave={genericFormState.handleSave}
+            onDiscard={genericFormState.handleDiscard}
           />
         );
       }

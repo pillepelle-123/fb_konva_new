@@ -855,8 +855,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     }
     
     // Apply palette colors using flexible mappings if available
+    let paletteColors: any;
     if (palette) {
-      const paletteColors = getElementPaletteColors(palette, 'free_text');
+      paletteColors = getElementPaletteColors(palette, 'free_text');
 
       textSettings.fontColor = paletteColors.freeTextText;
       textSettings.font.fontColor = paletteColors.freeTextText;
@@ -872,9 +873,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       ...mergedDefaults,
       textSettings: textSettings,
       // Top-level properties for backward compatibility
-      fontColor: palette ? paletteColors.freeTextText : baseDefaults.fontColor,
-      borderColor: palette ? paletteColors.freeTextBorder : baseDefaults.borderColor,
-      backgroundColor: palette ? paletteColors.freeTextBackground : baseDefaults.backgroundColor
+      fontColor: palette && paletteColors ? paletteColors.freeTextText : baseDefaults.fontColor,
+      borderColor: palette && paletteColors ? paletteColors.freeTextBorder : baseDefaults.borderColor,
+      backgroundColor: palette && paletteColors ? paletteColors.freeTextBackground : baseDefaults.backgroundColor
     };
   }
   

@@ -2159,48 +2159,101 @@ export function PDFRenderer({
             textContent = tempDiv.textContent || tempDiv.innerText || '';
           }
           
-          if (textContent && textContent.trim() !== '') {
-            // Get tool defaults for free_text
-            const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
-            const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
-            const bookTheme = bookData?.themeId || bookData?.bookTheme;
-
-            const activeTheme = pageTheme || bookTheme || 'default';
-            const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
-            
-            const textStyle = {
-              ...freeTextDefaults.textSettings,
-              ...element.textSettings,
-            };
-            
-            const fontSize = textStyle.fontSize || freeTextDefaults.fontSize || 50;
-            const fontBold = textStyle.fontBold ?? false;
-            const fontItalic = textStyle.fontItalic ?? false;
-            const fontFamily = resolveFontFamily(textStyle.fontFamily || freeTextDefaults.fontFamily, fontBold, fontItalic);
-            const fontColor = textStyle.fontColor || '#000000';
-            const fontOpacity = textStyle.fontOpacity ?? 1;
-            const padding = textStyle.padding || element.padding || 4;
-            
-            // Set offsetX and offsetY to center the rotation pivot point
-            const offsetX = elementWidth / 2;
-            const offsetY = elementHeight / 2;
-            const adjustedX = elementX + offsetX;
-            const adjustedY = elementY + offsetY;
-            
-            // Create Group for free text (rotates as a unit)
-            const freeTextGroup = new Konva.Group({
-              x: adjustedX,
-              y: adjustedY,
-              offsetX: offsetX,
-              offsetY: offsetY,
-              rotation: elementRotation,
-              opacity: elementOpacity,
-              listening: false,
+          const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = bookData?.themeId || bookData?.bookTheme;
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
+          
+          const textStyle = {
+            ...freeTextDefaults.textSettings,
+            ...element.textSettings,
+          };
+          
+          const fontSize = textStyle.fontSize || freeTextDefaults.fontSize || 50;
+          const fontBold = textStyle.fontBold ?? false;
+          const fontItalic = textStyle.fontItalic ?? false;
+          const fontFamily = resolveFontFamily(textStyle.fontFamily || freeTextDefaults.fontFamily, fontBold, fontItalic);
+          const fontColor = textStyle.fontColor || '#000000';
+          const fontOpacity = textStyle.fontOpacity ?? 1;
+          const padding = textStyle.padding || element.padding || freeTextDefaults.padding || 8;
+          
+          const offsetX = elementWidth / 2;
+          const offsetY = elementHeight / 2;
+          const adjustedX = elementX + offsetX;
+          const adjustedY = elementY + offsetY;
+          
+          const freeTextGroup = new Konva.Group({
+            x: adjustedX,
+            y: adjustedY,
+            offsetX: offsetX,
+            offsetY: offsetY,
+            rotation: elementRotation,
+            opacity: elementOpacity,
+            listening: false,
+          });
+          
+          // Background
+          const showBackground = textStyle.backgroundEnabled && textStyle.backgroundColor;
+          if (showBackground) {
+            const bgRect = new Konva.Rect({
+              x: 0,
+              y: 0,
+              width: elementWidth,
+              height: elementHeight,
+              fill: textStyle.backgroundColor,
+              opacity: textStyle.backgroundOpacity ?? 1,
+              cornerRadius: textStyle.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0,
+              listening: false
             });
+            freeTextGroup.add(bgRect);
+          }
+          
+          // Ruled lines
+          const ruledLines = textStyle.ruledLines ?? false;
+          if (ruledLines && textContent) {
+            const ruledLinesWidth = textStyle.ruledLinesWidth ?? 0.8;
+            const ruledLinesColor = textStyle.ruledLinesColor || '#1f2937';
+            const ruledLinesOpacity = textStyle.ruledLinesOpacity ?? 1;
+            const lineHeight = fontSize * 1.2;
+            const startY = padding + fontSize * 0.8 + 12;
+            let currentY = startY;
             
+            while (currentY <= elementHeight - padding) {
+              const line = new Konva.Line({
+                points: [padding, currentY, elementWidth - padding, currentY],
+                stroke: ruledLinesColor,
+                strokeWidth: ruledLinesWidth,
+                opacity: ruledLinesOpacity,
+                listening: false
+              });
+              freeTextGroup.add(line);
+              currentY += lineHeight;
+            }
+          }
+          
+          // Border
+          const showBorder = textStyle.borderEnabled && textStyle.borderColor && textStyle.borderWidth;
+          if (showBorder) {
+            const borderRect = new Konva.Rect({
+              x: 0,
+              y: 0,
+              width: elementWidth,
+              height: elementHeight,
+              stroke: textStyle.borderColor,
+              strokeWidth: textStyle.borderWidth,
+              opacity: textStyle.borderOpacity ?? 1,
+              cornerRadius: textStyle.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0,
+              listening: false
+            });
+            freeTextGroup.add(borderRect);
+          }
+          
+          // Text
+          if (textContent && textContent.trim() !== '') {
             const textNode = new Konva.Text({
-              x: -offsetX + padding, // Relative to Group
-              y: -offsetY + padding, // Relative to Group
+              x: padding,
+              y: padding,
               text: textContent,
               fontSize: fontSize,
               fontFamily: fontFamily,
@@ -2212,22 +2265,20 @@ export function PDFRenderer({
               align: textStyle.align || element.align || 'left',
               verticalAlign: 'top',
               wrap: 'word',
-              // rotation removed - inherited from Group
               opacity: fontOpacity,
               visible: true,
               listening: false
             });
-            
             freeTextGroup.add(textNode);
-            layer.add(freeTextGroup);
-            
-            // Store z-order on Group
-            const zOrderIndex = elementIdToZOrder.get(element.id);
-            if (zOrderIndex !== undefined) {
-              freeTextGroup.setAttr('__zOrderIndex', zOrderIndex);
-              freeTextGroup.setAttr('__elementId', element.id);
-              freeTextGroup.setAttr('__nodeType', 'free-text-group');
-            }
+          }
+          
+          layer.add(freeTextGroup);
+          
+          const zOrderIndex = elementIdToZOrder.get(element.id);
+          if (zOrderIndex !== undefined) {
+            freeTextGroup.setAttr('__zOrderIndex', zOrderIndex);
+            freeTextGroup.setAttr('__elementId', element.id);
+            freeTextGroup.setAttr('__nodeType', 'free-text-group');
           }
         }
         // Render regular text elements

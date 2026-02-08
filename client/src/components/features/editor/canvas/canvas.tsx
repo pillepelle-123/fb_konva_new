@@ -2474,21 +2474,32 @@ export default function Canvas() {
             answerSettings: qnaDefaults.answerSettings
           };
         } else if (previewTextbox.type === 'free_text') {
-          const templateIds = getTemplateIdsForDefaults();
-          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
-          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
-          const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', effectivePaletteId);
-          newElement = {
-            id: uuidv4(),
-            type: 'text',
-            x: previewTextbox.x,
-            y: previewTextbox.y,
-            width: previewTextbox.width,
-            height: previewTextbox.height,
-            ...freeTextDefaults, // Apply ALL defaults
-            text: '',
-            textType: 'free_text'
-          };
+          console.log('[Canvas] Creating free_text element');
+          try {
+            const templateIds = getTemplateIdsForDefaults();
+            console.log('[Canvas] templateIds:', templateIds);
+            const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+            console.log('[Canvas] activeTheme:', activeTheme);
+            const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+            console.log('[Canvas] effectivePaletteId:', effectivePaletteId);
+            const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', effectivePaletteId);
+            console.log('[Canvas] freeTextDefaults:', freeTextDefaults);
+            newElement = {
+              id: uuidv4(),
+              type: 'text',
+              x: previewTextbox.x,
+              y: previewTextbox.y,
+              width: previewTextbox.width,
+              height: previewTextbox.height,
+              ...freeTextDefaults,
+              text: '',
+              textType: 'free_text',
+              textSettings: freeTextDefaults.textSettings || {}
+            };
+            console.log('[Canvas] Created free_text element:', newElement);
+          } catch (error) {
+            console.error('[Canvas] Error creating free_text element:', error);
+          }
         } else {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';

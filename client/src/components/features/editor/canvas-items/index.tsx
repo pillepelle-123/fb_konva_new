@@ -154,7 +154,9 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
     }
     // Check for Free Text textType
     if (element.textType === 'free_text') {
-      return <TextboxFreeText {...props} />;
+      const freeTextEl = element as any;
+      const freeTextKey = `${element.id}-${freeTextEl.textSettings?.fontColor}-${freeTextEl.textSettings?.fontOpacity}-${freeTextEl.textSettings?.backgroundEnabled}-${freeTextEl.textSettings?.backgroundColor}-${freeTextEl.textSettings?.backgroundOpacity}`;
+      return <TextboxFreeText key={freeTextKey} {...props} />;
     }
     // Fallback for other text types - use QnA as default
     const qnaEl = element as any;

@@ -10,26 +10,19 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { actualToCommon, commonToActual, COMMON_FONT_SIZE_RANGE } from '../../../../utils/font-size-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
-import { getFontFamily } from '../../../../utils/font-utils';
 import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
 import { FONT_GROUPS } from '../../../../utils/font-families';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
-import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
-import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 import { SettingsFormFooter } from './settings-form-footer';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
-    const font = group.fonts.find(f => 
-      f.family === fontFamily || 
-      f.bold === fontFamily || 
-      f.italic === fontFamily
-    );
+    const font = group.fonts.find(f => f.family === fontFamily || f.bold === fontFamily || f.italic === fontFamily);
     if (font) return font.name;
   }
   return "Arial";
@@ -44,6 +37,9 @@ interface FreeTextSettingsFormProps {
   setShowColorSelector: (type: string | null) => void;
   showFontSelector?: boolean;
   showColorSelector?: string | null;
+  hasChanges: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
 }
 
 export function FreeTextSettingsForm({
@@ -54,13 +50,12 @@ export function FreeTextSettingsForm({
   setShowFontSelector,
   setShowColorSelector,
   showFontSelector,
-  showColorSelector
+  showColorSelector,
+  hasChanges,
+  onSave,
+  onDiscard
 }: FreeTextSettingsFormProps) {
-  const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
-
-  // Local state for color selector
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
 
   const getTextStyle = () => {
@@ -68,13 +63,8 @@ export function FreeTextSettingsForm({
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const pageColorPaletteId = currentPage?.colorPaletteId;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId;
     const activeTheme = pageTheme || bookTheme || 'default';
-    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
-    const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', effectivePaletteId);
+    const freeTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
 
     return {
       fontSize: tStyle.fontSize || freeTextDefaults?.textSettings?.fontSize || freeTextDefaults?.fontSize || 50,
@@ -84,6 +74,7 @@ export function FreeTextSettingsForm({
       fontColor: tStyle.fontColor || freeTextDefaults?.textSettings?.fontColor || freeTextDefaults?.fontColor || '#1f2937',
       fontOpacity: tStyle.fontOpacity ?? freeTextDefaults?.textSettings?.fontOpacity ?? 1,
       align: tStyle.align || element.format?.textAlign || freeTextDefaults?.textSettings?.align || freeTextDefaults?.align || 'left',
+      paragraphSpacing: tStyle.paragraphSpacing || freeTextDefaults?.textSettings?.paragraphSpacing || 'medium',
       ruledLines: tStyle.ruledLines ?? freeTextDefaults?.textSettings?.ruledLines ?? false,
       ruledLinesColor: tStyle.ruledLinesColor || freeTextDefaults?.textSettings?.ruledLinesColor || '#1f2937',
       ruledLinesOpacity: tStyle.ruledLinesOpacity ?? freeTextDefaults?.textSettings?.ruledLinesOpacity ?? 1,
@@ -98,40 +89,21 @@ export function FreeTextSettingsForm({
       backgroundColor: tStyle.backgroundColor || freeTextDefaults?.textSettings?.background?.backgroundColor || '#ffffff',
       backgroundOpacity: tStyle.backgroundOpacity ?? freeTextDefaults?.textSettings?.background?.backgroundOpacity ?? 1,
       cornerRadius: tStyle.cornerRadius ?? freeTextDefaults?.cornerRadius ?? 0,
-      padding: tStyle.padding ?? freeTextDefaults?.textSettings?.padding ?? freeTextDefaults?.padding ?? 8,
-      paragraphSpacing: tStyle.paragraphSpacing || freeTextDefaults?.textSettings?.paragraphSpacing || 'medium'
+      padding: tStyle.padding ?? freeTextDefaults?.textSettings?.padding ?? freeTextDefaults?.padding ?? 8
     };
   };
 
   const computedCurrentStyle = getTextStyle();
 
   const updateTextSetting = (key: string, value: any) => {
-    const textSettingsUpdates = {
-      ...element.textSettings,
-      [key]: value
-    };
-
-    const elementUpdates: any = {
-      textSettings: textSettingsUpdates
-    };
-
+    const textSettingsUpdates = { ...element.textSettings, [key]: value };
+    updateSetting('textSettings', textSettingsUpdates);
     if (key === 'align') {
-      elementUpdates.format = {
-        ...element.format,
-        textAlign: value
-      };
-      elementUpdates.align = value;
+      updateSetting('format', { ...element.format, textAlign: value });
+      updateSetting('align', value);
     }
-
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: elementUpdates
-      }
-    });
   };
-  
+
   if (showFontSelector) {
     return (
       <FontSelector
@@ -139,23 +111,8 @@ export function FreeTextSettingsForm({
         isBold={computedCurrentStyle.fontBold}
         isItalic={computedCurrentStyle.fontItalic}
         onFontSelect={(fontName) => {
-          const fontFamily = getFontFamilyByName(fontName, computedCurrentStyle.fontBold, computedCurrentStyle.fontItalic);
+          const fontFamily = getFontFamilyByName(fontName, false, false);
           updateTextSetting('fontFamily', fontFamily);
-
-          // Also update element.font for proper rendering
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                font: {
-                  ...element.font,
-                  fontFamily: fontFamily
-                },
-                fontFamily: fontFamily
-              }
-            }
-          });
         }}
         onBack={() => setShowFontSelector(false)}
         element={element}
@@ -167,65 +124,39 @@ export function FreeTextSettingsForm({
   if (localShowColorSelector) {
     const getColorValue = () => {
       switch (localShowColorSelector) {
-        case 'element-text-color':
-          return computedCurrentStyle.fontColor;
-        case 'element-border-color':
-          return computedCurrentStyle.borderColor;
-        case 'element-background-color':
-          return computedCurrentStyle.backgroundColor;
-        case 'element-ruled-lines-color':
-          return computedCurrentStyle.ruledLinesColor;
-        default:
-          return '#1f2937';
+        case 'element-text-color': return computedCurrentStyle.fontColor;
+        case 'element-border-color': return computedCurrentStyle.borderColor;
+        case 'element-background-color': return computedCurrentStyle.backgroundColor;
+        case 'element-ruled-lines-color': return computedCurrentStyle.ruledLinesColor;
+        default: return '#1f2937';
       }
     };
 
     const getElementOpacityValue = () => {
       switch (localShowColorSelector) {
-        case 'element-text-color':
-          return computedCurrentStyle.fontOpacity;
-        case 'element-border-color':
-          return computedCurrentStyle.borderOpacity;
-        case 'element-background-color':
-          return computedCurrentStyle.backgroundOpacity;
-        case 'element-ruled-lines-color':
-          return computedCurrentStyle.ruledLinesOpacity;
-        default:
-          return 1;
+        case 'element-text-color': return computedCurrentStyle.fontOpacity;
+        case 'element-border-color': return computedCurrentStyle.borderOpacity;
+        case 'element-background-color': return computedCurrentStyle.backgroundOpacity;
+        case 'element-ruled-lines-color': return computedCurrentStyle.ruledLinesOpacity;
+        default: return 1;
       }
     };
 
     const handleElementOpacityChange = (opacity: number) => {
       switch (localShowColorSelector) {
-        case 'element-text-color':
-          updateTextSetting('fontOpacity', opacity);
-          break;
-        case 'element-border-color':
-          updateTextSetting('borderOpacity', opacity);
-          break;
-        case 'element-background-color':
-          updateTextSetting('backgroundOpacity', opacity);
-          break;
-        case 'element-ruled-lines-color':
-          updateTextSetting('ruledLinesOpacity', opacity);
-          break;
+        case 'element-text-color': updateTextSetting('fontOpacity', opacity); break;
+        case 'element-border-color': updateTextSetting('borderOpacity', opacity); break;
+        case 'element-background-color': updateTextSetting('backgroundOpacity', opacity); break;
+        case 'element-ruled-lines-color': updateTextSetting('ruledLinesOpacity', opacity); break;
       }
     };
 
     const handleElementColorChange = (color: string) => {
       switch (localShowColorSelector) {
-        case 'element-text-color':
-          updateTextSetting('fontColor', color);
-          break;
-        case 'element-border-color':
-          updateTextSetting('borderColor', color);
-          break;
-        case 'element-background-color':
-          updateTextSetting('backgroundColor', color);
-          break;
-        case 'element-ruled-lines-color':
-          updateTextSetting('ruledLinesColor', color);
-          break;
+        case 'element-text-color': updateTextSetting('fontColor', color); break;
+        case 'element-border-color': updateTextSetting('borderColor', color); break;
+        case 'element-background-color': updateTextSetting('backgroundColor', color); break;
+        case 'element-ruled-lines-color': updateTextSetting('ruledLinesColor', color); break;
       }
     };
 
@@ -247,393 +178,187 @@ export function FreeTextSettingsForm({
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto space-y-2 p-2">
-      {/* Font Controls */}
-      <div>
-        <div className="flex gap-2">
-          <Button
-            variant={computedCurrentStyle.fontBold ? 'default' : 'outline'}
-            size="xs"
-            onClick={() => updateTextSetting('fontBold', !computedCurrentStyle.fontBold)}
-            className="px-3"
-          >
-            <strong>B</strong>
-          </Button>
-          <Button
-            variant={computedCurrentStyle.fontItalic ? 'default' : 'outline'}
-            size="xs"
-            onClick={() => updateTextSetting('fontItalic', !computedCurrentStyle.fontItalic)}
-            className="px-3"
-          >
-            <em>I</em>
-          </Button>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setShowFontSelector(true)}
-            className="flex-1 justify-start"
-            style={{ fontFamily: computedCurrentStyle.fontFamily }}
-          >
-            <Type className="h-4 w-4 mr-2" />
-            <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <div className='flex flex-row gap-2'>
-            <ALargeSmall className='w-5 h-5'/>
-            <Slider
-              label="Font Size"
-              value={actualToCommon(computedCurrentStyle.fontSize || 50)}
-              displayValue={actualToCommon(computedCurrentStyle.fontSize || 50)}
-              onChange={(value) => updateTextSetting('fontSize', commonToActual(value))}
-              min={COMMON_FONT_SIZE_RANGE.min}
-              max={COMMON_FONT_SIZE_RANGE.max}
-              step={1}
-              className='w-full'
-            />
+        <div>
+          <div className="flex gap-2">
+            <Button variant={computedCurrentStyle.fontBold ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('fontBold', !computedCurrentStyle.fontBold)} className="px-3">
+              <strong>B</strong>
+            </Button>
+            <Button variant={computedCurrentStyle.fontItalic ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('fontItalic', !computedCurrentStyle.fontItalic)} className="px-3">
+              <em>I</em>
+            </Button>
+            <Button variant="outline" size="xs" onClick={() => setShowFontSelector(true)} className="flex-1 justify-start" style={{ fontFamily: computedCurrentStyle.fontFamily }}>
+              <Type className="h-4 w-4 mr-2" />
+              <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
+            </Button>
           </div>
         </div>
-      </div>
 
-      <div>
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => setLocalShowColorSelector('element-text-color')}
-          className="w-full"
-        >
-          <Palette className="w-4 mr-2" />
-          Font Color
-        </Button>
-      </div>
-
-      <div>
-        <Slider
-          label="Font Opacity"
-          value={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)}
-          displayValue={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)}
-          onChange={(value) => updateTextSetting('fontOpacity', value / 100)}
-          min={0}
-          max={100}
-          step={5}
-          unit="%"
-          hasLabel={false}
-        />
-      </div>
-
-      <Separator/>
-
-      {/* Paragraph Spacing */}
-      <div className='flex flex-row gap-3'>
-        <div className="flex-1 py-2">
-          <Label variant="xs">Paragraph Spacing</Label>
-          <ButtonGroup className="mt-1 flex flex-row">
-            <Button
-              variant={computedCurrentStyle.paragraphSpacing === 'small' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('paragraphSpacing', 'small')}
-              className="px-1 h-6 flex-1"
-            >
-              <Rows4 className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={computedCurrentStyle.paragraphSpacing === 'medium' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('paragraphSpacing', 'medium')}
-              className="px-1 h-6 flex-1"
-            >
-              <Rows3 className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={computedCurrentStyle.paragraphSpacing === 'large' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('paragraphSpacing', 'large')}
-              className="px-1 h-6 flex-1"
-            >
-              <Rows2 className="h-3 w-3" />
-            </Button>
-          </ButtonGroup>
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <div className='flex-1'>
+            <div className='flex flex-row gap-2'>
+              <ALargeSmall className='w-5 h-5'/>
+              <Slider label="Font Size" value={actualToCommon(computedCurrentStyle.fontSize || 50)} displayValue={actualToCommon(computedCurrentStyle.fontSize || 50)} onChange={(value) => updateTextSetting('fontSize', commonToActual(value))} min={COMMON_FONT_SIZE_RANGE.min} max={COMMON_FONT_SIZE_RANGE.max} step={1} className='w-full' />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <Separator/>
+        <div>
+          <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
+            <Palette className="w-4 mr-2" />
+            Font Color
+          </Button>
+        </div>
 
-      {/* Ruled Lines */}
-      <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={computedCurrentStyle.ruledLines}
-            onCheckedChange={(checked) => updateTextSetting('ruledLines', checked)}
-          />
-          Ruled Lines
-        </Label>
-      </div>
+        <div>
+          <Slider label="Font Opacity" value={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('fontOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
+        </div>
 
-      {computedCurrentStyle.ruledLines && (
-        <IndentedSection>
-          <Slider
-            label="Line Width"
-            value={computedCurrentStyle.ruledLinesWidth ?? 0.8}
-            onChange={(value) => updateTextSetting('ruledLinesWidth', value)}
-            min={0}
-            max={30}
-            step={0.1}
-          />
+        <Separator/>
 
-          <div>
-            <Label variant="xs">Ruled Lines Theme</Label>
-            <ThemeSelect
-              value={computedCurrentStyle.ruledLinesTheme}
-              onChange={(value) => updateTextSetting('ruledLinesTheme', value)}
+        <div className='flex flex-row gap-3'>
+          <div className="flex-1 py-2">
+            <Label variant="xs">Paragraph Spacing</Label>
+            <ButtonGroup className="mt-1 flex flex-row">
+              <Button variant={computedCurrentStyle.paragraphSpacing === 'small' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('paragraphSpacing', 'small')} className="px-1 h-6 flex-1">
+                <Rows4 className="h-3 w-3" />
+              </Button>
+              <Button variant={computedCurrentStyle.paragraphSpacing === 'medium' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('paragraphSpacing', 'medium')} className="px-1 h-6 flex-1">
+                <Rows3 className="h-3 w-3" />
+              </Button>
+              <Button variant={computedCurrentStyle.paragraphSpacing === 'large' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('paragraphSpacing', 'large')} className="px-1 h-6 flex-1">
+                <Rows2 className="h-3 w-3" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </div>
+
+        <Separator/>
+
+        <div className='py-2'>
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox checked={computedCurrentStyle.ruledLines} onCheckedChange={(checked) => updateTextSetting('ruledLines', checked)} />
+            Ruled Lines
+          </Label>
+        </div>
+
+        {computedCurrentStyle.ruledLines && (
+          <IndentedSection>
+            <Slider label="Line Width" value={computedCurrentStyle.ruledLinesWidth ?? 0.8} onChange={(value) => updateTextSetting('ruledLinesWidth', value)} min={0} max={30} step={0.1} />
+            <div>
+              <Label variant="xs">Ruled Lines Theme</Label>
+              <ThemeSelect value={computedCurrentStyle.ruledLinesTheme} onChange={(value) => updateTextSetting('ruledLinesTheme', value)} />
+            </div>
+            <ThemeSettingsRenderer
+              element={element}
+              theme={computedCurrentStyle.ruledLinesTheme}
+              updateSetting={(key, value) => updateTextSetting(key, value)}
             />
-          </div>
+            <div>
+              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
+                <Palette className="w-4 mr-2" />
+                Line Color
+              </Button>
+            </div>
+            <div>
+              <Slider label="Line Opacity" value={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('ruledLinesOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
+            </div>
+          </IndentedSection>
+        )}
 
-          {/* Theme-specific settings for Ruled Lines */}
-          <ThemeSettingsRenderer
-            element={element}
-            theme={computedCurrentStyle.ruledLinesTheme}
-            updateSetting={(key, value) => {
-              const textSettingsUpdates = {
-                ...element.textSettings,
-                [key]: value
-              };
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: {
-                    textSettings: textSettingsUpdates
-                  }
-                }
-              });
-            }}
-          />
+        <Separator/>
 
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setLocalShowColorSelector('element-ruled-lines-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Line Color
-            </Button>
-          </div>
+        <div className='py-2'>
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox checked={computedCurrentStyle.borderEnabled} onCheckedChange={(checked) => updateTextSetting('borderEnabled', checked)} />
+            Border
+          </Label>
+        </div>
 
-          <div>
-            <Slider
-              label="Line Opacity"
-              value={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)}
-              displayValue={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)}
-              onChange={(value) => updateTextSetting('ruledLinesOpacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-              hasLabel={false}
-            />
-          </div>
-        </IndentedSection>
-      )}
-
-      <Separator/>
-
-      {/* Border */}
-      <div className='py-2'>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={computedCurrentStyle.borderEnabled}
-            onCheckedChange={(checked) => updateTextSetting('borderEnabled', checked)}
-          />
-          Border
-        </Label>
-      </div>
-
-      {computedCurrentStyle.borderEnabled && (
-        <IndentedSection>
-          <Slider
-            label="Border Width"
-            value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)}
-            onChange={(value) => {
+        {computedCurrentStyle.borderEnabled && (
+          <IndentedSection>
+            <Slider label="Border Width" value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)} onChange={(value) => {
               const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderTheme);
               updateTextSetting('borderWidth', actualWidth);
-            }}
-            min={0}
-            max={getMaxCommonWidth()}
-            step={1}
-          />
-
-          <div>
-            <Label variant="xs">Border Theme</Label>
-            <ThemeSelect
-              value={computedCurrentStyle.borderTheme}
-              onChange={(value) => updateTextSetting('borderTheme', value)}
+            }} min={0} max={getMaxCommonWidth()} step={1} />
+            <div>
+              <Label variant="xs">Border Theme</Label>
+              <ThemeSelect value={computedCurrentStyle.borderTheme} onChange={(value) => updateTextSetting('borderTheme', value)} />
+            </div>
+            <ThemeSettingsRenderer
+              element={element}
+              theme={computedCurrentStyle.borderTheme}
+              updateSetting={(key, value) => updateTextSetting(key, value)}
             />
+            <div>
+              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
+                <Palette className="w-4 mr-2" />
+                Border Color
+              </Button>
+            </div>
+            <Slider label="Border Opacity" value={computedCurrentStyle.borderOpacity * 100} onChange={(value) => updateTextSetting('borderOpacity', value / 100)} min={0} max={100} step={5} />
+          </IndentedSection>
+        )}
+
+        <div>
+          <Label className="flex items-center gap-1" variant="xs">
+            <Checkbox checked={computedCurrentStyle.backgroundEnabled} onCheckedChange={(checked) => updateTextSetting('backgroundEnabled', checked)} />
+            Background
+          </Label>
+        </div>
+
+        {computedCurrentStyle.backgroundEnabled && (
+          <IndentedSection>
+            <div>
+              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
+                <Palette className="w-4 mr-2" />
+                Background Color
+              </Button>
+            </div>
+            <div>
+              <Slider label="Background Opacity" value={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('backgroundOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
+            </div>
+          </IndentedSection>
+        )}
+
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <div className='flex-1'>
+            <div className='flex flex-row gap-2'>
+              <SquareRoundCorner className='w-5 h-5'/>
+              <Slider label="Corner Radius" value={actualToCommonRadius(computedCurrentStyle.cornerRadius)} onChange={(value) => updateTextSetting('cornerRadius', commonToActualRadius(value))} min={COMMON_CORNER_RADIUS_RANGE.min} max={COMMON_CORNER_RADIUS_RANGE.max} step={1} className='w-full' />
+            </div>
           </div>
+        </div>
 
-          {/* Theme-specific settings for Border */}
-          <ThemeSettingsRenderer
-            element={element}
-            theme={computedCurrentStyle.borderTheme}
-            updateSetting={(key, value) => {
-              const textSettingsUpdates = {
-                ...element.textSettings,
-                [key]: value
-              };
-              dispatch({
-                type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                payload: {
-                  id: element.id,
-                  updates: {
-                    textSettings: textSettingsUpdates
-                  }
-                }
-              });
-            }}
-          />
-
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setLocalShowColorSelector('element-border-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Border Color
-            </Button>
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <div className='flex-1'>
+            <div className='flex flex-row gap-2'>
+              <PanelTopBottomDashed className='w-5 h-5'/>
+              <Slider label="Padding" value={computedCurrentStyle.padding} onChange={(value) => updateTextSetting('padding', value)} min={0} max={100} step={1} className='w-full' />
+            </div>
           </div>
+        </div>
 
-          <Slider
-            label="Border Opacity"
-            value={computedCurrentStyle.borderOpacity * 100}
-            onChange={(value) => updateTextSetting('borderOpacity', value / 100)}
-            min={0}
-            max={100}
-            step={5}
-          />
-        </IndentedSection>
-      )}
-
-      {/* Background */}
-      <div>
-        <Label className="flex items-center gap-1" variant="xs">
-          <Checkbox
-            checked={computedCurrentStyle.backgroundEnabled}
-            onCheckedChange={(checked) => updateTextSetting('backgroundEnabled', checked)}
-          />
-          Background
-        </Label>
-      </div>
-
-      {computedCurrentStyle.backgroundEnabled && (
-        <IndentedSection>
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setLocalShowColorSelector('element-background-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              Background Color
-            </Button>
-          </div>
-
-          <div>
-            <Slider
-              label="Background Opacity"
-              value={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)}
-              displayValue={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)}
-              onChange={(value) => updateTextSetting('backgroundOpacity', value / 100)}
-              min={0}
-              max={100}
-              step={5}
-              unit="%"
-              hasLabel={false}
-            />
-          </div>
-        </IndentedSection>
-      )}
-
-      <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <div className='flex flex-row gap-2'>
-            <SquareRoundCorner className='w-5 h-5'/>
-            <Slider
-              label="Corner Radius"
-              value={actualToCommonRadius(computedCurrentStyle.cornerRadius)}
-              onChange={(value) => updateTextSetting('cornerRadius', commonToActualRadius(value))}
-              min={COMMON_CORNER_RADIUS_RANGE.min}
-              max={COMMON_CORNER_RADIUS_RANGE.max}
-              step={1}
-              className='w-full'
-            />
+        <div className='flex flex-row gap-3'>
+          <div className="flex-1 py-2">
+            <Label variant="xs">Text Align</Label>
+            <ButtonGroup className="mt-1 flex flex-row">
+              <Button variant={computedCurrentStyle.align === 'left' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('align', 'left')} className="px-1 h-6 flex-1">
+                <AlignLeft className="h-3 w-3" />
+              </Button>
+              <Button variant={computedCurrentStyle.align === 'center' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('align', 'center')} className="px-1 h-6 flex-1">
+                <AlignCenter className="h-3 w-3" />
+              </Button>
+              <Button variant={computedCurrentStyle.align === 'right' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('align', 'right')} className="px-1 h-6 flex-1">
+                <AlignRight className="h-3 w-3" />
+              </Button>
+              <Button variant={computedCurrentStyle.align === 'justify' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('align', 'justify')} className="px-1 h-6 flex-1">
+                <AlignJustify className="h-3 w-3" />
+              </Button>
+            </ButtonGroup>
           </div>
         </div>
       </div>
-
-      <div className="flex flex-row gap-2 py-2 w-full">
-        <div className='flex-1'>
-          <div className='flex flex-row gap-2'>
-            <PanelTopBottomDashed className='w-5 h-5'/>
-            <Slider
-              label="Padding"
-              value={computedCurrentStyle.padding}
-              onChange={(value) => updateTextSetting('padding', value)}
-              min={0}
-              max={100}
-              step={1}
-              className='w-full'
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className='flex flex-row gap-3'>
-        <div className="flex-1 py-2">
-          <Label variant="xs">Text Align</Label>
-          <ButtonGroup className="mt-1 flex flex-row">
-            <Button
-              variant={computedCurrentStyle.align === 'left' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('align', 'left')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignLeft className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={computedCurrentStyle.align === 'center' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('align', 'center')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignCenter className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={computedCurrentStyle.align === 'right' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('align', 'right')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignRight className="h-3 w-3" />
-            </Button>
-            <Button
-              variant={computedCurrentStyle.align === 'justify' ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => updateTextSetting('align', 'justify')}
-              className="px-1 h-6 flex-1"
-            >
-              <AlignJustify className="h-3 w-3" />
-            </Button>
-          </ButtonGroup>
-        </div>
-      </div>
-      </div>
-      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+      <SettingsFormFooter hasChanges={hasChanges} onSave={onSave} onDiscard={onDiscard} />
     </div>
   );
 }
