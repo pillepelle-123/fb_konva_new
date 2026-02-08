@@ -9,7 +9,6 @@ import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE 
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
-import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 import { SettingsFormFooter } from './settings-form-footer';
 
 interface ImageSettingsFormProps {
@@ -19,6 +18,9 @@ interface ImageSettingsFormProps {
   setSelectedImageElementId: (id: string | null) => void;
   setShowImageModal: (show: boolean) => void;
   setShowColorSelector?: (type: string | null) => void;
+  hasChanges?: boolean;
+  onSave?: () => void;
+  onDiscard?: () => void;
 }
 
 export function ImageSettingsForm({
@@ -27,9 +29,13 @@ export function ImageSettingsForm({
   updateSettings,
   setSelectedImageElementId,
   setShowImageModal,
-  setShowColorSelector
+  setShowColorSelector,
+  hasChanges,
+  onSave,
+  onDiscard
 }: ImageSettingsFormProps) {
-  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
+  const shouldShowFooter =
+    hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
   const frameEnabled = element.frameEnabled !== undefined 
     ? element.frameEnabled 
     : (element.strokeWidth || 0) > 0;
@@ -97,8 +103,8 @@ export function ImageSettingsForm({
                     if (!element.strokeWidth) {
                       updateSetting('strokeWidth', 2);
                     }
-                    if (!element.stroke) {
-                      updateSetting('stroke', '#1f2937');
+                    if (!element.borderColor) {
+                      updateSetting('borderColor', '#1f2937');
                     }
                     if (element.borderOpacity === undefined) {
                       updateSetting('borderOpacity', 1);
@@ -159,7 +165,7 @@ export function ImageSettingsForm({
                     className="w-full"
                   >
                     <Palette className="h-4 w-4 mr-2" />
-                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.borderColor || '#1f2937' }} />
                     Frame Color
                   </Button>
                 </div>
@@ -211,7 +217,13 @@ export function ImageSettingsForm({
         </Button>
       )}
       </div>
-      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+      {shouldShowFooter && (
+        <SettingsFormFooter
+          hasChanges={hasChanges ?? false}
+          onSave={onSave!}
+          onDiscard={onDiscard!}
+        />
+      )}
     </div>
   );
 }

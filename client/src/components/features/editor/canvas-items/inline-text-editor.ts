@@ -69,367 +69,7 @@ function applyInlineEditorStyling(textarea: HTMLTextAreaElement, style: RichText
 }
 
 
-function createEditorOverlay(stage: Konva.Stage, textarea: HTMLTextAreaElement): HTMLElement {
-  // Create white overlay to cover the canvas when editor is open
-  // We'll create 4 overlay sections (top, bottom, left, right) to exclude the textarea area
-  const canvasRect = stage.container().getBoundingClientRect();
 
-  // Ensure we have valid dimensions
-  const overlayTop = canvasRect.top || 0;
-  const overlayLeft = canvasRect.left || 0;
-  const overlayWidth = canvasRect.width || window.innerWidth;
-  const overlayHeight = canvasRect.height || window.innerHeight;
-
-  // Create overlay container
-  const canvasOverlayContainer = document.createElement('div');
-  canvasOverlayContainer.style.position = 'fixed';
-  canvasOverlayContainer.style.top = overlayTop + 'px';
-  canvasOverlayContainer.style.left = overlayLeft + 'px';
-  canvasOverlayContainer.style.width = overlayWidth + 'px';
-  canvasOverlayContainer.style.height = overlayHeight + 'px';
-  canvasOverlayContainer.style.zIndex = '9999'; // High z-index to ensure it's above canvas
-  canvasOverlayContainer.style.pointerEvents = 'none'; // Allow clicks to pass through
-  canvasOverlayContainer.id = 'inline-editor-canvas-overlay-container';
-  document.body.appendChild(canvasOverlayContainer);
-
-  // Function to update overlay sections based on current textarea dimensions
-  const updateOverlaySections = () => {
-    // Clear existing sections
-    canvasOverlayContainer.innerHTML = '';
-
-    // Get current textarea dimensions (including border)
-    const textareaRect = textarea.getBoundingClientRect();
-    const textareaTop = textareaRect.top;
-    const textareaLeft = textareaRect.left;
-    const textareaWidth = textareaRect.width;
-    const textareaHeight = textareaRect.height;
-
-    // Create 4 overlay sections to cover canvas but exclude textarea area
-    const createOverlaySection = (top: number, left: number, width: number, height: number) => {
-      if (width <= 0 || height <= 0) return null; // Skip invalid sections
-      const section = document.createElement('div');
-      section.style.position = 'absolute';
-      section.style.top = (top - overlayTop) + 'px';
-      section.style.left = (left - overlayLeft) + 'px';
-      section.style.width = width + 'px';
-      section.style.height = height + 'px';
-      section.style.backgroundColor = '#ffffff';
-      section.style.opacity = '0.6';
-      return section;
-    };
-
-    // Top section (above textarea)
-    if (textareaTop > overlayTop) {
-      const topSection = createOverlaySection(
-        overlayTop,
-        overlayLeft,
-        overlayWidth,
-        textareaTop - overlayTop
-      );
-      if (topSection) canvasOverlayContainer.appendChild(topSection);
-    }
-
-    // Bottom section (below textarea)
-    const textareaBottom = textareaTop + textareaHeight;
-    if (textareaBottom < overlayTop + overlayHeight) {
-      const bottomSection = createOverlaySection(
-        textareaBottom,
-        overlayLeft,
-        overlayWidth,
-        (overlayTop + overlayHeight) - textareaBottom
-      );
-      if (bottomSection) canvasOverlayContainer.appendChild(bottomSection);
-    }
-
-    // Left section (left of textarea)
-    if (textareaLeft > overlayLeft) {
-      const leftSection = createOverlaySection(
-        Math.max(textareaTop, overlayTop),
-        overlayLeft,
-        textareaLeft - overlayLeft,
-        Math.min(textareaBottom, overlayTop + overlayHeight) - Math.max(textareaTop, overlayTop)
-      );
-      if (leftSection) canvasOverlayContainer.appendChild(leftSection);
-    }
-
-    // Right section (right of textarea)
-    const textareaRight = textareaLeft + textareaWidth;
-    if (textareaRight < overlayLeft + overlayWidth) {
-      const rightSection = createOverlaySection(
-        Math.max(textareaTop, overlayTop),
-        textareaRight,
-        (overlayLeft + overlayWidth) - textareaRight,
-        Math.min(textareaBottom, overlayTop + overlayHeight) - Math.max(textareaTop, overlayTop)
-      );
-      if (rightSection) canvasOverlayContainer.appendChild(rightSection);
-    }
-  };
-
-  // Initial update
-  updateOverlaySections();
-
-  // Update overlay when textarea resizes
-  const resizeObserver = new ResizeObserver(updateOverlaySections);
-  resizeObserver.observe(textarea);
-
-  // Store cleanup function
-  (canvasOverlayContainer as any)._cleanup = () => {
-    resizeObserver.disconnect();
-    canvasOverlayContainer.remove();
-  };
-
-  return canvasOverlayContainer;
-}
-
-function createEditorButtons(textarea: HTMLTextAreaElement, onSave: () => void, onCancel: () => void): HTMLElement {
-  // Create container for buttons
-  const buttonContainer = document.createElement('div');
-  buttonContainer.style.cssText = `
-    position: fixed;
-    z-index: 10001;
-    pointer-events: auto;
-    background-color: #FFF;
-    padding: 12px 16px;
-    border-radius: 0 0 8px 8px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  `;
-  document.body.appendChild(buttonContainer);
-
-  // Update button position when textarea resizes
-  let resizeObserver: ResizeObserver | null = null;
-
-  // Tooltip cleanup functions (will be set when buttons are created)
-  let discardTooltipCleanup: (() => void) | null = null;
-  let saveTooltipCleanup: (() => void) | null = null;
-
-  const updateButtonPosition = () => {
-    const textareaRect = textarea.getBoundingClientRect();
-    buttonContainer.style.left = textareaRect.left + 'px';
-    buttonContainer.style.top = (textareaRect.bottom + 1) + 'px';
-    buttonContainer.style.width = textareaRect.width + 'px';
-    buttonContainer.style.height = 'auto';
-  };
-
-  // Helper function to create and manage tooltip for buttons
-  const createButtonTooltip = (button: HTMLElement, text: string) => {
-    let tooltipElement: HTMLElement | null = null;
-    let tooltipTimeout: number | null = null;
-
-    const showTooltip = () => {
-      // Clear any existing timeout
-      if (tooltipTimeout) {
-        clearTimeout(tooltipTimeout);
-      }
-
-      // Remove existing tooltip
-      if (tooltipElement && tooltipElement.parentNode) {
-        tooltipElement.parentNode.removeChild(tooltipElement);
-      }
-
-      // Create new tooltip
-      tooltipElement = document.createElement('div');
-      tooltipElement.style.cssText = `
-        position: fixed;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        white-space: nowrap;
-        z-index: 10002;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-      `;
-      tooltipElement.textContent = text;
-      document.body.appendChild(tooltipElement);
-
-      // Position tooltip above button
-      const buttonRect = button.getBoundingClientRect();
-      tooltipElement.style.left = `${buttonRect.left + (buttonRect.width / 2) - (tooltipElement.offsetWidth / 2)}px`;
-      tooltipElement.style.top = `${buttonRect.top - tooltipElement.offsetHeight - 4}px`;
-
-      // Show with animation
-      tooltipTimeout = window.setTimeout(() => {
-        if (tooltipElement) {
-          tooltipElement.style.opacity = '1';
-        }
-      }, 10);
-    };
-
-    const hideTooltip = () => {
-      if (tooltipTimeout) {
-        clearTimeout(tooltipTimeout);
-      }
-
-      if (tooltipElement) {
-        tooltipElement.style.opacity = '0';
-        tooltipTimeout = window.setTimeout(() => {
-          if (tooltipElement && tooltipElement.parentNode) {
-            tooltipElement.parentNode.removeChild(tooltipElement);
-            tooltipElement = null;
-          }
-        }, 200);
-      }
-    };
-
-    button.addEventListener('mouseenter', showTooltip);
-    button.addEventListener('mouseleave', hideTooltip);
-
-    // Cleanup function
-    return () => {
-      button.removeEventListener('mouseenter', showTooltip);
-      button.removeEventListener('mouseleave', hideTooltip);
-      if (tooltipTimeout) {
-        clearTimeout(tooltipTimeout);
-      }
-      if (tooltipElement && tooltipElement.parentNode) {
-        tooltipElement.parentNode.removeChild(tooltipElement);
-      }
-    };
-  };
-
-  // Create discard button (X icon, outline variant, xs size)
-  const discardButton = document.createElement('button');
-  discardButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-input bg-background hover:bg-secondary hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-  discardButton.setAttribute('aria-label', 'Discard changes');
-  // Set color with fallback
-  const computedStyle = getComputedStyle(document.documentElement);
-  const foregroundColor = computedStyle.getPropertyValue('--foreground').trim() || '#000000';
-  discardButton.style.color = foregroundColor ? `hsl(${foregroundColor})` : '#000000';
-
-  // Create SVG icon for X
-  const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  xIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  xIcon.setAttribute('width', '16');
-  xIcon.setAttribute('height', '16');
-  xIcon.setAttribute('viewBox', '0 0 24 24');
-  xIcon.setAttribute('fill', 'none');
-  xIcon.setAttribute('stroke', 'currentColor');
-  xIcon.setAttribute('stroke-width', '2');
-  xIcon.setAttribute('stroke-linecap', 'round');
-  xIcon.setAttribute('stroke-linejoin', 'round');
-  xIcon.style.display = 'inline-block';
-  xIcon.style.color = 'inherit';
-  xIcon.style.verticalAlign = 'middle';
-  xIcon.style.flexShrink = '0';
-  xIcon.style.width = '16px';
-  xIcon.style.height = '16px';
-  xIcon.style.marginRight = '8px';
-
-  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line1.setAttribute('x1', '18');
-  line1.setAttribute('y1', '6');
-  line1.setAttribute('x2', '6');
-  line1.setAttribute('y2', '18');
-  xIcon.appendChild(line1);
-
-  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line2.setAttribute('x1', '6');
-  line2.setAttribute('y1', '6');
-  line2.setAttribute('x2', '18');
-  line2.setAttribute('y2', '18');
-  xIcon.appendChild(line2);
-
-  discardButton.appendChild(xIcon);
-  
-  const discardText = document.createElement('span');
-  discardText.textContent = 'Discard changes';
-  discardText.style.display = 'inline-block';
-  discardButton.appendChild(discardText);
-  discardButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onCancel();
-  });
-  buttonContainer.appendChild(discardButton);
-
-  // Add tooltip to discard button
-  discardTooltipCleanup = createButtonTooltip(discardButton, 'Discard changes');
-
-  // Create save button (Save icon, primary variant, xs size)
-  const saveButton = document.createElement('button');
-  saveButton.className = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm h-7 px-3 text-xs border border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-  saveButton.setAttribute('aria-label', 'Save changes');
-  // Set color with fallback
-  const primaryForegroundColor = computedStyle.getPropertyValue('--primary-foreground').trim() || '#ffffff';
-  saveButton.style.color = primaryForegroundColor ? `hsl(${primaryForegroundColor})` : '#ffffff';
-
-  // Create SVG icon for Save
-  const saveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  saveIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  saveIcon.setAttribute('width', '16');
-  saveIcon.setAttribute('height', '16');
-  saveIcon.setAttribute('viewBox', '0 0 24 24');
-  saveIcon.setAttribute('fill', 'none');
-  saveIcon.setAttribute('stroke', 'currentColor');
-  saveIcon.setAttribute('stroke-width', '2');
-  saveIcon.setAttribute('stroke-linecap', 'round');
-  saveIcon.setAttribute('stroke-linejoin', 'round');
-  saveIcon.style.display = 'inline-block';
-  saveIcon.style.color = 'inherit';
-  saveIcon.style.verticalAlign = 'middle';
-  saveIcon.style.flexShrink = '0';
-  saveIcon.style.width = '16px';
-  saveIcon.style.height = '16px';
-  saveIcon.style.marginRight = '8px';
-
-  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z');
-  saveIcon.appendChild(path1);
-
-  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  polyline.setAttribute('points', '17,8 12,3 7,8');
-  saveIcon.appendChild(polyline);
-
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', '12');
-  line.setAttribute('y1', '3');
-  line.setAttribute('x2', '12');
-  line.setAttribute('y2', '15');
-  saveIcon.appendChild(line);
-
-  saveButton.appendChild(saveIcon);
-  
-  const saveText = document.createElement('span');
-  saveText.textContent = 'Save changes';
-  saveText.style.display = 'inline-block';
-  saveButton.appendChild(saveText);
-  saveButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onSave();
-  });
-  buttonContainer.appendChild(saveButton);
-
-  // Add tooltip to save button
-  saveTooltipCleanup = createButtonTooltip(saveButton, 'Save changes');
-
-  // Update button position when textarea resizes
-  resizeObserver = new ResizeObserver(() => {
-    updateButtonPosition();
-  });
-  resizeObserver.observe(textarea);
-
-  updateButtonPosition();
-
-  // Store cleanup function
-  (buttonContainer as any)._cleanup = () => {
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-    }
-    if (discardTooltipCleanup) {
-      discardTooltipCleanup();
-    }
-    if (saveTooltipCleanup) {
-      saveTooltipCleanup();
-    }
-    buttonContainer.remove();
-  };
-
-  return buttonContainer;
-}
 
 interface User {
   id: string;
@@ -504,11 +144,23 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   }
   const stageInstance: Konva.Stage = stage;
 
-  // Close any existing editor instance
+  // Close any existing editor instance and ensure cleanup
   if (activeEditorInstance) {
-    activeEditorInstance.cleanup();
+    try {
+      activeEditorInstance.cleanup();
+    } catch (error) {
+      console.warn('Error during editor cleanup:', error);
+    }
     activeEditorInstance = null;
   }
+  
+  // Force removal of any lingering overlays from previous instances
+  const existingOverlays = document.querySelectorAll('[id="inline-editor-canvas-overlay-container"]');
+  existingOverlays.forEach(overlay => {
+    if (overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+  });
 
   // Get answer area and calculate actual text bounds
   let answerArea: { x: number; y: number; width: number; height: number };
@@ -768,6 +420,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   buttonFooter.style.gap = '4px';
   buttonFooter.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
   buttonFooter.style.zIndex = '10001';
+  buttonFooter.style.pointerEvents = 'auto';
   document.body.appendChild(buttonFooter);
   
   // Update button footer position
@@ -794,30 +447,14 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   
   // Close editor when clicking on overlay
   canvasOverlayContainer.addEventListener('click', (e) => {
-    if (e.target === canvasOverlayContainer) {
-      removeTextarea();
+    const target = e.target as HTMLElement;
+    if (target === canvasOverlayContainer) {
+      discardChanges();
     }
   });
   
-  let overlayResizeObserver: ResizeObserver | null = null;
-  
   // Insert before textarea to ensure proper stacking
   document.body.insertBefore(canvasOverlayContainer, textarea);
-  
-  // Create container for buttons
-  const buttonContainer = document.createElement('div');
-  buttonContainer.className = 'flex gap-1';
-  buttonContainer.style.position = 'fixed';
-  buttonContainer.style.zIndex = '10001'; // Above textarea (10000) and canvas overlay (9999)
-  buttonContainer.style.pointerEvents = 'auto';
-  document.body.appendChild(buttonContainer);
-  
-  // Create resize observer for button positioning
-  let resizeObserver: ResizeObserver | null = null;
-  
-  // Tooltip cleanup functions (will be set when buttons are created)
-  let discardTooltipCleanup: (() => void) | null = null;
-  let saveTooltipCleanup: (() => void) | null = null;
 
   // Event handlers for blocking canvas interactions
   let canvasEventHandlers: Array<{ element: HTMLElement | Window; event: string; handler: (e: Event) => void }> = [];
@@ -828,6 +465,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
 
   // Block canvas interactions when editor is open
   const blockCanvasInteractions = () => {
+    console.log('[QnA Editor] Blocking canvas interactions');
     // Set cursor to default (arrow) on canvas when editor is open
     // This prevents the "hand" cursor from showing when hovering over canvas
     stageContainer.style.cursor = 'default';
@@ -836,9 +474,10 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     const blockMouseEvents = (e: MouseEvent) => {
       // Allow clicks on textarea, buttons, and question header
       const target = e.target as HTMLElement;
-      if (target === textarea || textarea.contains(target) || buttonContainer.contains(target) || target === questionHeader || questionHeader.contains(target)) {
+      if (target === textarea || textarea.contains(target) || buttonFooter.contains(target) || target === questionHeader || questionHeader.contains(target)) {
         return;
       }
+      console.log('[QnA Editor] Blocking mouse event:', e.type);
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -852,7 +491,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
       }
       // Allow if focus is on textarea or buttons
       const activeElement = document.activeElement;
-      if (activeElement === textarea || buttonContainer.contains(activeElement)) {
+      if (activeElement === textarea || buttonFooter.contains(activeElement)) {
         return;
       }
       e.preventDefault();
@@ -863,7 +502,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     // Block touch events on stage
     const blockTouchEvents = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target === textarea || textarea.contains(target) || buttonContainer.contains(target) || target === questionHeader || questionHeader.contains(target)) {
+      if (target === textarea || textarea.contains(target) || buttonFooter.contains(target) || target === questionHeader || questionHeader.contains(target)) {
         return;
       }
       e.preventDefault();
@@ -874,7 +513,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     // Block pointer events on stage
     const blockPointerEvents = (e: PointerEvent) => {
       const target = e.target as HTMLElement;
-      if (target === textarea || textarea.contains(target) || buttonContainer.contains(target) || target === questionHeader || questionHeader.contains(target)) {
+      if (target === textarea || textarea.contains(target) || buttonFooter.contains(target) || target === questionHeader || questionHeader.contains(target)) {
         return;
       }
       e.preventDefault();
@@ -924,7 +563,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     const target = e.target as HTMLElement;
     
     // Don't close if clicking on textarea, buttons, or question header
-    if (target === textarea || textarea.contains(target) || buttonContainer.contains(target) || target === questionHeader || questionHeader.contains(target)) {
+    if (target === textarea || textarea.contains(target) || buttonFooter.contains(target) || target === questionHeader || questionHeader.contains(target)) {
       return;
     }
 
@@ -951,25 +590,46 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Block canvas interactions
   blockCanvasInteractions();
   
+  let discardTooltipCleanup: (() => void) | null = null;
+  let saveTooltipCleanup: (() => void) | null = null;
+
   // Function to remove textarea and cleanup
   function removeTextarea() {
+    console.log('[QnA Editor] Starting cleanup');
+    if (discardTooltipCleanup) {
+      discardTooltipCleanup();
+      discardTooltipCleanup = null;
+    }
+    if (saveTooltipCleanup) {
+      saveTooltipCleanup();
+      saveTooltipCleanup = null;
+    }
     // Remove resize listener
     window.removeEventListener('resize', updateEditorSize);
     
-    // Remove all event handlers
-    canvasEventHandlers.forEach(({ element, event, handler }) => {
-      element.removeEventListener(event, handler, true);
-    });
+    // Remove all event handlers with error handling
+    console.log('[QnA Editor] Removing', canvasEventHandlers.length, 'event handlers');
+    try {
+      canvasEventHandlers.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler, true);
+      });
+    } catch (error) {
+      console.warn('Error removing event handlers:', error);
+    }
     canvasEventHandlers = [];
 
     // Restore original cursor on canvas
+    console.log('[QnA Editor] Restoring cursor to:', originalCursor);
     stageContainer.style.cursor = originalCursor;
 
-    // Remove canvas overlay container
-    const overlayContainer = document.getElementById('inline-editor-canvas-overlay-container');
-    if (overlayContainer && overlayContainer.parentNode) {
-      overlayContainer.parentNode.removeChild(overlayContainer);
-    }
+    // Remove canvas overlay container - force removal of all instances
+    const overlayContainers = document.querySelectorAll('[id="inline-editor-canvas-overlay-container"]');
+    console.log('[QnA Editor] Removing', overlayContainers.length, 'overlay containers');
+    overlayContainers.forEach(container => {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+    });
 
     if (textarea.parentNode) {
       textarea.parentNode.removeChild(textarea);
@@ -980,21 +640,6 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     if (questionHeader.parentNode) {
       questionHeader.parentNode.removeChild(questionHeader);
     }
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver = null;
-    }
-    if (overlayResizeObserver) {
-      overlayResizeObserver.disconnect();
-      overlayResizeObserver = null;
-    }
-    // Cleanup tooltips
-    if (discardTooltipCleanup) {
-      discardTooltipCleanup();
-    }
-    if (saveTooltipCleanup) {
-      saveTooltipCleanup();
-    }
     // Show answer text again by resetting state
     setIsAnswerEditorOpen(false);
     stageInstance.draw();
@@ -1003,6 +648,22 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     if (activeEditorInstance && activeEditorInstance.textarea === textarea) {
       activeEditorInstance = null;
     }
+    
+    // Force a small delay to ensure DOM cleanup is complete
+    setTimeout(() => {
+      // Verify overlay is removed
+      const remainingOverlays = document.querySelectorAll('[id="inline-editor-canvas-overlay-container"]');
+      if (remainingOverlays.length > 0) {
+        console.warn('[QnA Editor] Found', remainingOverlays.length, 'remaining overlays after cleanup');
+        remainingOverlays.forEach(overlay => {
+          if (overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+          }
+        });
+      } else {
+        console.log('[QnA Editor] Cleanup complete, no remaining overlays');
+      }
+    }, 0);
   }
   
   // Function to save changes
@@ -1038,59 +699,38 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   function discardChanges() {
     removeTextarea();
   }
-  
-  // Update button container position when textarea position/size changes
-  // Position buttons below textarea, full width
-  const updateButtonPosition = () => {
-    const textareaRect = textarea.getBoundingClientRect();
-    buttonContainer.style.left = textareaRect.left + 'px';
-    buttonContainer.style.top = (textareaRect.bottom + 1) + 'px';
-    buttonContainer.style.width = textareaRect.width + 'px';
-  };
-  
-  // Initial position
-  updateButtonPosition();
-  
-  // Helper function to create and manage tooltip for buttons
-  const createButtonTooltip = (button: HTMLElement, text: string) => {
-    let tooltipElement: HTMLElement | null = null;
-    let tooltipVisible = false;
+  const createButtonTooltip = (button: HTMLButtonElement, text: string) => {
+    let tooltipElement: HTMLDivElement | null = null;
     let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
-    
+    let tooltipVisible = false;
+
     const showTooltip = () => {
-      if (tooltipVisible) return;
-      
-      // Clear any existing timeout
       if (tooltipTimeout) {
         clearTimeout(tooltipTimeout);
         tooltipTimeout = null;
       }
-      
-      // Remove existing tooltip if any
+
       if (tooltipElement && tooltipElement.parentNode) {
         tooltipElement.parentNode.removeChild(tooltipElement);
       }
-      
-      // Create tooltip element
+
       tooltipElement = document.createElement('div');
       tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
       tooltipElement.style.zIndex = '11'; // Above buttons
-      
+
       const tooltipContent = document.createElement('div');
       tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded whitespace-nowrap';
       tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
       tooltipContent.textContent = text;
       tooltipElement.appendChild(tooltipContent);
-      
+
       document.body.appendChild(tooltipElement);
-      
-      // Calculate position (above button, centered)
+
       const buttonRect = button.getBoundingClientRect();
       tooltipElement.style.left = (buttonRect.left + buttonRect.width / 2) + 'px';
       tooltipElement.style.top = (buttonRect.top - 8) + 'px';
       tooltipElement.style.transform = 'translate(-50%, -100%)';
-      
-      // Show with transition
+
       tooltipTimeout = setTimeout(() => {
         if (tooltipElement) {
           tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-100 scale-100';
@@ -1098,18 +738,17 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
         }
       }, 10);
     };
-    
+
     const hideTooltip = () => {
       if (tooltipTimeout) {
         clearTimeout(tooltipTimeout);
         tooltipTimeout = null;
       }
-      
+
       if (tooltipElement) {
         tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
         tooltipVisible = false;
-        
-        // Remove after transition
+
         setTimeout(() => {
           if (tooltipElement && tooltipElement.parentNode) {
             tooltipElement.parentNode.removeChild(tooltipElement);
@@ -1118,11 +757,10 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
         }, 200);
       }
     };
-    
+
     button.addEventListener('mouseenter', showTooltip);
     button.addEventListener('mouseleave', hideTooltip);
-    
-    // Cleanup function
+
     return () => {
       button.removeEventListener('mouseenter', showTooltip);
       button.removeEventListener('mouseleave', hideTooltip);
@@ -1333,7 +971,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   activeEditorInstance = {
     cleanup: removeTextarea,
     textarea,
-    buttonContainer
+    buttonContainer: buttonFooter
   };
   
   // Return cleanup function

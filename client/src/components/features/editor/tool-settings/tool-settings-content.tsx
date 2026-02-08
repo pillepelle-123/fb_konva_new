@@ -180,6 +180,9 @@ export function ToolSettingsContent({
   })();
   const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
   const qnaFormState = useSettingsFormState(qnaElementForForm);
+  const genericFormState = useSettingsFormState(
+    activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null
+  );
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -512,7 +515,7 @@ export function ToolSettingsContent({
         case 'element-shape-fill':
           return element.fill || 'transparent';
         case 'element-image-frame-stroke':
-          return element.stroke || '#1f2937';
+          return element.borderColor || '#1f2937';
         case 'element-sticker-color':
           return element.stickerColor || '#1f2937';
         default:
@@ -527,7 +530,7 @@ export function ToolSettingsContent({
         case 'element-shape-fill':
           return element.backgroundOpacity || element.opacity || 1;
         case 'element-image-frame-stroke':
-          return element.strokeOpacity || 1;
+          return element.borderOpacity || 1;
         case 'element-sticker-color':
           return element.imageOpacity !== undefined ? element.imageOpacity : 1;
         default:
@@ -543,7 +546,7 @@ export function ToolSettingsContent({
         case 'element-shape-fill':
           return overrides.backgroundColor === true;
         case 'element-image-frame-stroke':
-          return overrides.stroke === true;
+          return overrides.borderColor === true;
         case 'element-sticker-color':
           return overrides.stickerColor === true;
         default:
@@ -570,11 +573,11 @@ export function ToolSettingsContent({
           });
           break;
         case 'element-image-frame-stroke':
-          updateElementSetting(element.id, { stroke: color });
-          // Mark stroke as manually overridden
+          updateElementSetting(element.id, { borderColor: color });
+          // Mark borderColor as manually overridden
           dispatch({
             type: 'MARK_COLOR_OVERRIDE',
-            payload: { elementIds: [element.id], colorProperty: 'stroke' }
+            payload: { elementIds: [element.id], colorProperty: 'borderColor' }
           });
           break;
         case 'element-sticker-color':
@@ -605,8 +608,10 @@ export function ToolSettingsContent({
       const updates: Record<string, any> = {};
       switch (colorType) {
         case 'element-shape-stroke':
-        case 'element-image-frame-stroke':
           colorProperty = 'stroke';
+          break;
+        case 'element-image-frame-stroke':
+          colorProperty = 'borderColor';
           break;
         case 'element-shape-fill':
           colorProperty = 'fill';
@@ -1192,6 +1197,9 @@ export function ToolSettingsContent({
             element={element}
             updateSetting={updateElementSettingLocal}
             setShowColorSelector={setShowColorSelector}
+            hasChanges={genericFormState.hasChanges}
+            onSave={genericFormState.handleSave}
+            onDiscard={genericFormState.handleDiscard}
           />
         );
 
@@ -1205,6 +1213,9 @@ export function ToolSettingsContent({
             setSelectedImageElementId={setSelectedImageElementId}
             setShowImageModal={setShowImageModal}
             setShowColorSelector={setShowColorSelector}
+            hasChanges={genericFormState.hasChanges}
+            onSave={genericFormState.handleSave}
+            onDiscard={genericFormState.handleDiscard}
           />
         );
 
@@ -1214,6 +1225,9 @@ export function ToolSettingsContent({
             element={element}
             updateElementSettingLocal={updateElementSettingLocal}
             setShowColorSelector={setShowColorSelector}
+            hasChanges={genericFormState.hasChanges}
+            onSave={genericFormState.handleSave}
+            onDiscard={genericFormState.handleDiscard}
           />
         );
 

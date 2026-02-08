@@ -950,21 +950,21 @@ export function PDFRenderer({
           const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
           
           const individualSettings = element.qnaIndividualSettings ?? false;
-          const questionStyle = {
+          let questionStyle = {
             ...qnaDefaults.questionSettings,
             ...element.questionSettings,
           };
-          const answerStyle = {
+          let answerStyle = {
             ...qnaDefaults.answerSettings,
             ...element.answerSettings,
           };
           
           // When individualSettings is false, use answer font properties for question
           if (!individualSettings) {
-            questionStyle.fontSize = answerStyle.fontSize ?? questionStyle.fontSize;
-            questionStyle.fontFamily = answerStyle.fontFamily ?? questionStyle.fontFamily;
-            questionStyle.fontColor = answerStyle.fontColor ?? questionStyle.fontColor;
-            questionStyle.fontOpacity = answerStyle.fontOpacity ?? questionStyle.fontOpacity ?? 1;
+            questionStyle = {
+              ...questionStyle,
+              ...answerStyle
+            };
           }
           
           const padding = element.padding || questionStyle.padding || answerStyle.padding || 4;
@@ -1046,7 +1046,7 @@ export function PDFRenderer({
               // CRITICAL FIX: Also check element.paragraphSpacing (matches textbox-qna.tsx logic)
               // This ensures paragraphSpacing from element is properly passed to layout calculation
               paragraphSpacing: questionStyle.paragraphSpacing || element.paragraphSpacing || 'small',
-              align: element.align || 'left'
+              align: questionStyle.align || element.align || 'left'
             },
             answerStyle: {
               fontSize: answerStyle.fontSize || 50,
@@ -1058,7 +1058,7 @@ export function PDFRenderer({
               // CRITICAL FIX: Also check element.paragraphSpacing (matches textbox-qna.tsx logic)
               // This ensures paragraphSpacing from element is properly passed to layout calculation
               paragraphSpacing: answerStyle.paragraphSpacing || element.paragraphSpacing || 'medium',
-              align: element.align || 'left'
+              align: answerStyle.align || element.align || 'left'
             },
             width: elementWidth,
             height: elementHeight,
@@ -1533,12 +1533,12 @@ export function PDFRenderer({
               
               // Generate additional ruled lines to fill the rest of the target area (matching client-side logic)
               // This only applies to answer lines (ruledLinesTarget === 'answer')
-              if (ruledLinesTarget === 'answer' && baselineYPositions.size > 0) {
+              if (ruledLinesTarget === 'answer' && filteredLinePositions.length > 0) {
                 const answerLineHeight = sharedGetLineHeight(answerStyle);
-                const sortedBaselines = Array.from(baselineYPositions).sort((a, b) => a - b);
-                const lastBaselineY = sortedBaselines[sortedBaselines.length - 1];
-                // Calculate next line position: last baseline + line height + offset + top offset (relative to Group)
-                let nextLineY = lastBaselineY + answerLineHeight + RULED_LINE_BASELINE_OFFSET + RULED_LINE_TOP_OFFSET;
+                const sortedLinePositions = [...filteredLinePositions].sort((a, b) => a.y - b.y);
+                const lastLinePos = sortedLinePositions[sortedLinePositions.length - 1];
+                // Calculate next line position: last linePos + line height (relative to Group)
+                let nextLineY = lastLinePos.y + answerLineHeight;
                 
                 // Determine start and end X positions and bottom Y (all relative to Group)
                 const relativeStartX = answerArea.x - elementX;

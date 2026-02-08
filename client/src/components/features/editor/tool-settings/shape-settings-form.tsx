@@ -10,21 +10,27 @@ import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getElementTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
-import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 import { SettingsFormFooter } from './settings-form-footer';
 
 interface ShapeSettingsFormProps {
   element: any;
   updateSetting: (key: string, value: any) => void;
   setShowColorSelector: (type: string | null) => void;
+  hasChanges?: boolean;
+  onSave?: () => void;
+  onDiscard?: () => void;
 }
 
 export function ShapeSettingsForm({
   element,
   updateSetting,
-  setShowColorSelector
+  setShowColorSelector,
+  hasChanges,
+  onSave,
+  onDiscard
 }: ShapeSettingsFormProps) {
-  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
+  const shouldShowFooter =
+    hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
   const getMaxStrokeWidth = () => {
     return getMaxCommonWidth();
   };
@@ -69,7 +75,13 @@ export function ShapeSettingsForm({
             unit="%"
           />
           </div>
-          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+          {shouldShowFooter && (
+            <SettingsFormFooter
+              hasChanges={hasChanges ?? false}
+              onSave={onSave!}
+              onDiscard={onDiscard!}
+            />
+          )}
         </div>
       );
 
@@ -133,7 +145,13 @@ export function ShapeSettingsForm({
             />
           </div>
           </div>
-          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+          {shouldShowFooter && (
+            <SettingsFormFooter
+              hasChanges={hasChanges ?? false}
+              onSave={onSave!}
+              onDiscard={onDiscard!}
+            />
+          )}
         </div>
       );
 
@@ -298,7 +316,13 @@ export function ShapeSettingsForm({
             />
           )}
           </div>
-          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+          {shouldShowFooter && (
+            <SettingsFormFooter
+              hasChanges={hasChanges ?? false}
+              onSave={onSave!}
+              onDiscard={onDiscard!}
+            />
+          )}
         </div>
       );
 
@@ -310,7 +334,13 @@ export function ShapeSettingsForm({
               No settings available for this element.
             </div>
           </div>
-          <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+          {shouldShowFooter && (
+            <SettingsFormFooter
+              hasChanges={hasChanges ?? false}
+              onSave={onSave!}
+              onDiscard={onDiscard!}
+            />
+          )}
         </div>
       );
   }

@@ -1,21 +1,27 @@
 import { Button } from '../../../ui/primitives/button';
 import { Palette } from 'lucide-react';
 import { Slider } from '../../../ui/primitives/slider';
-import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 import { SettingsFormFooter } from './settings-form-footer';
 
 interface StickerSettingsFormProps {
   element: any;
   updateElementSettingLocal: (key: string, value: any) => void;
   setShowColorSelector: (value: string | null) => void;
+  hasChanges?: boolean;
+  onSave?: () => void;
+  onDiscard?: () => void;
 }
 
 export function StickerSettingsForm({
   element,
   updateElementSettingLocal,
   setShowColorSelector,
+  hasChanges,
+  onSave,
+  onDiscard
 }: StickerSettingsFormProps) {
-  const { hasChanges, handleSave, handleDiscard } = useSettingsFormState(element);
+  const shouldShowFooter =
+    hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
   const stickerOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
 
   return (
@@ -45,7 +51,13 @@ export function StickerSettingsForm({
         unit="%"
       />
       </div>
-      <SettingsFormFooter hasChanges={hasChanges} onSave={handleSave} onDiscard={handleDiscard} />
+      {shouldShowFooter && (
+        <SettingsFormFooter
+          hasChanges={hasChanges ?? false}
+          onSave={onSave!}
+          onDiscard={onDiscard!}
+        />
+      )}
     </div>
   );
 }

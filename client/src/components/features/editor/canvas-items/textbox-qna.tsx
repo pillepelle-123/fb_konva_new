@@ -324,7 +324,7 @@ function createBlockLayoutLocal(params: {
   }
   
   // Render question text in question area
-  if (questionText) {
+  if (questionText && questionText.trim()) {
     const questionLines = wrapText(questionText, questionStyle, questionArea.width, ctx);
     let cursorY = questionArea.y;
     
@@ -359,7 +359,7 @@ function createBlockLayoutLocal(params: {
   }
   
   // Render answer text in answer area
-  if (answerText) {
+  if (answerText && answerText.trim()) {
     const answerLines = wrapText(answerText, answerStyle, answerArea.width, ctx);
     let cursorY = answerArea.y;
     
@@ -394,6 +394,18 @@ function createBlockLayoutLocal(params: {
   }
   
   const contentHeight = height;
+  
+  // Debug log for PDF export
+  if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+    console.log('[PDF Export LOCAL] Block layout created:', {
+      questionText: questionText?.substring(0, 50),
+      answerText: answerText?.substring(0, 50),
+      runsCount: runs.length,
+      runs: runs.map(r => ({ text: r.text.substring(0, 20), x: r.x, y: r.y })),
+      questionArea,
+      answerArea
+    });
+  }
   
   return {
     runs,
@@ -1470,8 +1482,21 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   // Ref to store previous layout during debounce phase
   const previousLayoutRef = useRef<LayoutResult | null>(null);
   
-  // Debounce answer content changes
+  // CRITICAL FIX: When answer editor closes, immediately update debounced content
+  // This prevents the layout from being stale after saving changes
   useEffect(() => {
+    if (!isAnswerEditorOpen) {
+      // Editor just closed - force immediate update of debounced content
+      setDebouncedAnswerContent(answerContent);
+      setDebouncedPreparedQuestionText(preparedQuestionText);
+      setIsCalculatingLayout(false);
+    }
+  }, [isAnswerEditorOpen, answerContent, preparedQuestionText]);
+  
+  // Debounce answer content changes (only when editor is NOT open)
+  useEffect(() => {
+    if (isAnswerEditorOpen) return; // Don't debounce while editor is open
+    
     if (answerContent === debouncedAnswerContent) {
       setIsCalculatingLayout(false);
       return;
@@ -1484,10 +1509,12 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     }, 150); // 150ms debounce delay
     
     return () => clearTimeout(timeoutId);
-  }, [answerContent, debouncedAnswerContent]);
+  }, [answerContent, debouncedAnswerContent, isAnswerEditorOpen]);
   
-  // Debounce question text changes
+  // Debounce question text changes (only when editor is NOT open)
   useEffect(() => {
+    if (isAnswerEditorOpen) return; // Don't debounce while editor is open
+    
     if (preparedQuestionText === debouncedPreparedQuestionText) {
       return;
     }
@@ -1499,7 +1526,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     }, 150); // 150ms debounce delay
     
     return () => clearTimeout(timeoutId);
-  }, [preparedQuestionText, debouncedPreparedQuestionText]);
+  }, [preparedQuestionText, debouncedPreparedQuestionText, isAnswerEditorOpen]);
   
   // Animate spinner opacity during layout calculation
   useEffect(() => {
@@ -2019,6 +2046,11 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   }, [element.id]);
 
   const enableInlineAnswerEditing = useCallback(() => {
+    console.log('[QnA Textbox] Creating inline editor with layout:', {
+      runsCount: layout.runs.length,
+      answerAreaBounds,
+      layoutVariant
+    });
     createInlineTextEditor({
       element: qnaElement,
       answerText,
@@ -2036,7 +2068,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       getLineHeight,
       measureText
     });
-  }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, qnaElement, user, dispatch, textRef, getLineHeight, measureText]);
+  }, [answerText, answerStyle, effectiveQuestionStyle, layout, layoutVariant, padding, boxWidth, boxHeight, qnaElement, user, dispatch, textRef, getLineHeight, measureText, answerAreaBounds]);
   
   // Update cursor style based on hovered area
   useEffect(() => {
@@ -2187,7 +2219,28 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     const transform = groupNode.getAbsoluteTransform().copy().invert();
     const localPos = transform.point(pointerPos);
     
-    return getClickArea(
+    // CRITICAL FIX: If layout is stale (missing answer runs), use answerAreaBounds as fallback
+    // This happens when layout hasn't updated yet after saving changes
+    if (answerAreaBounds && element.questionId) {
+      // Check if click is in answer area bounds (fallback for stale layout)
+      if (
+        localPos.x >= answerAreaBounds.x &&
+        localPos.x <= answerAreaBounds.x + answerAreaBounds.width &&
+        localPos.y >= answerAreaBounds.y &&
+        localPos.y <= answerAreaBounds.y + answerAreaBounds.height
+      ) {
+        console.log('[QnA Textbox] getClickAreaFromEvent (fallback):', {
+          localPos,
+          clickArea: 'answer',
+          layoutRunsCount: layout.runs.length,
+          usedFallback: true
+        });
+        return 'answer';
+      }
+    }
+    
+    // Use normal getClickArea logic
+    const clickArea = getClickArea(
       localPos.x,
       localPos.y,
       layout,
@@ -2199,7 +2252,19 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       boxHeight,
       answerContent.trim().length > 0
     );
-  }, [layout, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent]);
+    
+    console.log('[QnA Textbox] getClickAreaFromEvent:', {
+      localPos,
+      clickArea,
+      layoutRunsCount: layout.runs.length,
+      visibleRunsCount: visibleRuns.length,
+      isAnswerEditorOpen,
+      answerAreaBounds,
+      hasAnswer: answerContent.trim().length > 0
+    });
+    
+    return clickArea;
+  }, [layout, visibleRuns.length, isAnswerEditorOpen, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent, answerAreaBounds, element.questionId]);
   
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false || activeTool !== 'select') {
@@ -2261,16 +2326,37 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   }, []);
 
   const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
-    if (props.interactive === false) return;
-    if (activeTool !== 'select') return;
-    if (e?.evt && e.evt.button !== 0) return;
+    console.log('[QnA Textbox] Double-click detected', {
+      interactive: props.interactive,
+      activeTool,
+      hasEvent: !!e,
+      button: e?.evt?.button
+    });
+    
+    if (props.interactive === false) {
+      console.log('[QnA Textbox] Ignoring double-click: interactive=false');
+      return;
+    }
+    if (activeTool !== 'select') {
+      console.log('[QnA Textbox] Ignoring double-click: activeTool is not select');
+      return;
+    }
+    if (e?.evt && e.evt.button !== 0) {
+      console.log('[QnA Textbox] Ignoring double-click: not left button');
+      return;
+    }
     
     // Get mouse position relative to the element
-    if (!e) return;
+    if (!e) {
+      console.log('[QnA Textbox] No event provided');
+      return;
+    }
     
     const clickArea = getClickAreaFromEvent(e);
+    console.log('[QnA Textbox] Click area detected:', clickArea);
     
     if (clickArea === 'question') {
+      console.log('[QnA Textbox] Opening question selector');
       // Open question selector modal directly
       const globalWindow = window as ExtendedWindow;
       const directFn = globalWindow[`openQuestionSelector_${element.id}`];
@@ -2282,18 +2368,30 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         }));
       }
     } else if (clickArea === 'answer') {
+      console.log('[QnA Textbox] Answer area clicked', {
+        hasQuestionId: !!element.questionId,
+        assignedUserId: assignedUser?.id,
+        currentUserId: user?.id,
+        isAuthorized: assignedUser?.id === user?.id
+      });
+      
       // Disable answer editing if no question is assigned
       if (!element.questionId) {
+        console.log('[QnA Textbox] Cannot edit answer: no question assigned');
         return; // No question assigned, cannot add answer
       }
       
       // Check if user is assigned to this page
       if (!assignedUser || assignedUser.id !== user?.id) {
+        console.log('[QnA Textbox] Cannot edit answer: user not authorized');
         return; // User not assigned or not the assigned user
       }
       
+      console.log('[QnA Textbox] Opening inline answer editor');
       // Open inline answer editor
       enableInlineAnswerEditing();
+    } else {
+      console.log('[QnA Textbox] Click area is null or unrecognized');
     }
   };
 

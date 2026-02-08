@@ -152,7 +152,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   }
   
   // Render question text in question area
-  if (questionText) {
+  if (questionText && questionText.trim()) {
     const questionLines = wrapText(questionText, questionStyle, questionArea.width, ctx);
     let cursorY = questionArea.y;
     
@@ -191,7 +191,7 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   }
   
   // Render answer text in answer area
-  if (answerText) {
+  if (answerText && answerText.trim()) {
     const answerLines = wrapText(answerText, answerStyle, answerArea.width, ctx);
     let cursorY = answerArea.y;
     
@@ -231,6 +231,18 @@ export function createBlockLayout(params: CreateBlockLayoutParams): LayoutResult
   }
   
   const contentHeight = height;
+  
+  // Debug log for PDF export
+  if (typeof window !== 'undefined' && (window as any).__PDF_EXPORT__) {
+    console.log('[PDF Export] Block layout created:', {
+      questionText: questionText?.substring(0, 50),
+      answerText: answerText?.substring(0, 50),
+      runsCount: runs.length,
+      runs: runs.map(r => ({ text: r.text.substring(0, 20), x: r.x, y: r.y })),
+      questionArea,
+      answerArea
+    });
+  }
   
   return {
     runs,
