@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, forwardRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { Shape, Rect, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
@@ -41,6 +41,16 @@ function createFreeTextLayout(params: {
     cursorY += lineHeight;
   });
 
+  // Add additional ruled lines to fill the rest of the box
+  const bottomLimit = height - padding;
+  while (cursorY < bottomLimit) {
+    const baselineY = cursorY + baselineOffset;
+    const lineY = baselineY + RULED_LINE_BASELINE_OFFSET;
+    if (lineY > bottomLimit) break;
+    linePositions.push({ y: lineY, lineHeight, style: textStyle });
+    cursorY += lineHeight;
+  }
+
   return { runs, contentHeight: Math.max(cursorY, height), linePositions };
 }
 
@@ -57,7 +67,7 @@ const areRunsEqual = (prevRuns: TextRun[], nextRuns: TextRun[]): boolean => {
   return true;
 };
 
-const RichTextShapeComponent = forwardRef<Konva.Shape, { runs: TextRun[]; width: number; height: number }>(
+const RichTextShapeComponent = React.forwardRef<Konva.Shape, { runs: TextRun[]; width: number; height: number }>(
   ({ runs, width, height }, ref) => (
     <Shape
       ref={ref}
@@ -88,24 +98,16 @@ const RichTextShape = React.memo(RichTextShapeComponent, (prevProps, nextProps) 
 }) as typeof RichTextShapeComponent;
 RichTextShape.displayName = 'RichTextShape';
 
-export default function TextboxFreeText(props: CanvasItemProps) {
-  const { element } = props;
+export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: boolean }) {
+  const { element, isDragging } = props;
   const { state, dispatch } = useEditor();
   const elementWidth = element.width ?? 0;
   const elementHeight = element.height ?? 0;
   const textShapeRef = useRef<Konva.Shape>(null);
   const textRef = useRef<Konva.Rect>(null);
-  const isTransformingRef = useRef(false);
-  const transformStartDimensionsRef = useRef<{ width: number; height: number } | null>(null);
-  const [transformDimensions, setTransformDimensions] = useState<{ width: number; height: number } | null>(null);
-  const transformDimensionsRef = useRef<{ width: number; height: number } | null>(null);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-
-  useEffect(() => { transformDimensionsRef.current = transformDimensions; }, [transformDimensions]);
-
-  const boxWidth = transformDimensions ? transformDimensions.width : elementWidth;
-  const boxHeight = transformDimensions ? transformDimensions.height : elementHeight;
-  const textShapeBoxRef = useRef<{ width: number; height: number }>({ width: boxWidth, height: boxHeight });
+  const [isTransforming, setIsTransforming] = useState(false);
+  const storedResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean } | null>(null);
+  const transformStartSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const elementTheme = element.theme;
@@ -137,10 +139,8 @@ export default function TextboxFreeText(props: CanvasItemProps) {
 
   const layout = useMemo(() => {
     const ctx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-    return createFreeTextLayout({ text: textContent, textStyle, width: boxWidth, height: boxHeight, padding, ctx });
-  }, [textContent, textStyle, boxWidth, boxHeight, padding]);
-
-  const visibleRuns = useMemo(() => isEditorOpen ? [] : layout.runs, [layout.runs, isEditorOpen]);
+    return createFreeTextLayout({ text: textContent, textStyle, width: elementWidth, height: elementHeight, padding, ctx });
+  }, [textContent, textStyle, elementWidth, elementHeight, padding]);
 
   const ruledLines = element.textSettings?.ruledLines ?? freeTextDefaults.textSettings?.ruledLines ?? false;
   const ruledLinesWidth = element.textSettings?.ruledLinesWidth ?? freeTextDefaults.textSettings?.ruledLinesWidth ?? 0.8;
@@ -157,12 +157,12 @@ export default function TextboxFreeText(props: CanvasItemProps) {
     const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
 
     layout.linePositions.forEach((linePos: LinePosition) => {
-      if (linePos.y >= 0 && linePos.y <= boxHeight) {
+      if (linePos.y >= 0 && linePos.y <= elementHeight) {
         const lineElement = renderThemedBorder({
           width: ruledLinesWidth,
           color: ruledLinesColor,
           opacity: ruledLinesOpacity,
-          path: createLinePath(padding, linePos.y, boxWidth - padding, linePos.y),
+          path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
           theme,
           themeSettings: { seed: seed + linePos.y, roughness: theme === 'rough' ? 2 : 1 },
           strokeScaleEnabled: true,
@@ -173,157 +173,103 @@ export default function TextboxFreeText(props: CanvasItemProps) {
       }
     });
     return elements;
-  }, [ruledLines, layout.linePositions, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id]);
+  }, [ruledLines, layout.linePositions, padding, elementWidth, elementHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id]);
 
   const showBackground = element.textSettings?.backgroundEnabled && element.textSettings?.backgroundColor;
   const showBorder = element.textSettings?.borderEnabled && element.textSettings?.borderColor && element.textSettings?.borderWidth !== undefined;
 
-  useEffect(() => { textShapeBoxRef.current = { width: boxWidth, height: boxHeight }; }, [boxWidth, boxHeight]);
-
-  const lastDispatchedDimensionsRef = useRef<{ width: number; height: number } | null>(null);
-  const lastElementIdRef = useRef<string | null>(null);
-  
-  useEffect(() => {
-    if (lastElementIdRef.current !== null && lastElementIdRef.current !== element.id) {
-      setTransformDimensions(null);
-      lastDispatchedDimensionsRef.current = null;
-      transformStartDimensionsRef.current = null;
-    }
-    lastElementIdRef.current = element.id;
-  }, [element.id]);
-  
-  useEffect(() => {
-    if (isTransformingRef.current || !elementWidth || !elementHeight || elementWidth <= 0 || elementHeight <= 0) return;
-    if (transformDimensions) {
-      const widthMatch = Math.abs(elementWidth - transformDimensions.width) < 0.1;
-      const heightMatch = Math.abs(elementHeight - transformDimensions.height) < 0.1;
-      if (widthMatch && heightMatch) {
-        const timeoutId = setTimeout(() => {
-          if (!isTransformingRef.current) {
-            setTransformDimensions(null);
-            lastDispatchedDimensionsRef.current = null;
-          }
-        }, 50);
-        return () => clearTimeout(timeoutId);
-      } else {
-        let shouldReset = true;
-        if (lastDispatchedDimensionsRef.current) {
-          const dispatchedWidthMatch = Math.abs(elementWidth - lastDispatchedDimensionsRef.current.width) < 0.1;
-          const dispatchedHeightMatch = Math.abs(elementHeight - lastDispatchedDimensionsRef.current.height) < 0.1;
-          const transformWidthMatch = Math.abs(transformDimensions.width - lastDispatchedDimensionsRef.current.width) < 0.1;
-          const transformHeightMatch = Math.abs(transformDimensions.height - lastDispatchedDimensionsRef.current.height) < 0.1;
-          if (dispatchedWidthMatch && dispatchedHeightMatch && transformWidthMatch && transformHeightMatch) {
-            shouldReset = false;
-          }
-        }
-        if (shouldReset) {
-          setTransformDimensions(null);
-          lastDispatchedDimensionsRef.current = null;
-        }
-      }
-    }
-  }, [elementWidth, elementHeight, transformDimensions, element.id]);
-
-  useEffect(() => {
+  // Listen for transform events to show skeleton during resize
+  React.useEffect(() => {
     const handleTransformStart = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
-      isTransformingRef.current = true;
-      const currentTransformDims = transformDimensionsRef.current;
-      const currentWidth = currentTransformDims?.width ?? elementWidth;
-      const currentHeight = currentTransformDims?.height ?? elementHeight;
-      transformStartDimensionsRef.current = { width: currentWidth, height: currentHeight };
-      setTransformDimensions({ width: currentWidth, height: currentHeight });
-    };
 
-    const handleTransform = (e: CustomEvent) => {
-      if (e.detail?.elementId !== element.id || !isTransformingRef.current) return;
+      setIsTransforming(true);
+
       const rectNode = textRef.current;
       if (!rectNode) return;
+
       const groupNode = rectNode.getParent();
       if (!groupNode || groupNode.getClassName() !== 'Group') return;
-      const scaleX = groupNode.scaleX();
-      const scaleY = groupNode.scaleY();
-      if (scaleX !== 1 || scaleY !== 1) {
-        const startDims = transformStartDimensionsRef.current || { width: elementWidth, height: elementHeight };
-        const newWidth = Math.max(5, startDims.width * scaleX);
-        const newHeight = Math.max(5, startDims.height * scaleY);
-        groupNode.scaleX(1);
-        groupNode.scaleY(1);
-        textShapeBoxRef.current = { width: newWidth, height: newHeight };
-        setTransformDimensions({ width: newWidth, height: newHeight });
-        transformStartDimensionsRef.current = { width: newWidth, height: newHeight };
+
+      const stage = groupNode.getStage();
+      const transformer = stage?.findOne('Transformer') as Konva.Transformer | null;
+
+      if (transformer) {
+        const activeAnchor = transformer.getActiveAnchor();
+        if (activeAnchor) {
+          const fromTop = activeAnchor.includes('top');
+          const fromLeft = activeAnchor.includes('left');
+          storedResizeDirectionRef.current = { fromTop, fromLeft };
+        }
       }
+
+      const baseWidth = elementWidth || groupNode.width() || groupNode.getClientRect({ skipTransform: true }).width;
+      const baseHeight = elementHeight || groupNode.height() || groupNode.getClientRect({ skipTransform: true }).height;
+      transformStartSizeRef.current = { width: baseWidth, height: baseHeight };
     };
 
     const handleTransformEnd = (e: CustomEvent) => {
       if (e.detail?.elementId !== element.id) return;
-      const finalDims = transformStartDimensionsRef.current;
-      if (finalDims && (finalDims.width !== elementWidth || finalDims.height !== elementHeight)) {
-        lastDispatchedDimensionsRef.current = { width: finalDims.width, height: finalDims.height };
-        dispatch({
-          type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: { id: element.id, updates: { width: finalDims.width, height: finalDims.height } }
-        });
-      } else {
-        setTransformDimensions(null);
+
+      const rectNode = textRef.current;
+      const groupNode = rectNode?.getParent();
+      if (!groupNode || groupNode.getClassName() !== 'Group') return;
+
+      const scaleX = groupNode.scaleX();
+      const scaleY = groupNode.scaleY();
+
+      const startSize = transformStartSizeRef.current;
+      const baseWidth = startSize?.width || groupNode.width() || elementWidth;
+      const baseHeight = startSize?.height || groupNode.height() || elementHeight;
+      const currentWidth = groupNode.width();
+      const currentHeight = groupNode.height();
+
+      groupNode.scaleX(1);
+      groupNode.scaleY(1);
+
+      const scaledWidth = baseWidth * scaleX;
+      const scaledHeight = baseHeight * scaleY;
+      const finalWidth = Math.max(50, scaleX === 1 && currentWidth !== baseWidth ? currentWidth : scaledWidth);
+      const finalHeight = Math.max(30, scaleY === 1 && currentHeight !== baseHeight ? currentHeight : scaledHeight);
+
+      const widthChange = finalWidth - (startSize?.width ?? elementWidth);
+      const heightChange = finalHeight - (startSize?.height ?? elementHeight);
+
+      const resizeDirection = storedResizeDirectionRef.current;
+      const positionUpdates: { x?: number; y?: number } = {};
+
+      if (resizeDirection?.fromLeft && widthChange !== 0) {
+        positionUpdates.x = element.x - widthChange / 2;
       }
-      isTransformingRef.current = false;
-      transformStartDimensionsRef.current = null;
+
+      if (resizeDirection?.fromTop && heightChange !== 0) {
+        positionUpdates.y = element.y - heightChange / 2;
+      }
+
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            width: finalWidth,
+            height: finalHeight,
+            ...positionUpdates
+          }
+        }
+      });
+
+      setIsTransforming(false);
+      storedResizeDirectionRef.current = null;
+      transformStartSizeRef.current = null;
     };
 
     window.addEventListener('transformStart', handleTransformStart as EventListener);
-    window.addEventListener('transform', handleTransform as EventListener);
     window.addEventListener('transformEnd', handleTransformEnd as EventListener);
     return () => {
       window.removeEventListener('transformStart', handleTransformStart as EventListener);
-      window.removeEventListener('transform', handleTransform as EventListener);
       window.removeEventListener('transformEnd', handleTransformEnd as EventListener);
     };
-  }, [element.id, elementWidth, elementHeight, dispatch]);
-
-  useEffect(() => {
-    const shape = textShapeRef.current;
-    if (!shape) return;
-    type ShapeWithOriginal = Konva.Shape & { __freeTextOriginalGetClientRect?: Konva.Shape['getClientRect'] };
-    const shapeWithOriginal = shape as ShapeWithOriginal;
-    if (!shapeWithOriginal.__freeTextOriginalGetClientRect) {
-      shapeWithOriginal.__freeTextOriginalGetClientRect = shape.getClientRect.bind(shape);
-    }
-    const limitToTextbox = ((config?: Parameters<Konva.Shape['getClientRect']>[0]) => {
-      if (config?.skipTransform && shapeWithOriginal.__freeTextOriginalGetClientRect) {
-        return shapeWithOriginal.__freeTextOriginalGetClientRect(config);
-      }
-      const { width, height } = textShapeBoxRef.current;
-      const transform = shape.getAbsoluteTransform().copy();
-      const topLeft = transform.point({ x: 0, y: 0 });
-      const bottomRight = transform.point({ x: Math.max(width, 0), y: Math.max(height, 0) });
-      let rect = {
-        x: Math.min(topLeft.x, bottomRight.x),
-        y: Math.min(topLeft.y, bottomRight.y),
-        width: Math.abs(bottomRight.x - topLeft.x),
-        height: Math.abs(bottomRight.y - topLeft.y)
-      };
-      if (config?.relativeTo) {
-        const relativeTransform = config.relativeTo.getAbsoluteTransform().copy().invert();
-        const relativeTopLeft = relativeTransform.point({ x: rect.x, y: rect.y });
-        const relativeBottomRight = relativeTransform.point({ x: rect.x + rect.width, y: rect.y + rect.height });
-        rect = {
-          x: Math.min(relativeTopLeft.x, relativeBottomRight.x),
-          y: Math.min(relativeTopLeft.y, relativeBottomRight.y),
-          width: Math.abs(relativeBottomRight.x - relativeTopLeft.x),
-          height: Math.abs(relativeBottomRight.y - relativeTopLeft.y)
-        };
-      }
-      return rect;
-    }) as typeof shape.getClientRect;
-    shape.getClientRect = limitToTextbox;
-    return () => {
-      if (shapeWithOriginal.__freeTextOriginalGetClientRect) {
-        shape.getClientRect = shapeWithOriginal.__freeTextOriginalGetClientRect;
-        delete shapeWithOriginal.__freeTextOriginalGetClientRect;
-      }
-    };
-  }, []);
+  }, [element.id, elementWidth, elementHeight, element.x, element.y, dispatch]);
 
   const enableInlineTextEditing = useCallback(() => {
     createInlineTextEditorForFreeText({
@@ -332,37 +278,65 @@ export default function TextboxFreeText(props: CanvasItemProps) {
       textStyle,
       layout,
       padding,
-      boxWidth,
-      boxHeight,
+      boxWidth: elementWidth,
+      boxHeight: elementHeight,
       textRef,
-      setIsEditorOpen,
+      setIsEditorOpen: () => {},
       dispatch,
       getLineHeight,
       measureText
     });
-  }, [element, textContent, textStyle, layout, padding, boxWidth, boxHeight, dispatch]);
+  }, [element, textContent, textStyle, layout, padding, elementWidth, elementHeight, dispatch]);
 
   const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false || state.activeTool !== 'select' || (e?.evt && e.evt.button !== 0)) return;
     enableInlineTextEditing();
   };
 
-  const hitArea = useMemo(() => ({ x: 0, y: 0, width: boxWidth, height: boxHeight }), [boxWidth, boxHeight]);
+  const hitArea = useMemo(() => ({ x: 0, y: 0, width: elementWidth, height: elementHeight }), [elementWidth, elementHeight]);
+
+  // Show skeleton during transform or drag
+  const showSkeleton = isTransforming || isDragging;
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick} hitArea={hitArea}>
-      {showBackground && (
-        <Rect
-          width={boxWidth}
-          height={boxHeight}
-          fill={element.textSettings?.backgroundColor || freeTextDefaults.textSettings?.backgroundColor || '#ffffff'}
-          opacity={element.textSettings?.backgroundOpacity ?? freeTextDefaults.textSettings?.backgroundOpacity ?? 1}
-          cornerRadius={element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0}
-          listening={false}
-        />
-      )}
-      {ruledLines && ruledLinesElements.length > 0 && <Group listening={false}>{ruledLinesElements}</Group>}
-      {showBorder && (() => {
+      {showSkeleton ? (
+        <Group cache listening={false}>
+          {(() => {
+            const fontSize = textStyle?.fontSize || 16;
+            const lineHeight = getLineHeight(textStyle) || fontSize * 1.3;
+            const layoutLineCount = layout.linePositions?.length ?? 0;
+            const heightLineCount = Math.round(elementHeight / lineHeight);
+            const numLines = Math.max(1, layoutLineCount || heightLineCount);
+            return Array.from({ length: numLines }, (_, lineIndex) => (
+              <Rect
+                key={`skeleton-line-${lineIndex}`}
+                x={0}
+                y={lineIndex * lineHeight}
+                width={elementWidth}
+                height={Math.min(lineHeight * 0.8, elementHeight - lineIndex * lineHeight)}
+                fill="#e5e7eb"
+                opacity={0.6}
+                cornerRadius={32}
+                listening={false}
+              />
+            ));
+          })()}
+        </Group>
+      ) : (
+        <>
+          {showBackground && (
+            <Rect
+              width={elementWidth}
+              height={elementHeight}
+              fill={element.textSettings?.backgroundColor || freeTextDefaults.textSettings?.backgroundColor || '#ffffff'}
+              opacity={element.textSettings?.backgroundOpacity ?? freeTextDefaults.textSettings?.backgroundOpacity ?? 1}
+              cornerRadius={element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0}
+              listening={false}
+            />
+          )}
+          {ruledLines && ruledLinesElements.length > 0 && <Group listening={false}>{ruledLinesElements}</Group>}
+          {showBorder && (() => {
         const borderColor = element.textSettings?.borderColor || freeTextDefaults.textSettings?.borderColor || '#000000';
         const borderWidth = element.textSettings?.borderWidth ?? freeTextDefaults.textSettings?.borderWidth ?? 1;
         const borderOpacity = element.textSettings?.borderOpacity ?? freeTextDefaults.textSettings?.borderOpacity ?? 1;
@@ -374,7 +348,7 @@ export default function TextboxFreeText(props: CanvasItemProps) {
           color: borderColor,
           opacity: borderOpacity,
           cornerRadius,
-          path: createRectPath(0, 0, boxWidth, boxHeight),
+          path: createRectPath(0, 0, elementWidth, elementHeight),
           theme,
           themeSettings: { roughness: theme === 'rough' ? 8 : undefined, seed },
           strokeScaleEnabled: true,
@@ -382,8 +356,8 @@ export default function TextboxFreeText(props: CanvasItemProps) {
         });
         return borderElement || (
           <Rect
-            width={boxWidth}
-            height={boxHeight}
+            width={elementWidth}
+            height={elementHeight}
             stroke={borderColor}
             strokeWidth={borderWidth}
             opacity={borderOpacity}
@@ -391,25 +365,27 @@ export default function TextboxFreeText(props: CanvasItemProps) {
             listening={false}
           />
         );
-      })()}
-      <RichTextShape ref={textShapeRef} runs={visibleRuns} width={boxWidth} height={layout.contentHeight} />
-      {!textContent && !isEditorOpen && (
-        <KonvaText
-          x={padding}
-          y={padding}
-          width={boxWidth - padding * 2}
-          height={boxHeight - padding * 2}
-          text="Double-click to add text..."
-          fontSize={Math.max(textStyle.fontSize * 0.8, 16)}
-          fontFamily={textStyle.fontFamily}
-          fill="#9ca3af"
-          opacity={0.4}
-          align="left"
-          verticalAlign="top"
-          listening={false}
-        />
+          })()}
+          <RichTextShape ref={textShapeRef} runs={layout.runs} width={elementWidth} height={layout.contentHeight} />
+          {!textContent && (
+            <KonvaText
+              x={padding}
+              y={padding}
+              width={elementWidth - padding * 2}
+              height={elementHeight - padding * 2}
+              text="Double-click to add text..."
+              fontSize={Math.max(textStyle.fontSize * 0.8, 16)}
+              fontFamily={textStyle.fontFamily}
+              fill="#9ca3af"
+              opacity={0.4}
+              align="left"
+              verticalAlign="top"
+              listening={false}
+            />
+          )}
+        </>
       )}
-      <Rect ref={textRef} x={0} y={0} width={boxWidth} height={boxHeight} fill="transparent" listening={true} />
+      <Rect ref={textRef} x={0} y={0} width={elementWidth} height={elementHeight} fill="transparent" listening={true} />
     </BaseCanvasItem>
   );
 }
