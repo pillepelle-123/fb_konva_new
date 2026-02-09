@@ -306,7 +306,8 @@ export default function Canvas() {
     isDrawingShape, setIsDrawingShape, shapeStart, setShapeStart, previewShape, setPreviewShape,
     isDrawingTextbox, setIsDrawingTextbox, textboxStart, setTextboxStart, previewTextbox, setPreviewTextbox,
     showImageModal, setShowImageModal, pendingImagePosition, setPendingImagePosition, pendingImageElementId, setPendingImageElementId,
-    showStickerModal, setShowStickerModal, pendingStickerPosition, setPendingStickerPosition, pendingStickerElementId, setPendingStickerElementId
+    showStickerModal, setShowStickerModal, pendingStickerPosition, setPendingStickerPosition, pendingStickerElementId, setPendingStickerElementId,
+    showQrCodeModal, setShowQrCodeModal, pendingQrCodePosition, setPendingQrCodePosition
   } = drawingState;
 
   const {
@@ -1703,7 +1704,7 @@ export default function Canvas() {
     }
 
     // Block adding new elements if elements are locked
-    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text'].includes(state.activeTool)) {
+    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text', 'qr_code'].includes(state.activeTool)) {
       // Allow selection tool to work for selecting elements
       if (state.activeTool !== 'select') {
         return;
@@ -1945,6 +1946,18 @@ export default function Canvas() {
           }
           setPendingStickerPosition({ x: x - 300, y: y - 200 });
           setShowStickerModal(true);
+          return;
+        }
+
+        if (state.activeTool === 'qr_code') {
+          // Only allow QR codes to be placed starting inside the active page
+          if (x < 0 || y < 0 || x > canvasWidth || y > canvasHeight) {
+            showOutsidePageTooltip(e.evt.clientX, e.evt.clientY);
+            return;
+          }
+          const defaultSize = 200;
+          setPendingQrCodePosition({ x: x - defaultSize / 2, y: y - defaultSize / 2 });
+          setShowQrCodeModal(true);
           return;
         }
         
@@ -4666,6 +4679,38 @@ export default function Canvas() {
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
+  const handleQrCodeModalClose = () => {
+    setShowQrCodeModal(false);
+    setPendingQrCodePosition(null);
+    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+  };
+
+  const handleQrCodeCreate = (value: string) => {
+    if (!pendingQrCodePosition) return;
+
+    const templateIds = getTemplateIdsForDefaults();
+    const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+    const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+    const qrDefaults = getGlobalThemeDefaults(activeTheme, 'qr_code', effectivePaletteId);
+    const size = 200;
+
+    const newElement: CanvasElement = {
+      id: uuidv4(),
+      type: 'qr_code',
+      x: pendingQrCodePosition.x,
+      y: pendingQrCodePosition.y,
+      width: size,
+      height: size,
+      qrValue: value,
+      ...qrDefaults
+    };
+
+    dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+    setShowQrCodeModal(false);
+    setPendingQrCodePosition(null);
+  };
+
   if (!currentPage || shouldBlockCanvasRendering) {
     const messageTitle = isReverseCoverPage
       ? 'This page cannot be edited'
@@ -5517,7 +5562,10 @@ export default function Canvas() {
             <CanvasTransformer
               key={state.selectedElementIds.length === 1 ? `${state.selectedElementIds[0]}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.width}-${currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.height}` : 'multi'}
               ref={transformerRef}
-              keepRatio={false}
+              keepRatio={Boolean(
+                state.selectedElementIds.length === 1 &&
+                currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'qr_code'
+              )}
               rotationSnaps={[0, 90, 180, 270]}
               rotationSnapTolerance={5}
               resizeEnabled={!(state.editorSettings?.editor?.lockElements)}
@@ -6273,6 +6321,11 @@ export default function Canvas() {
         showQuestionSelectorModal={showQuestionSelectorModal}
         onQuestionSelectorModalClose={() => setShowQuestionSelectorModal(false)}
         questionSelectorElementId={questionSelectorElementId}
+
+        // QR Code Modal
+        showQrCodeModal={showQrCodeModal}
+        onQrCodeModalClose={handleQrCodeModalClose}
+        onQrCodeCreate={handleQrCodeCreate}
 
         // Alert
         alertMessage={alertMessage}

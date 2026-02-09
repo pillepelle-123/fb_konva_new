@@ -244,6 +244,33 @@ function drawElement(layer: Konva.Layer, element: CanvasElement) {
         listening: false,
       }));
       break;
+    case 'qr_code': {
+      const width = element.width || 150;
+      const height = element.height || 150;
+      layer.add(new Konva.Rect({
+        x: element.x || 0,
+        y: element.y || 0,
+        width,
+        height,
+        fill: (element as any).qrBackgroundColor || '#ffffff',
+        stroke: '#e5e7eb',
+        strokeWidth: 1,
+        listening: false,
+      }));
+      layer.add(new Konva.Text({
+        x: element.x || 0,
+        y: element.y || 0,
+        width,
+        height,
+        text: 'QR',
+        fontSize: Math.max(12, Math.min(width, height) * 0.25),
+        align: 'center',
+        verticalAlign: 'middle',
+        fill: (element as any).qrForegroundColor || '#111827',
+        listening: false,
+      }));
+      break;
+    }
     default:
       drawShape(layer, element);
       break;

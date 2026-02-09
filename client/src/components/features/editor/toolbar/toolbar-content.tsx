@@ -2,7 +2,7 @@ import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
 import { ToolSettingsPopover } from './tool-settings-popover';
 import { ZoomPopover } from './zoom-popover';
-import { type Icon, Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCircleQuestionMark, MessageCirclePlus, Search, SquareMousePointer, Magnet, MessageCircleHeart, Paintbrush, Image } from 'lucide-react';
+import { Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCirclePlus, Search, SquareMousePointer, Magnet, Paintbrush, Image, QrCode } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -165,7 +165,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           />
         </div>
 
-        {/* Row 3.5: Image */}
+        {/* Row 3.5: Image + QR Code */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
           <ToolButton
             id="image"
@@ -176,6 +176,16 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             userRole={userRole}
             isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('image')}
+          />
+          <ToolButton
+            id="qr_code"
+            label="QR Code"
+            icon={QrCode}
+            isActive={activeTool === 'qr_code'}
+            isExpanded={false}
+            userRole={userRole}
+            isOnAssignedPage={isOnAssignedPage}
+            onClick={() => onToolSelect('qr_code')}
           />
         </div>
 

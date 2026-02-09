@@ -359,7 +359,7 @@ function logThemeStructure(book: Book | null) {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'brush-multicolor' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'group' | 'sticker';
+  type: 'text' | 'image' | 'placeholder' | 'line' | 'circle' | 'rect' | 'brush' | 'brush-multicolor' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'group' | 'sticker' | 'qr_code';
   polygonSides?: number;
   x: number;
   y: number;
@@ -392,6 +392,14 @@ export interface CanvasElement {
   stickerFilePath?: string;
   stickerOriginalUrl?: string;
   stickerColor?: string;
+  qrValue?: string;
+  qrForegroundColor?: string;
+  qrBackgroundColor?: string;
+  qrErrorCorrection?: 'L' | 'M' | 'Q' | 'H';
+  qrMargin?: number;
+  qrDotsStyle?: 'square' | 'dots' | 'rounded' | 'extra-rounded';
+  qrCornerStyle?: 'default' | 'square-square' | 'dot-dot' | 'extra-rounded-dot';
+  qrDataUrl?: string;
   points?: number[];
   roughness?: number;
   strokeWidth?: number;
@@ -750,7 +758,7 @@ export interface WizardTemplateSelection {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette' | 'qr_code';
   selectedElementIds: string[];
   isMiniPreview?: boolean;
   selectedGroupedElement?: { groupId: string; elementId: string };

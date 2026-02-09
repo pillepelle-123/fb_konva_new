@@ -24,6 +24,7 @@ import { FreeTextSettingsForm } from './free-text-settings-form';
 import { ShapeSettingsForm } from './shape-settings-form';
 import { ImageSettingsForm } from './image-settings-form';
 import { StickerSettingsForm } from './sticker-settings-form';
+import { QrCodeSettingsForm } from './qr-code-settings-form';
 import { ColorSelector } from './color-selector';
 
 // Utils
@@ -1240,6 +1241,18 @@ export function ToolSettingsContent({
             element={element}
             updateElementSettingLocal={updateElementSettingLocal}
             setShowColorSelector={setShowColorSelector}
+            hasChanges={genericFormState.hasChanges}
+            onSave={genericFormState.handleSave}
+            onDiscard={genericFormState.handleDiscard}
+          />
+        );
+
+      case 'qr_code':
+        return (
+          <QrCodeSettingsForm
+            element={element}
+            state={state}
+            updateSetting={updateElementSettingLocal}
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}

@@ -80,7 +80,7 @@ export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSele
       {isOpen && createPortal(
         <div
           ref={popoverRef}
-          className="fixed w-30 p-3 bg-background border rounded-md shadow-lg"
+          className="fixed w-30 p-2 bg-background border rounded-md shadow-lg"
           style={{ left: position.x, top: position.y, zIndex: 10000 }}
         >
           <div className="flex justify-between items-center mb-3">

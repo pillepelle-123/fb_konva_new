@@ -339,6 +339,7 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
       return 'text';
     case 'image':
     case 'placeholder':
+    case 'qr_code':
       return 'image';
     case 'brush':
       return 'brush';
@@ -546,6 +547,14 @@ function getBaseDefaultsForType(elementType: string): any {
         cornerRadius: 0,
         padding: 4
       }
+    },
+    qr_code: {
+      qrForegroundColor: '#111827',
+      qrBackgroundColor: '#ffffff',
+      qrErrorCorrection: 'M',
+      qrMargin: 1,
+      qrDotsStyle: 'square',
+      qrCornerStyle: 'default'
     }
   };
 
@@ -915,6 +924,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'shape'].includes(elementType)) {
       paletteDefaults.stroke = palette.colors.primary;
       paletteDefaults.fill = palette.colors.surface || palette.colors.accent;
+    } else if (elementType === 'qr_code') {
+      paletteDefaults.qrForegroundColor = palette.colors.text || palette.colors.primary;
+      paletteDefaults.qrBackgroundColor = palette.colors.background || palette.colors.surface;
     }
     
     // Merge palette colors into merged defaults

@@ -2,6 +2,7 @@ import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Triangle, TriangleRight, type Icon } from 'lucide-react';
 import { useEditor } from '../../../../context/editor-context';
+import { getElementDisplayTitle } from '../tool-settings/tool-settings-utils';
 
 interface ToolButtonProps {
   id: string;
@@ -26,7 +27,8 @@ const getToolInstruction = (toolId: string): { title: string; description: strin
     line: { title: 'Line Tool', description: 'Click and drag to draw a line' },
     circle: { title: 'Circle Tool', description: 'Click and drag to draw a circle' },
     rect: { title: 'Rectangle Tool', description: 'Click and drag to draw a rectangle' },
-    brush: { title: 'Brush Tool', description: 'Click and drag to draw with the brush' }
+    brush: { title: 'Brush Tool', description: 'Click and drag to draw with the brush' },
+    qr_code: { title: 'QR Code Tool', description: 'Click to place a QR code from a URL' }
   };
   return instructions[toolId] || { title: `${toolId} Tool`, description: `Use ${toolId} tool` };
 };
@@ -45,7 +47,10 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
   
   const isDisabled = (isAuthor && id !== 'pan' && !isOnAssignedPage) || (isAuthor && id === 'question') || isAnswerOnlyRestricted || isLockedRestricted;
   
+  const displayName = getElementDisplayTitle(id);
+  
   return (
+    <Tooltip content={displayName} side="right">
       <Button
         variant={isActive ? "default" : "ghost_hover"}
         size="sm"
@@ -58,5 +63,6 @@ export function ToolButton({ id, label, icon: Icon, isActive, isExpanded, userRo
           <TriangleRight className='absolute bottom-0 right-0 w-2 h-3 stroke-foreground fill-foreground'/>
         )}
       </Button>
+    </Tooltip>
   );
 }

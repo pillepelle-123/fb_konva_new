@@ -20,6 +20,7 @@ import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, mea
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
 import { getFontFamilyByName } from '../../utils/font-families.ts';
 import { hexToRgba } from '../../../../shared/utils/color-utils';
+import QRCodeStyling from 'qr-code-styling';
 
 interface PDFRendererProps {
   page: Page;
@@ -29,6 +30,41 @@ interface PDFRendererProps {
   scale?: number;
   onRenderComplete?: () => void;
 }
+
+type QrDotsStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded';
+type QrCornerSquareStyle = 'square' | 'dot' | 'extra-rounded';
+type QrCornerDotStyle = 'square' | 'dot';
+
+type QrCodeStylingOptions = {
+  width: number;
+  height: number;
+  data: string;
+  margin?: number;
+  dotsOptions: {
+    type: QrDotsStyle;
+    color: string;
+  };
+  backgroundOptions: {
+    color: string;
+  };
+  qrOptions: {
+    errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H';
+  };
+  cornersSquareOptions?: {
+    type: QrCornerSquareStyle;
+    color: string;
+  };
+  cornersDotOptions?: {
+    type: QrCornerDotStyle;
+    color: string;
+  };
+};
+
+type QrCodeStylingInstance = QRCodeStyling & {
+  update: (options: QrCodeStylingOptions) => void;
+  getRawData?: (type: 'png') => Promise<Blob>;
+  getDataUrl?: (type: 'png') => Promise<string>;
+};
 
 // Helper function to apply opacity to color
 // Converts hex/rgb colors to rgba with specified opacity
@@ -216,6 +252,48 @@ const createPatternTile = (pattern: typeof PATTERNS[0], color: string, size: num
   return canvas;
 };
 
+const readBlobAsDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+
+const updatePdfQrPending = (delta: number) => {
+  if (typeof window === 'undefined') return;
+  const pdfWindow = window as any;
+  if (!pdfWindow.__PDF_EXPORT__) return;
+  const current = Number(pdfWindow.__PDF_QR_PENDING__ || 0);
+  const next = Math.max(0, current + delta);
+  pdfWindow.__PDF_QR_PENDING__ = next;
+};
+
+const getQrCornerOptions = (style: string, color: string) => {
+  switch (style) {
+    case 'square-square':
+      return {
+        cornersSquareOptions: { type: 'square' as const, color },
+        cornersDotOptions: { type: 'square' as const, color }
+      };
+    case 'dot-dot':
+      return {
+        cornersSquareOptions: { type: 'dot' as const, color },
+        cornersDotOptions: { type: 'dot' as const, color }
+      };
+    case 'extra-rounded-dot':
+      return {
+        cornersSquareOptions: { type: 'extra-rounded' as const, color },
+        cornersDotOptions: { type: 'dot' as const, color }
+      };
+    default:
+      return {
+        cornersSquareOptions: undefined,
+        cornersDotOptions: undefined
+      };
+  }
+};
+
 export function PDFRenderer({
   page,
   bookData,
@@ -341,7 +419,15 @@ export function PDFRenderer({
           // Force a draw to ensure everything is rendered
           layers.forEach(layer => layer.draw());
           stageRef.current.draw();
-          
+          const pendingQr = typeof window !== 'undefined'
+            ? Number((window as any).__PDF_QR_PENDING__ || 0)
+            : 0;
+
+          if (pendingQr > 0) {
+            setTimeout(checkComplete, 200);
+            return;
+          }
+
           // Small delay to ensure all images are loaded and rendered
           setTimeout(() => {
             if (onRenderComplete) {
@@ -2350,6 +2436,218 @@ export function PDFRenderer({
               textGroup.setAttr('__nodeType', 'text-group');
             }
           }
+        }
+        // Render image elements (including stickers and placeholders)
+        else if (element.type === 'qr_code') {
+          const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = bookData?.themeId || bookData?.bookTheme;
+          const pageColorPaletteId = currentPage?.colorPaletteId;
+          const bookColorPaletteId = bookData?.colorPaletteId;
+
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+          const qrDefaults = getGlobalThemeDefaults(activeTheme, 'qr_code', effectivePaletteId);
+
+          const qrValue = element.qrValue || '';
+          const qrForegroundColor = element.qrForegroundColor || qrDefaults.qrForegroundColor || '#111827';
+          const qrBackgroundColor = element.qrBackgroundColor || qrDefaults.qrBackgroundColor || '#ffffff';
+          const qrErrorCorrection = element.qrErrorCorrection || qrDefaults.qrErrorCorrection || 'M';
+          const qrMargin = element.qrMargin ?? qrDefaults.qrMargin ?? 1;
+          const qrDotsStyle = element.qrDotsStyle || qrDefaults.qrDotsStyle || 'square';
+          const qrCornerStyle = element.qrCornerStyle || qrDefaults.qrCornerStyle || 'default';
+          const backgroundColor = qrBackgroundColor === 'transparent' ? 'rgba(0,0,0,0)' : qrBackgroundColor;
+          const cornerOptions = getQrCornerOptions(qrCornerStyle, qrForegroundColor);
+          const renderX = elementX + (baseWidth - elementWidth) / 2;
+          const renderY = elementY + (baseHeight - elementHeight) / 2;
+          const rotationCenterX = elementX + baseWidth / 2;
+          const rotationCenterY = elementY + baseHeight / 2;
+
+          const renderPlaceholder = () => {
+            const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
+            let placeholderGroup: Konva.Group | null = null;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (needsRotation) {
+              offsetX = elementWidth / 2;
+              offsetY = elementHeight / 2;
+              const adjustedX = rotationCenterX;
+              const adjustedY = rotationCenterY;
+              placeholderGroup = new Konva.Group({
+                x: adjustedX,
+                y: adjustedY,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                rotation: elementRotation,
+                opacity: elementOpacity,
+                listening: false
+              });
+            }
+
+            const rect = new Konva.Rect({
+              x: needsRotation ? 0 : renderX,
+              y: needsRotation ? 0 : renderY,
+              width: elementWidth,
+              height: elementHeight,
+              fill: qrBackgroundColor,
+              stroke: '#e5e7eb',
+              strokeWidth: 1,
+              opacity: needsRotation ? 1 : elementOpacity,
+              listening: false
+            });
+
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (needsRotation && placeholderGroup) {
+              placeholderGroup.add(rect);
+              layer.add(placeholderGroup);
+              if (zOrderIndex !== undefined) {
+                placeholderGroup.setAttr('__zOrderIndex', zOrderIndex);
+                placeholderGroup.setAttr('__elementId', element.id);
+                placeholderGroup.setAttr('__nodeType', 'qr-placeholder');
+              }
+            } else {
+              layer.add(rect);
+              if (zOrderIndex !== undefined) {
+                rect.setAttr('__zOrderIndex', zOrderIndex);
+                rect.setAttr('__elementId', element.id);
+                rect.setAttr('__nodeType', 'qr-placeholder');
+              }
+            }
+          };
+
+          if (!qrValue) {
+            renderPlaceholder();
+            continue;
+          }
+
+          updatePdfQrPending(1);
+
+          const pixelSize = Math.max(128, Math.round(Math.max(elementWidth, elementHeight) * 4));
+          const options: QrCodeStylingOptions = {
+            width: pixelSize,
+            height: pixelSize,
+            data: qrValue,
+            margin: qrMargin,
+            dotsOptions: {
+              type: qrDotsStyle as QrDotsStyle,
+              color: qrForegroundColor
+            },
+            backgroundOptions: {
+              color: backgroundColor
+            },
+            qrOptions: {
+              errorCorrectionLevel: qrErrorCorrection
+            },
+            cornersSquareOptions: cornerOptions.cornersSquareOptions,
+            cornersDotOptions: cornerOptions.cornersDotOptions
+          };
+
+          const qrCode = new QRCodeStyling(options) as QrCodeStylingInstance;
+          let qrResolve: (() => void) | null = null;
+          let qrReject: ((error: any) => void) | null = null;
+          const qrPromise = new Promise<void>((resolve, reject) => {
+            qrResolve = resolve;
+            qrReject = reject;
+          });
+          imagePromises.push(qrPromise);
+
+          const finishPending = () => updatePdfQrPending(-1);
+
+          const addQrImage = (img: HTMLImageElement) => {
+            const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
+            let qrGroup: Konva.Group | null = null;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (needsRotation) {
+              offsetX = elementWidth / 2;
+              offsetY = elementHeight / 2;
+              const adjustedX = rotationCenterX;
+              const adjustedY = rotationCenterY;
+              qrGroup = new Konva.Group({
+                x: adjustedX,
+                y: adjustedY,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                rotation: elementRotation,
+                opacity: elementOpacity,
+                listening: false
+              });
+            }
+
+            const imageNode = new Konva.Image({
+              x: needsRotation ? 0 : renderX,
+              y: needsRotation ? 0 : renderY,
+              image: img,
+              width: elementWidth,
+              height: elementHeight,
+              rotation: needsRotation ? 0 : elementRotation,
+              opacity: needsRotation ? 1 : elementOpacity,
+              listening: false
+            });
+
+            const zOrderIndex = elementIdToZOrder.get(element.id);
+            if (needsRotation && qrGroup) {
+              qrGroup.add(imageNode);
+              layer.add(qrGroup);
+              if (zOrderIndex !== undefined) {
+                qrGroup.setAttr('__zOrderIndex', zOrderIndex);
+                qrGroup.setAttr('__elementId', element.id);
+                qrGroup.setAttr('__nodeType', 'qr-group');
+              }
+            } else {
+              layer.add(imageNode);
+              if (zOrderIndex !== undefined) {
+                imageNode.setAttr('__zOrderIndex', zOrderIndex);
+                imageNode.setAttr('__elementId', element.id);
+                imageNode.setAttr('__nodeType', 'qr-image');
+              }
+            }
+          };
+
+          const loadQrImage = (url: string) => {
+            const img = new Image();
+            img.onload = () => {
+              addQrImage(img);
+              finishPending();
+              if (qrResolve) qrResolve();
+            };
+            img.onerror = (error) => {
+              console.warn('[PDFRenderer] Failed to load QR image:', { elementId: element.id, error });
+              finishPending();
+              if (qrReject) qrReject(error);
+            };
+            img.src = url;
+          };
+
+          const buildQrDataUrl = async () => {
+            try {
+              if (qrCode.getRawData) {
+                const raw = await qrCode.getRawData('png');
+                if (!raw) {
+                  throw new Error('QR raw data not available');
+                }
+                const url = await readBlobAsDataUrl(raw);
+                loadQrImage(url);
+                return;
+              }
+
+              if (qrCode.getDataUrl) {
+                const url = await qrCode.getDataUrl('png');
+                loadQrImage(url);
+                return;
+              }
+
+              throw new Error('QR data URL not supported');
+            } catch (error) {
+              console.warn('[PDFRenderer] Failed to build QR data URL:', { elementId: element.id, error });
+              finishPending();
+              if (qrReject) qrReject(error);
+            }
+          };
+
+          void buildQrDataUrl();
         }
         // Render image elements (including stickers and placeholders)
         else if (element.type === 'image' || element.type === 'sticker' || element.type === 'placeholder') {

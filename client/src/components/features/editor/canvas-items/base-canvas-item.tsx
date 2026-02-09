@@ -12,7 +12,7 @@ import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { ColorPalette } from '../../../../types/template-types';
 import type { RichTextStyle } from '../../../../../../shared/types/text-layout';
 
-interface CanvasItemProps {
+export interface CanvasItemProps {
   element: CanvasElement;
   isSelected: boolean;
   onSelect: (e?: Konva.KonvaEventObject<MouseEvent>) => void;

@@ -9,6 +9,7 @@ import TextboxQna from './textbox-qna.tsx';
 import TextboxFreeText from './textbox-free-text.tsx';
 import Image from './image.tsx';
 import Sticker from './sticker.tsx';
+import QrCodeCanvasItem from './qr-code.tsx';
 
 interface CanvasItemComponentProps extends CanvasItemProps {
   element: CanvasElement;
@@ -174,6 +175,11 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
     // Force re-render when sticker settings change by using a key
     const stickerKey = `${element.id}-${element.imageOpacity}-${(element as any).stickerColor}`;
     return <Sticker key={stickerKey} {...props} />;
+  }
+
+  if (element.type === 'qr_code') {
+    const qrKey = `${element.id}-${(element as any).qrValue}-${(element as any).qrForegroundColor}-${(element as any).qrBackgroundColor}-${(element as any).qrErrorCorrection}-${(element as any).qrMargin}`;
+    return <QrCodeCanvasItem key={qrKey} {...props} />;
   }
 
   // Fallback for other element types

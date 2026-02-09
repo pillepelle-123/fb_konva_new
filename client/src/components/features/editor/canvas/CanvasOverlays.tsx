@@ -4,6 +4,7 @@ import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import { Alert } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { QrCodeModal } from '../qr-code/qr-code-modal';
 
 interface CanvasOverlaysProps {
   // Context Menu props
@@ -45,6 +46,11 @@ interface CanvasOverlaysProps {
   showQuestionSelectorModal: boolean;
   onQuestionSelectorModalClose: () => void;
   questionSelectorElementId: string | null;
+
+  // QR Code Modal props
+  showQrCodeModal: boolean;
+  onQrCodeModalClose: () => void;
+  onQrCodeCreate: (value: string) => void;
 
   // Alert props
   alertMessage: string | null;
@@ -96,6 +102,11 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   showQuestionSelectorModal,
   onQuestionSelectorModalClose,
   questionSelectorElementId,
+
+  // QR Code Modal
+  showQrCodeModal,
+  onQrCodeModalClose,
+  onQrCodeCreate,
 
   // Alert
   alertMessage,
@@ -199,6 +210,13 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
           elementId={questionSelectorElementId}
         />
       )}
+
+      {/* QR Code Modal */}
+      <QrCodeModal
+        isOpen={showQrCodeModal}
+        onClose={onQrCodeModalClose}
+        onCreate={onQrCodeCreate}
+      />
 
       {/* Alert */}
       {alertMessage && alertPosition && (

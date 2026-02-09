@@ -205,6 +205,12 @@ export function getElementPaletteColors(palette: ColorPalette, elementType: stri
         backgroundColor: palette.colors.background,
       };
 
+    case 'qr_code':
+      return {
+        qrForegroundColor: getColor('qrForegroundColor', 'text', palette.colors.text),
+        qrBackgroundColor: getColor('qrBackgroundColor', 'background', palette.colors.background)
+      };
+
     default:
       return {};
   }

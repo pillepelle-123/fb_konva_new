@@ -13,7 +13,7 @@ const ZoomContext = createContext<ZoomContextType | null>(null);
 export function ZoomProvider({ children, initialZoom = 0.8 }: { children: React.ReactNode; initialZoom?: number }) {
   const [zoom, setZoomState] = useState(initialZoom);
   const minZoom = 0.1;
-  const maxZoom = 3;
+  const maxZoom = 1;
   const setZoomRef = useRef<((zoom: number, centerPoint?: { x: number; y: number }) => void) | null>(null);
   
   const registerSetZoom = useCallback((setZoomFn: (zoom: number, centerPoint?: { x: number; y: number }) => void) => {

@@ -24,7 +24,8 @@ import {
   LayoutPanelLeft,
   Triangle,
   Pentagon,
-  Columns3Cog
+  Columns3Cog,
+  QrCode
 } from 'lucide-react';
 import type { CanvasElement } from '../../../../context/editor-context';
 
@@ -49,7 +50,8 @@ export const TOOL_ICONS = {
   cat: Cat,
   smiley: Smile,
   triangle: Triangle,
-  polygon: Pentagon
+  polygon: Pentagon,
+  qr_code: QrCode
 } as const;
 
 // Icon-Mappings für Dialoge
@@ -111,12 +113,12 @@ export interface GetHeaderTitleAndIconParams {
 /**
  * Bestimmt den Anzeige-Titel für einen Element-Typ
  */
-function getElementDisplayTitle(elementType: string): string {
+export function getElementDisplayTitle(elementType: string): string {
   switch (elementType.toLowerCase()) {
     // Text-Typen
     case 'text':
     case 'free_text':
-      return 'Text';
+      return 'Free Text';
     case 'question':
       return 'Question';
     case 'answer':
@@ -161,6 +163,8 @@ function getElementDisplayTitle(elementType: string): string {
       return 'Image';
     case 'placeholder':
       return 'Placeholder';
+    case 'qr_code':
+      return 'QR Code';
     
     // Gruppen
     case 'group':
@@ -378,7 +382,7 @@ export function getHeaderTitleAndIcon(params: GetHeaderTitleAndIconParams): Head
     } else {
       // Normaler Element-Titel
       const displayType = effectiveTextType || effectiveElementType;
-      title = displayType.charAt(0).toUpperCase() + displayType.slice(1);
+      title = getElementDisplayTitle(displayType);
     }
 
     return {
@@ -413,7 +417,7 @@ export function getHeaderTitleAndIcon(params: GetHeaderTitleAndIconParams): Head
   if (activeTool) {
     const IconComponent = TOOL_ICONS[activeTool as keyof typeof TOOL_ICONS] || DIALOG_ICONS.default;
     return {
-      title: activeTool.charAt(0).toUpperCase() + activeTool.slice(1),
+      title: getElementDisplayTitle(activeTool),
       icon: IconComponent
     };
   }

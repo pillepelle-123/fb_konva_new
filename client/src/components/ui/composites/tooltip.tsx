@@ -128,7 +128,7 @@ export function Tooltip({
             "fixed z-[10001] px-2 py-1 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
             backgroundColor?.startsWith('#') ? '' : backgroundColor,
             textColor?.startsWith('#') ? '' : textColor,
-            side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "floating_button_fixed" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 w-60",
+            side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "floating_button_fixed" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 whitespace-nowrap",
             visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           )}
           style={{

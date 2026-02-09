@@ -36,6 +36,8 @@ export function useCanvasDrawing() {
   const [showStickerModal, setShowStickerModal] = useState(false);
   const [pendingStickerPosition, setPendingStickerPosition] = useState<{ x: number; y: number } | null>(null);
   const [pendingStickerElementId, setPendingStickerElementId] = useState<string | null>(null);
+  const [showQrCodeModal, setShowQrCodeModal] = useState(false);
+  const [pendingQrCodePosition, setPendingQrCodePosition] = useState<{ x: number; y: number } | null>(null);
 
   // Utility functions
   const clearDrawingStates = () => {
@@ -110,6 +112,10 @@ export function useCanvasDrawing() {
     setPendingStickerPosition,
     pendingStickerElementId,
     setPendingStickerElementId,
+    showQrCodeModal,
+    setShowQrCodeModal,
+    pendingQrCodePosition,
+    setPendingQrCodePosition,
 
     // Utility functions
     clearDrawingStates,
