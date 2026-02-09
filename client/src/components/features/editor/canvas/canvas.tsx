@@ -425,6 +425,7 @@ export default function Canvas() {
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   const [hoveredSafetyMargin, setHoveredSafetyMargin] = useState<boolean>(false);
   const [safetyMarginTooltip, setSafetyMarginTooltip] = useState<{ x: number; y: number } | null>(null);
+  const [imageQualityTooltip, setImageQualityTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [isManuallyHovering, setIsManuallyHovering] = useState<boolean>(false);
   // Track if actually transforming (not just selected)
   const isTransformingRef = useRef<boolean>(false);
@@ -988,6 +989,28 @@ export default function Canvas() {
     },
     []
   );
+
+  useEffect(() => {
+    const handleImageQualityTooltip = (event: CustomEvent<{ text: string; clientX: number; clientY: number }>) => {
+      setImageQualityTooltip({
+        x: event.detail.clientX,
+        y: event.detail.clientY,
+        text: event.detail.text
+      });
+    };
+
+    const handleImageQualityTooltipHide = () => {
+      setImageQualityTooltip(null);
+    };
+
+    window.addEventListener('imageQualityTooltip', handleImageQualityTooltip as EventListener);
+    window.addEventListener('imageQualityTooltipHide', handleImageQualityTooltipHide);
+
+    return () => {
+      window.removeEventListener('imageQualityTooltip', handleImageQualityTooltip as EventListener);
+      window.removeEventListener('imageQualityTooltipHide', handleImageQualityTooltipHide);
+    };
+  }, []);
 
   // Item actions hook
   const itemActions = useCanvasItemActions({
@@ -6258,6 +6281,7 @@ export default function Canvas() {
         // Tooltips
         inactivePageTooltip={inactivePageTooltip}
         outsidePageTooltip={outsidePageTooltip}
+        imageQualityTooltip={imageQualityTooltip}
       />
 
       <PerformanceMonitor stageRef={stageRef} />

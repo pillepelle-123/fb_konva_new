@@ -68,9 +68,6 @@ function applyInlineEditorStyling(textarea: HTMLTextAreaElement, style: RichText
   textarea.style.setProperty('--tw-ring-offset-width', '0');
 }
 
-
-
-
 interface User {
   id: string;
   [key: string]: unknown;
@@ -590,6 +587,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   
   let discardTooltipCleanup: (() => void) | null = null;
   let saveTooltipCleanup: (() => void) | null = null;
+  let resizeObserver: ResizeObserver | null = null;
 
   // Function to remove textarea and cleanup
   function removeTextarea() {
@@ -600,6 +598,10 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
     if (saveTooltipCleanup) {
       saveTooltipCleanup();
       saveTooltipCleanup = null;
+    }
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
     }
     // Remove resize listener
     window.removeEventListener('resize', updateEditorSize);
@@ -1060,6 +1062,70 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
   const editorTop = (window.innerHeight - editorMinHeight) / 2;
   const fontSize = 24;
   const lineHeight = fontSize * 1.2;
+  const scaledLineHeight = lineHeight;
+
+  // Default font for readable mode
+  const defaultFont = 'Inter, system-ui, sans-serif';
+
+  // Create neutral header bar (no question text)
+  const questionHeader = document.createElement('div');
+  questionHeader.style.position = 'fixed';
+  questionHeader.style.left = editorLeft + 'px';
+  questionHeader.style.top = (editorTop - 50) + 'px';
+  questionHeader.style.width = editorWidth + 'px';
+  questionHeader.style.height = '50px';
+  questionHeader.style.backgroundColor = '#FFF';
+  questionHeader.style.borderRadius = '8px 8px 0 0';
+  questionHeader.style.padding = '12px 16px';
+  questionHeader.style.fontSize = '20px';
+  questionHeader.style.fontWeight = textStyle.fontBold ? 'bold' : 'normal';
+  questionHeader.style.fontStyle = textStyle.fontItalic ? 'italic' : 'normal';
+  questionHeader.style.fontFamily = textStyle.fontFamily;
+  questionHeader.style.color = textStyle.fill || '#000000';
+  questionHeader.style.display = 'flex';
+  questionHeader.style.alignItems = 'center';
+  questionHeader.style.justifyContent = 'space-between';
+  questionHeader.style.gap = '12px';
+  questionHeader.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+  questionHeader.style.zIndex = '10001';
+
+  // Neutral text span (no question content)
+  const questionTextSpan = document.createElement('span');
+  questionTextSpan.style.overflow = 'hidden';
+  questionTextSpan.style.textOverflow = 'ellipsis';
+  questionTextSpan.style.whiteSpace = 'nowrap';
+  questionTextSpan.style.flex = '1';
+  questionTextSpan.style.fontFamily = defaultFont;
+  questionTextSpan.textContent = 'Text';
+  questionHeader.appendChild(questionTextSpan);
+
+  // Checkbox container
+  const checkboxContainer = document.createElement('label');
+  checkboxContainer.style.display = 'flex';
+  checkboxContainer.style.alignItems = 'center';
+  checkboxContainer.style.gap = '6px';
+  checkboxContainer.style.cursor = 'pointer';
+  checkboxContainer.style.fontSize = '14px';
+  checkboxContainer.style.whiteSpace = 'nowrap';
+  checkboxContainer.style.userSelect = 'none';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.style.width = '16px';
+  checkbox.style.height = '16px';
+  checkbox.style.cursor = 'pointer';
+  checkbox.style.accentColor = 'hsl(var(--primary))';
+
+  const checkboxLabel = document.createElement('span');
+  checkboxLabel.textContent = 'Display in readable font';
+  checkboxLabel.style.color = '#6b7280';
+  checkboxLabel.style.fontFamily = defaultFont;
+
+  checkboxContainer.appendChild(checkbox);
+  checkboxContainer.appendChild(checkboxLabel);
+  questionHeader.appendChild(checkboxContainer);
+
+  document.body.appendChild(questionHeader);
 
   // Create textarea
   const textarea = document.createElement('textarea');
@@ -1069,22 +1135,28 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
   textarea.style.top = editorTop + 'px';
   textarea.style.width = editorWidth + 'px';
   textarea.style.minHeight = editorMinHeight + 'px';
-  textarea.style.fontSize = fontSize + 'px';
-  textarea.style.fontFamily = textStyle.fontFamily;
-  textarea.style.fontWeight = textStyle.fontBold ? 'bold' : 'normal';
-  textarea.style.fontStyle = textStyle.fontItalic ? 'italic' : 'normal';
-  textarea.style.lineHeight = lineHeight + 'px';
+
+  // Apply shared styling (same as QnA)
+  applyInlineEditorStyling(textarea, textStyle, fontSize, lineHeight);
+
+  // Override styling for editor: white background, no bottom rounded corners, shadow
   textarea.style.backgroundColor = '#ffffff';
+  textarea.style.background = '#ffffff';
+  textarea.style.borderRadius = '0';
+  textarea.style.boxShadow = 'none';
   textarea.style.border = 'none';
   textarea.style.padding = '16px';
   textarea.style.textAlign = 'left';
-  textarea.style.borderRadius = '0';
-  textarea.style.boxShadow = 'none';
-  textarea.style.outline = 'none';
-  textarea.style.resize = 'none';
-  textarea.style.zIndex = '10000';
+
   document.body.appendChild(textarea);
   textarea.focus();
+
+  // Handle checkbox change
+  checkbox.addEventListener('change', () => {
+    const useReadableFont = checkbox.checked;
+    textarea.style.fontFamily = useReadableFont ? defaultFont : textStyle.fontFamily;
+    questionTextSpan.style.fontFamily = useReadableFont ? defaultFont : textStyle.fontFamily;
+  });
 
   // Create fullscreen overlay
   const canvasOverlayContainer = document.createElement('div');
@@ -1096,6 +1168,7 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
   canvasOverlayContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
   canvasOverlayContainer.style.zIndex = '9999';
   canvasOverlayContainer.style.pointerEvents = 'auto';
+  canvasOverlayContainer.id = 'inline-editor-canvas-overlay-container';
   document.body.insertBefore(canvasOverlayContainer, textarea);
 
   // Create button footer
@@ -1125,18 +1198,124 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
     const newEditorMinHeight = window.innerHeight * 0.7;
     const newEditorLeft = (window.innerWidth - newEditorWidth) / 2;
     const newEditorTop = (window.innerHeight - newEditorMinHeight) / 2;
+
     textarea.style.left = newEditorLeft + 'px';
     textarea.style.top = newEditorTop + 'px';
     textarea.style.width = newEditorWidth + 'px';
     textarea.style.minHeight = newEditorMinHeight + 'px';
+
+    questionHeader.style.left = newEditorLeft + 'px';
+    questionHeader.style.top = (newEditorTop - 50) + 'px';
+    questionHeader.style.width = newEditorWidth + 'px';
+
     updateButtonFooterPosition();
   };
   window.addEventListener('resize', updateEditorSize);
 
+  let resizeObserver: ResizeObserver | null = null;
+  let discardTooltipCleanup: (() => void) | null = null;
+  let saveTooltipCleanup: (() => void) | null = null;
+
+  const createButtonTooltip = (button: HTMLButtonElement, text: string) => {
+    let tooltipElement: HTMLDivElement | null = null;
+    let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+    let tooltipVisible = false;
+
+    const showTooltip = () => {
+      if (tooltipTimeout) {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = null;
+      }
+
+      if (tooltipElement && tooltipElement.parentNode) {
+        tooltipElement.parentNode.removeChild(tooltipElement);
+      }
+
+      tooltipElement = document.createElement('div');
+      tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
+      tooltipElement.style.zIndex = '11';
+
+      const tooltipContent = document.createElement('div');
+      tooltipContent.className = 'text-xs bg-background text-foreground px-2 py-1 rounded whitespace-nowrap';
+      tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+      tooltipContent.textContent = text;
+      tooltipElement.appendChild(tooltipContent);
+
+      document.body.appendChild(tooltipElement);
+
+      const buttonRect = button.getBoundingClientRect();
+      tooltipElement.style.left = (buttonRect.left + buttonRect.width / 2) + 'px';
+      tooltipElement.style.top = (buttonRect.top - 8) + 'px';
+      tooltipElement.style.transform = 'translate(-50%, -100%)';
+
+      tooltipTimeout = setTimeout(() => {
+        if (tooltipElement) {
+          tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-100 scale-100';
+          tooltipVisible = true;
+        }
+      }, 10);
+    };
+
+    const hideTooltip = () => {
+      if (tooltipTimeout) {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = null;
+      }
+
+      if (tooltipElement) {
+        tooltipElement.className = 'fixed pointer-events-none transition-all duration-200 ease-out opacity-0 scale-95';
+        tooltipVisible = false;
+
+        setTimeout(() => {
+          if (tooltipElement && tooltipElement.parentNode && !tooltipVisible) {
+            tooltipElement.parentNode.removeChild(tooltipElement);
+          }
+        }, 200);
+      }
+    };
+
+    const onMouseEnter = () => showTooltip();
+    const onMouseLeave = () => hideTooltip();
+
+    button.addEventListener('mouseenter', onMouseEnter);
+    button.addEventListener('mouseleave', onMouseLeave);
+
+    return () => {
+      button.removeEventListener('mouseenter', onMouseEnter);
+      button.removeEventListener('mouseleave', onMouseLeave);
+      hideTooltip();
+    };
+  };
+
+  const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as Node | null;
+    if (!target) return;
+    if (target === textarea || textarea.contains(target)) return;
+    if (target === buttonFooter || buttonFooter.contains(target)) return;
+    if (target === questionHeader || questionHeader.contains(target)) return;
+    discardChanges();
+  };
+
+  window.addEventListener('mousedown', handleClickOutside, true);
+
   const removeTextarea = () => {
+    window.removeEventListener('mousedown', handleClickOutside, true);
     window.removeEventListener('resize', updateEditorSize);
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    if (discardTooltipCleanup) {
+      discardTooltipCleanup();
+      discardTooltipCleanup = null;
+    }
+    if (saveTooltipCleanup) {
+      saveTooltipCleanup();
+      saveTooltipCleanup = null;
+    }
     if (textarea.parentNode) textarea.parentNode.removeChild(textarea);
     if (buttonFooter.parentNode) buttonFooter.parentNode.removeChild(buttonFooter);
+    if (questionHeader.parentNode) questionHeader.parentNode.removeChild(questionHeader);
     if (canvasOverlayContainer.parentNode) canvasOverlayContainer.parentNode.removeChild(canvasOverlayContainer);
     setIsEditorOpen(false);
     if (activeEditorInstance && activeEditorInstance.textarea === textarea) {
@@ -1154,22 +1333,135 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
     removeTextarea();
   };
 
+  const discardChanges = () => {
+    removeTextarea();
+  };
+
+  // Create discard button (X icon, outline variant, xs size)
   const discardButton = document.createElement('button');
-  discardButton.textContent = 'Discard';
-  discardButton.style.padding = '8px 16px';
+  discardButton.setAttribute('aria-label', 'Discard changes');
+  discardButton.style.display = 'inline-flex';
+  discardButton.style.alignItems = 'center';
+  discardButton.style.justifyContent = 'center';
+  discardButton.style.whiteSpace = 'nowrap';
+  discardButton.style.borderRadius = '6px';
+  discardButton.style.fontSize = '12px';
+  discardButton.style.height = '36px';
+  discardButton.style.padding = '0 12px';
+  discardButton.style.border = '1px solid hsl(var(--input))';
+  discardButton.style.background = 'hsl(var(--background))';
+  discardButton.style.color = 'hsl(var(--foreground))';
   discardButton.style.cursor = 'pointer';
-  discardButton.addEventListener('click', removeTextarea);
+  discardButton.style.transition = 'all 0.2s';
+  
+  // Create SVG icon for X
+  const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  xIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  xIcon.setAttribute('width', '20');
+  xIcon.setAttribute('height', '20');
+  xIcon.setAttribute('viewBox', '0 0 24 24');
+  xIcon.setAttribute('fill', 'none');
+  xIcon.setAttribute('stroke', 'currentColor');
+  xIcon.setAttribute('stroke-width', '2');
+  xIcon.setAttribute('stroke-linecap', 'round');
+  xIcon.setAttribute('stroke-linejoin', 'round');
+  xIcon.style.display = 'inline-block';
+  xIcon.style.marginRight = '8px';
+  xIcon.style.flexShrink = '0';
+  
+  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line1.setAttribute('x1', '18');
+  line1.setAttribute('y1', '6');
+  line1.setAttribute('x2', '6');
+  line1.setAttribute('y2', '18');
+  xIcon.appendChild(line1);
+  
+  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line2.setAttribute('x1', '6');
+  line2.setAttribute('y1', '6');
+  line2.setAttribute('x2', '18');
+  line2.setAttribute('y2', '18');
+  xIcon.appendChild(line2);
+  
+  discardButton.appendChild(xIcon);
+  
+  const discardText = document.createElement('span');
+  discardText.textContent = 'Discard changes';
+  discardButton.appendChild(discardText);
+  discardButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    discardChanges();
+  });
   buttonFooter.appendChild(discardButton);
-
+  
+  // Add tooltip to discard button
+  discardTooltipCleanup = createButtonTooltip(discardButton, 'Discard changes');
+  
+  // Create save button (Save icon, primary variant, xs size)
   const saveButton = document.createElement('button');
-  saveButton.textContent = 'Save';
-  saveButton.style.padding = '8px 16px';
-  saveButton.style.cursor = 'pointer';
-  saveButton.style.backgroundColor = 'hsl(var(--primary))';
+  saveButton.setAttribute('aria-label', 'Save changes');
+  saveButton.style.display = 'inline-flex';
+  saveButton.style.alignItems = 'center';
+  saveButton.style.justifyContent = 'center';
+  saveButton.style.whiteSpace = 'nowrap';
+  saveButton.style.borderRadius = '6px';
+  saveButton.style.fontSize = '12px';
+  saveButton.style.height = '36px';
+  saveButton.style.padding = '0 12px';
+  saveButton.style.border = '1px solid hsl(var(--primary))';
+  saveButton.style.background = 'hsl(var(--primary))';
   saveButton.style.color = 'hsl(var(--primary-foreground))';
-  saveButton.addEventListener('click', saveChanges);
+  saveButton.style.cursor = 'pointer';
+  saveButton.style.transition = 'all 0.2s';
+  
+  // Create SVG icon for Save
+  const saveIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  saveIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  saveIcon.setAttribute('width', '20');
+  saveIcon.setAttribute('height', '20');
+  saveIcon.setAttribute('viewBox', '0 0 24 24');
+  saveIcon.setAttribute('fill', 'none');
+  saveIcon.setAttribute('stroke', 'currentColor');
+  saveIcon.setAttribute('stroke-width', '2');
+  saveIcon.setAttribute('stroke-linecap', 'round');
+  saveIcon.setAttribute('stroke-linejoin', 'round');
+  saveIcon.style.display = 'inline-block';
+  saveIcon.style.marginRight = '8px';
+  saveIcon.style.flexShrink = '0';
+  
+  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path1.setAttribute('d', 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z');
+  saveIcon.appendChild(path1);
+  
+  const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline1.setAttribute('points', '17 21 17 13 7 13 7 21');
+  saveIcon.appendChild(polyline1);
+  
+  const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline2.setAttribute('points', '7 3 7 8 15 8');
+  saveIcon.appendChild(polyline2);
+  
+  saveButton.appendChild(saveIcon);
+  
+  const saveText = document.createElement('span');
+  saveText.textContent = 'Save changes';
+  saveButton.appendChild(saveText);
+  saveButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    saveChanges();
+  });
   buttonFooter.appendChild(saveButton);
-
+  
+  // Add tooltip to save button
+  saveTooltipCleanup = createButtonTooltip(saveButton, 'Save changes');
+  
+  // Update button footer position when textarea resizes
+  resizeObserver = new ResizeObserver(() => {
+    updateButtonFooterPosition();
+  });
+  resizeObserver.observe(textarea);
+  
+  // Handle keydown events
   textarea.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -1180,11 +1472,44 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
       removeTextarea();
     }
   });
-
-  canvasOverlayContainer.addEventListener('click', (e) => {
-    if (e.target === canvasOverlayContainer) removeTextarea();
-  });
-
-  activeEditorInstance = { cleanup: removeTextarea, textarea, buttonContainer: buttonFooter };
+  
+  // Handle input events for auto-wrapping and height adjustment
+  // Use scrollHeight to accurately measure the actual content height
+  // This is more reliable than calculating based on line count
+  const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
+  const heightBuffer = scaledLineHeight * 0.5; // Small buffer on top for better visibility
+  
+  // Set initial height
+  const updateHeight = () => {
+    // Reset height to auto to get accurate scrollHeight measurement
+    textarea.style.height = 'auto';
+    
+    // Get the actual scroll height (content height)
+    const scrollHeight = textarea.scrollHeight;
+    
+    // Calculate new height: scrollHeight + buffer, but at least minimumHeight
+    const newHeight = Math.max(minimumHeight, scrollHeight + heightBuffer);
+    
+    // Only update if height actually changed to prevent unnecessary reflows
+    const currentHeight = parseFloat(textarea.style.height) || 0;
+    if (Math.abs(newHeight - currentHeight) > 1) { // 1px tolerance to avoid micro-adjustments
+      textarea.style.height = newHeight + 'px';
+    }
+  };
+  
+  // Initial height calculation
+  updateHeight();
+  
+  // Update height on input
+  textarea.addEventListener('input', updateHeight);
+  
+  // Store this editor instance globally
+  activeEditorInstance = {
+    cleanup: removeTextarea,
+    textarea,
+    buttonContainer: buttonFooter
+  };
+  
+  // Return cleanup function
   return removeTextarea;
 }

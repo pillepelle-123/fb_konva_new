@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useState } from 'react';
+import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import { Shape, Rect, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
@@ -108,6 +108,10 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
   const [isTransforming, setIsTransforming] = useState(false);
   const storedResizeDirectionRef = useRef<{ fromTop: boolean; fromLeft: boolean } | null>(null);
   const transformStartSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const [isTooltipMounted, setIsTooltipMounted] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isHoveringText, setIsHoveringText] = useState(false);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const elementTheme = element.theme;
@@ -293,13 +297,120 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
     enableInlineTextEditing();
   };
 
+  const handleMouseEnter = useCallback(() => {
+    const stage = textRef.current?.getStage();
+    if (!stage) return;
+    stage.container().style.cursor = 'pointer';
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    const stage = textRef.current?.getStage();
+    if (!stage) return;
+    stage.container().style.cursor = '';
+    setIsHoveringText(false);
+    setTooltipPosition(null);
+  }, []);
+
+  const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (props.interactive === false || state.activeTool !== 'select') {
+      setIsHoveringText(false);
+      setTooltipPosition(null);
+      return;
+    }
+
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    const groupNode = textRef.current?.getParent();
+    if (!groupNode) return;
+
+    const groupTransform = groupNode.getAbsoluteTransform();
+    const stageBox = stage.container().getBoundingClientRect();
+
+    const topRightLocalPos = {
+      x: elementWidth,
+      y: 0
+    };
+    const topRightStagePos = groupTransform.point(topRightLocalPos);
+
+    setIsHoveringText(true);
+    setTooltipPosition({
+      x: stageBox.left + topRightStagePos.x,
+      y: stageBox.top + topRightStagePos.y
+    });
+  }, [props.interactive, state.activeTool, elementWidth]);
+
+  useEffect(() => {
+    if (!isHoveringText || !tooltipPosition || state.activeTool !== 'select') {
+      setIsTooltipVisible(false);
+      const hideTimeout = setTimeout(() => {
+        setIsTooltipMounted(false);
+        const existingTooltip = document.getElementById(`free-text-tooltip-${element.id}`);
+        if (existingTooltip) {
+          existingTooltip.remove();
+        }
+      }, 200);
+      return () => clearTimeout(hideTimeout);
+    }
+
+    setIsTooltipMounted(true);
+    const showTimeout = setTimeout(() => setIsTooltipVisible(true), 10);
+    return () => clearTimeout(showTimeout);
+  }, [isHoveringText, tooltipPosition, state.activeTool, element.id]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!isTooltipMounted || !tooltipPosition) return;
+
+    const existingTooltip = document.getElementById(`free-text-tooltip-${element.id}`);
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+
+    const tooltip = document.createElement('div');
+    tooltip.id = `free-text-tooltip-${element.id}`;
+    tooltip.className = `fixed pointer-events-none transition-all duration-200 ease-out ${
+      isTooltipVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+    }`;
+    tooltip.style.left = `${tooltipPosition.x}px`;
+    tooltip.style.top = `${tooltipPosition.y - 30}px`;
+    tooltip.style.transform = 'translateX(-100%)';
+    tooltip.style.zIndex = '100000';
+
+    const tooltipContent = document.createElement('div');
+    tooltipContent.style.backgroundColor = '#ffffff';
+    tooltipContent.style.color = '#000000';
+    tooltipContent.style.padding = '4px 8px';
+    tooltipContent.style.borderRadius = '4px';
+    tooltipContent.style.whiteSpace = 'nowrap';
+    tooltipContent.style.fontSize = '12px';
+    tooltipContent.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+    tooltipContent.textContent = 'Double-click to edit text';
+    tooltip.appendChild(tooltipContent);
+
+    document.body.appendChild(tooltip);
+
+    return () => {
+      const tooltipToRemove = document.getElementById(`free-text-tooltip-${element.id}`);
+      if (tooltipToRemove) {
+        tooltipToRemove.remove();
+      }
+    };
+  }, [isTooltipMounted, isTooltipVisible, tooltipPosition, element.id]);
+
   const hitArea = useMemo(() => ({ x: 0, y: 0, width: elementWidth, height: elementHeight }), [elementWidth, elementHeight]);
 
   // Show skeleton during transform or drag
   const showSkeleton = isTransforming || isDragging;
 
   return (
-    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick} hitArea={hitArea}>
+    <BaseCanvasItem
+      {...props}
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      hitArea={hitArea}
+    >
       {showSkeleton ? (
         <Group cache listening={false}>
           {(() => {
@@ -385,7 +496,17 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
           )}
         </>
       )}
-      <Rect ref={textRef} x={0} y={0} width={elementWidth} height={elementHeight} fill="transparent" listening={true} />
+      <Rect
+        ref={textRef}
+        x={0}
+        y={0}
+        width={elementWidth}
+        height={elementHeight}
+        fill="transparent"
+        listening={true}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      />
     </BaseCanvasItem>
   );
 }

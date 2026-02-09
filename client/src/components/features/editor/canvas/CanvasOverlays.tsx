@@ -53,6 +53,7 @@ interface CanvasOverlaysProps {
   // Tooltip props
   inactivePageTooltip: { x: number; y: number } | null;
   outsidePageTooltip: { x: number; y: number } | null;
+  imageQualityTooltip: { x: number; y: number; text: string } | null;
 }
 
 export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
@@ -102,7 +103,8 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
 
   // Tooltips
   inactivePageTooltip,
-  outsidePageTooltip
+  outsidePageTooltip,
+  imageQualityTooltip
 }) => {
   // Lazy imports for heavy components
   const [ImagesContent, setImagesContent] = React.useState<any>(null);
@@ -232,6 +234,20 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
           content="Elements placed outside the page area may not be visible when printed."
           forceVisible
           screenPosition={outsidePageTooltip}
+        >
+          <div />
+        </Tooltip>
+      )}
+
+      {/* Tooltip for image print quality */}
+      {imageQualityTooltip && (
+        <Tooltip
+          side="right"
+          content={imageQualityTooltip.text}
+          forceVisible
+          screenPosition={imageQualityTooltip}
+          backgroundColor="#ffffff"
+          textColor="#111827"
         >
           <div />
         </Tooltip>

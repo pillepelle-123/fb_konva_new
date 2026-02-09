@@ -24,8 +24,9 @@ const buildRestoredElement = (
   preserveKeys?: string[]
 ) => {
   if (!preserveKeys?.length || !currentElement) return originalElement;
+  const preserveSet = new Set<string>([...preserveKeys, 'text', 'formattedText']);
   const restored = structuredClone(originalElement) as CanvasElement;
-  preserveKeys.forEach((key) => {
+  preserveSet.forEach((key) => {
     if (key in currentElement) {
       (restored as Record<string, unknown>)[key] = (currentElement as Record<string, unknown>)[key];
     }

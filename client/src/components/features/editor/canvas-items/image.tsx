@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Rect, Image as KonvaImage, Group, Line, Path } from 'react-konva';
+import { Rect, Image as KonvaImage, Group, Line, Path, Circle } from 'react-konva';
 import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
@@ -131,6 +131,7 @@ export default function Image(props: CanvasItemProps) {
   const isTransformingRef = useRef(false);
   // State to track if we're currently transforming (for hiding frame)
   const [isTransforming, setIsTransforming] = useState(false);
+  const [isImageHovered, setIsImageHovered] = useState(false);
 
   // Get color palette defaults for consistent frame coloring (same as QnA borders)
   const { state } = useEditor();
@@ -283,6 +284,45 @@ export default function Image(props: CanvasItemProps) {
     return getCrop(image, size, clipPosition);
   }, [image, size, element.imageClipPosition]);
 
+  const imageQuality = useMemo(() => {
+    if (!image) return null;
+
+    const displayWidth = size.width || element.width || 0;
+    const displayHeight = size.height || element.height || 0;
+
+    if (displayWidth <= 0 || displayHeight <= 0) return null;
+
+    const scaleX = image.width / displayWidth;
+    const scaleY = image.height / displayHeight;
+    const scale = Math.min(scaleX, scaleY);
+    const targetDpi = 300;
+    const warningDpi = 200;
+    const warningScale = warningDpi / targetDpi;
+    const estimatedDpi = Math.round(targetDpi * scale);
+
+    if (scale >= 1) {
+      return {
+        status: 'good' as const,
+        color: '#22c55e',
+        text: `Druckqualitaet ausreichend (ca. ${estimatedDpi} DPI)`
+      };
+    }
+
+    if (scale >= warningScale) {
+      return {
+        status: 'warn' as const,
+        color: '#f59e0b',
+        text: `Druckqualitaet grenzwertig (ca. ${estimatedDpi} DPI)`
+      };
+    }
+
+    return {
+      status: 'bad' as const,
+      color: '#ef4444',
+      text: `Druckqualitaet zu niedrig (ca. ${estimatedDpi} DPI)`
+    };
+  }, [image, size.width, size.height, element.width, element.height]);
+
   // Update size when element dimensions change (but not during active transformation)
   // Also include rotation in dependencies to ensure frame updates correctly when rotation changes
   useEffect(() => {
@@ -341,8 +381,18 @@ export default function Image(props: CanvasItemProps) {
     };
   }, [element.id]);
 
+  const handleImageHoverEnd = () => {
+    setIsImageHovered(false);
+    window.dispatchEvent(new CustomEvent('imageQualityTooltipHide'));
+  };
+
   return (
-    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick}>
+    <BaseCanvasItem
+      {...props}
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setIsImageHovered(true)}
+      onMouseLeave={handleImageHoverEnd}
+    >
       {element.type === 'placeholder' ? (
         <>
           {/* Hellgrauer Hintergrund */}
@@ -482,6 +532,51 @@ export default function Image(props: CanvasItemProps) {
             }
 
             return frameElement;
+          })()}
+
+          {image && imageQuality && element.type === 'image' && !isTransforming && isImageHovered && (() => {
+            const indicatorRadius = 6;
+            const indicatorX = size.width;
+            const indicatorY = 0;
+            const inverseZoom = zoom ? 1 / zoom : 1;
+            const tooltipOffsetX = 12;
+            const tooltipOffsetY = 0;
+
+            const handleQualityTooltip = (evt: Konva.KonvaEventObject<MouseEvent>) => {
+              const { clientX, clientY } = evt.evt;
+              window.dispatchEvent(new CustomEvent('imageQualityTooltip', {
+                detail: {
+                  text: imageQuality.text,
+                  clientX: clientX + tooltipOffsetX,
+                  clientY: clientY + tooltipOffsetY
+                }
+              }));
+            };
+
+            const handleQualityTooltipHide = () => {
+              window.dispatchEvent(new CustomEvent('imageQualityTooltipHide'));
+            };
+
+            return (
+              <Group
+                x={indicatorX}
+                y={indicatorY}
+                scaleX={inverseZoom}
+                scaleY={inverseZoom}
+                onMouseEnter={handleQualityTooltip}
+                onMouseMove={handleQualityTooltip}
+                onMouseLeave={handleQualityTooltipHide}
+              >
+                <Circle
+                  radius={indicatorRadius}
+                  x={-indicatorRadius * 0.5}
+                  y={indicatorRadius * 0.5}
+                  fill={imageQuality.color}
+                  stroke="#ffffff"
+                  strokeWidth={3}
+                />
+              </Group>
+            );
           })()}
         </>
       )}

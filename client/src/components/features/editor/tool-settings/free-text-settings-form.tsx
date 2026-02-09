@@ -205,7 +205,8 @@ export function FreeTextSettingsForm({
         <div>
           <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
             <Palette className="w-4 mr-2" />
-            Font Color
+             <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
+             Font Color
           </Button>
         </div>
 
@@ -256,6 +257,7 @@ export function FreeTextSettingsForm({
             <div>
               <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
                 Line Color
               </Button>
             </div>
@@ -292,6 +294,7 @@ export function FreeTextSettingsForm({
             <div>
               <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
                 Border Color
               </Button>
             </div>
@@ -311,6 +314,7 @@ export function FreeTextSettingsForm({
             <div>
               <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
                 <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
                 Background Color
               </Button>
             </div>
