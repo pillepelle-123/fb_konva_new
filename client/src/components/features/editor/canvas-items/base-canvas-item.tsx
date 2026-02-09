@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
@@ -54,7 +54,7 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   isZoomingRef?: React.MutableRefObject<boolean>; // Ref to track zooming state
 }
 
-export default function BaseCanvasItem({ 
+function BaseCanvasItem({ 
   element, 
   isSelected, 
   onSelect, 
@@ -80,6 +80,7 @@ export default function BaseCanvasItem({
   const [isTransforming, setIsTransforming] = useState(false);
   const transformStartDataRef = useRef<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number } | null>(null);
   const lastTransformDataRef = useRef<{ scaleX: number; scaleY: number; x: number; y: number } | null>(null);
+  const throttleTimeoutRef = useRef<number | null>(null);
 
   // Calculate canvas dimensions for the active book/page
   const orientation = state.currentBook?.orientation || DEFAULT_BOOK_ORIENTATION;
@@ -117,15 +118,6 @@ export default function BaseCanvasItem({
     return calculateContrastColor(currentPage, getPaletteForPage, 0.15);
   }, [currentPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
 
-  // Prevent scaling for question-answer pairs but allow qna textboxes to be resized
-  useEffect(() => {
-    if (groupRef.current && element && (element.textType === 'question' || element.textType === 'answer')) {
-      // Always ensure scale is 1 for question/answer elements
-      groupRef.current.scaleX(1);
-      groupRef.current.scaleY(1);
-    }
-  }, [element, element?.textType, element?.type, element?.width, element?.height, element?.scaleX, element?.scaleY]);
-
   useEffect(() => {
     if (!element) return;
     
@@ -151,67 +143,49 @@ export default function BaseCanvasItem({
     window.addEventListener('hoverPartner', handlePartnerHover as EventListener);
     return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
   }, [element, element?.id, element?.textType, element?.questionElementId, state.currentBook, state.activePageIndex]);
-  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!interactive) return; // Skip interactions in non-interactive mode
-    if (isInsideGroup) return; // Don't handle clicks for grouped elements
+  const handleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return;
+    if (isInsideGroup) return;
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
         e.cancelBubble = true;
-        // For question-answer pairs, always call onSelect to handle sequential selection
-        // For other elements with Ctrl+click, always call onSelect to handle multi-selection/deselection
-        // For other elements without Ctrl, call onSelect if not already selected OR if lockElements is enabled
-        // This ensures selection is properly updated even when lockElements is active
         if (element && ((element.textType === 'question' || element.textType === 'answer') || !isSelected || e.evt.ctrlKey || e.evt.metaKey || state.editorSettings?.editor?.lockElements)) {
           onSelect(e);
         }
       } else if (e.evt.button === 2) {
         e.cancelBubble = true;
-        // Right-click: select element if not already selected
         if (!isSelected) {
           onSelect(e);
         }
       }
     }
-  };
+  }, [interactive, isInsideGroup, state.activeTool, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
 
-  const handleDoubleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!interactive) return; // Skip interactions in non-interactive mode
+  const handleDoubleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return;
     if (state.activeTool === 'select' && onDoubleClick) {
       e.cancelBubble = true;
       onDoubleClick(e);
     }
-  };
+  }, [interactive, state.activeTool, onDoubleClick]);
 
-  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!interactive) return; // Skip interactions in non-interactive mode
-    if (isInsideGroup) return; // Don't handle mousedown for grouped elements
+  const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!interactive) return;
+    if (isInsideGroup) return;
     if (state.activeTool === 'select' && e.evt.button === 0) {
-      // If multiple elements are selected, don't stop event propagation
-      // This allows the Stage's handleMouseDown to handle group movement
-      // But only if elements are not locked
       if (state.selectedElementIds.length > 1 && !state.editorSettings?.editor?.lockElements) {
-        // Don't stop event - let it bubble to Stage for group move handling
         return;
       }
-      
-      // Stop event propagation to prevent Stage from handling it
-      // This ensures selection works even when lockElements is enabled
       e.cancelBubble = true;
-      // For regular elements, select on mouseDown if not already selected
-      // Skip for question-answer pairs as they use onClick for sequential selection
-      // Skip if Ctrl/Cmd is pressed (multi-selection is handled in onClick)
-      // When lockElements is enabled, always call onSelect to ensure selection is updated
       if (element && (!isSelected || state.editorSettings?.editor?.lockElements) && !(element.textType === 'question' || element.textType === 'answer') && !e.evt.ctrlKey && !e.evt.metaKey) {
-        onSelect(e);
+        requestAnimationFrame(() => onSelect(e));
       }
     }
-  };
+  }, [interactive, isInsideGroup, state.activeTool, state.selectedElementIds.length, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
 
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    if (!interactive) return; // Skip interactions in non-interactive mode
-    // Block position update if elements are locked
+  const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
+    if (!interactive) return;
     if (state.editorSettings?.editor?.lockElements) {
-      // Reset position to original (accounting for offset)
       const offsetX = (element.width || 100) / 2;
       const offsetY = (element.height || 100) / 2;
       e.target.x(element.x + offsetX);
@@ -220,24 +194,16 @@ export default function BaseCanvasItem({
     }
     const rawX = e.target.x();
     const rawY = e.target.y();
-
     const elementWidth = element.width || 100;
     const elementHeight = element.height || 100;
-    
-    // Convert from adjusted position (with offset) back to original position (without offset)
     const offsetX = elementWidth / 2;
     const offsetY = elementHeight / 2;
     const actualX = rawX - offsetX;
     const actualY = rawY - offsetY;
-
-    // Rechteck des Elements in Seitennkoordinaten (using actual position, not adjusted)
     const rectLeft = actualX;
     const rectRight = actualX + elementWidth;
     const rectTop = actualY;
     const rectBottom = actualY + elementHeight;
-
-    // 1) Erlaube Positionen außerhalb der Seite, solange das Element die eigene Seite noch schneidet.
-    // Page-Rect (in Seitennkoordinaten): [0, canvasWidth] x [0, canvasHeight]
     const overlapsOwnPage =
       rectLeft < canvasWidth &&
       rectRight > 0 &&
@@ -245,8 +211,6 @@ export default function BaseCanvasItem({
       rectBottom > 0;
 
     if (!overlapsOwnPage) {
-      // Komplett außerhalb der eigenen Seite (oben/unten/außen) -> nicht erlaubt
-      // Reset to original position (accounting for offset)
       e.target.x(element.x + offsetX);
       e.target.y(element.y + offsetY);
       if (typeof window !== 'undefined' && (e.evt as MouseEvent | DragEvent)?.clientX !== undefined) {
@@ -263,15 +227,17 @@ export default function BaseCanvasItem({
       return;
     }
 
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: { x: actualX, y: actualY }
-      }
+    requestAnimationFrame(() => {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: { x: actualX, y: actualY }
+        }
+      });
+      onDragEnd?.(e);
     });
-    onDragEnd?.(e);
-  };
+  }, [interactive, state.editorSettings?.editor?.lockElements, element, canvasWidth, canvasHeight, dispatch, onDragEnd]);
 
   // Early return if element is undefined
   if (!element) {
@@ -319,6 +285,9 @@ export default function BaseCanvasItem({
       rotation={typeof element?.rotation === 'number' ? element.rotation : 0}
       draggable={interactive && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
       listening={interactive && !(isZoomingRef?.current)}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
+      hitStrokeWidth={0}
       onTransformStart={interactive ? (e) => {
         setIsTransforming(true);
         const node = e.target;
@@ -340,6 +309,12 @@ export default function BaseCanvasItem({
           x: node.x(),
           y: node.y()
         };
+        
+        // Throttle to reduce frequency and improve performance
+        if (throttleTimeoutRef.current) return;
+        throttleTimeoutRef.current = window.setTimeout(() => {
+          throttleTimeoutRef.current = null;
+        }, 16); // ~60fps
       } : undefined}
       onTransformEnd={interactive ? () => {
         // Delay state update to avoid transformer errors
@@ -427,38 +402,9 @@ export default function BaseCanvasItem({
       )}
       
       {/* Pass isDragging to children if they are React elements */}
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          // Handle Fragments by recursively mapping their children
-          if (child.type === React.Fragment) {
-            const fragmentProps = child.props as { children?: ReactNode };
-            const mappedFragmentChildren = React.Children.map(fragmentProps.children, (fragmentChild) => {
-              if (React.isValidElement(fragmentChild) && typeof fragmentChild.type !== 'string') {
-                try {
-                  return React.cloneElement(fragmentChild as React.ReactElement<Record<string, unknown>>, { isDragging });
-                } catch {
-                  return fragmentChild;
-                }
-              }
-              return fragmentChild;
-            });
-            return React.cloneElement(child, {}, mappedFragmentChildren);
-          }
-          // Only clone elements that are not Konva components (which have string types)
-          if (typeof child.type === 'string') {
-            return child;
-          }
-          // For React components, try to pass isDragging if they accept it
-          try {
-          const typedChild = child as React.ReactElement<Record<string, unknown>>;
-          return React.cloneElement(typedChild, { isDragging });
-          } catch {
-            // If cloning fails, return the child as-is
-            return child;
-          }
-        }
-        return child;
-      })}
+      {children}
     </Group>
   );
 }
+
+export default BaseCanvasItem;

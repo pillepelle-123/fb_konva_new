@@ -8,6 +8,15 @@ import { FONT_GROUPS } from './utils/font-families'
 import { loadBackgroundImageRegistry } from './data/templates/background-images'
 import { loadStickerRegistry } from './data/templates/stickers'
 
+// Suppress Chrome violation warnings in development
+if (import.meta.env.DEV) {
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    if (args[0]?.includes?.('Violation')) return;
+    originalWarn(...args);
+  };
+}
+
 const extractFontName = (family: string) => {
   const match = family.match(/['"]([^'"]+)['"]/);
   return match ? match[1] : family.split(',')[0].trim();
