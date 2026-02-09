@@ -5901,12 +5901,6 @@ export default function Canvas() {
                   
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
-                    console.log('[Transformer - Element Type]', {
-                      elementId: element.id.substring(0, 8),
-                      type: element.type,
-                      textType: element.textType || 'none'
-                    });
-                    
                     // Skip dimension updates for qna and free_text elements - they handle their own resize logic
                     // The textbox-qna.tsx and textbox-free-text.tsx components manage dimensions during transform
                     if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {

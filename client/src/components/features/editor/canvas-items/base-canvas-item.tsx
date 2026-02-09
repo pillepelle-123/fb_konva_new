@@ -331,12 +331,6 @@ export default function BaseCanvasItem({
           scaleY: node.scaleY()
         };
         lastTransformDataRef.current = null;
-        console.log('[Transform Start]', {
-          elementId: element.id.substring(0, 8),
-          pos: { x: node.x().toFixed(1), y: node.y().toFixed(1) },
-          size: { w: node.width().toFixed(1), h: node.height().toFixed(1) },
-          scale: { x: node.scaleX().toFixed(2), y: node.scaleY().toFixed(2) }
-        });
       } : undefined}
       onTransform={interactive ? (e) => {
         const node = e.target;
@@ -347,71 +341,13 @@ export default function BaseCanvasItem({
           y: node.y()
         };
       } : undefined}
-      onTransformEnd={interactive ? (e) => {
-        const node = e.target;
-        const startData = transformStartDataRef.current;
-        const lastData = lastTransformDataRef.current;
-        
-        if (startData && lastData) {
-          const deltaX = lastData.x - startData.x;
-          const deltaY = lastData.y - startData.y;
-          const deltaScaleX = lastData.scaleX - startData.scaleX;
-          const deltaScaleY = lastData.scaleY - startData.scaleY;
-          
-          let handle = 'unknown';
-          const threshold = 0.5;
-          const scaleThreshold = 0.01;
-          
-          // Check if size changed via scale
-          const sizeChanged = Math.abs(deltaScaleX) > scaleThreshold || Math.abs(deltaScaleY) > scaleThreshold;
-          
-          if (sizeChanged) {
-            // Corner handles: both position and both scales change
-            if (Math.abs(deltaX) > threshold && Math.abs(deltaY) > threshold) {
-              if (deltaScaleX < 0 && deltaScaleY < 0) handle = 'top-left';
-              else if (deltaScaleX > 0 && deltaScaleY < 0) handle = 'top-right';
-              else if (deltaScaleX < 0 && deltaScaleY > 0) handle = 'bottom-left';
-              else handle = 'bottom-right';
-            }
-            // Horizontal side handles: X position changes, scaleX changes
-            else if (Math.abs(deltaX) > threshold && Math.abs(deltaY) <= threshold) {
-              // Left handle: position moves right when shrinking (deltaX > 0, deltaScaleX < 0)
-              // Right handle: position stays same when growing (deltaX ≈ 0, deltaScaleX > 0)
-              handle = deltaScaleX < 0 ? 'middle-left' : 'middle-right';
-            }
-            // Vertical side handles: Y position changes, scaleY changes
-            else if (Math.abs(deltaY) > threshold && Math.abs(deltaX) <= threshold) {
-              // Top handle: position moves down when shrinking (deltaY > 0, deltaScaleY < 0)
-              // Bottom handle: position stays same when growing (deltaY ≈ 0, deltaScaleY > 0)
-              handle = deltaScaleY < 0 ? 'top-middle' : 'bottom-middle';
-            }
-            // Size changed but position didn't - right or bottom handle
-            else if (Math.abs(deltaX) <= threshold && Math.abs(deltaY) <= threshold) {
-              if (Math.abs(deltaScaleX) > Math.abs(deltaScaleY)) handle = 'middle-right';
-              else handle = 'bottom-middle';
-            }
-          }
-          
-          console.log('[Transform End - BaseCanvasItem]', {
-            elementId: element.id.substring(0, 8),
-            handle,
-            delta: { 
-              x: deltaX.toFixed(1), 
-              y: deltaY.toFixed(1),
-              scaleX: deltaScaleX.toFixed(3),
-              scaleY: deltaScaleY.toFixed(3)
-            },
-            final: { 
-              x: lastData.x.toFixed(1), 
-              y: lastData.y.toFixed(1), 
-              scaleX: lastData.scaleX.toFixed(2), 
-              scaleY: lastData.scaleY.toFixed(2) 
-            }
-          });
-        }
-        setIsTransforming(false);
-        transformStartDataRef.current = null;
-        lastTransformDataRef.current = null;
+      onTransformEnd={interactive ? () => {
+        // Delay state update to avoid transformer errors
+        setTimeout(() => {
+          setIsTransforming(false);
+          transformStartDataRef.current = null;
+          lastTransformDataRef.current = null;
+        }, 0);
       } : undefined}
       onMouseDown={interactive ? handleMouseDown : undefined}
       onClick={interactive ? handleClick : undefined}
