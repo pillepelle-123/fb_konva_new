@@ -4112,40 +4112,6 @@ export default function Canvas() {
     return { x: result.x, y: result.y };
   };
 
-  const handleTransformEnd = useCallback((e: Konva.KonvaEventObject<Event>) => {
-    const node = e.target;
-    const elementId = node.id();
-    const element = currentPage?.elements.find(el => el.id === elementId);
-    
-    if (element && element.type === 'text') {
-      const oldWidth = element.width || 100;
-      const oldHeight = element.height || 100;
-      const newWidth = node.width() * node.scaleX();
-      const newHeight = node.height() * node.scaleY();
-      
-      const deltaOffsetX = (oldWidth - newWidth) / 2;
-      const deltaOffsetY = (oldHeight - newHeight) / 2;
-      
-      const correctedX = element.x + deltaOffsetX;
-      const correctedY = element.y + deltaOffsetY;
-      
-      dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-        payload: {
-          id: elementId,
-          updates: {
-            x: correctedX,
-            y: correctedY,
-            width: newWidth,
-            height: newHeight,
-            scaleX: 1,
-            scaleY: 1
-          }
-        }
-      });
-    }
-  }, [currentPage, dispatch]);
-
   // Auto-fit function to show entire CanvasPageEditArea
   const fitToView = useCallback(() => {
     if (!containerRef.current) return;
@@ -4310,12 +4276,22 @@ export default function Canvas() {
   useEffect(() => {
     if (partnerPageGroupRef.current && partnerPage) {
       const group = partnerPageGroupRef.current;
-      // Cache the group as bitmap for faster rendering
-      group.cache();
+      // Only cache if group has valid dimensions
+      const width = group.width();
+      const height = group.height();
+      
+      if (width > 0 && height > 0) {
+        // Cache the group as bitmap for faster rendering
+        group.cache();
+      }
       
       return () => {
         // Clear cache when partner page changes
-        group.clearCache();
+        try {
+          group.clearCache();
+        } catch {
+          // Ignore errors if group was already destroyed
+        }
       };
     }
   }, [partnerPage?.id, partnerPage?.elements?.length]);
@@ -5925,6 +5901,12 @@ export default function Canvas() {
                   
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
+                    console.log('[Transformer - Element Type]', {
+                      elementId: element.id.substring(0, 8),
+                      type: element.type,
+                      textType: element.textType || 'none'
+                    });
+                    
                     // Skip dimension updates for qna and free_text elements - they handle their own resize logic
                     // The textbox-qna.tsx and textbox-free-text.tsx components manage dimensions during transform
                     if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {
@@ -6095,10 +6077,41 @@ export default function Canvas() {
                       const scaleX = node.scaleX();
                       const scaleY = node.scaleY();
                       
-                        updates.width = Math.max(50, (element.width || 150) * scaleX);
-                        updates.height = Math.max(20, (element.height || 50) * scaleY);
-                      updates.x = node.x();
-                      updates.y = node.y();
+                      const newWidth = Math.max(50, (element.width || 150) * scaleX);
+                      const newHeight = Math.max(20, (element.height || 50) * scaleY);
+                      
+                      // Node position includes offset, so we need to subtract it
+                      const offsetX = newWidth / 2;
+                      const offsetY = newHeight / 2;
+                      
+                      // Get mouse position at release
+                      const stage = stageRef.current;
+                      const mousePos = stage?.getPointerPosition();
+                      const mousePageX = mousePos ? (mousePos.x - stagePos.x) / zoom - activePageOffsetX : null;
+                      const mousePageY = mousePos ? (mousePos.y - stagePos.y) / zoom - pageOffsetY : null;
+                      
+                      const correctedX = node.x() - offsetX;
+                      const correctedY = node.y() - offsetY;
+                      const leftEdgeX = correctedX;
+                      const leftEdgeY = correctedY + newHeight / 2;
+                      
+                      console.log('[Transformer - Text Element]', {
+                        elementId: element.id.substring(0, 8),
+                        oldSize: { w: (element.width || 150).toFixed(1), h: (element.height || 50).toFixed(1) },
+                        newSize: { w: newWidth.toFixed(1), h: newHeight.toFixed(1) },
+                        scale: { x: scaleX.toFixed(3), y: scaleY.toFixed(3) },
+                        nodePos: { x: node.x().toFixed(1), y: node.y().toFixed(1) },
+                        offset: { x: offsetX.toFixed(1), y: offsetY.toFixed(1) },
+                        corrected: { x: correctedX.toFixed(1), y: correctedY.toFixed(1) },
+                        mouse: mousePageX !== null ? { x: mousePageX.toFixed(1), y: (mousePageY || 0).toFixed(1) } : 'unknown',
+                        leftEdge: { x: leftEdgeX.toFixed(1), y: leftEdgeY.toFixed(1) },
+                        mismatch: mousePageX !== null ? { x: (mousePageX - leftEdgeX).toFixed(1) } : 'unknown'
+                      });
+                      
+                      updates.width = newWidth;
+                      updates.height = newHeight;
+                      updates.x = correctedX;
+                      updates.y = correctedY;
                       updates.rotation = node.rotation();
                       
                       // Reset scale to 1

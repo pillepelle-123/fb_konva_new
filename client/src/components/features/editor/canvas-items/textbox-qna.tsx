@@ -1912,24 +1912,11 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       const finalWidth = Math.max(50, groupNode.width() * scaleX);
       const finalHeight = Math.max(30, groupNode.height() * scaleY);
 
-      // Calculate position adjustments based on resize direction
-      // When resizing from left/top handles, we need to adjust position to maintain visual center
-      const widthChange = finalWidth - elementWidth;
-      const heightChange = finalHeight - elementHeight;
-
-      const resizeDirection = storedResizeDirectionRef.current;
-      let positionUpdates: { x?: number; y?: number } = {};
-
-      // Adjust position when resizing from left or top handles
-      if (resizeDirection?.fromLeft && widthChange !== 0) {
-        // When resizing from left, move position by half the width change
-        positionUpdates.x = element.x - widthChange / 2;
-      }
-
-      if (resizeDirection?.fromTop && heightChange !== 0) {
-        // When resizing from top, move position by half the height change
-        positionUpdates.y = element.y - heightChange / 2;
-      }
+      // Node position includes offset, so we need to subtract it
+      const offsetX = finalWidth / 2;
+      const offsetY = finalHeight / 2;
+      const correctedX = groupNode.x() - offsetX;
+      const correctedY = groupNode.y() - offsetY;
 
       // Update element with new dimensions and corrected position
       dispatch({
@@ -1939,7 +1926,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
           updates: {
             width: finalWidth,
             height: finalHeight,
-            ...positionUpdates
+            x: correctedX,
+            y: correctedY
           }
         }
       });

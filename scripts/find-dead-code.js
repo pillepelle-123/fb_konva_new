@@ -92,6 +92,7 @@ const EXCLUDED_PATTERNS = [
 
 const usedFiles = new Set();
 const allSourceFiles = new Set();
+const indexFileExports = new Map();
 const projectRoot = path.resolve(__dirname, '..');
 
 // Normalize path for cross-platform compatibility
@@ -162,7 +163,7 @@ function extractImports(content, filePath) {
   const imports = [];
   
   // Match ES6 imports: import ... from '...'
-  const es6ImportRegex = /import\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]/g;
+  const es6ImportRegex = /import\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]/g;
   let match;
   while ((match = es6ImportRegex.exec(content)) !== null) {
     imports.push(match[1]);
@@ -183,6 +184,12 @@ function extractImports(content, filePath) {
   // Match lazy imports: lazy(() => import('...'))
   const lazyImportRegex = /lazy\s*\(\s*\(\s*\)\s*=>\s*import\s*\(['"]([^'"]+)['"]\)/g;
   while ((match = lazyImportRegex.exec(content)) !== null) {
+    imports.push(match[1]);
+  }
+  
+  // Match export ... from '...'
+  const exportFromRegex = /export\s+(?:type\s+)?(?:\*|{[^}]+})\s+from\s+['"]([^'"]+)['"]/g;
+  while ((match = exportFromRegex.exec(content)) !== null) {
     imports.push(match[1]);
   }
   
@@ -211,6 +218,11 @@ function processFile(filePath) {
   try {
     const content = fs.readFileSync(absolutePath, 'utf-8');
     const imports = extractImports(content, absolutePath);
+    
+    // If this is an index file, track what it exports
+    if (path.basename(absolutePath).match(/^index\.(ts|tsx|js|jsx)$/)) {
+      indexFileExports.set(absolutePath, imports.filter(imp => imp.startsWith('.')));
+    }
     
     for (const importPath of imports) {
       // Skip node_modules and external packages
@@ -275,9 +287,33 @@ console.log(`✓ Found ${allSourceFiles.size} total source files\n`);
 
 // Find dead code
 const deadCode = [];
+const indexFiles = [];
+
 for (const file of allSourceFiles) {
   if (!usedFiles.has(file)) {
-    deadCode.push(file);
+    // Check if this file is an index file
+    if (path.basename(file).match(/^index\.(ts|tsx|js|jsx)$/)) {
+      indexFiles.push(file);
+    } else {
+      deadCode.push(file);
+    }
+  }
+}
+
+// Analyze index files - only mark as dead if ALL exports are unused
+for (const indexFile of indexFiles) {
+  const dir = path.dirname(indexFile);
+  const filesInDir = Array.from(allSourceFiles).filter(f => 
+    path.dirname(f) === dir && f !== indexFile
+  );
+  
+  // If all files in the directory are unused, the index is also unused
+  const allFilesUnused = filesInDir.every(f => 
+    deadCode.includes(f) || !usedFiles.has(f)
+  );
+  
+  if (allFilesUnused && filesInDir.length > 0) {
+    deadCode.push(indexFile);
   }
 }
 
@@ -308,8 +344,13 @@ if (deadCode.length === 0) {
   
   for (const [dir, files] of Object.entries(deadCodeByDir)) {
     console.log(`\n📁 ${dir}/`);
-    files.forEach(file => console.log(`   - ${file}`));
+    files.forEach(file => {
+      const isIndex = file.match(/^index\.(ts|tsx|js|jsx)$/);
+      console.log(`   ${isIndex ? '📦' : '-'} ${file}`);
+    });
   }
+  
+  console.log('\n💡 Files marked with 📦 are index files (only unused if all exports are unused)');
   
   // Write detailed report to file
   const reportPath = path.join(projectRoot, 'dead-code-report.json');
@@ -322,11 +363,31 @@ if (deadCode.length === 0) {
       percentageUnused: ((deadCode.length / allSourceFiles.size) * 100).toFixed(2) + '%'
     },
     deadCode: deadCode.map(file => path.relative(projectRoot, file)),
-    deadCodeByDirectory: deadCodeByDir
+    deadCodeByDirectory: deadCodeByDir,
+    indexFilesAnalyzed: Array.from(indexFileExports.keys()).map(f => path.relative(projectRoot, f))
   };
   
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(`\n📄 Detailed report saved to: dead-code-report.json`);
+  
+  // Generate deletion script
+  const deleteScriptPath = path.join(projectRoot, 'delete-dead-code.sh');
+  const deleteScript = [
+    '#!/bin/bash',
+    '# Auto-generated script to delete dead code',
+    '# Review carefully before running!',
+    '',
+    `echo "⚠️  This will delete ${deadCode.length} files"`,
+    'echo "Press Ctrl+C to cancel, or Enter to continue..."',
+    'read',
+    '',
+    ...deadCode.map(file => `rm "${path.relative(projectRoot, file)}"`),
+    '',
+    'echo "✓ Dead code deleted"'
+  ].join('\n');
+  
+  fs.writeFileSync(deleteScriptPath, deleteScript, { mode: 0o755 });
+  console.log(`📝 Deletion script saved to: delete-dead-code.sh`);
 }
 
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

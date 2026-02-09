@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-02-09T12:49:42.105Z",
+  "summary": {
+    "totalSourceFiles": 389,
+    "usedFiles": 357,
+    "deadCodeFiles": 22,
+    "percentageUnused": "5.66%"
+  },
+  "deadCode": [
+    "client\\src\\components\\features\\editor\\canvas-items\\image-placeholder.tsx",
+    "client\\src\\components\\features\\editor\\canvas-items\\shared-text-renderer.tsx",
+    "client\\src\\components\\features\\editor\\canvas\\PartnerPageSnapshot.tsx",
+    "client\\src\\components\\features\\editor\\canvas\\canvas-helpers.tsx",
+    "client\\src\\components\\features\\editor\\canvas\\hooks\\useCanvasMouseEvents.ts",
+    "client\\src\\components\\features\\editor\\canvas\\safety-margin-rectangle.tsx",
+    "client\\src\\components\\features\\editor\\pdf-export-modal.tsx",
+    "client\\src\\components\\features\\editor\\preview\\canvas-preview-dialog.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-background.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-konva-background.tsx",
+    "client\\src\\components\\features\\editor\\preview\\mini-template-render.tsx",
+    "client\\src\\components\\features\\editor\\preview\\preview-image-dialog.tsx",
+    "client\\src\\components\\features\\editor\\templates\\selector-font.tsx",
+    "client\\src\\components\\features\\editor\\templates\\template-palette.tsx",
+    "client\\src\\components\\features\\editor\\templates\\wizard-palette-selector.tsx",
+    "client\\src\\components\\ui\\icons\\question-position-icons.tsx",
+    "client\\src\\components\\ui\\skeleton.tsx",
+    "client\\src\\test-setup\\canvas-setup.ts",
+    "client\\src\\utils\\canvas-export.ts",
+    "shared\\utils\\color-utils.js",
+    "shared\\utils\\constants.js",
+    "shared\\utils\\konva-transform.ts"
+  ],
+  "deadCodeByDirectory": {
+    "client\\src\\components\\features\\editor\\canvas-items": [
+      "image-placeholder.tsx",
+      "shared-text-renderer.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\canvas": [
+      "PartnerPageSnapshot.tsx",
+      "canvas-helpers.tsx",
+      "safety-margin-rectangle.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\canvas\\hooks": [
+      "useCanvasMouseEvents.ts"
+    ],
+    "client\\src\\components\\features\\editor": [
+      "pdf-export-modal.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\preview": [
+      "canvas-preview-dialog.tsx",
+      "mini-background.tsx",
+      "mini-konva-background.tsx",
+      "mini-template-render.tsx",
+      "preview-image-dialog.tsx"
+    ],
+    "client\\src\\components\\features\\editor\\templates": [
+      "selector-font.tsx",
+      "template-palette.tsx",
+      "wizard-palette-selector.tsx"
+    ],
+    "client\\src\\components\\ui\\icons": [
+      "question-position-icons.tsx"
+    ],
+    "client\\src\\components\\ui": [
+      "skeleton.tsx"
+    ],
+    "client\\src\\test-setup": [
+      "canvas-setup.ts"
+    ],
+    "client\\src\\utils": [
+      "canvas-export.ts"
+    ],
+    "shared\\utils": [
+      "color-utils.js",
+      "constants.js",
+      "konva-transform.ts"
+    ]
+  },
+  "indexFilesAnalyzed": [
+    "client\\src\\admin\\index.ts",
+    "client\\src\\admin\\guards\\index.ts",
+    "client\\src\\admin\\layouts\\index.ts",
+    "client\\src\\components\\ui\\index.ts",
+    "client\\src\\components\\ui\\primitives\\index.ts",
+    "client\\src\\components\\ui\\composites\\index.ts",
+    "client\\src\\components\\ui\\layout\\index.ts",
+    "client\\src\\components\\ui\\feedback\\index.ts",
+    "client\\src\\components\\ui\\overlays\\index.ts",
+    "client\\src\\admin\\pages\\index.ts",
+    "client\\src\\admin\\pages\\users\\index.tsx",
+    "client\\src\\admin\\components\\table\\index.ts",
+    "client\\src\\admin\\components\\forms\\index.ts",
+    "client\\src\\admin\\types\\index.ts",
+    "client\\src\\admin\\hooks\\index.ts",
+    "client\\src\\admin\\services\\index.ts",
+    "client\\src\\admin\\pages\\books\\index.tsx",
+    "client\\src\\admin\\pages\\page-records\\index.tsx",
+    "client\\src\\admin\\pages\\background-images\\index.tsx",
+    "client\\src\\admin\\pages\\sticker\\index.tsx",
+    "client\\src\\admin\\providers\\index.ts",
+    "client\\src\\pages\\dashboard\\index.tsx",
+    "client\\src\\pages\\books\\index.tsx",
+    "client\\src\\components\\shared\\index.ts",
+    "client\\src\\components\\shared\\cards\\index.ts",
+    "client\\src\\components\\shared\\forms\\index.ts",
+    "client\\src\\components\\features\\editor\\canvas-items\\index.tsx",
+    "client\\src\\pages\\images\\index.tsx",
+    "client\\src\\pages\\questions\\index.tsx",
+    "client\\src\\pages\\friends\\index.tsx",
+    "client\\src\\pages\\profile\\index.tsx",
+    "client\\src\\pages\\editor\\index.tsx",
+    "client\\src\\components\\features\\editor\\editor-bar\\index.ts",
+    "client\\src\\components\\features\\editor\\toolbar\\index.ts",
+    "client\\src\\components\\features\\editor\\canvas\\index.ts",
+    "client\\src\\pages\\messenger\\index.tsx",
+    "server\\index.js",
+    "server\\routes\\admin\\index.js"
+  ]
+}

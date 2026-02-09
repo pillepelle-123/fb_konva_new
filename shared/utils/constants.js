@@ -1,41 +1,28 @@
-/**
- * Shared constants for PDF rendering
- */
-
+// Page dimensions in mm for different page sizes
 const PAGE_DIMENSIONS = {
   A4: { width: 210, height: 297 },
   A5: { width: 148, height: 210 },
-  A3: { width: 297, height: 420 },
-  Letter: { width: 216, height: 279 },
-  Square: { width: 210, height: 210 }
+  'Letter': { width: 215.9, height: 279.4 },
+  'Square-8x8': { width: 203.2, height: 203.2 },
+  'Square-10x10': { width: 254, height: 254 },
+  'Square-12x12': { width: 304.8, height: 304.8 }
 };
 
+// Canvas dimensions in pixels (at 300 DPI)
 const CANVAS_DIMS = {
   A4: { width: 2480, height: 3508 },
   A5: { width: 1748, height: 2480 },
-  A3: { width: 3508, height: 4961 },
-  Letter: { width: 2550, height: 3300 },
-  Square: { width: 2480, height: 2480 }
+  'Letter': { width: 2550, height: 3300 },
+  'Square-8x8': { width: 2400, height: 2400 },
+  'Square-10x10': { width: 3000, height: 3000 },
+  'Square-12x12': { width: 3600, height: 3600 }
 };
 
-const PATTERNS = [
-  { id: 'dots', name: 'Dots' },
-  { id: 'grid', name: 'Grid' },
-  { id: 'diagonal', name: 'Diagonal Lines' },
-  { id: 'cross', name: 'Cross Hatch' },
-  { id: 'waves', name: 'Waves' },
-  { id: 'hexagon', name: 'Hexagons' }
-];
+// Pattern definitions (if needed)
+const PATTERNS = {};
 
-// Support both CommonJS and ES Module exports
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    PAGE_DIMENSIONS,
-    CANVAS_DIMS,
-    PATTERNS
-  };
-}
-
-
-
-
+module.exports = {
+  PAGE_DIMENSIONS,
+  CANVAS_DIMS,
+  PATTERNS
+};
