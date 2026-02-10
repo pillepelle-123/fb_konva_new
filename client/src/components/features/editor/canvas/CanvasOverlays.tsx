@@ -1,10 +1,11 @@
 import React from 'react';
 import ContextMenu from '../../../ui/overlays/context-menu';
-import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import { Alert } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { QrCodeModal } from '../qr-code/qr-code-modal';
+import { ImageSelectionModal } from './image-selection-modal';
+import { StickerSelectionModal } from './sticker-selection-modal';
 
 interface CanvasOverlaysProps {
   // Context Menu props
@@ -123,26 +124,6 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   outsidePageTooltip,
   imageQualityTooltip
 }) => {
-  // Lazy imports for heavy components
-  const [ImagesContent, setImagesContent] = React.useState<any>(null);
-  const [StickerSelector, setStickerSelector] = React.useState<any>(null);
-
-  React.useEffect(() => {
-    if (showImageModal && !ImagesContent) {
-      import('../../images/images-content').then(module => {
-        setImagesContent(() => module.default);
-      });
-    }
-  }, [showImageModal, ImagesContent]);
-
-  React.useEffect(() => {
-    if (showStickerModal && !StickerSelector) {
-      import('../tool-settings/sticker-selector').then(module => {
-        setStickerSelector(() => module.StickerSelector);
-      });
-    }
-  }, [showStickerModal, StickerSelector]);
-
   return (
     <>
       {/* Context Menu */}
@@ -169,36 +150,18 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         canDelete={canDelete}
       />
 
-      {/* Image Selection Modal */}
-      <Modal
-        isOpen={showImageModal}
-        onClose={onImageModalClose}
-        title="Select Image"
-      >
-        {ImagesContent && (
-          <ImagesContent
-            token={token}
-            mode="select"
-            onImageSelect={onImageSelect}
-            onImageUpload={(imageUrl: unknown) => onImageSelect(0, imageUrl)}
-            onClose={onImageModalClose}
-          />
-        )}
-      </Modal>
+      <ImageSelectionModal
+        showImageModal={showImageModal}
+        onImageModalClose={onImageModalClose}
+        token={token}
+        onImageSelect={onImageSelect}
+      />
 
-      {/* Sticker Selection Modal */}
-      <Modal
-        isOpen={showStickerModal}
-        onClose={onStickerModalClose}
-        title="Select Sticker"
-      >
-        {StickerSelector && (
-          <StickerSelector
-            onBack={onStickerModalClose}
-            onStickerSelect={onStickerSelect}
-          />
-        )}
-      </Modal>
+      <StickerSelectionModal
+        showStickerModal={showStickerModal}
+        onStickerModalClose={onStickerModalClose}
+        onStickerSelect={onStickerSelect}
+      />
 
       {/* Question Selector Dialog */}
       {showQuestionDialog && selectedQuestionElementId && canManageQuestions && (

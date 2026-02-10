@@ -74,3 +74,5 @@ export function QrCodeModal({ isOpen, onClose, onCreate, initialValue }: QrCodeM
     </Modal>
   );
 }
+
+export default QrCodeModal;
