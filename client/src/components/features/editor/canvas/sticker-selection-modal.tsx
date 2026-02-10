@@ -4,7 +4,7 @@ import { Modal } from '../../../ui/overlays/modal';
 type StickerSelectionModalProps = {
   showStickerModal: boolean;
   onStickerModalClose: () => void;
-  onStickerSelect: (sticker: any) => void;
+  onStickerSelect: (selection: { stickerId: string; textEnabled: boolean; text: string }) => void;
 };
 
 export const StickerSelectionModal: React.FC<StickerSelectionModalProps> = ({
@@ -12,15 +12,15 @@ export const StickerSelectionModal: React.FC<StickerSelectionModalProps> = ({
   onStickerModalClose,
   onStickerSelect
 }) => {
-  const [StickerSelector, setStickerSelector] = React.useState<any>(null);
+  const [StickerSelectorContent, setStickerSelectorContent] = React.useState<any>(null);
 
   React.useEffect(() => {
-    if (showStickerModal && !StickerSelector) {
-      import('../tool-settings/sticker-selector').then((module) => {
-        setStickerSelector(() => module.StickerSelector);
+    if (showStickerModal && !StickerSelectorContent) {
+      import('../tool-settings/sticker-selector-content').then((module) => {
+        setStickerSelectorContent(() => module.StickerSelectorContent);
       });
     }
-  }, [showStickerModal, StickerSelector]);
+  }, [showStickerModal, StickerSelectorContent]);
 
   return (
     <Modal
@@ -28,8 +28,8 @@ export const StickerSelectionModal: React.FC<StickerSelectionModalProps> = ({
       onClose={onStickerModalClose}
       title="Select Sticker"
     >
-      {StickerSelector && (
-        <StickerSelector
+      {StickerSelectorContent && (
+        <StickerSelectorContent
           onBack={onStickerModalClose}
           onStickerSelect={onStickerSelect}
         />

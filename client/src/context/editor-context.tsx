@@ -394,6 +394,20 @@ export interface CanvasElement {
   stickerFilePath?: string;
   stickerOriginalUrl?: string;
   stickerColor?: string;
+  stickerText?: string;
+  stickerTextEnabled?: boolean;
+  stickerTextSettings?: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontBold?: boolean;
+    fontItalic?: boolean;
+    fontColor?: string;
+    fontOpacity?: number;
+  };
+  stickerTextOffset?: {
+    x: number;
+    y: number;
+  };
   qrValue?: string;
   qrForegroundColor?: string;
   qrBackgroundColor?: string;
@@ -749,6 +763,8 @@ export interface HistoryState {
   selectedElementIds: string[];
   toolSettings: Record<string, Record<string, any>>;
   editorSettings: Record<string, Record<string, any>>;
+  pagePagination?: PagePaginationState;
+  pageAssignments: Record<number, any>;
 }
 
 export interface WizardTemplateSelection {
@@ -1342,7 +1358,14 @@ function saveToHistory(state: EditorState, actionName: string, options?: SaveHis
     activePageIndex: state.activePageIndex,
     selectedElementIds: [...state.selectedElementIds],
     toolSettings: cloneData(state.toolSettings),
-    editorSettings: cloneData(state.editorSettings)
+    editorSettings: cloneData(state.editorSettings),
+    pagePagination: state.pagePagination
+      ? {
+          ...state.pagePagination,
+          loadedPages: { ...state.pagePagination.loadedPages }
+        }
+      : undefined,
+    pageAssignments: cloneData(state.pageAssignments)
   };
 
   const newHistory = state.history.slice(0, state.historyIndex + 1);
@@ -1942,10 +1965,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'ADD_PAGE_PAIR_AT_INDEX': {
       if (!state.currentBook || state.userRole === 'author') return state;
       const { insertionIndex } = action.payload;
-      const savedAddPageState = saveToHistory(state, 'Add Spread', {
-        cloneEntireBook: true
-      });
-      const book = savedAddPageState.currentBook!;
+      const savedAddPageState = state;
+      const book = state.currentBook!;
 
       // Get book-level settings
       const bookThemeId = book.themeId || book.bookTheme || 'default';
@@ -2185,7 +2206,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       for (let i = insertIndex + 2; i < finalAddState.currentBook!.pages.length; i++) {
         finalAddState = markPageIndexAsModified(finalAddState, i);
       }
-      return finalAddState;
+      const historyState = saveToHistory(finalAddState, 'Add Spread', {
+        cloneEntireBook: true
+      });
+      return { ...historyState, hasUnsavedChanges: true };
     }
 
     case 'ADD_EMPTY_PAGE_PAIR_AT_INDEX': {
@@ -2433,6 +2457,33 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const renumberedPages = pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }));
       // Recalculate all pagePairIds after renumbering
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      const updatedPagination = savedDeletePageState.pagePagination
+        ? {
+            ...savedDeletePageState.pagePagination,
+            totalPages: pagesWithCorrectPairIds.length,
+            loadedPages: Object.fromEntries(
+              Object.entries(savedDeletePageState.pagePagination.loadedPages)
+                .map(([indexStr, loaded]) => {
+                  const index = Number(indexStr);
+                  if (Number.isNaN(index) || !loaded) {
+                    return null;
+                  }
+                  if (index < bounds.start) {
+                    return [index, true];
+                  }
+                  if (index > bounds.end) {
+                    return [index - pairPages.length, true];
+                  }
+                  return null;
+                })
+                .filter((entry): entry is [number, boolean] => Boolean(entry))
+            )
+          }
+        : {
+            totalPages: pagesWithCorrectPairIds.length,
+            pageSize: PAGE_CHUNK_SIZE,
+            loadedPages: {}
+          };
       const updatedPageAssignmentsAfterDelete: Record<number, any> = {};
       Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
         const pageNum = parseInt(pageNumStr, 10);
@@ -2448,20 +2499,23 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedDeletePageState,
         currentBook: {
           ...savedDeletePageState.currentBook!,
-          pages: renumberedPages
+          pages: pagesWithCorrectPairIds
         },
         activePageIndex: newActiveIndex,
         selectedElementIds: [],
         hasUnsavedChanges: true,
         pagePreviewCache: cacheWithoutPage,
         pagePreviewVersions: versionsWithoutPage,
-        pageAssignments: updatedPageAssignmentsAfterDelete
+        pageAssignments: updatedPageAssignmentsAfterDelete,
+        pagePagination: updatedPagination
       };
       let finalDeleteState = deletePageState;
       for (let i = bounds.start; i < pagesWithCorrectPairIds.length; i++) {
         finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
       }
-      return finalDeleteState;
+      return saveToHistory(finalDeleteState, 'Delete Spread', {
+        cloneEntireBook: true
+      });
     }
     
     case 'DUPLICATE_PAGE': {
@@ -2741,12 +2795,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.historyIndex > 0) {
         const prevState = state.history[state.historyIndex - 1];
         const restoredBook = rebuildBookFromSnapshot(prevState) ?? state.currentBook;
+        const restoredAssignments = prevState.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
+          activePageIndex: prevState.activePageIndex,
           selectedElementIds: prevState.selectedElementIds,
           toolSettings: prevState.toolSettings,
           editorSettings: prevState.editorSettings,
+          pagePagination: prevState.pagePagination,
+          pageAssignments: restoredAssignments,
           historyIndex: state.historyIndex - 1,
           hasUnsavedChanges: true
         };
@@ -2757,12 +2815,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.historyIndex < state.history.length - 1) {
         const nextState = state.history[state.historyIndex + 1];
         const restoredBook = rebuildBookFromSnapshot(nextState) ?? state.currentBook;
+        const restoredAssignments = nextState.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
+          activePageIndex: nextState.activePageIndex,
           selectedElementIds: nextState.selectedElementIds,
           toolSettings: nextState.toolSettings,
           editorSettings: nextState.editorSettings,
+          pagePagination: nextState.pagePagination,
+          pageAssignments: restoredAssignments,
           historyIndex: state.historyIndex + 1,
           hasUnsavedChanges: true
         };
@@ -2773,6 +2835,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (action.payload >= 0 && action.payload < state.history.length) {
         const targetState = state.history[action.payload];
         const restoredBook = rebuildBookFromSnapshot(targetState) ?? state.currentBook;
+        const restoredAssignments = targetState.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
@@ -2780,6 +2843,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           selectedElementIds: targetState.selectedElementIds,
           toolSettings: targetState.toolSettings,
           editorSettings: targetState.editorSettings,
+          pagePagination: targetState.pagePagination,
+          pageAssignments: restoredAssignments,
           historyIndex: action.payload,
           hasUnsavedChanges: true
         };
@@ -2802,6 +2867,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, currentBook: bookWithUpdatedPages };
     
     case 'SET_PAGE_ASSIGNMENTS':
+      if (state.historyIndex >= 0 && state.history[state.historyIndex]) {
+        const syncedHistory = state.history.slice();
+        syncedHistory[state.historyIndex] = {
+          ...syncedHistory[state.historyIndex],
+          pageAssignments: cloneData(action.payload)
+        };
+        return {
+          ...state,
+          history: syncedHistory,
+          pageAssignments: action.payload,
+          hasUnsavedChanges: true
+        };
+      }
       return { ...state, pageAssignments: action.payload, hasUnsavedChanges: true };
     
     case 'SET_BOOK_FRIENDS':
@@ -6370,6 +6448,9 @@ function applyThemeAndPaletteToPage(
 ): Page {
   const pageThemeId = page.themeId || page.background?.pageTheme || book.themeId || book.bookTheme || undefined;
   const bookThemeId = book.themeId || book.bookTheme || undefined;
+  const bookColorPaletteId = book.colorPaletteId || null;
+  const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId || 'default') : null;
+  const bookPaletteId = bookColorPaletteId || bookThemePaletteId || undefined;
 
   let effectivePaletteId: string | undefined = undefined;
   if (page.colorPaletteId === null) {

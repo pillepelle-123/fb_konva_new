@@ -4701,23 +4701,36 @@ export default function Canvas() {
     dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
   };
 
-  const handleStickerSelect = useCallback(async (stickerId: string | null) => {
-    if (!stickerId) return;
+  const handleStickerSelect = useCallback(async (selection: { stickerId: string; textEnabled: boolean; text: string }) => {
+    if (!selection?.stickerId) return;
     if (pendingStickerElementId && !canEditElements) return;
     if (!pendingStickerElementId && !canCreateElements) return;
     
     // Load sticker registry if needed
     await loadStickerRegistry();
     
-    const sticker = getStickerById(stickerId);
+    const sticker = getStickerById(selection.stickerId);
     if (!sticker || !sticker.url) {
-      console.error('Sticker not found or missing URL:', { stickerId, sticker });
+      console.error('Sticker not found or missing URL:', { stickerId: selection.stickerId, sticker });
       setShowStickerModal(false);
       setPendingStickerPosition(null);
       setPendingStickerElementId(null);
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       return;
     }
+
+    const templateIds = getTemplateIdsForDefaults();
+    const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+    const stickerTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
+    const hasStickerText = selection.textEnabled && selection.text.trim().length > 0;
+    const stickerTextSettings = {
+      fontSize: stickerTextDefaults?.textSettings?.fontSize ?? stickerTextDefaults?.fontSize ?? 50,
+      fontFamily: stickerTextDefaults?.textSettings?.fontFamily ?? stickerTextDefaults?.fontFamily ?? 'Arial, sans-serif',
+      fontBold: stickerTextDefaults?.textSettings?.fontBold ?? false,
+      fontItalic: stickerTextDefaults?.textSettings?.fontItalic ?? false,
+      fontColor: stickerTextDefaults?.textSettings?.fontColor ?? stickerTextDefaults?.fontColor ?? '#1f2937',
+      fontOpacity: stickerTextDefaults?.textSettings?.fontOpacity ?? 1
+    };
         
     // If we have a pending element ID, update the existing sticker element
     if (pendingStickerElementId) {
@@ -4727,6 +4740,8 @@ export default function Canvas() {
       img.onload = () => {
         const element = currentPage?.elements.find(el => el.id === pendingStickerElementId);
         if (element) {
+          const existingHasText = Boolean(element.stickerText && element.stickerText.trim().length > 0);
+          const nextTextEnabled = element.stickerTextEnabled ?? existingHasText;
           const maxWidth = 300;
           const aspectRatio = img.width / img.height;
           const width = maxWidth;
@@ -4744,7 +4759,11 @@ export default function Canvas() {
                 stickerFormat: sticker.format,
                 stickerFilePath: sticker.filePath,
                 stickerOriginalUrl: sticker.url,
-                stickerColor: undefined
+                stickerColor: undefined,
+                stickerTextEnabled: nextTextEnabled,
+                stickerText: element.stickerText,
+                stickerTextSettings: element.stickerTextSettings ?? stickerTextSettings,
+                stickerTextOffset: element.stickerTextOffset
               }
             }
           });
@@ -4784,6 +4803,10 @@ export default function Canvas() {
         stickerFormat: sticker.format,
         stickerFilePath: sticker.filePath,
         stickerOriginalUrl: sticker.url,
+        stickerTextEnabled: selection.textEnabled,
+        stickerText: hasStickerText ? selection.text : undefined,
+        stickerTextSettings: stickerTextSettings,
+        stickerTextOffset: hasStickerText ? { x: 0, y: height + 8 } : undefined,
         cornerRadius: 0,
         imageClipPosition: 'center-middle' // Enable crop behavior for stickers, same as images
       };
@@ -5752,7 +5775,7 @@ export default function Canvas() {
               ref={transformerRef}
               keepRatio={Boolean(
                 state.selectedElementIds.length === 1 &&
-                currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'qr_code'
+                ['qr_code', 'sticker'].includes(currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type || '')
               )}
               rotationSnaps={[0, 90, 180, 270]}
               rotationSnapTolerance={5}
@@ -6222,6 +6245,26 @@ export default function Canvas() {
                           updates.rotation = typeof groupRotation === 'number' ? groupRotation : 0;
                           updates.x = groupX - offsetX;
                           updates.y = groupY - offsetY;
+
+                          if (element.type === 'sticker') {
+                            const hasStickerText = Boolean(element.stickerText && element.stickerText.trim().length > 0);
+                            const textEnabled = element.stickerTextEnabled ?? hasStickerText;
+                            if (textEnabled) {
+                              const scaleRatio = baseWidth > 0 ? finalWidth / baseWidth : 1;
+                              if (element.stickerTextSettings?.fontSize) {
+                                updates.stickerTextSettings = {
+                                  ...(element.stickerTextSettings || {}),
+                                  fontSize: Math.max(1, element.stickerTextSettings.fontSize * scaleRatio)
+                                };
+                              }
+                              if (element.stickerTextOffset) {
+                                updates.stickerTextOffset = {
+                                  x: element.stickerTextOffset.x * scaleRatio,
+                                  y: element.stickerTextOffset.y * scaleRatio
+                                };
+                              }
+                            }
+                          }
                           
                           // Clean up stored state
                           delete (node as any).__transformStartState;

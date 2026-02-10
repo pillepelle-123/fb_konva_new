@@ -37,7 +37,7 @@ interface CanvasOverlaysProps {
   // Sticker Modal props
   showStickerModal: boolean;
   onStickerModalClose: () => void;
-  onStickerSelect: (sticker: any) => void;
+  onStickerSelect: (selection: { stickerId: string; textEnabled: boolean; text: string }) => void;
 
   // Question Dialog props
   showQuestionDialog: boolean;

@@ -34,7 +34,7 @@ export function PageActions({
   return (
     <div className="flex items-center gap-1 md:gap-2">
       <Tooltip
-        content={addDisabled ? 'Cannot add a spread here' : 'Add new spread'}
+        content={addDisabled ? 'Cannot add page pair here' : 'Add page pair'}
         side="bottom_editor_bar"
         backgroundColor="bg-background"
         textColor="text-foreground"
@@ -42,7 +42,7 @@ export function PageActions({
         <Button
           variant="outline"
           size="xs"
-          onClick={() => window.dispatchEvent(new CustomEvent('addPage'))}
+          onClick={onAddPage}
           disabled={addDisabled}
           className={`h-7 ${addDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
@@ -86,8 +86,8 @@ export function PageActions({
       <Tooltip
         content={
           deleteDisabled
-            ? deleteTooltip || 'Cannot delete this spread'
-            : 'Delete current spread'
+            ? deleteTooltip || 'Cannot delete this page pair'
+            : 'Delete current page pair'
         }
         side="bottom_editor_bar"
         backgroundColor="bg-background"

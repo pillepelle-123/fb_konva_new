@@ -1,30 +1,37 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Button } from '../../../ui/primitives/button';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, Search } from 'lucide-react';
+import { Button } from '../../../ui/primitives/button';
+import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
-import { 
+import { ImageGrid, type ImageGridItem } from '../../../shared/image-grid';
+import {
   getStickerCategories,
-  searchStickers,
   getStickersWithUrl,
-  loadStickerRegistry
+  loadStickerRegistry,
+  searchStickers
 } from '../../../../data/templates/stickers';
 import type { StickerCategory, StickerWithUrl } from '../../../../types/template-types';
-import { ImageGrid, type ImageGridItem } from '../../../shared/image-grid';
 
-interface StickerSelectorProps {
+interface StickerSelectorContentProps {
   onBack: () => void;
   selectedStickerId?: string | null;
-  onStickerSelect?: (stickerId: string | null) => void;
+  onStickerSelect?: (selection: { stickerId: string; textEnabled: boolean; text: string }) => void;
 }
 
-export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: StickerSelectorProps) {
+export function StickerSelectorContent({
+  onBack,
+  selectedStickerId,
+  onStickerSelect
+}: StickerSelectorContentProps) {
   const [selectedCategory, setSelectedCategory] = useState<StickerCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<'vector' | 'pixel' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSticker, setSelectedSticker] = useState<string | null>(selectedStickerId || null);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [textEnabled, setTextEnabled] = useState(false);
+  const [stickerText, setStickerText] = useState('');
+
   // Load sticker registry on mount
   useEffect(() => {
     const loadStickers = async () => {
@@ -51,19 +58,19 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
 
     // Category filter
     if (selectedCategory !== 'all') {
-      stickers = stickers.filter(sticker => sticker.category === selectedCategory);
+      stickers = stickers.filter((sticker) => sticker.category === selectedCategory);
     }
 
     // Format filter
     if (selectedFormat !== 'all') {
-      stickers = stickers.filter(sticker => sticker.format === selectedFormat);
+      stickers = stickers.filter((sticker) => sticker.format === selectedFormat);
     }
 
     // Search filter
     if (searchQuery.trim()) {
       const searchResults = searchStickers(searchQuery);
-      const searchIds = new Set(searchResults.map(sticker => sticker.id));
-      stickers = stickers.filter(sticker => searchIds.has(sticker.id));
+      const searchIds = new Set(searchResults.map((sticker) => sticker.id));
+      stickers = stickers.filter((sticker) => searchIds.has(sticker.id));
     }
 
     return stickers;
@@ -71,10 +78,14 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
 
   const handleStickerSelect = (sticker: StickerWithUrl) => {
     setSelectedSticker(sticker.id);
-    onStickerSelect?.(sticker.id);
+    onStickerSelect?.({
+      stickerId: sticker.id,
+      textEnabled,
+      text: stickerText
+    });
   };
 
-  const selectedStickerData = selectedSticker ? allStickers.find(sticker => sticker.id === selectedSticker) : null;
+  const selectedStickerData = selectedSticker ? allStickers.find((sticker) => sticker.id === selectedSticker) : null;
 
   if (isLoading) {
     return (
@@ -136,7 +147,7 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
             className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"
           >
             <option value="all">All Categories</option>
-            {categories.map(cat => (
+            {categories.map((cat) => (
               <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
             ))}
           </select>
@@ -157,6 +168,24 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Label variant="xs" className="flex items-center gap-2">
+          <Checkbox
+            checked={textEnabled}
+            onCheckedChange={(checked) => setTextEnabled(Boolean(checked))}
+          />
+          Add text to sticker
+        </Label>
+        <input
+          type="text"
+          placeholder="Optional sticker text"
+          value={stickerText}
+          onChange={(e) => setStickerText(e.target.value)}
+          disabled={!textEnabled}
+          className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm disabled:bg-gray-100"
+        />
+      </div>
+
       <Separator />
 
       <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4">
@@ -167,7 +196,7 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
             thumbnailUrl: sticker.thumbnailUrl,
             name: sticker.name,
             category: sticker.category,
-            format: sticker.format,
+            format: sticker.format
           }))}
           selectedItemId={selectedSticker}
           onItemSelect={handleStickerSelect}
@@ -184,7 +213,7 @@ export function StickerSelector({ onBack, selectedStickerId, onStickerSelect }: 
                 <p className="text-xs text-gray-600">{selectedStickerData.description || 'No description'}</p>
                 {selectedStickerData.tags && selectedStickerData.tags.length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-2">
-                    {selectedStickerData.tags.map(tag => (
+                    {selectedStickerData.tags.map((tag) => (
                       <span key={tag} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">
                         {tag}
                       </span>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Rect, Image as KonvaImage, Group, Line, Path, Circle } from 'react-konva';
 import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
@@ -115,8 +115,12 @@ export function getCrop(
   };
 }
 
-export default function Image(props: CanvasItemProps) {
-  const { element, zoom = 1 } = props;
+interface ImageProps extends CanvasItemProps {
+  overlay?: ReactNode;
+}
+
+export default function Image(props: ImageProps) {
+  const { element, zoom = 1, overlay, ...baseProps } = props;
 
   // Feature Flag for Adaptive Image Resolution (serve images at optimal resolution based on zoom)
   const ADAPTIVE_IMAGE_RESOLUTION_ENABLED = process.env.NODE_ENV === 'development'
@@ -388,7 +392,8 @@ export default function Image(props: CanvasItemProps) {
 
   return (
     <BaseCanvasItem
-      {...props}
+      {...baseProps}
+      element={element}
       onDoubleClick={handleDoubleClick}
       onMouseEnter={() => setIsImageHovered(true)}
       onMouseLeave={handleImageHoverEnd}
@@ -580,6 +585,7 @@ export default function Image(props: CanvasItemProps) {
           })()}
         </>
       )}
+      {overlay}
     </BaseCanvasItem>
   );
 }

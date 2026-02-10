@@ -104,19 +104,19 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const deleteTooltip = !deleteLeavesMinimum
     ? `Books must keep at least ${MIN_TOTAL_PAGES} pages.`
     : activePairSpecial
-      ? 'Special spreads cannot be deleted.'
+      ? 'Special page pairs cannot be deleted.'
       : activePairLocked
-        ? 'This spread is locked.'
+        ? 'This page pair is locked.'
         : undefined;
   const canAddSpread = state.currentBook.pages.length + 2 <= MAX_TOTAL_PAGES;
   const duplicateBlockedMessage = activePairSpecial
-    ? 'Special spreads cannot be duplicated.'
+    ? 'Special page pairs cannot be duplicated.'
     : activePairLocked
-      ? 'This spread is locked and cannot be duplicated.'
+      ? 'This page pair is locked and cannot be duplicated.'
       : activePairNonPrintable
-        ? 'Non-printable spreads cannot be duplicated.'
-        : 'This spread cannot be duplicated.';
-  const addBlockedMessage = `Books can have at most ${MAX_TOTAL_PAGES} pages. Delete a spread before adding another one.`;
+        ? 'Non-printable page pairs cannot be duplicated.'
+        : 'This page pair cannot be duplicated.';
+  const addBlockedMessage = `Books can have at most ${MAX_TOTAL_PAGES} pages. Delete a page pair before adding another one.`;
 
   const { pages } = state.currentBook;
   const visiblePages = getVisiblePages();
@@ -252,17 +252,16 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
       setShowAlert({ title: 'Cannot add spread', message: addBlockedMessage });
       return;
     }
-    dispatch({ type: 'ADD_PAGE' });
-    // Jump to the newly added page (use visiblePages to get correct count)
-    const newVisiblePages = getVisiblePages();
-    if (newVisiblePages.length > 0) {
-      const lastPage = newVisiblePages[newVisiblePages.length - 1];
-      const lastPageIndex = state.currentBook.pages.findIndex(p => p.id === lastPage.id);
-      if (lastPageIndex !== -1) {
-        ensurePagesLoaded(lastPageIndex, lastPageIndex + 1);
-        dispatch({ type: 'SET_ACTIVE_PAGE', payload: lastPageIndex });
-      }
-    }
+    const totalPages = state.pagePagination?.totalPages ?? state.currentBook.pages.length;
+    const insertionIndex = activePairPages.length
+      ? Math.max(
+          0,
+          Math.min(
+            ...activePairPages.map((page) => (page.pageNumber ?? 1) - 1)
+          )
+        )
+      : totalPages;
+    handleShowAddPageDialog(insertionIndex);
   };
 
   const handleDeletePage = () => {

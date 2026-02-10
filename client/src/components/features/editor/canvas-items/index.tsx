@@ -173,7 +173,8 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
 
   if (element.type === 'sticker') {
     // Force re-render when sticker settings change by using a key
-    const stickerKey = `${element.id}-${element.imageOpacity}-${(element as any).stickerColor}`;
+    const stickerEl = element as any;
+    const stickerKey = `${element.id}-${element.imageOpacity}-${stickerEl.stickerColor}-${stickerEl.stickerTextEnabled}-${stickerEl.stickerText}-${stickerEl.stickerTextSettings?.fontFamily}-${stickerEl.stickerTextSettings?.fontSize}-${stickerEl.stickerTextSettings?.fontBold}-${stickerEl.stickerTextSettings?.fontItalic}-${stickerEl.stickerTextSettings?.fontColor}-${stickerEl.stickerTextSettings?.fontOpacity}-${stickerEl.stickerTextOffset?.x}-${stickerEl.stickerTextOffset?.y}`;
     return <Sticker key={stickerKey} {...props} />;
   }
 

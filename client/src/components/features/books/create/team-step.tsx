@@ -893,7 +893,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label variant="sm">Facing Pages</Label>
-                    <Tooltip content="Assign complete spreads (requires an even pages-per-user value)." side="bottom">
+                    <Tooltip content="Assign page pairs (requires an even pages-per-user value)." side="bottom">
                       <div>
                         <Checkbox
                           checked={wizardState.team.friendFacingPages}
