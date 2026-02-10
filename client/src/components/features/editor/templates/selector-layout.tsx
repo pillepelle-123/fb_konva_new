@@ -17,7 +17,8 @@ interface SelectorLayoutProps {
 }
 
 export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditBookSettings } = useEditor();
+  const canApplyToEntireBook = canEditBookSettings();
   
   const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
@@ -209,7 +210,7 @@ export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutPr
       onApply={handleApply}
       canApply={selectedLayout !== currentLayout}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={!isBookLevel ? setApplyToEntireBook : undefined}
+      onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
       filterComponent={(
         <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
           <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">

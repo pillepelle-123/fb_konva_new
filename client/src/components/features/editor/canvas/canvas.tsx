@@ -116,11 +116,51 @@ type BackgroundImageEntry = {
   preview: HTMLImageElement;
 };
 
+const CREATION_TOOLS = new Set([
+  'brush',
+  'line',
+  'rect',
+  'circle',
+  'triangle',
+  'polygon',
+  'heart',
+  'star',
+  'speech-bubble',
+  'dog',
+  'cat',
+  'smiley',
+  'text',
+  'question',
+  'answer',
+  'qna',
+  'free_text',
+  'image',
+  'sticker',
+  'qr_code'
+]);
+
 
 
 
 export default function Canvas() {
-  const { state, dispatch, getAnswerText, getQuestionAssignmentsForUser, undo, redo, canAccessEditor, canEditCanvas, ensurePagesLoaded, isQuestionAvailableForUser, getQuestionText } = useEditor();
+  const {
+    state,
+    dispatch,
+    getAnswerText,
+    getQuestionAssignmentsForUser,
+    undo,
+    redo,
+    canAccessEditor,
+    canCreateElement,
+    canEditElement,
+    canDeleteElement,
+    canCreateElementType,
+    canDeleteElementType,
+    canEditBookSettings,
+    ensurePagesLoaded,
+    isQuestionAvailableForUser,
+    getQuestionText
+  } = useEditor();
   const { token, user } = useAuth();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -131,11 +171,37 @@ export default function Canvas() {
   const isDraggingGroupRef = useRef<boolean>(false);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
+  const canCreateElements = canCreateElement();
+  const canEditElements = canEditElement();
+  const canDeleteElements = canDeleteElement();
+  const canCreateQna = canCreateElementType('qna');
+  const canDeleteQna = canDeleteElementType('qna');
+  const isCreationToolActive = CREATION_TOOLS.has(state.activeTool);
+
+  const addElementIfAllowed = useCallback(
+    (element: CanvasElement) => {
+      if (!canCreateElements) return false;
+      if (element.textType === 'qna' && !canCreateQna) return false;
+      dispatch({ type: 'ADD_ELEMENT', payload: element });
+      return true;
+    },
+    [canCreateElements, canCreateQna, dispatch]
+  );
+
+  const deleteElementIfAllowed = useCallback(
+    (elementId: string) => {
+      if (!canDeleteElements) return false;
+      dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
+      return true;
+    },
+    [canDeleteElements, dispatch]
+  );
 
   // Partner page rendering optimization
   // Hide partner page during interactions and use Konva cache for better performance
   const partnerPageGroupRef = useRef<Konva.Group>(null);
   const [hidePartnerDuringInteraction, setHidePartnerDuringInteraction] = useState(false);
+  const showPartnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track zooming state for disabling interactions during zoom
   const isZoomingRef = useRef(false);
@@ -200,6 +266,15 @@ export default function Canvas() {
   };
 
   const debouncedBatchDraw = useDebouncedCanvasUpdate();
+
+  const setStageCursor = useCallback((cursor: string | null) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const nextCursor = cursor ?? '';
+    if (stage.container().style.cursor !== nextCursor) {
+      stage.container().style.cursor = nextCursor;
+    }
+  }, []);
 
   // PERFORMANCE OPTIMIZATION: Throttle function for selection rectangle updates
   // Simple throttle implementation - limits function calls to once per delay period
@@ -370,13 +445,15 @@ export default function Canvas() {
     [setStagePos] // setStagePos is stable from useCanvasZoomPan
   );
   
-  // Prevent authors from opening question dialog
+  const canManageQuestions = canEditBookSettings();
+
+  // Prevent users without question permissions from opening question dialog
   useEffect(() => {
-    if (showQuestionDialog && user?.role === 'author') {
+    if (showQuestionDialog && !canManageQuestions) {
       setShowQuestionDialog(false);
       setSelectedQuestionElementId(null);
     }
-  }, [showQuestionDialog, user]);
+  }, [showQuestionDialog, canManageQuestions]);
 
   useEffect(() => {
     const handleQualityChange = (event: CustomEvent<{ mode?: 'preview' | 'full' }>) => {
@@ -395,17 +472,26 @@ export default function Canvas() {
       isZoomingRef.current = true;
       isInteractingRef.current = true;
       setHidePartnerDuringInteraction(true);
+      
+      // Clear existing timeouts
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      if (showPartnerTimeoutRef.current) clearTimeout(showPartnerTimeoutRef.current);
+      
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
-        setHidePartnerDuringInteraction(false);
+        
+        // Delay showing partner page to avoid re-renders during continuous zoom
+        showPartnerTimeoutRef.current = setTimeout(() => {
+          setHidePartnerDuringInteraction(false);
+        }, 300);
       }, 200);
     };
 
     window.addEventListener('zoom-start', handleZoomStart);
     return () => {
       window.removeEventListener('zoom-start', handleZoomStart);
+      if (showPartnerTimeoutRef.current) clearTimeout(showPartnerTimeoutRef.current);
     };
   }, []);
 
@@ -421,6 +507,7 @@ export default function Canvas() {
   // Verhindert, dass nach einem ungültigen Platzierungsversuch automatisch
   // auf das Auswahl-Tool zurückgeschaltet wird (siehe handleStageClick)
   const [suppressNextBackgroundClickSelect, setSuppressNextBackgroundClickSelect] = useState(false);
+  const suppressNextBackgroundClickSelectRef = useRef(false);
   // Tooltip für die inaktive Seite eines Seitenpaares ("Click to enter this page.")
   const [inactivePageTooltip, setInactivePageTooltip] = useState<{ x: number; y: number } | null>(null);
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
@@ -577,6 +664,9 @@ export default function Canvas() {
     // Use the page reference itself as dependency, not the pages array
     // This prevents recalculation when only one element changes
     [state.currentBook?.pages?.[state.activePageIndex], state.activePageIndex]
+  );
+  const selectedHasQna = Boolean(
+    currentPage?.elements?.some((el) => state.selectedElementIds.includes(el.id) && el.textType === 'qna')
   );
 
   // Question selection handler
@@ -935,6 +1025,12 @@ export default function Canvas() {
     pageOffsetY
   } = canvasDimensions;
 
+  const isPointerOutsideActivePage = useCallback((pos: { x: number; y: number }) => {
+    const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
+    const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+    return x < 0 || y < 0 || x > canvasWidth || y > canvasHeight;
+  }, [stagePos.x, stagePos.y, zoom, activePageOffsetX, pageOffsetY, canvasWidth, canvasHeight]);
+
   // PERFORMANCE OPTIMIZATION: Memoize elementsInSelection calculation
   // Calculate once per selectionRect change instead of for each element
   // This reduces complexity from O(n²) to O(n) during selection rectangle dragging
@@ -981,6 +1077,7 @@ export default function Canvas() {
 
   const showOutsidePageTooltip = useCallback(
     (clientX: number, clientY: number) => {
+      suppressNextBackgroundClickSelectRef.current = true;
       setOutsidePageTooltip({ x: clientX, y: clientY - 40 });
       setSuppressNextBackgroundClickSelect(true);
       // Auto-hide after a short delay so the user can quickly try again
@@ -1023,7 +1120,9 @@ export default function Canvas() {
     currentPage,
     isCoverPage,
     showCoverRestrictionAlert,
-    setContextMenu
+    setContextMenu,
+    canCreateQna,
+    canDeleteQna
   });
 
   const BADGE_VERTICAL_SCREEN_GAP = 32;
@@ -1080,9 +1179,15 @@ export default function Canvas() {
       if (evt?.evt instanceof MouseEvent && evt.evt.button !== 0) {
         return;
       }
+      if (isCreationToolActive) {
+        if (evt?.evt && typeof evt.evt.clientX === 'number' && typeof evt.evt.clientY === 'number') {
+          showOutsidePageTooltip(evt.evt.clientX, evt.evt.clientY);
+        }
+        return;
+      }
       switchToPartnerPage();
     },
-    [switchToPartnerPage]
+    [isCreationToolActive, showOutsidePageTooltip, switchToPartnerPage]
   );
 
   const handlePreviewBadgeClick = useCallback(
@@ -1657,8 +1762,6 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Hide partner page during drag operations
-    setHidePartnerDuringInteraction(true);
     
     // Deactivate style painter on any click
     if (state.stylePainterActive && e.evt.button === 0) {
@@ -1681,9 +1784,9 @@ export default function Canvas() {
     
     // Block all interactions for no_access level
     if (!canAccessEditor()) return;
-    
-    // Block canvas editing for non-full-edit levels
-    if (!canEditCanvas()) return;
+
+    const isPanAction = e.evt.button === 2 || state.activeTool === 'pan';
+    if (!canEditElements && !canCreateElements && !isPanAction) return;
     
     const lockElements = state.editorSettings?.editor?.lockElements;
     
@@ -1720,6 +1823,7 @@ export default function Canvas() {
         setPanStart({ x: pos.x - stagePos.x, y: pos.y - stagePos.y });
       }
     } else if (state.activeTool === 'brush') {
+      if (!canCreateElements) return;
       drawingState.setIsDrawing(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -1734,6 +1838,7 @@ export default function Canvas() {
         setCurrentPath([x, y]);
       }
     } else if (state.activeTool === 'line') {
+      if (!canCreateElements) return;
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -1753,6 +1858,7 @@ export default function Canvas() {
         }
       }
     } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(state.activeTool)) {
+      if (!canCreateElements) return;
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -1919,6 +2025,8 @@ export default function Canvas() {
       
       const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
       const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
+
+      if (!canCreateElements) return;
       
       // Check if clicked on background
       const isBackgroundClick = e.target === e.target.getStage() || 
@@ -1962,8 +2070,9 @@ export default function Canvas() {
         }
         
         if (newElement) {
-          dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+          if (addElementIfAllowed(newElement)) {
+            dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+          }
         }
       }
     }
@@ -1972,6 +2081,9 @@ export default function Canvas() {
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
     // Track mouse position for paste functionality
     const pos = e.target.getStage()?.getPointerPosition();
+    if (pos && isCreationToolActive && !state.stylePainterActive) {
+      setStageCursor(isPointerOutsideActivePage(pos) ? 'not-allowed' : null);
+    }
     if (pos) {
       setLastMousePos({ x: pos.x, y: pos.y });
       
@@ -2114,7 +2226,6 @@ export default function Canvas() {
         }
       }
     } else if (drawingState.isDrawing && state.activeTool === 'brush') {
-      setHidePartnerDuringInteraction(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -2159,7 +2270,6 @@ export default function Canvas() {
         });
       }
     } else if ((isMovingGroup || isMovingGroupRef.current) && (groupMoveStart || groupMoveStartRef.current)) {
-      setHidePartnerDuringInteraction(true);
       // Block group move if elements are locked
       if (state.editorSettings?.editor?.lockElements) {
         setIsMovingGroup(false);
@@ -2220,7 +2330,6 @@ export default function Canvas() {
         }
       }
     } else if (isSelecting && selectionStart) {
-      setHidePartnerDuringInteraction(true);
       // Update selection rectangle
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -2244,11 +2353,15 @@ export default function Canvas() {
     }
   };
 
+  useEffect(() => {
+    if (!isCreationToolActive) {
+      setStageCursor(null);
+    }
+  }, [isCreationToolActive, setStageCursor]);
+
 
   /* Brush */
   const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Show partner page after interaction ends
-    setTimeout(() => setHidePartnerDuringInteraction(false), 100);
     
     // Block all mouse up interactions for no_access users except panning
     if (state.editorInteractionLevel === 'no_access') {
@@ -2274,6 +2387,12 @@ export default function Canvas() {
       setIsPanning(false);
       setPanStart({ x: 0, y: 0 });
       isInteractingRef.current = false;
+      
+      // Delay showing partner page after panning ends
+      if (showPartnerTimeoutRef.current) clearTimeout(showPartnerTimeoutRef.current);
+      showPartnerTimeoutRef.current = setTimeout(() => {
+        setHidePartnerDuringInteraction(false);
+      }, 300);
       
       // Clear transform cache after panning ends
       requestAnimationFrame(() => {
@@ -2348,8 +2467,9 @@ export default function Canvas() {
           height: height,
           ...lineDefaults // Apply ALL defaults
         };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        if (addElementIfAllowed(newElement)) {
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        }
       }
       setIsDrawingLine(false);
       setLineStart(null);
@@ -2396,8 +2516,9 @@ export default function Canvas() {
           ...shapeDefaults, // Apply ALL defaults
           polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || shapeDefaults.polygonSides || 5) : shapeDefaults.polygonSides
         };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        if (addElementIfAllowed(newElement)) {
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        }
       }
       setIsDrawingShape(false);
       setShapeStart(null);
@@ -2489,7 +2610,7 @@ export default function Canvas() {
           };
           
           // Add question element first
-          dispatch({ type: 'ADD_ELEMENT', payload: questionElement });
+          addElementIfAllowed(questionElement);
         } else if (previewTextbox.type === 'qna') {
           const templateIds = getTemplateIdsForDefaults();
           const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
@@ -2559,8 +2680,9 @@ export default function Canvas() {
           };
         }
         
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        if (addElementIfAllowed(newElement)) {
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        }
       }
       setIsDrawingTextbox(false);
       setTextboxStart(null);
@@ -2735,7 +2857,7 @@ export default function Canvas() {
     }
     
     // Block context menu for restricted users
-    if (!canEditCanvas() || state.editorInteractionLevel === 'answer_only') return;
+    if (!canEditElements) return;
     
     // Don't show context menu if we just finished panning
     if (hasPanned) {
@@ -2770,6 +2892,9 @@ export default function Canvas() {
 
   const handleCopyItems = () => {
     if (!currentPage) return;
+    if (!canCreateQna && currentPage.elements.some(el => state.selectedElementIds.includes(el.id) && el.textType === 'qna')) {
+      return;
+    }
     
     let elementsToInclude = new Set(state.selectedElementIds);
     
@@ -2795,6 +2920,8 @@ export default function Canvas() {
 
   const handlePasteItems = () => {
     if (clipboard.length === 0) return;
+    if (!canCreateElements) return;
+    if (!canCreateQna && clipboard.some((element) => element.textType === 'qna')) return;
     
     // Check if clipboard contains question or answer elements
     const hasQuestionAnswer = clipboard.some(element => 
@@ -2836,8 +2963,25 @@ export default function Canvas() {
       }
     }
     
-    const x = (lastMousePos.x - stagePos.x) / zoom - activePageOffsetX;
-    const y = (lastMousePos.y - stagePos.y) / zoom - pageOffsetY;
+    // Check if pasting on same page as source
+    const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+    const isPastingOnSamePage = clipboard.some(element => element.pageId === currentPageId);
+    
+    // Calculate offset based on top-left element to maintain relative positions
+    const minX = Math.min(...clipboard.map(el => el.x));
+    const minY = Math.min(...clipboard.map(el => el.y));
+    
+    // Calculate paste position based on whether it's same page or different page
+    let x: number, y: number;
+    if (isPastingOnSamePage) {
+      // Same page: offset by 20px right and 20px down from original position
+      x = minX + 150;
+      y = minY + 150;
+    } else {
+      // Different page: use original position (top-left element position)
+      x = minX;
+      y = minY;
+    }
 
     const filteredClipboard = clipboard;
     if (isCoverPage && filteredClipboard.length < clipboard.length) {
@@ -2853,10 +2997,6 @@ export default function Canvas() {
     clipboard.forEach(element => {
       idMapping.set(element.id, uuidv4());
     });
-    
-    // Calculate offset based on top-left element to maintain relative positions
-    const minX = Math.min(...clipboard.map(el => el.x));
-    const minY = Math.min(...clipboard.map(el => el.y));
     
     const newElementIds: string[] = [];
     
@@ -2911,7 +3051,7 @@ export default function Canvas() {
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
-      dispatch({ type: 'ADD_ELEMENT', payload: pastedElement });
+      addElementIfAllowed(pastedElement);
     });
     
     // Select the pasted elements
@@ -2923,6 +3063,7 @@ export default function Canvas() {
   };
 
   const handleMoveToFront = () => {
+    if (!canEditElements) return;
     if (state.selectedElementIds.length === 0) return;
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'MOVE_ELEMENT_TO_FRONT', payload: elementId });
@@ -2931,6 +3072,7 @@ export default function Canvas() {
   };
 
   const handleMoveToBack = () => {
+    if (!canEditElements) return;
     if (state.selectedElementIds.length === 0) return;
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'MOVE_ELEMENT_TO_BACK', payload: elementId });
@@ -2939,6 +3081,7 @@ export default function Canvas() {
   };
 
   const handleMoveUp = () => {
+    if (!canEditElements) return;
     if (state.selectedElementIds.length === 0) return;
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'MOVE_ELEMENT_UP', payload: elementId });
@@ -2947,6 +3090,7 @@ export default function Canvas() {
   };
 
   const handleMoveDown = () => {
+    if (!canEditElements) return;
     if (state.selectedElementIds.length === 0) return;
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'MOVE_ELEMENT_DOWN', payload: elementId });
@@ -2955,6 +3099,12 @@ export default function Canvas() {
   };
 
   const handleGroup = () => {
+    if (!canCreateElements || !canDeleteElements) return;
+    if (!canCreateQna || !canDeleteQna) {
+      if (currentPage?.elements.some(el => state.selectedElementIds.includes(el.id) && el.textType === 'qna')) {
+        return;
+      }
+    }
     if (!currentPage || state.selectedElementIds.length < 2) return;
     
     const groupId = uuidv4();
@@ -2984,14 +3134,20 @@ export default function Canvas() {
     
     // Remove individual elements and add group
     state.selectedElementIds.forEach(id => {
-      dispatch({ type: 'DELETE_ELEMENT', payload: id });
+      deleteElementIfAllowed(id);
     });
-    dispatch({ type: 'ADD_ELEMENT', payload: groupElement });
+    addElementIfAllowed(groupElement);
     dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [groupId] });
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
   const handleUngroup = () => {
+    if (!canCreateElements || !canDeleteElements) return;
+    if (!canCreateQna || !canDeleteQna) {
+      if (currentPage?.elements.some(el => state.selectedElementIds.includes(el.id) && el.textType === 'qna')) {
+        return;
+      }
+    }
     if (!currentPage || state.selectedElementIds.length !== 1) return;
     
     const groupElement = currentPage.elements.find(el => el.id === state.selectedElementIds[0]);
@@ -3005,10 +3161,10 @@ export default function Canvas() {
         y: groupElement.y + el.y
       };
       newElementIds.push(newElement.id);
-      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+      addElementIfAllowed(newElement);
     });
     
-    dispatch({ type: 'DELETE_ELEMENT', payload: groupElement.id });
+    deleteElementIfAllowed(groupElement.id);
     dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
     setContextMenu({ x: 0, y: 0, visible: false });
   };
@@ -3082,10 +3238,16 @@ export default function Canvas() {
       isZoomingRef.current = true;
       isInteractingRef.current = true;
       if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      if (showPartnerTimeoutRef.current) clearTimeout(showPartnerTimeoutRef.current);
+      
       zoomTimeoutRef.current = setTimeout(() => {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
-        setHidePartnerDuringInteraction(false);
+        
+        // Delay showing partner page to avoid re-renders during continuous zoom
+        showPartnerTimeoutRef.current = setTimeout(() => {
+          setHidePartnerDuringInteraction(false);
+        }, 300);
         
         // Clear transform cache after zoom ends
         requestAnimationFrame(() => {
@@ -3144,7 +3306,8 @@ export default function Canvas() {
     // Nach einem ungültigen Platzierungsversuch (Outside-Page-Tooltip)
     // soll der aktuelle Modus erhalten bleiben und keine Selektion
     // / Werkzeug-Umschaltung stattfinden.
-    if (suppressNextBackgroundClickSelect) {
+    if (suppressNextBackgroundClickSelectRef.current || suppressNextBackgroundClickSelect) {
+      suppressNextBackgroundClickSelectRef.current = false;
       setSuppressNextBackgroundClickSelect(false);
       return;
     }
@@ -3592,6 +3755,14 @@ export default function Canvas() {
     };
     
     const handleBrushDone = () => {
+      if (!canCreateElements) {
+        setBrushStrokes([]);
+        setIsBrushMode(false);
+        isBrushModeRef.current = false;
+        window.dispatchEvent(new CustomEvent('brushModeEnd'));
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        return;
+      }
       if (brushStrokes.length > 0) {
         const templateIds = getTemplateIdsForDefaults();
         const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
@@ -3623,7 +3794,7 @@ export default function Canvas() {
           groupedElements: groupedBrushElements,
           theme: brushDefaults.theme
         };
-        dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+        addElementIfAllowed(newElement);
       }
       
       setBrushStrokes([]);
@@ -3713,6 +3884,9 @@ export default function Canvas() {
           handleCopyItems();
         } else if (e.key === 'v') {
           e.preventDefault();
+          if (!canCreateElements) {
+            return;
+          }
           if (clipboard.length > 0) {
             handlePasteItems();
           } else {
@@ -3734,7 +3908,7 @@ export default function Canvas() {
                   fontColor: '#1f2937',
                   textType: 'text' as const
                 };
-                dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+                addElementIfAllowed(newElement);
               }
             }).catch(() => {});
           }
@@ -3899,8 +4073,7 @@ export default function Canvas() {
     };
     
     const handleOpenQuestionModal = (event: CustomEvent) => {
-      // Prevent authors from opening question manager
-      if (!user || user.role === 'author') {
+      if (!canManageQuestions) {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
@@ -3911,8 +4084,7 @@ export default function Canvas() {
     };
     
     const handleOpenQuestionSelector = (event: CustomEvent) => {
-      // Prevent authors from opening question selector
-      if (!user || user.role === 'author') {
+      if (!canManageQuestions) {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
@@ -4453,6 +4625,8 @@ export default function Canvas() {
   }, [isSelecting, selectionStart, currentPage, activePageOffsetX, pageOffsetY, dispatch, stagePos, zoom]);
 
   const handleImageSelect = useCallback((imageId: number, imageUrl: string) => {
+    if (pendingImageElementId && !canEditElements) return;
+    if (!pendingImageElementId && !canCreateElements) return;
     // If we have a pending element ID, update the existing placeholder element
     if (pendingImageElementId) {
       // Load image to get original dimensions
@@ -4510,7 +4684,7 @@ export default function Canvas() {
         cornerRadius: 0
       };
       
-      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
+      addElementIfAllowed(newElement);
     };
     img.src = imageUrl;
     
@@ -4518,7 +4692,7 @@ export default function Canvas() {
     setShowImageModal(false);
     setPendingImagePosition(null);
     setPendingImageElementId(null);
-  }, [pendingImageElementId, currentPage, pendingImagePosition, dispatch]);
+  }, [pendingImageElementId, currentPage, pendingImagePosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch]);
 
   const handleImageModalClose = () => {
     setShowImageModal(false);
@@ -4529,6 +4703,8 @@ export default function Canvas() {
 
   const handleStickerSelect = useCallback(async (stickerId: string | null) => {
     if (!stickerId) return;
+    if (pendingStickerElementId && !canEditElements) return;
+    if (!pendingStickerElementId && !canCreateElements) return;
     
     // Load sticker registry if needed
     await loadStickerRegistry();
@@ -4612,11 +4788,12 @@ export default function Canvas() {
         imageClipPosition: 'center-middle' // Enable crop behavior for stickers, same as images
       };
       
-      dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      setShowStickerModal(false);
-      setPendingStickerPosition(null);
-      setPendingStickerElementId(null);
+      if (addElementIfAllowed(newElement)) {
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        setShowStickerModal(false);
+        setPendingStickerPosition(null);
+        setPendingStickerElementId(null);
+      }
     };
     img.onerror = (error) => {
       console.error('Failed to load sticker image:', { 
@@ -4651,10 +4828,11 @@ export default function Canvas() {
             cornerRadius: 0
           };
           
-          dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-          setShowStickerModal(false);
-          setPendingStickerPosition(null);
+          if (addElementIfAllowed(newElement)) {
+            dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+            setShowStickerModal(false);
+            setPendingStickerPosition(null);
+          }
         };
         fallbackImg.onerror = () => {
           console.error('Failed to load sticker thumbnail as well:', sticker.thumbnailUrl);
@@ -4670,7 +4848,7 @@ export default function Canvas() {
       }
     };
     img.src = sticker.url;
-  }, [pendingStickerElementId, currentPage, pendingStickerPosition, dispatch]);
+  }, [pendingStickerElementId, currentPage, pendingStickerPosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch]);
 
   const handleStickerModalClose = () => {
     setShowStickerModal(false);
@@ -4687,6 +4865,7 @@ export default function Canvas() {
 
   const handleQrCodeCreate = (value: string) => {
     if (!pendingQrCodePosition) return;
+    if (!canCreateElements) return;
 
     const templateIds = getTemplateIdsForDefaults();
     const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
@@ -4705,10 +4884,11 @@ export default function Canvas() {
       ...qrDefaults
     };
 
-    dispatch({ type: 'ADD_ELEMENT', payload: newElement });
-    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-    setShowQrCodeModal(false);
-    setPendingQrCodePosition(null);
+    if (addElementIfAllowed(newElement)) {
+      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      setShowQrCodeModal(false);
+      setPendingQrCodePosition(null);
+    }
   };
 
   if (!currentPage || shouldBlockCanvasRendering) {
@@ -5503,7 +5683,11 @@ export default function Canvas() {
                  onMouseEnter={(e) => {
                    const stage = e.target.getStage();
                    if (stage) {
-                     stage.container().style.cursor = 'pointer';
+                     stage.container().style.cursor = isCreationToolActive ? 'not-allowed' : 'pointer';
+                   }
+                   if (isCreationToolActive) {
+                     setInactivePageTooltip(null);
+                     return;
                    }
                    // Tooltip-Position oberhalb des Mauszeigers
                    if (e.evt && typeof e.evt.clientX === 'number' && typeof e.evt.clientY === 'number') {
@@ -5511,6 +5695,10 @@ export default function Canvas() {
                    }
                  }}
                  onMouseMove={(e) => {
+                   if (isCreationToolActive) {
+                     setInactivePageTooltip(null);
+                     return;
+                   }
                    if (inactivePageTooltip && e.evt && typeof e.evt.clientX === 'number' && typeof e.evt.clientY === 'number') {
                      setInactivePageTooltip({ x: e.evt.clientX, y: e.evt.clientY - 24 });
                    }
@@ -6296,8 +6484,11 @@ export default function Canvas() {
           onUngroup={handleUngroup}
           hasSelection={state.selectedElementIds.length > 0}
           hasClipboard={clipboard.length > 0}
-          canGroup={state.selectedElementIds.length >= 2}
-          canUngroup={state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group' || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor')}
+          canGroup={state.selectedElementIds.length >= 2 && (!selectedHasQna || (canCreateQna && canDeleteQna))}
+          canUngroup={(state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'group') || (state.selectedElementIds.length === 1 && currentPage?.elements.find(el => el.id === state.selectedElementIds[0])?.type === 'brush-multicolor') ? (!selectedHasQna || (canCreateQna && canDeleteQna)) : false}
+          canCopy={!selectedHasQna || canCreateQna}
+          canDuplicate={!selectedHasQna || canCreateQna}
+          canDelete={!selectedHasQna || canDeleteQna}
 
         // Image Modal
         showImageModal={showImageModal}
@@ -6315,7 +6506,7 @@ export default function Canvas() {
         onQuestionDialogClose={() => setShowQuestionDialog(false)}
         onQuestionSelect={handleQuestionSelect}
         selectedQuestionElementId={selectedQuestionElementId}
-        userRole={user?.role || ''}
+        canManageQuestions={canManageQuestions}
 
         // Question Selector Modal
         showQuestionSelectorModal={showQuestionSelectorModal}

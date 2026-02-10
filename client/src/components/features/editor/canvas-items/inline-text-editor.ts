@@ -283,6 +283,7 @@ export function createInlineTextEditor(params: InlineTextEditorParams): () => vo
   // Font size without zoom (use original style, but scale down more)
   const fontSize = 24;
   const lineHeight = fontSize * 1.2;
+  const scaledLineHeight = lineHeight;
   
   // Extract question text from layout
   const questionRuns = layout.runs.filter((run: TextRun) => run.style === effectiveQuestionStyle);

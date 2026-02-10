@@ -72,7 +72,7 @@ function BaseCanvasItem({
   interactive = true, // Default to interactive mode
   isZoomingRef,
 }: BaseCanvasItemProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditElement } = useEditor();
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
@@ -143,8 +143,11 @@ function BaseCanvasItem({
     window.addEventListener('hoverPartner', handlePartnerHover as EventListener);
     return () => window.removeEventListener('hoverPartner', handlePartnerHover as EventListener);
   }, [element, element?.id, element?.textType, element?.questionElementId, state.currentBook, state.activePageIndex]);
+  const canEditThisElement = canEditElement(element);
+
   const handleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (!interactive) return;
+    if (!canEditThisElement) return;
     if (isInsideGroup) return;
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
@@ -159,18 +162,20 @@ function BaseCanvasItem({
         }
       }
     }
-  }, [interactive, isInsideGroup, state.activeTool, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
+  }, [interactive, canEditThisElement, isInsideGroup, state.activeTool, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
 
   const handleDoubleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (!interactive) return;
+    if (!canEditThisElement) return;
     if (state.activeTool === 'select' && onDoubleClick) {
       e.cancelBubble = true;
       onDoubleClick(e);
     }
-  }, [interactive, state.activeTool, onDoubleClick]);
+  }, [interactive, canEditThisElement, state.activeTool, onDoubleClick]);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (!interactive) return;
+    if (!canEditThisElement) return;
     if (isInsideGroup) return;
     if (state.activeTool === 'select' && e.evt.button === 0) {
       if (state.selectedElementIds.length > 1 && !state.editorSettings?.editor?.lockElements) {
@@ -181,10 +186,11 @@ function BaseCanvasItem({
         requestAnimationFrame(() => onSelect(e));
       }
     }
-  }, [interactive, isInsideGroup, state.activeTool, state.selectedElementIds.length, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
+  }, [interactive, canEditThisElement, isInsideGroup, state.activeTool, state.selectedElementIds.length, state.editorSettings?.editor?.lockElements, element, isSelected, onSelect]);
 
   const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     if (!interactive) return;
+    if (!canEditThisElement) return;
     if (state.editorSettings?.editor?.lockElements) {
       const offsetX = (element.width || 100) / 2;
       const offsetY = (element.height || 100) / 2;
@@ -237,7 +243,7 @@ function BaseCanvasItem({
       });
       onDragEnd?.(e);
     });
-  }, [interactive, state.editorSettings?.editor?.lockElements, element, canvasWidth, canvasHeight, dispatch, onDragEnd]);
+  }, [interactive, canEditThisElement, state.editorSettings?.editor?.lockElements, element, canvasWidth, canvasHeight, dispatch, onDragEnd]);
 
   // Early return if element is undefined
   if (!element) {
@@ -283,12 +289,12 @@ function BaseCanvasItem({
       scaleX={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleX || 1)}
       scaleY={(element && (element.textType === 'question' || element.textType === 'answer')) ? 1 : (element?.scaleY || 1)}
       rotation={typeof element?.rotation === 'number' ? element.rotation : 0}
-      draggable={interactive && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.editorInteractionLevel !== 'answer_only' && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
+      draggable={interactive && canEditThisElement && state.activeTool === 'select' && !isMovingGroup && !isInsideGroup && state.selectedElementIds.length <= 1 && !(state.editorSettings?.editor?.lockElements)}
       listening={interactive && !(isZoomingRef?.current)}
       perfectDrawEnabled={false}
       shadowForStrokeEnabled={false}
       hitStrokeWidth={0}
-      onTransformStart={interactive ? (e) => {
+      onTransformStart={interactive && canEditThisElement ? (e) => {
         setIsTransforming(true);
         const node = e.target;
         transformStartDataRef.current = {
@@ -301,7 +307,7 @@ function BaseCanvasItem({
         };
         lastTransformDataRef.current = null;
       } : undefined}
-      onTransform={interactive ? (e) => {
+      onTransform={interactive && canEditThisElement ? (e) => {
         const node = e.target;
         lastTransformDataRef.current = {
           scaleX: node.scaleX(),
@@ -316,7 +322,7 @@ function BaseCanvasItem({
           throttleTimeoutRef.current = null;
         }, 16); // ~60fps
       } : undefined}
-      onTransformEnd={interactive ? () => {
+      onTransformEnd={interactive && canEditThisElement ? () => {
         // Delay state update to avoid transformer errors
         setTimeout(() => {
           setIsTransforming(false);
@@ -327,7 +333,7 @@ function BaseCanvasItem({
       onMouseDown={interactive ? handleMouseDown : undefined}
       onClick={interactive ? handleClick : undefined}
       onDblClick={interactive ? handleDoubleClick : undefined}
-      onTap={interactive ? (e) => {
+      onTap={interactive && canEditThisElement ? (e) => {
         e.cancelBubble = true;
         // For question-answer pairs, always call onSelect for sequential selection
         // For other elements, only call if not already selected
@@ -335,11 +341,11 @@ function BaseCanvasItem({
           onSelect();
         }
       } : undefined}
-      onDragStart={interactive ? () => {
+      onDragStart={interactive && canEditThisElement ? () => {
         setIsDragging(true);
         onDragStart?.();
       } : undefined}
-      onDragEnd={interactive ? (e) => {
+      onDragEnd={interactive && canEditThisElement ? (e) => {
         setIsDragging(false);
         handleDragEnd(e);
       } : undefined}

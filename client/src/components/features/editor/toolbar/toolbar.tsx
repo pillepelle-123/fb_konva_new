@@ -6,20 +6,19 @@ import { ToolbarContent } from './toolbar-content';
 import { TooltipProvider } from '../../../ui/composites/tooltip';
 
 export default function Toolbar() {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canUseTools } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
   const toolbarContentRef = useRef<{ closeSubmenus: () => void }>(null);
+
+  const toolAccessAllowed = canUseTools();
+  const isAnswerOnly = state.editorInteractionLevel === 'answer_only';
   
-  const isOnAssignedPage = state.userRole === 'author' 
-    ? state.assignedPages.includes(state.activePageIndex + 1)
-    : true;
-  
-  // Force collapsed state for authors on non-assigned pages
+  // Force collapsed state when tools are not available (except answer-only mode)
   useEffect(() => {
-    if (state.userRole === 'author' && !isOnAssignedPage) {
+    if (!toolAccessAllowed && !isAnswerOnly) {
       setIsExpanded(false);
     }
-  }, [state.userRole, isOnAssignedPage]);
+  }, [toolAccessAllowed, isAnswerOnly]);
 
   return (
     <TooltipProvider>
@@ -36,14 +35,12 @@ export default function Toolbar() {
             setIsExpanded(!isExpanded);
           }}
           activeTool={state.activeTool}
-          hideToggle={state.userRole === 'author' && !isOnAssignedPage}
+          hideToggle={!toolAccessAllowed && !isAnswerOnly}
         />
         <ToolbarContent 
           ref={toolbarContentRef}
           activeTool={state.activeTool}
           isExpanded={isExpanded}
-          userRole={state.userRole}
-          isOnAssignedPage={isOnAssignedPage}
           onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
         />
       </ToolbarContainer>

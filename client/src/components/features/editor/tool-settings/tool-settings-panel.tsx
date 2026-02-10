@@ -21,7 +21,7 @@ export interface ToolSettingsPanelRef {
 interface ToolSettingsPanelProps {}
 
 const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>((props, ref) => {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canViewToolSettings } = useEditor();
   const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
@@ -143,20 +143,14 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     }
   }, [state.selectedElementIds.length, isCollapsed]);
 
-  const isOnAssignedPage = state.userRole === 'author' 
-    ? state.assignedPages.includes(state.activePageIndex + 1)
-    : true;
+  const canShowSettings = canViewToolSettings();
   
-  // Force collapsed state for authors on non-assigned pages, auto-open for assigned pages
+  // Force collapsed state when settings are not available
   useEffect(() => {
-    if (state.userRole === 'author') {
-      if (!isOnAssignedPage) {
-        setIsCollapsed(true);
-      } else {
-        setIsCollapsed(false);
-      }
+    if (!canShowSettings) {
+      setIsCollapsed(true);
     }
-  }, [state.userRole, isOnAssignedPage]);
+  }, [canShowSettings]);
 
   // Reset settings views when not showing background settings
   useEffect(() => {
@@ -244,8 +238,8 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     setShowBackgroundImageTemplateSelector(false);
   };
 
-  // Hide tool settings panel completely for users without edit permissions
-  if (state.editorInteractionLevel === 'no_access' || state.editorInteractionLevel === 'answer_only') {
+  // Hide tool settings panel completely for users without settings permissions
+  if (!canShowSettings) {
     return null;
   }
 
@@ -263,7 +257,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           activeLinkedElement={activeLinkedElement}
           setActiveLinkedElement={setActiveLinkedElement}
           showColorSelector={showColorSelector}
-          isOnAssignedPage={isOnAssignedPage}
           showBackgroundSettings={showBackgroundSettings}
           showPageTheme={showPageTheme}
           showBookTheme={showBookTheme}

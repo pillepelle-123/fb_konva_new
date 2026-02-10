@@ -16,15 +16,13 @@ export function BookActions({
   isSaving,
   onPreview
 }: BookActionsProps) {
-  const { state } = useEditor();
-  
-  // Disable save for authors on unassigned pages
-  const isAuthorOnUnassignedPage = state.userRole === 'author' && 
-    !state.assignedPages.includes(state.activePageIndex + 1);
-  const isSaveDisabled = isSaving || isAuthorOnUnassignedPage;
+  const { canEditCurrentPage, canEditElement } = useEditor();
+
+  const canEditPageContent = canEditCurrentPage() || canEditElement({ textType: 'answer' });
+  const isSaveDisabled = isSaving || !canEditPageContent;
   return (
     <div className="flex items-center gap-1 md:gap-2">
-      <Tooltip content={isSaving ? 'Saving...' : isAuthorOnUnassignedPage ? 'Cannot save - not your assigned page' : 'Save book'} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
+      <Tooltip content={isSaving ? 'Saving...' : !canEditPageContent ? 'Cannot save on this page' : 'Save book'} side="bottom_editor_bar" backgroundColor="bg-background" textColor="text-foreground">
         <Button
           variant="outline"
           size="xs"

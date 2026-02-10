@@ -2,6 +2,8 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useMemo,
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
+import { subject } from '@casl/ability';
+import { useAbility } from '../abilities/ability-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
 import { getGlobalThemeDefaults, applyThemeToElementConsistent } from '../utils/global-themes';
 
@@ -2509,6 +2511,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       for (let i = 0; i < shiftAmount; i++) {
         updatedPageAssignments[insertPosition + i] = null;
       }
+      const updatedPagination = savedDuplicateState.pagePagination
+        ? {
+            ...savedDuplicateState.pagePagination,
+            totalPages: pagesWithCorrectPairIds.length,
+            loadedPages: {
+              ...savedDuplicateState.pagePagination.loadedPages
+            }
+          }
+        : savedDuplicateState.pagePagination;
       
       const stateAfterDuplicate = {
         ...savedDuplicateState,
@@ -2517,6 +2528,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           pages: pagesWithCorrectPairIds
         },
         pageAssignments: updatedPageAssignments,
+        pagePagination: updatedPagination,
         activePageIndex: insertIndex,
         hasUnsavedChanges: true
       };
@@ -4939,10 +4951,16 @@ export const EditorContext = createContext<{
   ensurePagesLoaded: (startIndex: number, endIndex: number) => Promise<void>;
   pageMetadata: Record<number, PageMetadata>;
   getPageMetadata: (pageNumber: number) => PageMetadata | undefined;
+  canUseTool: (toolId: string) => boolean;
+  canCreateElementType: (textType: string) => boolean;
+  canDeleteElementType: (textType: string) => boolean;
+  canViewPageSettings: () => boolean;
+  canEditBookSettings: () => boolean;
 } | undefined>(undefined);
 
 export const useEditor = () => {
   const context = useContext(EditorContext);
+  const ability = useAbility();
   if (!context) {
     // Check if we're in a React Fast Refresh scenario
     // During hot reload, components may render before providers are ready
@@ -4985,12 +5003,117 @@ export const useEditor = () => {
         ensurePagesLoaded: async () => {},
         pageMetadata: {},
         getPageMetadata: () => undefined,
+        canEditCurrentPage: () => false,
+        canUseTools: () => false,
+        canViewToolSettings: () => false,
+        canEditElement: () => false,
+        canCreateElement: () => false,
+        canDeleteElement: () => false,
+        canUseTool: () => false,
+        canCreateElementType: () => false,
+        canDeleteElementType: () => false,
+        canViewPageSettings: () => false,
+        canEditBookSettings: () => false,
       };
     }
     // In production, still throw to catch actual bugs
     throw new Error('useEditor must be used within an EditorProvider');
   }
-  return context;
+
+  const getCurrentPageAbilityData = () => {
+    const currentBook = context.state.currentBook;
+    if (!currentBook) return null;
+    const page = currentBook.pages[context.state.activePageIndex];
+    if (!page) return null;
+    const assignedUser = context.state.pageAssignments?.[page.pageNumber] ?? null;
+    let assignedUserId = typeof assignedUser?.id === 'number' ? assignedUser.id : null;
+    if (!assignedUserId && context.state.userRole === 'author' && context.state.user?.id) {
+      if (context.state.assignedPages?.includes(page.pageNumber)) {
+        assignedUserId = context.state.user.id;
+      }
+    }
+    return { assignedUserId };
+  };
+
+  const canEditCurrentPage = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('edit', subject('Page', pageData));
+  };
+
+  const canUseTools = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('use', subject('Tool', { page: pageData }));
+  };
+
+  const canViewToolSettings = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('view', subject('ToolSettings', { page: pageData }));
+  };
+
+  const canEditElement = (element?: { textType?: string | null }) => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    if (element?.textType === 'answer') {
+      return ability.can('edit', subject('Answer', { page: pageData }));
+    }
+    return ability.can('edit', subject('Element', { page: pageData }));
+  };
+
+  const canCreateElement = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('create', subject('Element', { page: pageData }));
+  };
+
+  const canDeleteElement = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('delete', subject('Element', { page: pageData }));
+  };
+
+  const canUseTool = (toolId: string) => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('use', subject('Tool', { page: pageData, toolId }));
+  };
+
+  const canCreateElementType = (textType: string) => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('create', subject('Element', { page: pageData, textType }));
+  };
+
+  const canDeleteElementType = (textType: string) => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('delete', subject('Element', { page: pageData, textType }));
+  };
+
+  const canViewPageSettings = () => {
+    const pageData = getCurrentPageAbilityData();
+    if (!pageData) return false;
+    return ability.can('view', subject('PageSettings', { page: pageData }));
+  };
+
+  const canEditBookSettings = () => ability.can('edit', subject('BookSettings', {}));
+
+  return {
+    ...context,
+    canEditCurrentPage,
+    canUseTools,
+    canViewToolSettings,
+    canEditElement,
+    canCreateElement,
+    canDeleteElement,
+    canUseTool,
+    canCreateElementType,
+    canDeleteElementType,
+    canViewPageSettings,
+    canEditBookSettings
+  };
 };
 
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
@@ -5006,6 +5129,34 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'SET_USER', payload: { id: user.id, role: user.role } });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as any).__editorDebug = () => ({
+      userRole: state.userRole,
+      pageAccessLevel: state.pageAccessLevel,
+      editorInteractionLevel: state.editorInteractionLevel,
+      userId: state.user?.id ?? null,
+      assignedPages: state.assignedPages,
+      activePageIndex: state.activePageIndex,
+      currentPageNumber: state.currentBook?.pages[state.activePageIndex]?.pageNumber ?? null,
+      pageAssignment: state.currentBook?.pages[state.activePageIndex]?.pageNumber
+        ? state.pageAssignments?.[state.currentBook.pages[state.activePageIndex].pageNumber] ?? null
+        : null
+    });
+    return () => {
+      (window as any).__editorDebug = undefined;
+    };
+  }, [
+    state.userRole,
+    state.pageAccessLevel,
+    state.editorInteractionLevel,
+    state.user?.id,
+    state.assignedPages,
+    state.activePageIndex,
+    state.currentBook?.pages,
+    state.pageAssignments
+  ]);
 
   // Feature flag to disable preview generation (Phase 2 optimization)
   // Preview generation is no longer used in the UI, only causes memory overhead

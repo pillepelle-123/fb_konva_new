@@ -38,7 +38,7 @@ export function PagesSubmenu({
   compactLabelMode = 'default',
   onShowAddPageDialog
 }: PagesSubmenuProps) {
-  const { state, ensurePagesLoaded, getPageMetadata: resolvePageMetadata } = useEditor();
+  const { state, ensurePagesLoaded, getPageMetadata: resolvePageMetadata, canEditBookSettings } = useEditor();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [showAddButton, setShowAddButton] = useState(false);
   const [addButtonPosition, setAddButtonPosition] = useState<number | null>(null);
@@ -174,8 +174,7 @@ export function PagesSubmenu({
     return null;
   }
 
-  const isAuthor = state.userRole === 'author';
-  const canReorderPages = !isAuthor && !isRestrictedView && !isCompact && !isMicro;
+  const canReorderPages = canEditBookSettings() && !isRestrictedView && !isCompact && !isMicro;
   const activePageFromBook = book.pages[activePageIndex];
   const activePageFallback = pages[activePageIndex];
   const activePage = activePageFromBook ?? activePageFallback ?? null;
@@ -430,7 +429,7 @@ export function PagesSubmenu({
           {pairIndex > 0 && (
             <div
               className="w-4 h-8 flex-shrink-0"
-              onMouseEnter={(e) => {
+              onMouseEnter={canEditBookSettings() ? (e) => {
                 // Clear any pending hide timeout
                 if (hideButtonTimeoutRef.current) {
                   clearTimeout(hideButtonTimeoutRef.current);
@@ -454,16 +453,18 @@ export function PagesSubmenu({
 
                   setShowAddButton(true);
                 }
-              }}
-              onMouseLeave={() => {
+              } : undefined}
+              onMouseLeave={canEditBookSettings() ? () => {
                 // Delay hiding to allow mouse to move to floating button
                 hideButtonTimeoutRef.current = setTimeout(() => {
                   setShowAddButton(false);
                   setAddButtonPosition(null);
                 }, 100);
-              }}
+              } : undefined}
             >
-             <span className="p-1 text-xs text-muted-foreground/50">+</span>
+             <span className="p-1 text-xs text-muted-foreground/50">
+               {canEditBookSettings() ? '+' : ''}
+             </span>
             </div>
           )}
 
@@ -552,7 +553,7 @@ export function PagesSubmenu({
       ))}
 
       {/* Floating Add Button */}
-      {showAddButton && addButtonPosition !== null && (
+      {canEditBookSettings() && showAddButton && addButtonPosition !== null && (
         <div
           className={`absolute top-0.5 flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
             showAddButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95'

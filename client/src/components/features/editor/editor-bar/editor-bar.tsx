@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import type { Page } from '../../../../context/editor-context';
-import { useAuth } from '../../../../context/auth-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
 import BookExportModal from '../book-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
@@ -48,8 +47,16 @@ interface EditorBarProps {
 }
 
 export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = false }: EditorBarProps) {
-  const { state, dispatch, saveBook, refreshPageAssignments, getVisiblePages, getVisiblePageNumbers, ensurePagesLoaded } = useEditor();
-  const { user } = useAuth();
+  const {
+    state,
+    dispatch,
+    saveBook,
+    refreshPageAssignments,
+    getVisiblePages,
+    getVisiblePageNumbers,
+    ensurePagesLoaded,
+    canEditBookSettings
+  } = useEditor();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
@@ -340,7 +347,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
                 onOpenPagesSubmenu={() => setShowPagesSubmenu(true)}
               />
               
-              {state.userRole !== 'author' && (
+              {canEditBookSettings() && (
                 <PageActions
                   onAddPage={handleAddPage}
                   onDuplicatePage={handleDuplicatePage}
@@ -356,7 +363,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
 
             {/* Center Section - Book Title */}
             <div className="flex items-center gap-2 flex-1 justify-center">
-              <BookTitle title={state.currentBook.name} readOnly={state.userRole === 'author'} />
+              <BookTitle title={state.currentBook.name} readOnly={!canEditBookSettings()} />
             </div>
 
             <div className="mr-2" style={{ transform: 'translateY(-1px)' }}>
@@ -370,7 +377,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             <div className="flex items-center gap-2">
               
               
-              {(state.userRole !== 'author' || (state.userRole === 'author' && state.editorInteractionLevel === 'full_edit_with_settings')) && (
+              {canEditBookSettings() && (
                 <Tooltip content="Settings" side="bottom_editor_bar">
                   <Button
                     variant="outline"

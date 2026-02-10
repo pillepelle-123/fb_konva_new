@@ -1,7 +1,7 @@
 import { Button } from '../../../ui/primitives/button';
 import { Plus, Copy, Trash2, Users } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
-import { useAuth } from '../../../../context/auth-context';
+import { useEditor } from '../../../../context/editor-context';
 
 interface PageActionsProps {
   onAddPage: () => void;
@@ -26,11 +26,11 @@ export function PageActions({
   canDuplicate = true,
   deleteTooltip
 }: PageActionsProps) {
-  const { user } = useAuth();
-  const isAuthor = user?.role === 'author';
-  const addDisabled = isAuthor || !canAdd;
-  const duplicateDisabled = isAuthor || !canDuplicate;
-  const deleteDisabled = !canDelete || isAuthor;
+  const { canEditBookSettings } = useEditor();
+  const canManagePages = canEditBookSettings();
+  const addDisabled = !canManagePages || !canAdd;
+  const duplicateDisabled = !canManagePages || !canDuplicate;
+  const deleteDisabled = !canDelete || !canManagePages;
   return (
     <div className="flex items-center gap-1 md:gap-2">
       <Tooltip
@@ -52,7 +52,7 @@ export function PageActions({
       </Tooltip>
 
       <Tooltip
-        content={duplicateDisabled ? 'Cannot duplicate this spread' : 'Duplicate current spread'}
+        content={duplicateDisabled ? 'Cannot duplicate this page pair' : 'Duplicate current page pair'}
         side="bottom_editor_bar"
         backgroundColor="bg-background"
         textColor="text-foreground"
@@ -75,8 +75,8 @@ export function PageActions({
             variant="outline"
             size="xs"
             onClick={onAssignFriends}
-            disabled={isAuthor}
-            className={`h-7 ${isAuthor ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!canManagePages}
+            className={`h-7 ${!canManagePages ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Users className="h-5 w-5" />
           </Button>

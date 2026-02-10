@@ -11,6 +11,8 @@ interface UseCanvasItemActionsProps {
   isCoverPage: boolean;
   showCoverRestrictionAlert: (message: string) => void;
   setContextMenu: (menu: { x: number; y: number; visible: boolean }) => void;
+  canCreateQna: boolean;
+  canDeleteQna: boolean;
 }
 
 export const useCanvasItemActions = ({
@@ -22,11 +24,17 @@ export const useCanvasItemActions = ({
   currentPage,
   isCoverPage,
   showCoverRestrictionAlert,
-  setContextMenu
+  setContextMenu,
+  canCreateQna,
+  canDeleteQna
 }: UseCanvasItemActionsProps) => {
+
+  const hasSelectedQna = () =>
+    currentPage?.elements?.some((el: any) => state.selectedElementIds.includes(el.id) && el.textType === 'qna') || false;
 
   const handleDuplicateItems = useCallback(() => {
     if (!currentPage) return;
+    if (!canCreateQna && hasSelectedQna()) return;
     if (isCoverPage) {
       const hasQnaInline = state.selectedElementIds.some((elementId) => {
         const element = currentPage.elements.find((el) => el.id === elementId);
@@ -74,17 +82,19 @@ export const useCanvasItemActions = ({
     setTimeout(() => {
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
     }, 10);
-  }, [state.selectedElementIds, currentPage, dispatch, isCoverPage, showCoverRestrictionAlert]);
+  }, [state.selectedElementIds, currentPage, dispatch, isCoverPage, showCoverRestrictionAlert, canCreateQna]);
 
   const handleDeleteItems = useCallback(() => {
+    if (!canDeleteQna && hasSelectedQna()) return;
     state.selectedElementIds.forEach(elementId => {
       dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
     });
     setContextMenu({ x: 0, y: 0, visible: false });
-  }, [state.selectedElementIds, dispatch, setContextMenu]);
+  }, [state.selectedElementIds, dispatch, setContextMenu, canDeleteQna]);
 
   const handleCopyItems = useCallback(() => {
     if (state.selectedElementIds.length === 0) return;
+    if (!canCreateQna && hasSelectedQna()) return;
 
     const elementsToCopy = state.selectedElementIds
       .map((id: string) => currentPage?.elements.find((el: any) => el.id === id))
@@ -93,10 +103,11 @@ export const useCanvasItemActions = ({
     if (elementsToCopy.length > 0) {
       setClipboard(elementsToCopy);
     }
-  }, [state.selectedElementIds, currentPage, setClipboard]);
+  }, [state.selectedElementIds, currentPage, setClipboard, canCreateQna]);
 
   const handlePasteItems = useCallback(() => {
     if (clipboard.length === 0) return;
+    if (!canCreateQna && clipboard.some((element: any) => element.textType === 'qna')) return;
 
     const hasQuestionAnswer = clipboard.some((element: any) =>
       element.textType === 'question' || element.textType === 'answer'
@@ -137,7 +148,7 @@ export const useCanvasItemActions = ({
     });
 
     return undefined;
-  }, [clipboard, currentPage, state.pageAssignments, state.activePageIndex, getQuestionAssignmentsForUser, dispatch]);
+  }, [clipboard, currentPage, state.pageAssignments, state.activePageIndex, getQuestionAssignmentsForUser, dispatch, canCreateQna]);
 
   const handleMoveToFront = useCallback(() => {
     if (state.selectedElementIds.length === 0) return;
@@ -177,15 +188,17 @@ export const useCanvasItemActions = ({
 
   const handleGroup = useCallback(() => {
     if (state.selectedElementIds.length < 2) return;
+    if ((!canCreateQna || !canDeleteQna) && hasSelectedQna()) return;
 
     dispatch({
       type: 'GROUP_ELEMENTS',
       payload: { elementIds: state.selectedElementIds }
     });
-  }, [state.selectedElementIds, dispatch]);
+  }, [state.selectedElementIds, dispatch, canCreateQna, canDeleteQna]);
 
   const handleUngroup = useCallback(() => {
     if (state.selectedElementIds.length !== 1) return;
+    if ((!canCreateQna || !canDeleteQna) && hasSelectedQna()) return;
 
     const element = currentPage?.elements.find((el: any) => el.id === state.selectedElementIds[0]);
     if (element?.type === 'group' || element?.type === 'brush-multicolor') {
@@ -194,7 +207,7 @@ export const useCanvasItemActions = ({
         payload: { elementId: state.selectedElementIds[0] }
       });
     }
-  }, [state.selectedElementIds, currentPage, dispatch]);
+  }, [state.selectedElementIds, currentPage, dispatch, canCreateQna, canDeleteQna]);
 
   return {
     handleDuplicateItems,

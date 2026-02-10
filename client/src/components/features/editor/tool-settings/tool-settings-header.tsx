@@ -9,7 +9,6 @@ interface ToolSettingsHeaderProps {
   activeLinkedElement: string | null;
   setActiveLinkedElement: (id: string | null) => void;
   showColorSelector: string | null;
-  isOnAssignedPage: boolean;
   showBackgroundSettings: boolean;
   showPageTheme: boolean;
   showBookTheme: boolean;
@@ -36,7 +35,6 @@ export function ToolSettingsHeader({
   activeLinkedElement,
   setActiveLinkedElement,
   showColorSelector,
-  isOnAssignedPage,
   showBackgroundSettings,
   showPageTheme,
   showBookTheme,
@@ -152,16 +150,14 @@ export function ToolSettingsHeader({
           </Button>
         )} */}
 
-        {!(state.userRole === 'author' && !isOnAssignedPage) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapsed}
-            className="h-8 w-8 p-0"
-          >
-            {isCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleCollapsed}
+          className="h-8 w-8 p-0"
+        >
+          {isCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
+        </Button>
       </div>
     </div>
   );

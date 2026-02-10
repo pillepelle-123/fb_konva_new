@@ -161,7 +161,7 @@ export function ToolSettingsContent({
   setShowEditorSettings,
   generalSettingsRef
 }: ToolSettingsContentProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canViewPageSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
 
   const activeSelectedElement = (() => {
@@ -1127,6 +1127,9 @@ export function ToolSettingsContent({
     
     // Show general settings when select tool is active and no elements selected
     if (activeTool === 'select' && state.selectedElementIds.length === 0) {
+      if (!canViewPageSettings()) {
+        return null;
+      }
       return (
         <GeneralSettings
           ref={generalSettingsRef}

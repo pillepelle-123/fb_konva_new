@@ -35,9 +35,9 @@ interface PageAssignmentButtonProps {
 }
 
 export function PageAssignmentButton({ currentPage, bookId }: PageAssignmentButtonProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditBookSettings } = useEditor();
   const assignedUser = state.pageAssignments[currentPage];
-  const isAuthor = state.userRole === 'author';
+  const canManageAssignments = canEditBookSettings();
 
   const handleAssignUser = (user: User | null) => {
     const updatedAssignments = { ...state.pageAssignments };
@@ -53,7 +53,7 @@ export function PageAssignmentButton({ currentPage, bookId }: PageAssignmentButt
   const assignmentKey = `${currentPage}-${assignedUser?.id || 'none'}`;
 
   if (assignedUser) {
-    if (isAuthor) {
+    if (!canManageAssignments) {
       return (
         <Tooltip content={`Assigned to ${assignedUser.name}`} side="bottom_editor_bar"backgroundColor="bg-background"textColor="text-foreground">
           <div className="p-0 rounded-full"key={assignmentKey}>
@@ -91,7 +91,7 @@ export function PageAssignmentButton({ currentPage, bookId }: PageAssignmentButt
     );
   }
 
-  if (isAuthor) {
+  if (!canManageAssignments) {
     return (
       <Tooltip content="Assign user to page"side="bottom_editor_bar"backgroundColor="bg-background"textColor="text-foreground">
         <div className="p-0 rounded-full">

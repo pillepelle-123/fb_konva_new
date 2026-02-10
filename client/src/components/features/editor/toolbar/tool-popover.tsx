@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { Button } from '../../../ui/primitives/button';
 import { ToolButton } from './tool-button';
 import { X, Square, Minus, Circle, Heart, Star, MessageCircle, Dog, Cat, Smile, Triangle, Pentagon } from 'lucide-react';
-import { useEditor } from '../../../../context/editor-context';
 
 interface ShapeTool {
   id: string;
@@ -13,8 +12,6 @@ interface ShapeTool {
 
 interface ToolPopoverProps {
   activeTool: string;
-  userRole?: 'author' | 'publisher' | null;
-  isOnAssignedPage?: boolean;
   onToolSelect: (toolId: string) => void;
   children: React.ReactNode;
 }
@@ -33,7 +30,7 @@ const shapeTools: ShapeTool[] = [
   { id: 'smiley', label: 'Smiley', icon: Smile }
 ];
 
-export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSelect, children }: ToolPopoverProps) {
+export function ToolPopover({ activeTool, onToolSelect, children }: ToolPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -103,8 +100,6 @@ export function ToolPopover({ activeTool, userRole, isOnAssignedPage, onToolSele
                 icon={tool.icon}
                 isActive={activeTool === tool.id}
                 isExpanded={false}
-                userRole={userRole}
-                isOnAssignedPage={isOnAssignedPage}
                 onClick={() => handleToolSelect(tool.id)}
               />
             ))}

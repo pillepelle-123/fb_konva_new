@@ -1,5 +1,4 @@
 import { useEditor } from '../../../../context/editor-context';
-import { useAuth } from '../../../../context/auth-context';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog } from 'lucide-react';
 import { Separator } from '../../../ui/primitives/separator';
@@ -102,8 +101,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   showEditorSettings: externalShowEditorSettings = false,
   setShowEditorSettings: externalSetShowEditorSettings
   } = props;
-  const { state, dispatch } = useEditor();
-  const { user } = useAuth();
+  const { state, dispatch, canViewPageSettings } = useEditor();
   // Use external state management if provided, otherwise fall back to local state
   const [localShowPagePalette, setLocalShowPagePalette] = useState(false);
   const [localShowPageLayout, setLocalShowPageLayout] = useState(false);
@@ -233,12 +231,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
   // Check if user can access any settings at all
   const canAccessAnySettings = state.editorInteractionLevel === 'full_edit_with_settings';
-  
-  // Check if user can access book-related settings (only publishers and book owners)
-  const canAccessBookSettings = (state.userRole === 'publisher' || (user && state.currentBook && user.id === state.currentBook.owner_id)) && canAccessAnySettings;
-  
-  // Check if user can access page-related settings (Background and Page Theme for full_edit and full_edit_with_settings)
-  const canAccessPageSettings = state.editorInteractionLevel === 'full_edit' || state.editorInteractionLevel === 'full_edit_with_settings';
+  const canAccessPageSettings = canViewPageSettings();
   const canShowBookChatButton = Boolean(isBookChatAvailable && onOpenBookChat && canAccessAnySettings);
 
   // Get active templates for Book Settings (no page = book level)

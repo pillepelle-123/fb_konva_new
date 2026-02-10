@@ -18,7 +18,8 @@ interface SelectorThemeProps {
 }
 
 export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditBookSettings } = useEditor();
+  const canApplyToEntireBook = canEditBookSettings();
   
   const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
@@ -273,7 +274,7 @@ export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProp
       onApply={handleApply}
       canApply={selectedTheme !== initialThemeRef.current}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={!isBookLevel ? setApplyToEntireBook : undefined}
+      onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
       renderItem={(theme, isActive) => (
         <Card
           className={`w-full p-3 transition-colors flex items-center justify-between gap-2 cursor-pointer ${

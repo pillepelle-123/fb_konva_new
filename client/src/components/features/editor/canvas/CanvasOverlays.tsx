@@ -23,6 +23,9 @@ interface CanvasOverlaysProps {
   hasClipboard: boolean;
   canGroup: boolean;
   canUngroup: boolean;
+  canCopy?: boolean;
+  canDuplicate?: boolean;
+  canDelete?: boolean;
 
   // Image Modal props
   showImageModal: boolean;
@@ -40,7 +43,7 @@ interface CanvasOverlaysProps {
   onQuestionDialogClose: () => void;
   onQuestionSelect: (questionId: string, questionText: string, questionPosition?: number) => void;
   selectedQuestionElementId: string | null;
-  userRole: string;
+  canManageQuestions: boolean;
 
   // Question Selector Modal props (second modal for question selection)
   showQuestionSelectorModal: boolean;
@@ -79,6 +82,9 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   hasClipboard,
   canGroup,
   canUngroup,
+  canCopy,
+  canDuplicate,
+  canDelete,
 
   // Image Modal
   showImageModal,
@@ -96,7 +102,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   onQuestionDialogClose,
   onQuestionSelect,
   selectedQuestionElementId,
-  userRole,
+  canManageQuestions,
 
   // Question Selector Modal
   showQuestionSelectorModal,
@@ -158,6 +164,9 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         hasClipboard={hasClipboard}
         canGroup={canGroup}
         canUngroup={canUngroup}
+        canCopy={canCopy}
+        canDuplicate={canDuplicate}
+        canDelete={canDelete}
       />
 
       {/* Image Selection Modal */}
@@ -192,7 +201,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
       </Modal>
 
       {/* Question Selector Dialog */}
-      {showQuestionDialog && selectedQuestionElementId && userRole !== 'author' && (
+      {showQuestionDialog && selectedQuestionElementId && canManageQuestions && (
         <QuestionSelectorModal
           isOpen={showQuestionDialog}
           onClose={onQuestionDialogClose}
@@ -202,7 +211,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
       )}
 
       {/* Question Selector Modal (second instance) */}
-      {showQuestionSelectorModal && questionSelectorElementId && userRole !== 'author' && (
+      {showQuestionSelectorModal && questionSelectorElementId && canManageQuestions && (
         <QuestionSelectorModal
           isOpen={showQuestionSelectorModal}
           onClose={onQuestionSelectorModalClose}
@@ -249,7 +258,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
       {outsidePageTooltip && (
         <Tooltip
           side="top"
-          content="Elements placed outside the page area may not be visible when printed."
+          content="Elements cannot be placed outside the active page."
           forceVisible
           screenPosition={outsidePageTooltip}
         >

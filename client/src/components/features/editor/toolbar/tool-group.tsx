@@ -16,14 +16,12 @@ interface ToolGroupProps {
   activeTool: string;
   isExpanded: boolean;
   showSeparator: boolean;
-  userRole?: 'author' | 'publisher' | null;
-  isOnAssignedPage?: boolean;
   onToolSelect: (toolId: string) => void;
   activeSubmenu?: string | null;
   onSubmenuChange?: (submenu: string | null) => void;
 }
 
-export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, userRole, isOnAssignedPage, onToolSelect, activeSubmenu, onSubmenuChange }: ToolGroupProps) {
+export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, onToolSelect, activeSubmenu, onSubmenuChange }: ToolGroupProps) {
   const isSubmenuActive = activeSubmenu === name;
 
   if (isSubmenuActive) {
@@ -53,8 +51,6 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
                 icon={tool.icon}
                 isActive={activeTool === tool.id}
                 isExpanded={false}
-                userRole={userRole}
-                isOnAssignedPage={isOnAssignedPage}
                 onClick={() => {
                   onToolSelect(tool.id);
                   onSubmenuChange?.(null);
@@ -99,8 +95,6 @@ export function ToolGroup({ name, tools, activeTool, isExpanded, showSeparator, 
               icon={tool.icon}
               isActive={activeTool === tool.id}
               isExpanded={isExpanded}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect(tool.id)}
             />
           ))}

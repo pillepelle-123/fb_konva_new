@@ -5,16 +5,14 @@ import { Popover, PopoverTrigger, PopoverContent } from '../../../ui/overlays/po
 import { useEditor } from '../../../../context/editor-context';
 
 export default function UndoRedoControls() {
-  const { state, undo, redo, goToHistoryStep, getHistoryActions } = useEditor();
+  const { state, undo, redo, goToHistoryStep, getHistoryActions, canEditCurrentPage, canEditElement } = useEditor();
   
   const historyActions = getHistoryActions();
   const canUndo = state.historyIndex > 0;
   const canRedo = state.historyIndex < state.history.length - 1;
   
-  // Disable for authors on unassigned pages
-  const isAuthorOnUnassignedPage = state.userRole === 'author' && 
-    !state.assignedPages.includes(state.activePageIndex + 1);
-  const isDisabled = isAuthorOnUnassignedPage;
+  const canEditPageContent = canEditCurrentPage() || canEditElement({ textType: 'answer' });
+  const isDisabled = !canEditPageContent;
 
   return (
     <ButtonGroup>

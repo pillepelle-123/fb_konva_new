@@ -13,21 +13,22 @@ import { useEditor } from '../../../../context/editor-context';
 interface ToolbarContentProps {
   activeTool: string;
   isExpanded: boolean;
-  userRole?: 'author' | 'publisher' | null;
-  isOnAssignedPage?: boolean;
   onToolSelect: (toolId: string) => void;
 }
 
-export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, userRole, isOnAssignedPage, onToolSelect }, ref) {
-  const { state, dispatch } = useEditor();
+export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, onToolSelect }, ref) {
+  const { state, dispatch, canUseTools, canUseTool } = useEditor();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useImperativeHandle(ref, () => ({
     closeSubmenus: () => {}
   }));
 
-  // Hide content for authors on non-assigned pages
-  if (userRole === 'author' && !isOnAssignedPage) {
+  const toolAccessAllowed = canUseTools();
+  const canUseQnaTool = canUseTool('qna');
+
+  // Hide content if the user cannot access tools (except answer-only mode)
+  if (!toolAccessAllowed && state.editorInteractionLevel !== 'answer_only') {
     return null;
   }
 
@@ -44,8 +45,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               icon={SquareMousePointer}
               isActive={activeTool === 'select'}
               isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect('select')}
             />
             <ToolButton
@@ -54,8 +53,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               icon={Hand}
               isActive={activeTool === 'pan'}
               isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect('pan')}
             />
             <ZoomPopover
@@ -68,8 +65,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
                 icon={Search}
                 isActive={activeTool === 'zoom'}
                 isExpanded={false}
-                userRole={userRole}
-                isOnAssignedPage={isOnAssignedPage}
                 hasPopover={true}
                 onClick={() => {}}
               />
@@ -91,8 +86,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={SquareMousePointer}
             isActive={activeTool === 'select'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('select')}
           />
           <ToolButton
@@ -101,8 +94,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={Hand}
             isActive={activeTool === 'pan'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('pan')}
           />
         </div>
@@ -116,8 +107,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               icon={Brush}
               isActive={activeTool === 'brush'}
               isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               onClick={() => onToolSelect('brush')}
             />
           </ToolSettingsPopover>
@@ -127,8 +116,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={Pipette}
             isActive={activeTool === 'pipette'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('pipette')}
           />
         </div>
@@ -137,8 +124,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-1`}>
           <ToolPopover
             activeTool={activeTool}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onToolSelect={onToolSelect}
           >
             <ToolButton
@@ -147,8 +132,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               icon={Square}
               isActive={activeTool === 'rect'}
               isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               hasPopover={true}
               onClick={() => {}}
             />
@@ -159,8 +142,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={Sticker}
             isActive={activeTool === 'sticker'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('sticker')}
           />
         </div>
@@ -173,8 +154,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={Image}
             isActive={activeTool === 'image'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('image')}
           />
           <ToolButton
@@ -183,8 +162,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={QrCode}
             isActive={activeTool === 'qr_code'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('qr_code')}
           />
         </div>
@@ -203,22 +180,20 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
               icon={Search}
               isActive={activeTool === 'zoom'}
               isExpanded={false}
-              userRole={userRole}
-              isOnAssignedPage={isOnAssignedPage}
               hasPopover={true}
               onClick={() => {}}
             />
           </ZoomPopover>
-          <ToolButton
-            id="qna"
-            label="Q&A"
-            icon={MessageCirclePlus}
-            isActive={activeTool === 'qna'}
-            isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
-            onClick={() => onToolSelect('qna')}
-          />
+          {canUseQnaTool && (
+            <ToolButton
+              id="qna"
+              label="Q&A"
+              icon={MessageCirclePlus}
+              isActive={activeTool === 'qna'}
+              isExpanded={false}
+              onClick={() => onToolSelect('qna')}
+            />
+          )}
         </div>
         
         {/* Row 5: Free Text */}
@@ -229,8 +204,6 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             icon={MessageCircle}
             isActive={activeTool === 'free_text'}
             isExpanded={false}
-            userRole={userRole}
-            isOnAssignedPage={isOnAssignedPage}
             onClick={() => onToolSelect('free_text')}
           />
         </div>

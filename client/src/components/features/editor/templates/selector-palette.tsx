@@ -26,7 +26,8 @@ export function PaletteSelector({
   themeId,
   onPreviewClick 
 }: PaletteSelectorProps) {
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditBookSettings } = useEditor();
+  const canApplyToEntireBook = canEditBookSettings();
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   
   const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
@@ -206,7 +207,7 @@ export function PaletteSelector({
       onApply={handleApply}
       canApply={true}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={!isBookLevel ? setApplyToEntireBook : undefined}
+      onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
       headerActions={
         isBookLevel ? (
           <Button variant="outline" size="sm" onClick={resetColorOverrides} className="px-2 h-7 text-xs">

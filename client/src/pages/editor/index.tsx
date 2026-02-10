@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
+import { AbilityProvider } from '../../abilities/ability-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
 import Canvas from '../../components/features/editor/canvas';
@@ -753,6 +754,8 @@ function EditorContent() {
 
 export default function Editor() {
   return (
-    <EditorContent />
+    <AbilityProvider>
+      <EditorContent />
+    </AbilityProvider>
   );
 }
