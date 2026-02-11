@@ -360,7 +360,13 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     
     if (assignmentsChanged) {
       // Update state only (not in database)
-      dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+      dispatch({
+        type: 'UPDATE_PAGE_ASSIGNMENTS',
+        payload: {
+          assignments: updatedAssignments,
+          actionName: 'Update Page Assignments'
+        }
+      });
     }
     
     // Update questions in state only (not in database)

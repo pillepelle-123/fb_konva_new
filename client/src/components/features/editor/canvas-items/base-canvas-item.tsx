@@ -11,6 +11,7 @@ import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { ColorPalette } from '../../../../types/template-types';
 import type { RichTextStyle } from '../../../../../../shared/types/text-layout';
+import { useCanvasCommand } from '../../../../hooks/useCanvasCommand';
 
 export interface CanvasItemProps {
   element: CanvasElement;
@@ -73,6 +74,7 @@ function BaseCanvasItem({
   isZoomingRef,
 }: BaseCanvasItemProps) {
   const { state, dispatch, canEditElement } = useEditor();
+  const { start: startDragCommand, end: endDragCommand } = useCanvasCommand('Move Element', 'CANVAS_DRAG');
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
@@ -234,16 +236,23 @@ function BaseCanvasItem({
     }
 
     requestAnimationFrame(() => {
+      startDragCommand();
+      
+      // Queue the update
       dispatch({
-        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        type: 'BATCH_UPDATE_ELEMENT',
         payload: {
           id: element.id,
           updates: { x: actualX, y: actualY }
         }
       });
+      
+      // End batch immediately to save to history
+      endDragCommand();
+      
       onDragEnd?.(e);
     });
-  }, [interactive, canEditThisElement, state.editorSettings?.editor?.lockElements, element, canvasWidth, canvasHeight, dispatch, onDragEnd]);
+  }, [interactive, canEditThisElement, state.editorSettings?.editor?.lockElements, element, canvasWidth, canvasHeight, dispatch, onDragEnd, startDragCommand, endDragCommand]);
 
   // Early return if element is undefined
   if (!element) {
@@ -324,6 +333,9 @@ function BaseCanvasItem({
       } : undefined}
       onTransformEnd={interactive && canEditThisElement ? () => {
         // Delay state update to avoid transformer errors
+        // Note: We don't save transform operations (resize/rotate) to history yet
+        // Only drag operations are saved (see handleDragEnd)
+        // Full transform support requires converting Konva's scale+position into element width/height
         setTimeout(() => {
           setIsTransforming(false);
           transformStartDataRef.current = null;
@@ -343,6 +355,7 @@ function BaseCanvasItem({
       } : undefined}
       onDragStart={interactive && canEditThisElement ? () => {
         setIsDragging(true);
+        startDragCommand();
         onDragStart?.();
       } : undefined}
       onDragEnd={interactive && canEditThisElement ? (e) => {

@@ -46,6 +46,11 @@ export const useCanvasItemActions = ({
       }
     }
 
+    if (state.selectedElementIds.length > 0) {
+      const actionLabel = state.selectedElementIds.length > 1 ? 'Duplicate Elements' : 'Duplicate Element';
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: actionLabel });
+    }
+
     // Create ID mapping for question-answer pairs
     const idMapping = new Map<string, string>();
     state.selectedElementIds.forEach(elementId => {
@@ -74,7 +79,7 @@ export const useCanvasItemActions = ({
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };
-        dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement });
+        dispatch({ type: 'ADD_ELEMENT', payload: duplicatedElement, skipHistory: true });
       }
     });
 
@@ -86,8 +91,12 @@ export const useCanvasItemActions = ({
 
   const handleDeleteItems = useCallback(() => {
     if (!canDeleteQna && hasSelectedQna()) return;
+    if (state.selectedElementIds.length > 0) {
+      const actionLabel = state.selectedElementIds.length > 1 ? 'Delete Elements' : 'Delete Element';
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: actionLabel });
+    }
     state.selectedElementIds.forEach(elementId => {
-      dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
+      dispatch({ type: 'DELETE_ELEMENT', payload: elementId, skipHistory: true });
     });
     setContextMenu({ x: 0, y: 0, visible: false });
   }, [state.selectedElementIds, dispatch, setContextMenu, canDeleteQna]);

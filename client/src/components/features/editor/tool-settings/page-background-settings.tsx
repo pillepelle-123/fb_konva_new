@@ -50,7 +50,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     isBackgroundApplyDisabled
   } = props;
 
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, canEditBookSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [forceImageMode, setForceImageMode] = useState(false);
 
@@ -61,6 +61,22 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     dispatch({
       type: 'UPDATE_PAGE_BACKGROUND',
       payload: { pageIndex: state.activePageIndex, background: newBackground }
+    });
+  };
+
+  const applyBackgroundToBook = () => {
+    if (!state.currentBook || !background) return;
+
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Apply Background to Book' });
+
+    state.currentBook.pages.forEach((_page, pageIndex) => {
+      const backgroundCopy = typeof structuredClone === 'function'
+        ? structuredClone(background)
+        : JSON.parse(JSON.stringify(background));
+      dispatch({
+        type: 'UPDATE_PAGE_BACKGROUND',
+        payload: { pageIndex, background: backgroundCopy, skipHistory: true }
+      });
     });
   };
 
@@ -580,6 +596,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
             hasLabel={false}
           />
         </div>
+
+        {canEditBookSettings() && (
+          <div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={applyBackgroundToBook}
+              className="w-full"
+            >
+              Apply to Book
+            </Button>
+          </div>
+        )}
 
         {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
         {backgroundMode === 'image' && background && background.type === 'image' && (

@@ -179,19 +179,19 @@ export default function Canvas() {
   const isCreationToolActive = CREATION_TOOLS.has(state.activeTool);
 
   const addElementIfAllowed = useCallback(
-    (element: CanvasElement) => {
+    (element: CanvasElement, options?: { skipHistory?: boolean }) => {
       if (!canCreateElements) return false;
       if (element.textType === 'qna' && !canCreateQna) return false;
-      dispatch({ type: 'ADD_ELEMENT', payload: element });
+      dispatch({ type: 'ADD_ELEMENT', payload: element, skipHistory: options?.skipHistory });
       return true;
     },
     [canCreateElements, canCreateQna, dispatch]
   );
 
   const deleteElementIfAllowed = useCallback(
-    (elementId: string) => {
+    (elementId: string, options?: { skipHistory?: boolean }) => {
       if (!canDeleteElements) return false;
-      dispatch({ type: 'DELETE_ELEMENT', payload: elementId });
+      dispatch({ type: 'DELETE_ELEMENT', payload: elementId, skipHistory: options?.skipHistory });
       return true;
     },
     [canDeleteElements, dispatch]
@@ -2991,6 +2991,9 @@ export default function Canvas() {
       setContextMenu({ x: 0, y: 0, visible: false });
       return;
     }
+
+    const pasteActionLabel = filteredClipboard.length > 1 ? 'Paste Elements' : 'Paste Element';
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: pasteActionLabel });
     
     // Create ID mapping for question-answer pairs
     const idMapping = new Map<string, string>();
@@ -3051,7 +3054,7 @@ export default function Canvas() {
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
-      addElementIfAllowed(pastedElement);
+      addElementIfAllowed(pastedElement, { skipHistory: true });
     });
     
     // Select the pasted elements
@@ -3106,6 +3109,8 @@ export default function Canvas() {
       }
     }
     if (!currentPage || state.selectedElementIds.length < 2) return;
+
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Group Elements' });
     
     const groupId = uuidv4();
     const selectedElements = state.selectedElementIds
@@ -3134,9 +3139,9 @@ export default function Canvas() {
     
     // Remove individual elements and add group
     state.selectedElementIds.forEach(id => {
-      deleteElementIfAllowed(id);
+      deleteElementIfAllowed(id, { skipHistory: true });
     });
-    addElementIfAllowed(groupElement);
+    addElementIfAllowed(groupElement, { skipHistory: true });
     dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [groupId] });
     setContextMenu({ x: 0, y: 0, visible: false });
   };
@@ -3152,6 +3157,8 @@ export default function Canvas() {
     
     const groupElement = currentPage.elements.find(el => el.id === state.selectedElementIds[0]);
     if (!groupElement || (groupElement.type !== 'group' && groupElement.type !== 'brush-multicolor') || !groupElement.groupedElements) return;
+
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Ungroup Elements' });
     
     const newElementIds: string[] = [];
     groupElement.groupedElements.forEach(el => {
@@ -3161,10 +3168,10 @@ export default function Canvas() {
         y: groupElement.y + el.y
       };
       newElementIds.push(newElement.id);
-      addElementIfAllowed(newElement);
+      addElementIfAllowed(newElement, { skipHistory: true });
     });
     
-    deleteElementIfAllowed(groupElement.id);
+    deleteElementIfAllowed(groupElement.id, { skipHistory: true });
     dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: newElementIds });
     setContextMenu({ x: 0, y: 0, visible: false });
   };
@@ -6160,6 +6167,13 @@ export default function Canvas() {
                 isTransformingRef.current = false;
                 // Clear snap guidelines when transform ends
                 setSnapGuidelines([]);
+
+                if (state.selectedElementIds.length > 0) {
+                  const actionLabel = state.selectedElementIds.length > 1
+                    ? 'Transform Elements'
+                    : 'Transform Element';
+                  dispatch({ type: 'SAVE_TO_HISTORY', payload: actionLabel });
+                }
                 
                 // Dispatch custom events for each selected element
                 state.selectedElementIds.forEach(elementId => {

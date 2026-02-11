@@ -218,11 +218,6 @@ export default function PageAssignmentPopover({
             });
             
             if (assignmentResponse.ok) {
-              // Update local state with the assignment
-              const updatedAssignments = { ...editorState.pageAssignments };
-              updatedAssignments[currentPage] = newBookFriend;
-              dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
-              
               // Also call onAssignUser to update parent component
               onAssignUser(newBookFriend);
               

@@ -1,11 +1,15 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { applyPatches, enableMapSet, enablePatches, produceWithPatches, type Patch } from 'immer';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './auth-context';
 import { subject } from '@casl/ability';
 import { useAbility } from '../abilities/ability-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
 import { getGlobalThemeDefaults, applyThemeToElementConsistent } from '../utils/global-themes';
+
+enablePatches();
+enableMapSet();
 
 type LoadBookOptions = {
   pageOffset?: number;
@@ -538,6 +542,22 @@ export interface Book {
 type PageKey = string | number;
 type BookMetadataSnapshot = Omit<Book, 'pages'>;
 
+export type HistoryCommand =
+  | 'ADD_PAGE_PAIR'
+  | 'DELETE_PAGE'
+  | 'DUPLICATE_PAGE'
+  | 'CANVAS_DRAG'
+  | 'CANVAS_BATCH'
+  | 'CHANGE_THEME'
+  | 'CHANGE_LAYOUT'
+  | 'CHANGE_PALETTE'
+  | 'APPLY_TEMPLATE'
+  | 'UPDATE_ELEMENT'
+  | 'ADD_ELEMENT'
+  | 'DELETE_ELEMENT'
+  | 'SET_PAGE_ASSIGNMENTS'
+  | 'OTHER';
+
 
 function cloneData<T>(value: T): T {
   try {
@@ -733,7 +753,7 @@ function extractBookMetadata(book: Book): BookMetadataSnapshot {
   return cloneData(metadata);
 }
 
-function rebuildBookFromSnapshot(snapshot: HistoryState): Book | null {
+function rebuildBookFromSnapshot(snapshot: HistorySnapshot): Book | null {
   if (!snapshot.bookMeta || !snapshot.pageOrder) {
     return null;
   }
@@ -755,7 +775,7 @@ function getPageKey(page: Page, index: number): PageKey {
   return page.id ?? page.database_id ?? `page-${index}`;
 }
 
-export interface HistoryState {
+export interface HistorySnapshot {
   bookMeta: BookMetadataSnapshot | null;
   pageOrder: PageKey[];
   pageSnapshots: Map<PageKey, Page>;
@@ -765,6 +785,13 @@ export interface HistoryState {
   editorSettings: Record<string, Record<string, any>>;
   pagePagination?: PagePaginationState;
   pageAssignments: Record<number, any>;
+}
+
+export interface HistoryEntry {
+  patches: Patch[];
+  inversePatches: Patch[];
+  command?: HistoryCommand;
+  timestamp?: number;
 }
 
 export interface WizardTemplateSelection {
@@ -792,8 +819,9 @@ export interface EditorState {
   settingsPanelVisible: boolean;
   toolSettings: Record<string, Record<string, any>>;
   editorSettings: Record<string, Record<string, any>>;
-  history: HistoryState[];
+  history: HistoryEntry[];
   historyIndex: number;
+  historyBase: HistorySnapshot | null;
   historyActions: string[];
   hasUnsavedChanges: boolean;
   selectedTemplate?: PageTemplate | null;
@@ -823,12 +851,15 @@ type EditorAction =
   | { type: 'SET_USER'; payload: { id: number; role: string } | null }
   | { type: 'SET_USER_ROLE'; payload: { role: 'author' | 'publisher' | null; assignedPages: number[] } }
   | { type: 'SET_USER_PERMISSIONS'; payload: { pageAccessLevel: 'form_only' | 'own_page' | 'all_pages'; editorInteractionLevel: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings' } }
-  | { type: 'ADD_ELEMENT'; payload: CanvasElement }
+  | { type: 'ADD_ELEMENT'; payload: CanvasElement; skipHistory?: boolean }
   | { type: 'UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_PRESERVE_SELECTION'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_ELEMENT_ALL_PAGES'; payload: { id: string; updates: Partial<CanvasElement> } }
   | { type: 'UPDATE_GROUPED_ELEMENT'; payload: { groupId: string; elementId: string; updates: Partial<CanvasElement> } }
-  | { type: 'DELETE_ELEMENT'; payload: string }
+  | { type: 'START_CANVAS_BATCH'; payload: { command: HistoryCommand } }
+  | { type: 'BATCH_UPDATE_ELEMENT'; payload: { id: string; updates: Partial<CanvasElement> } }
+  | { type: 'END_CANVAS_BATCH'; payload: { actionName: string } }
+  | { type: 'DELETE_ELEMENT'; payload: string; skipHistory?: boolean }
   | { type: 'MOVE_ELEMENT_TO_FRONT'; payload: string }
   | { type: 'MOVE_ELEMENT_TO_BACK'; payload: string }
   | { type: 'MOVE_ELEMENT_UP'; payload: string }
@@ -858,6 +889,7 @@ type EditorAction =
   | { type: 'SAVE_TO_HISTORY'; payload: string }
   | { type: 'UPDATE_PAGE_NUMBERS'; payload: { pageId: number; newPageNumber: number }[] }
   | { type: 'SET_PAGE_ASSIGNMENTS'; payload: Record<number, any> }
+  | { type: 'UPDATE_PAGE_ASSIGNMENTS'; payload: { assignments: Record<number, any>; actionName?: string; skipHistory?: boolean } }
   | { type: 'SET_BOOK_FRIENDS'; payload: any[] }
   | { type: 'UPDATE_PAGE_BACKGROUND'; payload: { pageIndex: number; background: PageBackground; skipHistory?: boolean } }
   | { type: 'SET_BOOK_THEME'; payload: string; skipHistory?: boolean }
@@ -914,6 +946,7 @@ const initialState: EditorState = {
   tempAnswers: {},
   history: [],
   historyIndex: -1,
+  historyBase: null,
   historyActions: [],
   magneticSnapping: true,
   qnaActiveSection: 'question',
@@ -962,6 +995,7 @@ function enforceThemeBoundaries(updates: Partial<CanvasElement>, oldElement: Can
 interface SaveHistoryOptions {
   affectedPageIndexes?: number[];
   cloneEntireBook?: boolean;
+  command?: HistoryCommand;
 }
 
 function getAllPageIndexes(state: EditorState): number[] {
@@ -1307,11 +1341,31 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
     };
   });
 }
-function saveToHistory(state: EditorState, actionName: string, options?: SaveHistoryOptions): EditorState {
-  if (!state.currentBook) return state;
+function buildHistorySnapshot(
+  state: EditorState,
+  previousSnapshot: HistorySnapshot | null,
+  options?: SaveHistoryOptions
+): HistorySnapshot {
+  if (!state.currentBook) {
+    return {
+      bookMeta: null,
+      pageOrder: [],
+      pageSnapshots: new Map<PageKey, Page>(),
+      activePageIndex: state.activePageIndex,
+      selectedElementIds: [...state.selectedElementIds],
+      toolSettings: cloneData(state.toolSettings),
+      editorSettings: cloneData(state.editorSettings),
+      pagePagination: state.pagePagination
+        ? {
+            ...state.pagePagination,
+            loadedPages: { ...state.pagePagination.loadedPages }
+          }
+        : undefined,
+      pageAssignments: cloneData(state.pageAssignments)
+    };
+  }
 
   const currentPages = state.currentBook.pages || [];
-  const previousSnapshot = state.history[state.historyIndex] ?? null;
   const shouldCloneAll = options?.cloneEntireBook || !previousSnapshot;
   const defaultIndexes: number[] =
     state.activePageIndex >= 0 && state.activePageIndex < currentPages.length
@@ -1351,7 +1405,7 @@ function saveToHistory(state: EditorState, actionName: string, options?: SaveHis
     });
   }
 
-  const historyState: HistoryState = {
+  return {
     bookMeta: extractBookMetadata(state.currentBook),
     pageOrder,
     pageSnapshots,
@@ -1367,25 +1421,146 @@ function saveToHistory(state: EditorState, actionName: string, options?: SaveHis
       : undefined,
     pageAssignments: cloneData(state.pageAssignments)
   };
+}
+
+function applySnapshotToDraft(draft: HistorySnapshot, snapshot: HistorySnapshot): void {
+  draft.bookMeta = snapshot.bookMeta;
+  draft.pageOrder = snapshot.pageOrder;
+  draft.pageSnapshots = snapshot.pageSnapshots;
+  draft.activePageIndex = snapshot.activePageIndex;
+  draft.selectedElementIds = snapshot.selectedElementIds;
+  draft.toolSettings = snapshot.toolSettings;
+  draft.editorSettings = snapshot.editorSettings;
+  draft.pagePagination = snapshot.pagePagination;
+  draft.pageAssignments = snapshot.pageAssignments;
+}
+
+function getSnapshotFromHistory(
+  historyBase: HistorySnapshot | null,
+  history: HistoryEntry[],
+  index: number
+): HistorySnapshot | null {
+  if (!historyBase || index < 0 || history.length === 0) {
+    return null;
+  }
+
+  let snapshot = historyBase;
+  const maxIndex = Math.min(index, history.length - 1);
+  for (let i = 1; i <= maxIndex; i += 1) {
+    snapshot = applyPatches(snapshot, history[i].patches) as HistorySnapshot;
+  }
+  return snapshot;
+}
+
+function getAllSnapshotsFromHistory(
+  historyBase: HistorySnapshot | null,
+  history: HistoryEntry[]
+): HistorySnapshot[] {
+  if (!historyBase || history.length === 0) {
+    return [];
+  }
+
+  const snapshots: HistorySnapshot[] = [];
+  let snapshot = historyBase;
+  snapshots.push(snapshot);
+  for (let i = 1; i < history.length; i += 1) {
+    snapshot = applyPatches(snapshot, history[i].patches) as HistorySnapshot;
+    snapshots.push(snapshot);
+  }
+  return snapshots;
+}
+
+function rebuildHistoryFromSnapshots(
+  snapshots: HistorySnapshot[],
+  previousEntries: HistoryEntry[]
+): { historyBase: HistorySnapshot | null; history: HistoryEntry[] } {
+  if (!snapshots.length) {
+    return { historyBase: null, history: [] };
+  }
+
+  const rebuiltEntries: HistoryEntry[] = snapshots.map((_snapshot, index) => {
+    if (index === 0) {
+      return {
+        patches: [],
+        inversePatches: [],
+        command: previousEntries[index]?.command,
+        timestamp: previousEntries[index]?.timestamp
+      };
+    }
+
+    const [_, patches, inversePatches] = produceWithPatches(
+      snapshots[index - 1],
+      (draft) => {
+        applySnapshotToDraft(draft as HistorySnapshot, snapshots[index]);
+      }
+    );
+
+    return {
+      patches,
+      inversePatches,
+      command: previousEntries[index]?.command,
+      timestamp: previousEntries[index]?.timestamp
+    };
+  });
+
+  return { historyBase: snapshots[0], history: rebuiltEntries };
+}
+
+function saveToHistory(state: EditorState, actionName: string, options?: SaveHistoryOptions): EditorState {
+  if (!state.currentBook) return state;
+
+  const previousSnapshot = getSnapshotFromHistory(state.historyBase, state.history, state.historyIndex);
+  const newSnapshot = buildHistorySnapshot(state, previousSnapshot, options);
+  const historyLimit = getHistoryLimitForBook(state.currentBook);
+  const actionTimestamp = Date.now();
+
+  if (!previousSnapshot || !state.historyBase || state.history.length === 0) {
+    const initialEntry: HistoryEntry = {
+      patches: [],
+      inversePatches: [],
+      command: options?.command,
+      timestamp: actionTimestamp
+    };
+
+    return {
+      ...state,
+      historyBase: newSnapshot,
+      history: [initialEntry],
+      historyIndex: 0,
+      historyActions: [actionName]
+    };
+  }
+
+  const [_, patches, inversePatches] = produceWithPatches(previousSnapshot, (draft) => {
+    applySnapshotToDraft(draft as HistorySnapshot, newSnapshot);
+  });
 
   const newHistory = state.history.slice(0, state.historyIndex + 1);
-  newHistory.push(historyState);
+  newHistory.push({ patches, inversePatches, command: options?.command, timestamp: actionTimestamp });
 
-  const historyLimit = getHistoryLimitForBook(state.currentBook);
-
-  if (newHistory.length > historyLimit) {
+  let nextHistoryBase = state.historyBase;
+  while (newHistory.length > historyLimit && nextHistoryBase) {
     newHistory.shift();
+    if (newHistory.length > 0) {
+      nextHistoryBase = applyPatches(nextHistoryBase, newHistory[0].patches) as HistorySnapshot;
+      newHistory[0] = {
+        ...newHistory[0],
+        patches: [],
+        inversePatches: []
+      };
+    }
   }
 
   const newHistoryActions = state.historyActions.slice(0, state.historyIndex + 1);
   newHistoryActions.push(actionName);
 
-  if (newHistoryActions.length > historyLimit) {
+  while (newHistoryActions.length > historyLimit) {
     newHistoryActions.shift();
   }
 
   return {
     ...state,
+    historyBase: nextHistoryBase,
     history: newHistory,
     historyIndex: newHistory.length - 1,
     historyActions: newHistoryActions
@@ -1507,9 +1682,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
-      const savedState = saveToHistory(state, `Add ${action.payload.type}`, {
-        affectedPageIndexes: [state.activePageIndex]
-      });
+      const savedState = action.skipHistory
+        ? state
+        : saveToHistory(state, `Add ${action.payload.type}`, {
+            affectedPageIndexes: [state.activePageIndex]
+          });
       
       // Apply current tool settings as defaults (which include palette colors)
       const toolType = action.payload.textType || action.payload.type;
@@ -1705,15 +1882,125 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       });
       return finalState;
     
+    // Canvas Batching Cases for transform operations (drag, resize, rotate)
+    case 'START_CANVAS_BATCH': {
+      // Initialize a batch for canvas operations
+      // This prevents individual updates from creating history entries
+      return {
+        ...state,
+        canvasBatchActive: true,
+        canvasBatchCommand: action.payload.command,
+        canvasPendingUpdates: new Map(),
+        canvasBatchAffectedPageIndexes: new Set([state.activePageIndex])
+      };
+    }
+    
+    case 'BATCH_UPDATE_ELEMENT': {
+      // Collect updates during batch without applying to history
+      if (!state.canvasBatchActive || !state.currentBook) return state;
+      
+      const pendingUpdates = new Map(state.canvasPendingUpdates);
+      const elementId = action.payload.id;
+      const element = state.currentBook.pages[state.activePageIndex]?.elements.find(el => el.id === elementId);
+      
+      if (!element) return state;
+      
+      // Merge with existing pending updates for this element
+      const existingUpdates = pendingUpdates.get(elementId) || {};
+      const mergedUpdates = { ...existingUpdates, ...action.payload.updates };
+      pendingUpdates.set(elementId, mergedUpdates);
+      
+      // DEBUG LOGGING
+      console.log('[BATCH_UPDATE_ELEMENT] Element:', elementId);
+      console.log('[BATCH_UPDATE_ELEMENT] Merged updates:', mergedUpdates);
+      
+      // Apply updates to current state for real-time visual feedback
+      const updatedBook = { ...state.currentBook };
+      const pageIndex = state.activePageIndex;
+      const page = updatedBook.pages[pageIndex];
+      const elementIndex = page.elements.findIndex(el => el.id === elementId);
+      
+      if (elementIndex !== -1) {
+        const oldElement = page.elements[elementIndex];
+        const enforcedUpdates = enforceThemeBoundaries(mergedUpdates, oldElement);
+        page.elements[elementIndex] = { ...oldElement, ...enforcedUpdates };
+        
+        // DEBUG LOGGING
+        console.log('[BATCH_UPDATE_ELEMENT] Element state after update:', page.elements[elementIndex]);
+      }
+      
+      const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
+      const pageId = updatedBook.pages[pageIndex]?.id;
+      const stateWithInvalidation = invalidatePagePreviews(updatedState, pageId ? [pageId] : []);
+      
+      return {
+        ...markPageIndexAsModified(stateWithInvalidation, pageIndex),
+        canvasPendingUpdates: pendingUpdates
+      };
+    }
+    
+    case 'END_CANVAS_BATCH': {
+      // Apply all batched updates and save to history as a single snapshot
+      if (!state.canvasBatchActive || !state.currentBook) {
+        return {
+          ...state,
+          canvasBatchActive: false,
+          canvasBatchCommand: null,
+          canvasPendingUpdates: new Map(),
+          canvasBatchAffectedPageIndexes: new Set()
+        };
+      }
+      
+      // DEBUG LOGGING
+      console.log('[END_CANVAS_BATCH] Starting batch end');
+      console.log('[END_CANVAS_BATCH] Command:', state.canvasBatchCommand);
+      console.log('[END_CANVAS_BATCH] Pending updates:', state.canvasPendingUpdates);
+      
+      // Log element state before saving
+      state.canvasPendingUpdates.forEach((updates, elementId) => {
+        const element = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === elementId);
+        if (element) {
+          console.log(`[END_CANVAS_BATCH] Element ${elementId} before history:`, {
+            x: element.x,
+            y: element.y,
+            scaleX: element.scaleX,
+            scaleY: element.scaleY,
+            width: element.width,
+            height: element.height
+          });
+        }
+      });
+      
+      // Current state already has updates applied (from BATCH_UPDATE_ELEMENT)
+      // Just save to history with the batched command
+      const affectedPageIndexes = Array.from(state.canvasBatchAffectedPageIndexes);
+      const historyState = saveToHistory(state, action.payload.actionName, {
+        affectedPageIndexes,
+        command: state.canvasBatchCommand || 'INITIAL'
+      });
+      
+      console.log('[END_CANVAS_BATCH] History saved, batch complete');
+      
+      return {
+        ...historyState,
+        canvasBatchActive: false,
+        canvasBatchCommand: null,
+        canvasPendingUpdates: new Map(),
+        canvasBatchAffectedPageIndexes: new Set()
+      };
+    }
+    
     case 'DELETE_ELEMENT':
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
       // Check if author is assigned to current page
       if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
-      const savedDeleteState = saveToHistory(state, 'Delete Element', {
-        affectedPageIndexes: [state.activePageIndex]
-      });
+      const savedDeleteState = action.skipHistory
+        ? state
+        : saveToHistory(state, 'Delete Element', {
+            affectedPageIndexes: [state.activePageIndex]
+          });
       
       // Find the element being deleted to check if it's a question
       const elementToDelete = savedDeleteState.currentBook!.pages[savedDeleteState.activePageIndex].elements
@@ -1737,7 +2024,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'ADD_PAGE':
       if (!state.currentBook || state.userRole === 'author') return state;
       const savedAddPageState = saveToHistory(state, 'Add Spread', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'ADD_PAGE_PAIR'
       });
       const book = savedAddPageState.currentBook!;
       
@@ -1960,7 +2248,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         finalAddState,
         Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)
       );
-      return finalAddState;
+      return saveToHistory(finalAddState, 'Add Spread', {
+        affectedPageIndexes: [insertIndex, Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)],
+        command: 'ADD_PAGE_PAIR'
+      });
 
     case 'ADD_PAGE_PAIR_AT_INDEX': {
       if (!state.currentBook || state.userRole === 'author') return state;
@@ -2207,7 +2498,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         finalAddState = markPageIndexAsModified(finalAddState, i);
       }
       const historyState = saveToHistory(finalAddState, 'Add Spread', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        affectedPageIndexes: [insertIndex, Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)],
+        command: 'ADD_PAGE_PAIR'
       });
       return { ...historyState, hasUnsavedChanges: true };
     }
@@ -2215,10 +2508,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'ADD_EMPTY_PAGE_PAIR_AT_INDEX': {
       if (!state.currentBook || state.userRole === 'author') return state;
       const { insertionIndex } = action.payload;
-      const savedAddPageState = saveToHistory(state, 'Add Empty Spread', {
-        cloneEntireBook: true
-      });
-      const book = savedAddPageState.currentBook!;
+      const savedAddPageState = state;
+      const book = state.currentBook!;
 
       // Get book-level settings
       const bookThemeId = book.themeId || book.bookTheme || 'default';
@@ -2429,7 +2720,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       for (let i = insertIndex + 2; i < finalAddState.currentBook!.pages.length; i++) {
         finalAddState = markPageIndexAsModified(finalAddState, i);
       }
-      return finalAddState;
+      return saveToHistory(finalAddState, 'Add Empty Spread', {
+        cloneEntireBook: true,
+        affectedPageIndexes: [insertIndex, Math.min(insertIndex + 1, finalAddState.currentBook!.pages.length - 1)],
+        command: 'ADD_PAGE_PAIR'
+      });
     }
 
     case 'DELETE_PAGE': {
@@ -2441,7 +2736,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         return state;
       }
       const savedDeletePageState = saveToHistory(state, 'Delete Spread', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'DELETE_PAGE'
       });
       const cacheWithoutPage = { ...savedDeletePageState.pagePreviewCache };
       const versionsWithoutPage = { ...savedDeletePageState.pagePreviewVersions };
@@ -2514,7 +2810,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
       }
       return saveToHistory(finalDeleteState, 'Delete Spread', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'DELETE_PAGE'
       });
     }
     
@@ -2526,7 +2823,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         return state;
       }
       const savedDuplicateState = saveToHistory(state, 'Duplicate Spread', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'DUPLICATE_PAGE'
       });
       const insertIndex = bounds.end + 1;
       // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
@@ -2594,7 +2892,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       for (let i = insertIndex; i < insertIndex + duplicatedPages.length; i++) {
         finalDuplicateState = markPageIndexAsModified(finalDuplicateState, i);
       }
-      return finalDuplicateState;
+      return saveToHistory(finalDuplicateState, 'Duplicate Spread', {
+        affectedPageIndexes: Array.from({ length: duplicatedPages.length }, (_, i) => insertIndex + i),
+        command: 'DUPLICATE_PAGE'
+      });
     }
     
     case 'CREATE_PREVIEW_PAGE':
@@ -2792,18 +3093,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     
     case 'UNDO':
-      if (state.historyIndex > 0) {
-        const prevState = state.history[state.historyIndex - 1];
-        const restoredBook = rebuildBookFromSnapshot(prevState) ?? state.currentBook;
-        const restoredAssignments = prevState.pageAssignments ?? state.pageAssignments;
+      if (state.historyIndex > 0 && state.historyBase) {
+        const targetSnapshot = getSnapshotFromHistory(state.historyBase, state.history, state.historyIndex - 1);
+        if (!targetSnapshot) return state;
+        const restoredBook = rebuildBookFromSnapshot(targetSnapshot) ?? state.currentBook;
+        const restoredAssignments = targetSnapshot.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
-          activePageIndex: prevState.activePageIndex,
-          selectedElementIds: prevState.selectedElementIds,
-          toolSettings: prevState.toolSettings,
-          editorSettings: prevState.editorSettings,
-          pagePagination: prevState.pagePagination,
+          activePageIndex: targetSnapshot.activePageIndex,
+          selectedElementIds: targetSnapshot.selectedElementIds,
+          toolSettings: targetSnapshot.toolSettings,
+          editorSettings: targetSnapshot.editorSettings,
+          pagePagination: targetSnapshot.pagePagination,
           pageAssignments: restoredAssignments,
           historyIndex: state.historyIndex - 1,
           hasUnsavedChanges: true
@@ -2812,18 +3114,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return state;
     
     case 'REDO':
-      if (state.historyIndex < state.history.length - 1) {
-        const nextState = state.history[state.historyIndex + 1];
-        const restoredBook = rebuildBookFromSnapshot(nextState) ?? state.currentBook;
-        const restoredAssignments = nextState.pageAssignments ?? state.pageAssignments;
+      if (state.historyIndex < state.history.length - 1 && state.historyBase) {
+        const targetSnapshot = getSnapshotFromHistory(state.historyBase, state.history, state.historyIndex + 1);
+        if (!targetSnapshot) return state;
+        const restoredBook = rebuildBookFromSnapshot(targetSnapshot) ?? state.currentBook;
+        const restoredAssignments = targetSnapshot.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
-          activePageIndex: nextState.activePageIndex,
-          selectedElementIds: nextState.selectedElementIds,
-          toolSettings: nextState.toolSettings,
-          editorSettings: nextState.editorSettings,
-          pagePagination: nextState.pagePagination,
+          activePageIndex: targetSnapshot.activePageIndex,
+          selectedElementIds: targetSnapshot.selectedElementIds,
+          toolSettings: targetSnapshot.toolSettings,
+          editorSettings: targetSnapshot.editorSettings,
+          pagePagination: targetSnapshot.pagePagination,
           pageAssignments: restoredAssignments,
           historyIndex: state.historyIndex + 1,
           hasUnsavedChanges: true
@@ -2832,18 +3135,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return state;
     
     case 'GO_TO_HISTORY_STEP':
-      if (action.payload >= 0 && action.payload < state.history.length) {
-        const targetState = state.history[action.payload];
-        const restoredBook = rebuildBookFromSnapshot(targetState) ?? state.currentBook;
-        const restoredAssignments = targetState.pageAssignments ?? state.pageAssignments;
+      if (action.payload >= 0 && action.payload < state.history.length && state.historyBase) {
+        const targetSnapshot = getSnapshotFromHistory(state.historyBase, state.history, action.payload);
+        if (!targetSnapshot) return state;
+        const restoredBook = rebuildBookFromSnapshot(targetSnapshot) ?? state.currentBook;
+        const restoredAssignments = targetSnapshot.pageAssignments ?? state.pageAssignments;
         return {
           ...state,
           currentBook: restoredBook,
-          activePageIndex: targetState.activePageIndex,
-          selectedElementIds: targetState.selectedElementIds,
-          toolSettings: targetState.toolSettings,
-          editorSettings: targetState.editorSettings,
-          pagePagination: targetState.pagePagination,
+          activePageIndex: targetSnapshot.activePageIndex,
+          selectedElementIds: targetSnapshot.selectedElementIds,
+          toolSettings: targetSnapshot.toolSettings,
+          editorSettings: targetSnapshot.editorSettings,
+          pagePagination: targetSnapshot.pagePagination,
           pageAssignments: restoredAssignments,
           historyIndex: action.payload,
           hasUnsavedChanges: true
@@ -2867,20 +3171,40 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, currentBook: bookWithUpdatedPages };
     
     case 'SET_PAGE_ASSIGNMENTS':
-      if (state.historyIndex >= 0 && state.history[state.historyIndex]) {
-        const syncedHistory = state.history.slice();
-        syncedHistory[state.historyIndex] = {
-          ...syncedHistory[state.historyIndex],
+      if (state.historyIndex >= 0 && state.historyBase && state.history.length > 0) {
+        const snapshots = getAllSnapshotsFromHistory(state.historyBase, state.history);
+        if (!snapshots[state.historyIndex]) {
+          return { ...state, pageAssignments: action.payload, hasUnsavedChanges: true };
+        }
+        const updatedSnapshot = {
+          ...snapshots[state.historyIndex],
           pageAssignments: cloneData(action.payload)
         };
+        const updatedSnapshots = snapshots.map((snapshot, index) =>
+          index === state.historyIndex ? updatedSnapshot : snapshot
+        );
+        const rebuiltHistory = rebuildHistoryFromSnapshots(updatedSnapshots, state.history);
         return {
           ...state,
-          history: syncedHistory,
+          historyBase: rebuiltHistory.historyBase,
+          history: rebuiltHistory.history,
           pageAssignments: action.payload,
           hasUnsavedChanges: true
         };
       }
       return { ...state, pageAssignments: action.payload, hasUnsavedChanges: true };
+
+    case 'UPDATE_PAGE_ASSIGNMENTS': {
+      const updatedState = {
+        ...state,
+        pageAssignments: action.payload.assignments,
+        hasUnsavedChanges: true
+      };
+      if (action.payload.skipHistory) {
+        return updatedState;
+      }
+      return saveToHistory(updatedState, action.payload.actionName ?? 'Update Page Assignments');
+    }
     
     case 'SET_BOOK_FRIENDS':
       return { ...state, bookFriends: action.payload, hasUnsavedChanges: true };
@@ -2908,7 +3232,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const themeName = theme?.name || action.payload;
       const savedBookThemeState = action.skipHistory
         ? state
-        : saveToHistory(state, `Apply Theme "${themeName}" to Book`, { cloneEntireBook: true });
+        : saveToHistory(state, `Apply Theme "${themeName}" to Book`, { 
+            cloneEntireBook: true,
+            command: 'CHANGE_THEME'
+          });
       
       // CRITICAL: Create a deep copy of the book to avoid reference issues
       // We need to create a new book object with a new pages array
@@ -3336,7 +3663,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_BOOK_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
       const savedBookLayoutState = saveToHistory(state, 'Set Book Layout Template', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'CHANGE_LAYOUT'
       });
       const updatedBookLayoutState = {
         ...savedBookLayoutState,
@@ -3357,7 +3685,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const actionName = action.payload ? `Apply Color Palette "${paletteName}" to Book` : 'Reset Book Color Palette';
       const savedBookPaletteState = action.skipHistory 
         ? state 
-        : saveToHistory(state, actionName, { cloneEntireBook: true });
+        : saveToHistory(state, actionName, { 
+            cloneEntireBook: true,
+            command: 'CHANGE_PALETTE'
+          });
       
       const bookForPalette = savedBookPaletteState.currentBook!;
       const newBookColorPaletteId = action.payload;
@@ -3399,7 +3730,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const savedPageThemeState = action.payload.skipHistory
         ? state
         : saveToHistory(state, `Apply Theme "${pageThemeName}" to Page`, {
-            affectedPageIndexes: [action.payload.pageIndex]
+            affectedPageIndexes: [action.payload.pageIndex],
+            command: 'CHANGE_THEME'
           });
       const updatedBookPageTheme = { ...savedPageThemeState.currentBook! };
       const targetPageTheme = updatedBookPageTheme.pages[action.payload.pageIndex];
@@ -3732,7 +4064,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_PAGE_LAYOUT_TEMPLATE':
       if (!state.currentBook) return state;
       const savedPageLayoutState = saveToHistory(state, 'Set Page Layout Template', {
-        affectedPageIndexes: [action.payload.pageIndex]
+        affectedPageIndexes: [action.payload.pageIndex],
+        command: 'CHANGE_LAYOUT'
       });
       const updatedBookPageLayout = { ...savedPageLayoutState.currentBook! };
       const targetPageLayout = updatedBookPageLayout.pages[action.payload.pageIndex];
@@ -3754,7 +4087,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const savedPagePaletteState = action.payload.skipHistory 
         ? state 
         : saveToHistory(state, pageActionName, {
-            affectedPageIndexes: [action.payload.pageIndex]
+            affectedPageIndexes: [action.payload.pageIndex],
+            command: 'CHANGE_PALETTE'
           });
       const updatedBookPagePalette = { ...savedPagePaletteState.currentBook! };
       const targetPagePalette = updatedBookPagePalette.pages[action.payload.pageIndex];
@@ -3777,7 +4111,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ? state 
         : saveToHistory(state, `Apply Theme "${applyThemeName}" to ${themeScope} Elements`, {
             affectedPageIndexes: affectedThemeIndexes,
-            cloneEntireBook: Boolean(action.payload.applyToAllPages)
+            cloneEntireBook: Boolean(action.payload.applyToAllPages),
+            command: 'CHANGE_THEME'
           });
       const updatedBookApplyTheme = { ...savedApplyThemeState.currentBook! };
       
@@ -3934,7 +4269,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'UPDATE_BOOK_SETTINGS':
       if (!state.currentBook) return state;
       const savedBookSettingsState = saveToHistory(state, 'Update Book Settings', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'INITIAL'
       });
       return withPreviewInvalidation({
         ...savedBookSettingsState,
@@ -3952,7 +4288,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'REORDER_PAGES': {
       if (!state.currentBook || state.userRole === 'author') return state;
       const savedReorderState = saveToHistory(state, 'Reorder Pages', {
-        cloneEntireBook: true
+        cloneEntireBook: true,
+        command: 'INITIAL'
       });
       const { fromIndex, toIndex } = action.payload;
       const { start: fromStart, end: fromEnd } = getPairBounds(savedReorderState.currentBook!.pages, fromIndex);
@@ -4561,7 +4898,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const affectedCompleteIndexes = scope === 'entire-book' ? getAllPageIndexes(state) : [state.activePageIndex];
       const savedCompleteState = saveToHistory(state, 'Apply Complete Template', {
         affectedPageIndexes: affectedCompleteIndexes,
-        cloneEntireBook: scope === 'entire-book'
+        cloneEntireBook: scope === 'entire-book',
+        command: 'APPLY_TEMPLATE'
       });
       
       let completeTemplateState = savedCompleteState;
@@ -4699,7 +5037,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ? state
         : saveToHistory(state, `Apply Color Palette "${appliedPalette.name}" to ${paletteScope}`, {
             affectedPageIndexes: affectedPaletteIndexes,
-            cloneEntireBook: Boolean(paletteApplyToAll)
+            cloneEntireBook: Boolean(paletteApplyToAll),
+            command: 'CHANGE_PALETTE'
           });
       const updatedBookApplyPalette = { ...savedApplyPaletteState.currentBook! };
       // Create palette color getters using centralized function

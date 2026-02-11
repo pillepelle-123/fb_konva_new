@@ -182,8 +182,8 @@ export function ToolSettingsContent({
   const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
   const positionPreserveOptions = useMemo(
     () => ({
-      ignoreKeys: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY'],
-      preserveOnRestore: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY']
+      ignoreKeys: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY', 'stickerTextOffset'],
+      preserveOnRestore: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY', 'stickerTextOffset']
     }),
     []
   );

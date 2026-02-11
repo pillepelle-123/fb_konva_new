@@ -46,7 +46,13 @@ export function PageAssignmentButton({ currentPage, bookId }: PageAssignmentButt
     } else {
       delete updatedAssignments[currentPage];
     }
-    dispatch({ type: 'SET_PAGE_ASSIGNMENTS', payload: updatedAssignments });
+    dispatch({
+      type: 'UPDATE_PAGE_ASSIGNMENTS',
+      payload: {
+        assignments: updatedAssignments,
+        actionName: user ? 'Assign Page' : 'Remove Page Assignment'
+      }
+    });
   };
 
   // Force re-render when assignments change
