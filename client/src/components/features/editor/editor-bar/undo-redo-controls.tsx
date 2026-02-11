@@ -10,6 +10,20 @@ export default function UndoRedoControls() {
   const historyActions = getHistoryActions();
   const canUndo = state.historyIndex > 0;
   const canRedo = state.historyIndex < state.history.length - 1;
+  const groupedActions = historyActions.reduce(
+    (acc, action, index) => {
+      const last = acc[acc.length - 1];
+      if (last && last.action === action) {
+        last.endIndex = index;
+        last.count += 1;
+        last.label = `${action} (x${last.count})`;
+      } else {
+        acc.push({ action, label: action, startIndex: index, endIndex: index, count: 1 });
+      }
+      return acc;
+    },
+    [] as Array<{ action: string; label: string; startIndex: number; endIndex: number; count: number }>
+  );
   
   const canEditPageContent = canEditCurrentPage() || canEditElement({ textType: 'answer' });
   const isDisabled = !canEditPageContent;
@@ -43,15 +57,17 @@ export default function UndoRedoControls() {
           <div className="space-y-1">
             <div className="text-sm font-medium mb-2">Action History</div>
             <div className="max-h-48 overflow-y-auto space-y-1">
-              {historyActions.map((action, index) => (
+              {groupedActions.map((group) => (
                 <button
-                  key={index}
-                  onClick={() => goToHistoryStep(index)}
+                  key={`${group.action}-${group.startIndex}-${group.endIndex}`}
+                  onClick={() => goToHistoryStep(group.endIndex)}
                   className={`w-full text-left px-2 py-1 text-xs rounded hover:bg-muted ${
-                    index === state.historyIndex ? 'bg-primary text-primary-foreground' : ''
+                    state.historyIndex >= group.startIndex && state.historyIndex <= group.endIndex
+                      ? 'bg-primary text-primary-foreground'
+                      : ''
                   }`}
                 >
-                  {action}
+                  {group.label}
                 </button>
               ))}
               {historyActions.length === 0 && (

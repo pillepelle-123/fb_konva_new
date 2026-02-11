@@ -356,11 +356,6 @@ function logThemeStructure(book: Book | null) {
     pageSettings,
     elementDefaults: convertedElementDefaults
   };
-  
-  // console.log('=== THEME STRUCTURE FOR GLOBAL-THEMES.TS ===');
-  // console.log('temp. disabled in editor-context.tsx line 217')
-  // // console.log(JSON.stringify(themeStructure, null, 2));
-  // console.log('=== END THEME STRUCTURE ===');
 }
 
 export interface CanvasElement {
@@ -1625,9 +1620,22 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         modifiedPageIds: new Set<number>(), // Reset modified pages when loading a new book
       };
       if (action.payload) {
-        return saveToHistory(bookState, 'Load Book', { cloneEntireBook: true });
+        const loadSnapshot = buildHistorySnapshot(bookState, null, { cloneEntireBook: true });
+        return {
+          ...bookState,
+          historyBase: loadSnapshot,
+          history: [{ patches: [], inversePatches: [], command: 'INITIAL', timestamp: Date.now() }],
+          historyIndex: 0,
+          historyActions: ['Load Book']
+        };
       }
-      return bookState;
+      return {
+        ...bookState,
+        historyBase: null,
+        history: [],
+        historyIndex: -1,
+        historyActions: []
+      };
     }
     
     case 'SET_ACTIVE_PAGE':
@@ -1886,6 +1894,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'START_CANVAS_BATCH': {
       // Initialize a batch for canvas operations
       // This prevents individual updates from creating history entries
+      if (state.canvasBatchActive) {
+        return state;
+      }
       return {
         ...state,
         canvasBatchActive: true,
@@ -1910,10 +1921,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const mergedUpdates = { ...existingUpdates, ...action.payload.updates };
       pendingUpdates.set(elementId, mergedUpdates);
       
-      // DEBUG LOGGING
-      console.log('[BATCH_UPDATE_ELEMENT] Element:', elementId);
-      console.log('[BATCH_UPDATE_ELEMENT] Merged updates:', mergedUpdates);
-      
       // Apply updates to current state for real-time visual feedback
       const updatedBook = { ...state.currentBook };
       const pageIndex = state.activePageIndex;
@@ -1924,9 +1931,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const oldElement = page.elements[elementIndex];
         const enforcedUpdates = enforceThemeBoundaries(mergedUpdates, oldElement);
         page.elements[elementIndex] = { ...oldElement, ...enforcedUpdates };
-        
-        // DEBUG LOGGING
-        console.log('[BATCH_UPDATE_ELEMENT] Element state after update:', page.elements[elementIndex]);
+
       }
       
       const updatedState = { ...state, currentBook: updatedBook, hasUnsavedChanges: true };
@@ -1950,25 +1955,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           canvasBatchAffectedPageIndexes: new Set()
         };
       }
-      
-      // DEBUG LOGGING
-      console.log('[END_CANVAS_BATCH] Starting batch end');
-      console.log('[END_CANVAS_BATCH] Command:', state.canvasBatchCommand);
-      console.log('[END_CANVAS_BATCH] Pending updates:', state.canvasPendingUpdates);
-      
+
       // Log element state before saving
       state.canvasPendingUpdates.forEach((updates, elementId) => {
         const element = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === elementId);
-        if (element) {
-          console.log(`[END_CANVAS_BATCH] Element ${elementId} before history:`, {
-            x: element.x,
-            y: element.y,
-            scaleX: element.scaleX,
-            scaleY: element.scaleY,
-            width: element.width,
-            height: element.height
-          });
-        }
       });
       
       // Current state already has updates applied (from BATCH_UPDATE_ELEMENT)
@@ -1978,9 +1968,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         affectedPageIndexes,
         command: state.canvasBatchCommand || 'INITIAL'
       });
-      
-      console.log('[END_CANVAS_BATCH] History saved, batch complete');
-      
+
       return {
         ...historyState,
         canvasBatchActive: false,
@@ -6172,12 +6160,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       if (userRole) {
         dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
-        
-        // Use permissions from database
-        // console.log('', {
-        //   pageAccessLevel: userRole.page_access_level || 'all_pages',
-        //   editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings'
-        // });
+ 
         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
           pageAccessLevel: userRole.page_access_level || 'all_pages', 
           editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 

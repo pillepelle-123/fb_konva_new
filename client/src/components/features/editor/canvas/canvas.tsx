@@ -169,6 +169,7 @@ export default function Canvas() {
   const fitToViewRef = useRef<(() => void) | null>(null);
   const justCompletedSelectionRef = useRef<boolean>(false);
   const isDraggingGroupRef = useRef<boolean>(false);
+  const transformerBatchActiveRef = useRef(false);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [panelOffset, setPanelOffset] = useState(0);
   const canCreateElements = canCreateElement();
@@ -5504,8 +5505,6 @@ export default function Canvas() {
                       return;
                     }
                     
-                    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Element' });
-                    
                     // For question-answer pairs, check if elements are already selected
                     if (element.textType === 'question' || element.textType === 'answer') {
                       let linkedElement: CanvasElement | undefined;
@@ -5813,7 +5812,12 @@ export default function Canvas() {
                 return newBox;
               }}
               onDragStart={() => {
-                dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Move Elements' });
+                if (!state.canvasBatchActive) {
+                  dispatch({ type: 'START_CANVAS_BATCH', payload: { command: 'CANVAS_DRAG' } });
+                  transformerBatchActiveRef.current = true;
+                } else {
+                  transformerBatchActiveRef.current = false;
+                }
               }}
               onDragMove={(e) => {
                 const transformer = transformerRef.current;
@@ -5913,34 +5917,41 @@ export default function Canvas() {
               }}
               onDragEnd={(e) => {
                 setSnapGuidelines([]);
-                
+                if (!transformerBatchActiveRef.current) {
+                  return;
+                }
+
                 const nodes = transformerRef.current?.nodes() || [];
                 nodes.forEach(node => {
                   const elementId = node.id();
-                  if (elementId) {
-                    const element = currentPage?.elements.find(el => el.id === elementId);
-                    if (element) {
-                      // Offset-Korrektur wie in onTransformEnd
-                      // Die Group wird mit x={element.x + offsetX} gerendert (siehe base-canvas-item.tsx)
-                      // Beim Dragging gibt node.x() die "adjusted" Position zurück
-                      // Wir müssen den Offset abziehen, um die tatsächliche Position zu erhalten
-                      const elementWidth = element.width || 100;
-                      const elementHeight = element.height || 100;
-                      const offsetX = elementWidth / 2;
-                      const offsetY = elementHeight / 2;
-                      const actualX = node.x() - offsetX;
-                      const actualY = node.y() - offsetY;
-                      
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: elementId,
-                          updates: { x: actualX, y: actualY }
-                        }
-                      });
+                  if (!elementId) return;
+
+                  const element = currentPage?.elements.find(el => el.id === elementId);
+                  if (!element) return;
+
+                  // Offset-Korrektur wie in onTransformEnd
+                  // Die Group wird mit x={element.x + offsetX} gerendert (siehe base-canvas-item.tsx)
+                  // Beim Dragging gibt node.x() die "adjusted" Position zurück
+                  // Wir müssen den Offset abziehen, um die tatsächliche Position zu erhalten
+                  const elementWidth = element.width || 100;
+                  const elementHeight = element.height || 100;
+                  const offsetX = elementWidth / 2;
+                  const offsetY = elementHeight / 2;
+                  const actualX = node.x() - offsetX;
+                  const actualY = node.y() - offsetY;
+
+                  dispatch({
+                    type: 'BATCH_UPDATE_ELEMENT',
+                    payload: {
+                      id: elementId,
+                      updates: { x: actualX, y: actualY }
                     }
-                  }
+                  });
                 });
+
+                const actionLabel = nodes.length > 1 ? 'Move Elements' : 'Move Element';
+                dispatch({ type: 'END_CANVAS_BATCH', payload: { actionName: actionLabel } });
+                transformerBatchActiveRef.current = false;
               }}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 5 || newBox.height < 5) return oldBox;

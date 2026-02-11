@@ -1,3 +1,4 @@
+
 **Plan: Vollständiges Undo/Redo-System mit Immer + Command Pattern**
 
 **Phase 1: Foundation – Immer + History-Stack aufbauen**
