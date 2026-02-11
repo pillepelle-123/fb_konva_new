@@ -166,21 +166,15 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
   }
 
   if (element.type === 'placeholder' || element.type === 'image') {
-    // Force re-render when image settings change by using a key
-    const imageKey = `${element.id}-${element.imageOpacity}-${element.cornerRadius}-${element.frameEnabled}-${element.strokeWidth}-${element.borderOpacity}-${element.frameTheme}-${element.borderColor}`;
-    return <Image key={imageKey} {...props} />;
+    return <Image key={element.id} {...props} />;
   }
 
   if (element.type === 'sticker') {
-    // Force re-render when sticker settings change by using a key
-    const stickerEl = element as any;
-    const stickerKey = `${element.id}-${element.imageOpacity}-${stickerEl.stickerColor}-${stickerEl.stickerTextEnabled}-${stickerEl.stickerText}-${stickerEl.stickerTextSettings?.fontFamily}-${stickerEl.stickerTextSettings?.fontSize}-${stickerEl.stickerTextSettings?.fontBold}-${stickerEl.stickerTextSettings?.fontItalic}-${stickerEl.stickerTextSettings?.fontColor}-${stickerEl.stickerTextSettings?.fontOpacity}-${stickerEl.stickerTextOffset?.x}-${stickerEl.stickerTextOffset?.y}`;
-    return <Sticker key={stickerKey} {...props} />;
+    return <Sticker key={element.id} {...props} />;
   }
 
   if (element.type === 'qr_code') {
-    const qrKey = `${element.id}-${(element as any).qrValue}-${(element as any).qrForegroundColor}-${(element as any).qrBackgroundColor}-${(element as any).qrErrorCorrection}-${(element as any).qrMargin}`;
-    return <QrCodeCanvasItem key={qrKey} {...props} />;
+    return <QrCodeCanvasItem key={element.id} {...props} />;
   }
 
   // Fallback for other element types

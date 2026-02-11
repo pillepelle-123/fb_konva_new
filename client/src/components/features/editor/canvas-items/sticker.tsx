@@ -160,9 +160,13 @@ export default function Sticker(props: CanvasItemProps) {
       <Rect
         width={element.width || 100}
         height={textBoxHeight || Math.max(1, Math.round((textSettings.fontSize || 16) * 1.2))}
-        stroke={isTextSelected ? '#3b82f6' : 'transparent'}
+        stroke={isTextSelected ? '#72bcf5' : 'transparent'}
         strokeWidth={isTextSelected ? 1.5 / zoom : 0}
-        dash={isTextSelected ? [4 / zoom, 3 / zoom] : undefined}
+        dash={isTextSelected ? [6 / zoom, 6 / zoom] : undefined}
+        shadowColor={isTextSelected ? 'rgba(0, 0, 0, 1)' : undefined}
+        shadowBlur={isTextSelected ? 4 : 0}
+        shadowOffsetX={isTextSelected ? 2 : 0}
+        shadowOffsetY={isTextSelected ? 2 : 0}
         listening={true}
         onClick={handleTextClick}
         onTap={handleTextClick}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useEditor } from '../context/editor-context';
 import type { CanvasElement } from '../context/editor-context';
 
@@ -16,6 +16,16 @@ const stripKeys = (element: CanvasElement, ignoreKeys?: string[]) => {
     }
   });
   return clone;
+};
+
+const elementsDiffer = (
+  current: CanvasElement,
+  original: CanvasElement,
+  ignoreKeys?: string[]
+) => {
+  const currentElement = stripKeys(current, ignoreKeys);
+  const originalElement = stripKeys(original, ignoreKeys);
+  return JSON.stringify(currentElement) !== JSON.stringify(originalElement);
 };
 
 const buildRestoredElement = (
@@ -40,6 +50,7 @@ export function useSettingsFormState(
 ) {
   const { dispatch } = useEditor();
   const originalElementRef = useRef<CanvasElement | null>(null);
+  const originalOptionsRef = useRef<SettingsFormStateOptions | null>(null);
   const lastElementRef = useRef<CanvasElement | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const hasChangesRef = useRef(false);
@@ -47,49 +58,75 @@ export function useSettingsFormState(
   const ignoreKeys = options?.ignoreKeys;
   const preserveOnRestore = options?.preserveOnRestore;
 
+  // Helper function to restore element properties
+  const restoreElement = (
+    currentElement: CanvasElement,
+    originalElement: CanvasElement,
+    savedOptions: SettingsFormStateOptions | null
+  ) => {
+    const allKeys = new Set([...Object.keys(currentElement), ...Object.keys(originalElement)]);
+    const updates: Record<string, any> = {};
+    const preserveSet = new Set<string>([...(savedOptions?.preserveOnRestore || []), 'text', 'formattedText']);
+
+    allKeys.forEach((key) => {
+      if (preserveSet.has(key)) return;
+      if (savedOptions?.ignoreKeys?.includes(key)) return;
+      if (key === 'id' || key === 'type') return;
+      const currentVal = (currentElement as any)[key];
+      const originalVal = (originalElement as any)[key];
+      if (JSON.stringify(currentVal) !== JSON.stringify(originalVal)) {
+        updates[key] = originalVal;
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: currentElement.id,
+          updates
+        }
+      });
+    }
+  };
+
   // Capture original element state on mount
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previousElement = lastElementRef.current;
     if (!element) {
-      if (hasChangesRef.current && originalElementRef.current) {
-        const restored = buildRestoredElement(
-          originalElementRef.current,
-          previousElement,
-          preserveOnRestore
-        );
-        dispatch({
-          type: 'RESTORE_ELEMENT_STATE',
-          payload: {
-            elementId: restored.id,
-            elementState: restored
-          }
-        });
+      const shouldRestore =
+        !!originalElementRef.current &&
+        !!previousElement &&
+        elementsDiffer(previousElement, originalElementRef.current, originalOptionsRef.current?.ignoreKeys);
+      if ((hasChangesRef.current || shouldRestore) && originalElementRef.current && previousElement) {
+        restoreElement(previousElement, originalElementRef.current, originalOptionsRef.current);
       }
       originalElementRef.current = null;
+      originalOptionsRef.current = null;
       lastElementRef.current = null;
       setHasChanges(false);
       return;
     }
 
-    if (originalElementRef.current && originalElementRef.current.id !== element.id && hasChangesRef.current) {
-      const restored = buildRestoredElement(
-        originalElementRef.current,
-        previousElement,
-        preserveOnRestore
-      );
-      dispatch({
-        type: 'RESTORE_ELEMENT_STATE',
-        payload: {
-          elementId: restored.id,
-          elementState: restored
-        }
-      });
+    if (originalElementRef.current && originalElementRef.current.id !== element.id) {
+      const shouldRestore =
+        !!previousElement &&
+        elementsDiffer(previousElement, originalElementRef.current, originalOptionsRef.current?.ignoreKeys);
+      if (!shouldRestore) {
+        originalElementRef.current = structuredClone(element);
+        originalOptionsRef.current = { ignoreKeys, preserveOnRestore };
+        lastElementRef.current = element;
+        setHasChanges(false);
+        return;
+      }
+      restoreElement(previousElement, originalElementRef.current, originalOptionsRef.current);
     }
 
     originalElementRef.current = structuredClone(element);
+    originalOptionsRef.current = { ignoreKeys, preserveOnRestore };
     lastElementRef.current = element;
     setHasChanges(false);
-  }, [elementId, dispatch, preserveOnRestore]);
+  }, [elementId, dispatch, preserveOnRestore, ignoreKeys]);
 
   // Detect changes by comparing current element with original
   useEffect(() => {
@@ -98,11 +135,9 @@ export function useSettingsFormState(
       return;
     }
     lastElementRef.current = element;
-    const currentElement = stripKeys(element, ignoreKeys);
-    const originalElement = stripKeys(originalElementRef.current, ignoreKeys);
-    const changed = JSON.stringify(currentElement) !== JSON.stringify(originalElement);
+    const changed = elementsDiffer(element, originalElementRef.current, originalOptionsRef.current?.ignoreKeys);
     setHasChanges(changed);
-  }, [element, ignoreKeys]);
+  }, [element]);
 
   useEffect(() => {
     hasChangesRef.current = hasChanges;
@@ -111,22 +146,18 @@ export function useSettingsFormState(
   // Auto-discard on unmount if there are unsaved changes
   useEffect(() => {
     return () => {
-      if (element && hasChanges && originalElementRef.current) {
-        const restored = buildRestoredElement(
-          originalElementRef.current,
-          element,
-          preserveOnRestore
-        );
-        dispatch({
-          type: 'RESTORE_ELEMENT_STATE',
-          payload: {
-            elementId: restored.id,
-            elementState: restored
-          }
-        });
+      if (!element || !originalElementRef.current) return;
+      if (originalElementRef.current.id !== element.id) return;
+      const shouldRestore = elementsDiffer(
+        element,
+        originalElementRef.current,
+        originalOptionsRef.current?.ignoreKeys
+      );
+      if (hasChanges || shouldRestore) {
+        restoreElement(element, originalElementRef.current, originalOptionsRef.current);
       }
     };
-  }, [hasChanges, dispatch, preserveOnRestore]);
+  }, [hasChanges, dispatch]);
 
   const handleSave = () => {
     if (!element || !hasChanges) return;
@@ -143,19 +174,7 @@ export function useSettingsFormState(
   const handleDiscard = () => {
     if (!element || !originalElementRef.current || !hasChanges) return;
     
-    const restored = buildRestoredElement(
-      originalElementRef.current,
-      element,
-      preserveOnRestore
-    );
-    dispatch({
-      type: 'RESTORE_ELEMENT_STATE',
-      payload: {
-        elementId: element.id,
-        elementState: restored
-      }
-    });
-    
+    restoreElement(element, originalElementRef.current, originalOptionsRef.current);
     setHasChanges(false);
   };
 

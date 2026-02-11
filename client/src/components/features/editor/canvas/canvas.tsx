@@ -5380,6 +5380,7 @@ export default function Canvas() {
                     
                     // Note: Selection is allowed even when lockElements is enabled
                     // Only dragging, resizing, rotating, and adding new elements are blocked
+                    // Settings discard is handled automatically by useSettingsFormState's useLayoutEffect
                     
                     // Handle Ctrl+click for multi-selection and deselection
                     if (e?.evt?.ctrlKey || e?.evt?.metaKey) {
