@@ -201,6 +201,55 @@ export function resolveBackgroundImageUrl(
     return undefined;
   }
 
+  // Prefer pre-resolved data URL (e.g. from server-side PDF export where API URLs are replaced)
+  // For SVG, still apply palette when requested so page color palette is respected
+  if (background.value && background.value.startsWith('data:')) {
+    const shouldApplyPalette = background.applyPalette !== false;
+    if (
+      shouldApplyPalette &&
+      options &&
+      background.value.startsWith('data:image/svg+xml')
+    ) {
+      const match = background.value.match(/^data:image\/svg\+xml;base64,(.+)$/);
+      if (match) {
+        try {
+          const binary = atob(match[1]);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const rawSvg = new TextDecoder().decode(bytes);
+          const paletteColors = resolvePaletteColors(options);
+
+          if (rawSvg && paletteColors) {
+            const template = background.backgroundImageTemplateId
+              ? getBackgroundImageById(background.backgroundImageTemplateId)
+              : null;
+            const paletteSlots = template?.paletteSlots;
+            const containsPaletteTokens = /PALETTE_[A-Z_]+/.test(rawSvg);
+
+            if (paletteSlots === 'standard' && containsPaletteTokens) {
+              return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+                cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data`,
+                asDataUrl: true,
+              });
+            }
+            if (
+              paletteSlots === 'auto' ||
+              (paletteSlots === 'standard' && !containsPaletteTokens)
+            ) {
+              return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+                cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto`,
+                asDataUrl: true,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[resolveBackgroundImageUrl] Failed to apply palette to data URL:', e);
+        }
+      }
+    }
+    return background.value;
+  }
+
   // If using template, resolve template URL (with palette support for SVGs)
   if (background.backgroundImageTemplateId) {
     const shouldApplyPalette = background.applyPalette !== false;

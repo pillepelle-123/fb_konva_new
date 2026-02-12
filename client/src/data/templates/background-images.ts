@@ -32,6 +32,8 @@ const apiStorageSchema = z.object({
   thumbnailPath: z.string().nullable().optional(),
   bucket: z.string().nullable().optional(),
   objectKey: z.string().nullable().optional(),
+  publicUrl: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
 })
 
 const apiDefaultsSchema = z.object({
@@ -124,8 +126,10 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
     storageType,
   }
 
+  const resolveUrl = (u: string | null) => (u && apiBaseOrigin && u.startsWith('/') ? apiBaseOrigin + u : u)
+
   const url =
-    storagePublicUrl ??
+    resolveUrl(storagePublicUrl) ??
     (storageType === 'local'
       ? resolveLocalUrl(filePath)
       : storage.bucket && storage.objectKey
@@ -133,7 +137,7 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
         : filePath ?? '')
 
   const thumbnailUrl =
-    storageThumbnailUrl ??
+    resolveUrl(storageThumbnailUrl) ??
     (storageType === 'local'
       ? resolveLocalUrl(thumbnailPath)
       : storage.bucket && storage.objectKey
@@ -174,7 +178,7 @@ export async function loadBackgroundImageRegistry(force = false) {
         .filter((image) => image.format === 'vector' && image.url)
         .map(async (image) => {
           try {
-            const response = await fetch(image.url)
+            const response = await fetch(image.url, { credentials: 'include' })
             if (!response.ok) return
             const raw = await response.text()
             svgRawCache[image.filePath] = raw

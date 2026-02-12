@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const { Pool } = require('pg');
 const { createServer } = require('http');
@@ -17,8 +18,9 @@ const io = new Server(server, {
 });
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// Middleware - credentials: true allows cookies for cross-origin (e.g. dev)
+app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
+app.use(cookieParser());
 // Increase JSON body size limit to 50MB for large books (64+ pages with many elements)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -38,12 +40,10 @@ pool.connect((err, client, release) => {
   }
 });
 
-// Static file serving
-const { getUploadsDir } = require('./utils/uploads-path');
-const UPLOADS_DIR = getUploadsDir();
-// Block direct access to user images - must use /api/images/file/:id or /api/images/serve
-app.use('/uploads/images', (req, res) => res.status(403).json({ error: 'Use authenticated API to access images' }));
-app.use('/uploads', express.static(UPLOADS_DIR));
+// Block ALL direct access to /uploads - must use authenticated API endpoints
+app.use('/uploads', (_req, res) => {
+  res.status(403).json({ error: 'Use authenticated API to access uploads' });
+});
 
 // PDF Renderer static assets
 const CLIENT_DIST_DIR = path.join(__dirname, '..', 'client', 'dist');

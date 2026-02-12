@@ -54,6 +54,7 @@ export default function ImageCard({
         <img
           src={getThumbUrl(image)}
           alt={image.original_name}
+          crossOrigin="use-credentials"
           className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
           onClick={handleImageClick}
           onError={(e) => {

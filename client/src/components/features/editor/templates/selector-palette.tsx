@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Palette, Eye, RotateCcw } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { Tooltip } from '../../../ui/composites/tooltip';
@@ -19,13 +19,17 @@ interface PaletteSelectorProps {
   onPreviewClick?: (palette: ColorPalette) => void;
 }
 
-export function PaletteSelector({ 
+export interface PaletteSelectorRef {
+  discard: () => void;
+}
+
+export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorProps>(function PaletteSelector({ 
   onBack, 
   title, 
   isBookLevel = false, 
   themeId,
   onPreviewClick 
-}: PaletteSelectorProps) {
+}, ref) {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const canApplyToEntireBook = canEditBookSettings();
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
@@ -46,6 +50,13 @@ export function PaletteSelector({
   );
   const [useThemePalette, setUseThemePalette] = useState<boolean>(shouldUseThemePalette);
   const originalPageStateRef = useRef<Page | null>(null);
+
+  // Initial selection when selector opened (for canApply - same logic as SelectorTheme)
+  const getInitialEffectivePaletteId = () => {
+    if (isBookLevel) return shouldUseThemePalette ? (themePalette?.id ?? '__THEME__') : (currentPaletteId ?? null);
+    return pagePaletteOverrideId === null ? (themePalette?.id ?? '__THEME__') : (currentPaletteId ?? null);
+  };
+  const initialEffectivePaletteIdRef = useRef<string | null>(getInitialEffectivePaletteId());
 
   // Capture complete page state on mount (deep clone)
   useEffect(() => {
@@ -73,6 +84,11 @@ export function PaletteSelector({
   const getEffectivePalette = (): ColorPalette | null => {
     if (isBookLevel) return useThemePalette ? themePalette : selectedPalette;
     return useThemePalette ? themePalette : selectedPalette;
+  };
+
+  const getCurrentEffectivePaletteId = (): string | null => {
+    const effective = getEffectivePalette();
+    return useThemePalette ? (effective?.id ?? '__THEME__') : (effective?.id ?? null);
   };
 
   const resetColorOverrides = () => {
@@ -123,6 +139,8 @@ export function PaletteSelector({
     }
     onBack();
   };
+
+  useImperativeHandle(ref, () => ({ discard: handleCancel }), [handleCancel]);
 
   const handleApply = () => {
     const paletteToApply = getEffectivePalette();
@@ -205,7 +223,7 @@ export function PaletteSelector({
       getItemKey={(palette) => palette.id}
       onCancel={handleCancel}
       onApply={handleApply}
-      canApply={true}
+      canApply={getCurrentEffectivePaletteId() !== initialEffectivePaletteIdRef.current}
       applyToEntireBook={applyToEntireBook}
       onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
       headerActions={
@@ -249,4 +267,4 @@ export function PaletteSelector({
       )}
     />
   );
-}
+});

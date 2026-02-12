@@ -2192,6 +2192,25 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     const transform = groupNode.getAbsoluteTransform().copy().invert();
     const localPos = transform.point(pointerPos);
     
+    // Extended answer hover: entire textbox minus question area (for better UX)
+    if (element.questionId && questionAreaBounds) {
+      const qx = questionAreaBounds.x;
+      const qy = questionAreaBounds.y;
+      const qw = questionAreaBounds.width;
+      const qh = questionAreaBounds.height;
+      if (typeof qx === 'number' && typeof qy === 'number' && typeof qw === 'number' && typeof qh === 'number') {
+        const inHitArea = localPos.x >= 0 && localPos.x <= boxWidth && localPos.y >= 0 && localPos.y <= boxHeight;
+        const inQuestionArea =
+          localPos.x >= qx &&
+          localPos.x <= qx + qw &&
+          localPos.y >= qy &&
+          localPos.y <= qy + qh;
+        if (inHitArea && !inQuestionArea) {
+          return 'answer';
+        }
+      }
+    }
+    
     // CRITICAL FIX: If layout is stale (missing answer runs), use answerAreaBounds as fallback
     if (answerAreaBounds && element.questionId) {
       // Check if click is in answer area bounds (fallback for stale layout)
@@ -2220,7 +2239,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     );
     
     return clickArea;
-  }, [layout, visibleRuns.length, isAnswerEditorOpen, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent, answerAreaBounds, element.questionId]);
+  }, [layout, visibleRuns.length, isAnswerEditorOpen, layoutVariant, effectiveQuestionStyle, answerStyle, padding, boxWidth, boxHeight, answerContent, answerAreaBounds, questionAreaBounds, element.questionId]);
   
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false || activeTool !== 'select') {

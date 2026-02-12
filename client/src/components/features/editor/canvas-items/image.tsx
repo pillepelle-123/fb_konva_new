@@ -191,6 +191,9 @@ export default function Image(props: ImageProps) {
     if ((element.type === 'image' || element.type === 'sticker') && element.src) {
       const src = element.src;
       const isProtectedImageUrl = src.includes('/api/images/file/');
+      const isProtectedStickerUrl = src.includes('/api/stickers/');
+      const isProtectedBgImageUrl = src.includes('/api/background-images/');
+      const isProtectedUrl = isProtectedImageUrl || isProtectedStickerUrl || isProtectedBgImageUrl;
 
       const loadImage = (url: string) => {
         let imageUrl = url;
@@ -216,8 +219,8 @@ export default function Image(props: ImageProps) {
         img.src = imageUrl;
       };
 
-      if (isProtectedImageUrl && token) {
-        fetch(src, { headers: { Authorization: `Bearer ${token}` } })
+      if (isProtectedUrl && token) {
+        fetch(src, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
           .then((res) => {
             if (!res.ok) throw new Error('Failed to fetch image');
             return res.blob();

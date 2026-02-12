@@ -167,6 +167,7 @@ export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActivePageIndexRef = useRef<number | null>(null);
   const fitToViewRef = useRef<(() => void) | null>(null);
+  const activePageIndexForTransformerRef = useRef<number>(state.activePageIndex);
   const justCompletedSelectionRef = useRef<boolean>(false);
   const isDraggingGroupRef = useRef<boolean>(false);
   const transformerBatchActiveRef = useRef(false);
@@ -178,6 +179,19 @@ export default function Canvas() {
   const canCreateQna = canCreateElementType('qna');
   const canDeleteQna = canDeleteElementType('qna');
   const isCreationToolActive = CREATION_TOOLS.has(state.activeTool);
+
+  // Clear transformer when page changes - prevents "setAttrs of undefined" error
+  // when old page's nodes are removed and Transformer tries to update them
+  if (activePageIndexForTransformerRef.current !== state.activePageIndex) {
+    activePageIndexForTransformerRef.current = state.activePageIndex;
+    if (transformerRef.current) {
+      try {
+        transformerRef.current.nodes([]);
+      } catch {
+        // Ignore - transformer might be in invalid state
+      }
+    }
+  }
 
   const addElementIfAllowed = useCallback(
     (element: CanvasElement, options?: { skipHistory?: boolean }) => {
@@ -192,10 +206,19 @@ export default function Canvas() {
   const deleteElementIfAllowed = useCallback(
     (elementId: string, options?: { skipHistory?: boolean }) => {
       if (!canDeleteElements) return false;
+      // Clear transformer before delete to prevent "setAttrs of undefined" error
+      // when the Konva node is removed and Transformer tries to update removed nodes
+      if (transformerRef.current && state.selectedElementIds.includes(elementId)) {
+        try {
+          transformerRef.current.nodes([]);
+        } catch {
+          // Ignore - transformer might be in invalid state
+        }
+      }
       dispatch({ type: 'DELETE_ELEMENT', payload: elementId, skipHistory: options?.skipHistory });
       return true;
     },
-    [canDeleteElements, dispatch]
+    [canDeleteElements, dispatch, state.selectedElementIds]
   );
 
   // Partner page rendering optimization
@@ -652,6 +675,7 @@ export default function Canvas() {
   const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
   const backgroundImageCacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
   const loadingImagesRef = useRef<Set<string>>(new Set());
+  const failedBackgroundUrlsRef = useRef<Set<string>>(new Set()); // Avoid retries and repeated errors
   const cacheAccessOrderRef = useRef<string[]>([]); // Track access order for LRU eviction
   const [backgroundQuality, setBackgroundQuality] = useState<'preview' | 'full'>('preview');
   
@@ -3323,6 +3347,11 @@ export default function Canvas() {
       return;
     }
 
+    // Bei Klick auf Canvas: Selector-Dialoge schließen und Änderungen verwerfen
+    if (e.evt.button === 0) {
+      window.dispatchEvent(new CustomEvent('editor:canvasClicked'));
+    }
+
     if (e.evt.button !== 2) {
       setContextMenu({ x: 0, y: 0, visible: false });
     }
@@ -3489,10 +3518,11 @@ export default function Canvas() {
     // Function to preload a single image
     const preloadImage = (imageUrl: string) => {
       if (!imageUrl) return;
-      
+      if (failedBackgroundUrlsRef.current.has(imageUrl)) return; // Skip URLs that previously failed
+
       const cache = backgroundImageCacheRef.current;
       const accessOrder = cacheAccessOrderRef.current;
-      
+
       // If already in cache, update access order (LRU)
       if (cache.has(imageUrl)) {
         // Move to end (most recently used)
@@ -3508,54 +3538,63 @@ export default function Canvas() {
       if (loadingImages.has(imageUrl)) return; // Already loading
       
       loadingImages.add(imageUrl);
-      // Image not in cache, preload it
-      const img = new window.Image();
+      const isProtectedBgUrl = imageUrl.includes('/api/background-images/');
       
-      // Don't set crossOrigin for data URLs (base64) or local URLs
-      // Data URLs are already local and don't need CORS
-      const isDataUrl = imageUrl.startsWith('data:');
-      const isLocalUrl = imageUrl.startsWith('http://localhost') || imageUrl.startsWith('https://localhost') || 
-                        imageUrl.startsWith('http://127.0.0.1') || imageUrl.startsWith('https://127.0.0.1') ||
-                        (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'));
-      
-      // Only set crossOrigin for external URLs (S3, etc.)
-      if (!isDataUrl && !isLocalUrl) {
-        img.crossOrigin = 'anonymous';
-      }
-      
-      const storeEntry = (entry: BackgroundImageEntry) => {
-        // Evict old entries if needed before adding new one
-        evictOldEntries();
-        
-        // Add new entry
-        cache.set(imageUrl, entry);
-        accessOrder.push(imageUrl);
-        loadingImages.delete(imageUrl);
-        setBackgroundImageCache(new Map(cache));
-      };
-      
-      img.onload = () => {
-        const previewImage = createPreviewImage(img);
-        
-        if (previewImage === img || previewImage.complete) {
-          storeEntry({ full: img, preview: previewImage });
-        } else {
-          previewImage.onload = () => storeEntry({ full: img, preview: previewImage });
-          previewImage.onerror = () => storeEntry({ full: img, preview: img });
+      const loadImageFromUrl = (url: string) => {
+        const img = new window.Image();
+        const isDataUrl = url.startsWith('data:');
+        const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
+                          url.startsWith('http://127.0.0.1') || url.startsWith('https://127.0.0.1') ||
+                          (!url.startsWith('http://') && !url.startsWith('https://'));
+        if (!isDataUrl && !isLocalUrl) {
+          img.crossOrigin = 'anonymous';
         }
+        const storeEntry = (entry: BackgroundImageEntry) => {
+          evictOldEntries();
+          cache.set(imageUrl, entry);
+          accessOrder.push(imageUrl);
+          loadingImages.delete(imageUrl);
+          setBackgroundImageCache(new Map(cache));
+        };
+        img.onload = () => {
+          const previewImage = createPreviewImage(img);
+          if (previewImage === img || previewImage.complete) {
+            storeEntry({ full: img, preview: previewImage });
+          } else {
+            previewImage.onload = () => storeEntry({ full: img, preview: previewImage });
+            previewImage.onerror = () => storeEntry({ full: img, preview: img });
+          }
+        };
+        img.onerror = () => {
+          loadingImages.delete(imageUrl);
+          failedBackgroundUrlsRef.current.add(imageUrl);
+          if (!imageUrl.startsWith('data:')) {
+            console.error(`[Background Cache] Failed to load background image: ${imageUrl}`, {
+              complete: img.complete,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight
+            });
+          }
+        };
+        img.src = url;
       };
       
-      img.onerror = () => {
-        loadingImages.delete(imageUrl);
-        console.error(`[Background Cache] Failed to load background image: ${imageUrl}`, {
-          src: img.src,
-          complete: img.complete,
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight
-        });
-      };
-      
-      img.src = imageUrl;
+      if (isProtectedBgUrl && token) {
+        fetch(imageUrl, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+          .then((res) => {
+            if (!res.ok) throw new Error('Failed to fetch background image');
+            return res.blob();
+          })
+          .then((blob) => {
+            loadImageFromUrl(URL.createObjectURL(blob));
+          })
+          .catch((err) => {
+            loadingImages.delete(imageUrl);
+            console.error(`[Background Cache] Failed to fetch background image: ${imageUrl}`, err);
+          });
+      } else {
+        loadImageFromUrl(imageUrl);
+      }
     };
     
     // Preload current page background immediately
@@ -3604,6 +3643,7 @@ export default function Canvas() {
     currentPage?.background?.type, 
     currentPage?.background?.value, 
     activePaletteId,
+    token,
     JSON.stringify(activePalette?.colors),
     JSON.stringify({
       templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
@@ -3617,6 +3657,7 @@ export default function Canvas() {
       const cache = backgroundImageCacheRef.current;
       const accessOrder = cacheAccessOrderRef.current;
       const loadingImages = loadingImagesRef.current;
+      failedBackgroundUrlsRef.current.clear(); // Allow retry when palette/theme changes
       
       const targetPageIndex = event.detail?.pageIndex;
       
@@ -4740,6 +4781,16 @@ export default function Canvas() {
       return;
     }
 
+    const loadStickerImageUrl = async (url: string): Promise<string> => {
+      if (url.includes('/api/stickers/') && token) {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load sticker');
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      }
+      return url;
+    };
+
     const templateIds = getTemplateIdsForDefaults();
     const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
     const stickerTextDefaults = getGlobalThemeDefaults(activeTheme, 'free_text', undefined);
@@ -4755,144 +4806,129 @@ export default function Canvas() {
         
     // If we have a pending element ID, update the existing sticker element
     if (pendingStickerElementId) {
-      // Load sticker image to get original dimensions
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const element = currentPage?.elements.find(el => el.id === pendingStickerElementId);
-        if (element) {
-          const existingHasText = Boolean(element.stickerText && element.stickerText.trim().length > 0);
-          const nextTextEnabled = element.stickerTextEnabled ?? existingHasText;
-          const maxWidth = 300;
-          const aspectRatio = img.width / img.height;
-          const width = maxWidth;
-          const height = maxWidth / aspectRatio;
-          
-          dispatch({
-            type: 'UPDATE_ELEMENT',
-            payload: {
-              id: pendingStickerElementId,
-              updates: {
-                src: sticker.url,
-                width: element.width || width,
-                height: element.height || height,
-                stickerId: sticker.id,
-                stickerFormat: sticker.format,
-                stickerFilePath: sticker.filePath,
-                stickerOriginalUrl: sticker.url,
-                stickerColor: undefined,
-                stickerTextEnabled: nextTextEnabled,
-                stickerText: element.stickerText,
-                stickerTextSettings: element.stickerTextSettings ?? stickerTextSettings,
-                stickerTextOffset: element.stickerTextOffset
+      loadStickerImageUrl(sticker.url).then((loadableUrl) => {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          if (loadableUrl !== sticker.url) URL.revokeObjectURL(loadableUrl);
+          const element = currentPage?.elements.find(el => el.id === pendingStickerElementId);
+          if (element) {
+            const existingHasText = Boolean(element.stickerText && element.stickerText.trim().length > 0);
+            const nextTextEnabled = element.stickerTextEnabled ?? existingHasText;
+            const maxWidth = 300;
+            const aspectRatio = img.width / img.height;
+            const width = maxWidth;
+            const height = maxWidth / aspectRatio;
+            
+            dispatch({
+              type: 'UPDATE_ELEMENT',
+              payload: {
+                id: pendingStickerElementId,
+                updates: {
+                  src: sticker.url,
+                  width: element.width || width,
+                  height: element.height || height,
+                  stickerId: sticker.id,
+                  stickerFormat: sticker.format,
+                  stickerFilePath: sticker.filePath,
+                  stickerOriginalUrl: sticker.url,
+                  stickerColor: undefined,
+                  stickerTextEnabled: nextTextEnabled,
+                  stickerText: element.stickerText,
+                  stickerTextSettings: element.stickerTextSettings ?? stickerTextSettings,
+                  stickerTextOffset: element.stickerTextOffset
+                }
               }
-            }
-          });
-        }
-      };
-      img.src = sticker.url;
-      
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      setShowStickerModal(false);
-      setPendingStickerPosition(null);
-      setPendingStickerElementId(null);
+            });
+          }
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+          setShowStickerModal(false);
+          setPendingStickerPosition(null);
+          setPendingStickerElementId(null);
+        };
+        img.onerror = () => {
+          if (loadableUrl !== sticker.url) URL.revokeObjectURL(loadableUrl);
+          setShowStickerModal(false);
+          setPendingStickerPosition(null);
+          setPendingStickerElementId(null);
+          dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        };
+        img.src = loadableUrl;
+      }).catch(() => {
+        setShowStickerModal(false);
+        setPendingStickerPosition(null);
+        setPendingStickerElementId(null);
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      });
       return;
     }
     
     // Otherwise, create a new element (existing behavior)
     if (!pendingStickerPosition) return;
     
-    // Load sticker image to get dimensions
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const maxWidth = 300;
-      const aspectRatio = img.width / img.height;
-      const width = maxWidth;
-      const height = maxWidth / aspectRatio;
-      
-      const newElement: CanvasElement = {
-        id: uuidv4(),
-        type: 'sticker',
-        x: pendingStickerPosition.x,
-        y: pendingStickerPosition.y,
-        width,
-        height,
-        imageOpacity: 1,
-        src: sticker.url,
-        stickerId: sticker.id,
-        stickerFormat: sticker.format,
-        stickerFilePath: sticker.filePath,
-        stickerOriginalUrl: sticker.url,
-        stickerTextEnabled: selection.textEnabled,
-        stickerText: hasStickerText ? selection.text : undefined,
-        stickerTextSettings: stickerTextSettings,
-        stickerTextOffset: hasStickerText ? { x: 0, y: height + 8 } : undefined,
-        cornerRadius: 0,
-        imageClipPosition: 'center-middle' // Enable crop behavior for stickers, same as images
-      };
-      
-      if (addElementIfAllowed(newElement)) {
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-        setShowStickerModal(false);
-        setPendingStickerPosition(null);
-        setPendingStickerElementId(null);
-      }
-    };
-    img.onerror = (error) => {
-      console.error('Failed to load sticker image:', { 
-        url: sticker.url, 
-        thumbnailUrl: sticker.thumbnailUrl,
-        error,
-        sticker 
-      });
-      // Try using thumbnailUrl as fallback
-      if (sticker.thumbnailUrl && sticker.thumbnailUrl !== sticker.url) {
-        const fallbackImg = new window.Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        fallbackImg.onload = () => {
+    const tryLoadSticker = (url: string, useThumbnailAsSrc: boolean) => {
+      loadStickerImageUrl(url).then((loadableUrl) => {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          if (loadableUrl !== url) URL.revokeObjectURL(loadableUrl);
           const maxWidth = 300;
-          const aspectRatio = fallbackImg.width / fallbackImg.height;
+          const aspectRatio = img.width / img.height;
           const width = maxWidth;
           const height = maxWidth / aspectRatio;
           
           const newElement: CanvasElement = {
             id: uuidv4(),
             type: 'sticker',
-            x: pendingStickerPosition.x,
-            y: pendingStickerPosition.y,
+            x: pendingStickerPosition!.x,
+            y: pendingStickerPosition!.y,
             width,
             height,
             imageOpacity: 1,
-            src: sticker.thumbnailUrl,
+            src: useThumbnailAsSrc ? sticker.thumbnailUrl : sticker.url,
             stickerId: sticker.id,
             stickerFormat: sticker.format,
             stickerFilePath: sticker.filePath,
             stickerOriginalUrl: sticker.url,
-            cornerRadius: 0
+            stickerTextEnabled: selection.textEnabled,
+            stickerText: hasStickerText ? selection.text : undefined,
+            stickerTextSettings: stickerTextSettings,
+            stickerTextOffset: hasStickerText ? { x: 0, y: height + 8 } : undefined,
+            cornerRadius: 0,
+            imageClipPosition: 'center-middle'
           };
           
           if (addElementIfAllowed(newElement)) {
             dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
             setShowStickerModal(false);
             setPendingStickerPosition(null);
+            setPendingStickerElementId(null);
           }
         };
-        fallbackImg.onerror = () => {
-          console.error('Failed to load sticker thumbnail as well:', sticker.thumbnailUrl);
+        img.onerror = () => {
+          if (loadableUrl !== url) URL.revokeObjectURL(loadableUrl);
+          if (!useThumbnailAsSrc && sticker.thumbnailUrl && sticker.thumbnailUrl !== sticker.url) {
+            tryLoadSticker(sticker.thumbnailUrl, true);
+          } else {
+            console.error('Failed to load sticker:', { url: sticker.url, thumbnailUrl: sticker.thumbnailUrl });
+            setShowStickerModal(false);
+            setPendingStickerPosition(null);
+            dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+          }
+        };
+        img.src = loadableUrl;
+      }).catch(() => {
+        if (!useThumbnailAsSrc && sticker.thumbnailUrl && sticker.thumbnailUrl !== sticker.url) {
+          tryLoadSticker(sticker.thumbnailUrl, true);
+        } else {
           setShowStickerModal(false);
           setPendingStickerPosition(null);
           dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-        };
-        fallbackImg.src = sticker.thumbnailUrl;
-      } else {
-        setShowStickerModal(false);
-        setPendingStickerPosition(null);
-        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-      }
+        }
+      });
     };
-    img.src = sticker.url;
-  }, [pendingStickerElementId, currentPage, pendingStickerPosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch]);
+    tryLoadSticker(sticker.url, false);
+  }, [pendingStickerElementId, currentPage, pendingStickerPosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch, token]);
 
   const handleStickerModalClose = () => {
     setShowStickerModal(false);

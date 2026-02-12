@@ -199,8 +199,9 @@ router.get('/file/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Signed URL: Serve image without Authorization (for img tags) - token in query param
-router.get('/serve', async (req, res) => {
+// Signed URL: Serve image (requires auth + valid token)
+// Token identifies image; auth ensures only users with access can load it (prevents sharing links)
+router.get('/serve', authenticateToken, async (req, res) => {
   try {
     const { s } = req.query;
     if (!s) {
@@ -229,6 +230,23 @@ router.get('/serve', async (req, res) => {
     }
 
     const image = result.rows[0];
+    const userId = req.user.id;
+
+    // Zugriff: eigene Bilder ODER Bild gehört zu Buch, auf das User Zugriff hat
+    const isOwner = image.uploaded_by === userId;
+    let hasBookAccess = false;
+    if (!isOwner && image.book_id) {
+      const bookAccess = await pool.query(
+        `SELECT 1 FROM public.books b
+         LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+         WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)`,
+        [image.book_id, userId]
+      );
+      hasBookAccess = bookAccess.rows.length > 0;
+    }
+    if (!isOwner && !hasBookAccess) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
     const ext = path.extname(image.filename).toLowerCase();
     const filename = thumb ? image.filename.replace(ext, '') + '_thumb' + ext : image.filename;
     const dirPath = path.dirname(path.join(getUploadsDir(), image.file_path));

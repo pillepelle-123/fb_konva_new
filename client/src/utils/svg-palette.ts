@@ -196,8 +196,23 @@ function normalizeColor(color?: string): string | undefined {
   return trimmed;
 }
 
+/**
+ * Remove editor-specific metadata from SVG that can cause load failures
+ * when used as img src (Inkscape, Sodipodi, Boxy SVG, etc.)
+ */
+function stripSvgEditorMetadata(svg: string): string {
+  return svg
+    .replace(/<sodipodi:namedview[\s\S]*?<\/sodipodi:namedview>/gi, '')
+    .replace(/<inkscape:page[^>]*\/>/gi, '')
+    .replace(/<inkscape:page[\s\S]*?<\/inkscape:page>/gi, '')
+    .replace(/<bx:export[\s\S]*?<\/bx:export>/gi, '')
+    .replace(/<bx:file[^>]*\/>/gi, '')
+    .replace(/\s*sodipodi:docname="[^"]*"/gi, '');
+}
+
 function svgStringToDataUrl(svg: string, encoding: 'base64' | 'uri'): string {
-  const cleaned = svg.replace(/\s+/g, ' ').trim();
+  const stripped = stripSvgEditorMetadata(svg);
+  const cleaned = stripped.replace(/\s+/g, ' ').trim();
   if (encoding === 'base64') {
     return `data:image/svg+xml;base64,${toBase64(cleaned)}`;
   }

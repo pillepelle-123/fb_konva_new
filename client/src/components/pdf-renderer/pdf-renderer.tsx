@@ -3090,6 +3090,55 @@ export function PDFRenderer({
                   // Continue without frame - don't block image rendering
                 }
               }
+
+              // Render sticker text overlay (only for stickers with text)
+              if (element.type === 'sticker') {
+                const hasStickerText = element.stickerText && String(element.stickerText).trim().length > 0;
+                const isStickerTextEnabled = element.stickerTextEnabled ?? hasStickerText;
+                if (isStickerTextEnabled && hasStickerText) {
+                  const stickerTextSettings = {
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: 50,
+                    fontBold: false,
+                    fontItalic: false,
+                    fontColor: '#1f2937',
+                    fontOpacity: 1,
+                    ...(element.stickerTextSettings || {})
+                  };
+                  const fontStyleParts: string[] = [];
+                  if (stickerTextSettings.fontBold) fontStyleParts.push('bold');
+                  if (stickerTextSettings.fontItalic) fontStyleParts.push('italic');
+                  const fontStyle = fontStyleParts.length > 0 ? fontStyleParts.join(' ') : 'normal';
+                  const stickerTextOffset = element.stickerTextOffset ?? { x: 0, y: elementHeight + 8 };
+
+                  const textNode = new Konva.Text({
+                    text: element.stickerText,
+                    width: elementWidth,
+                    fontSize: stickerTextSettings.fontSize,
+                    fontFamily: stickerTextSettings.fontFamily,
+                    fontStyle,
+                    fill: stickerTextSettings.fontColor,
+                    opacity: (stickerTextSettings.fontOpacity ?? 1) * elementOpacity,
+                    align: 'center',
+                    listening: false
+                  });
+
+                  if (needsRotation && imageGroup) {
+                    textNode.x(stickerTextOffset.x);
+                    textNode.y(stickerTextOffset.y);
+                    imageGroup.add(textNode);
+                  } else {
+                    textNode.x(elementX + stickerTextOffset.x);
+                    textNode.y(elementY + stickerTextOffset.y);
+                    layer.add(textNode);
+                    if (zOrderIndex !== undefined) {
+                      textNode.setAttr('__zOrderIndex', zOrderIndex);
+                      textNode.setAttr('__elementId', element.id);
+                      textNode.setAttr('__nodeType', 'sticker-text');
+                    }
+                  }
+                }
+              }
               
               // Add imageGroup to layer only if it exists (i.e., needsRotation is true)
               if (needsRotation && imageGroup) {

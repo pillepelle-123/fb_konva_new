@@ -6,16 +6,33 @@ const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { generatePDFFromBook } = require('../services/pdf-export');
 const PDFExportQueue = require('../services/pdf-export-queue');
-const { getUploadsDir, isPathWithinUploads } = require('../utils/uploads-path');
+const { getUploadsDir, getUploadsSubdir, isPathWithinUploads } = require('../utils/uploads-path');
+const stickersService = require('../services/stickers');
+const backgroundImagesService = require('../services/background-images');
 
 const router = express.Router();
 
 // Regex to match protected image URLs for replacement (relative or absolute)
 const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/(\d+)(?:\?.*)?$/;
+const PROTECTED_STICKER_URL_PATTERN = /\/api\/stickers\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
+const PROTECTED_BG_IMAGE_URL_PATTERN = /\/api\/background-images\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
+const UPLOADS_STICKERS_PATTERN = /\/uploads\/stickers\/(.+?)(?:\?|$)/;
+const UPLOADS_BG_IMAGES_PATTERN = /\/uploads\/background-images\/(.+?)(?:\?|$)/;
+
+const MIME_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+
+function fileToDataUrl(fullPath) {
+  if (!fsSync.existsSync(fullPath)) return null;
+  const buf = fsSync.readFileSync(fullPath);
+  const ext = path.extname(fullPath).toLowerCase();
+  const mime = MIME_TYPES[ext] || 'image/jpeg';
+  return `data:${mime};base64,${buf.toString('base64')}`;
+}
 
 /**
- * Replaces protected /api/images/file/:id URLs with base64 data URLs in book data.
- * This allows PDF rendering without requiring auth headers in Puppeteer.
+ * Replaces protected URLs with base64 data URLs in book data.
+ * Handles images, stickers, and background images.
+ * PDF rendering (Puppeteer) cannot send auth headers, so we resolve server-side.
  * @param {Object} bookData - Book data with pages
  * @param {number} bookId - Book ID for access check
  * @param {number} userId - User ID for access check
@@ -23,20 +40,19 @@ const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/(\d+)(?:\?.*)?$/;
  */
 async function resolveProtectedImageUrls(bookData, bookId, userId) {
   const imageCache = new Map(); // id -> dataUrl
+  const stickerCache = new Map(); // slug -> dataUrl
+  const bgImageCache = new Map(); // slug -> dataUrl
+  const uploadsCache = new Map(); // path -> dataUrl
 
   async function imageIdToDataUrl(imageId) {
-    if (imageCache.has(imageId)) {
-      return imageCache.get(imageId);
-    }
+    if (imageCache.has(imageId)) return imageCache.get(imageId);
 
     const result = await pool.query(
       `SELECT id, file_path, filename, uploaded_by, book_id FROM public.images WHERE id = $1`,
       [imageId]
     );
 
-    if (result.rows.length === 0) {
-      return null;
-    }
+    if (result.rows.length === 0) return null;
 
     const img = result.rows[0];
     const isOwner = img.uploaded_by === userId;
@@ -51,33 +67,81 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
       );
       hasBookAccess = bookCheck.rows.length > 0;
     }
-    const hasAccess = isOwner || belongsToBook || hasBookAccess;
-    if (!hasAccess) {
-      return null;
-    }
+    if (!isOwner && !belongsToBook && !hasBookAccess) return null;
 
     const fullPath = path.resolve(path.join(getUploadsDir(), img.file_path));
-    if (!isPathWithinUploads(fullPath)) {
-      return null;
-    }
-    if (!fsSync.existsSync(fullPath)) {
-      return null;
-    }
+    if (!isPathWithinUploads(fullPath)) return null;
 
-    const buf = fsSync.readFileSync(fullPath);
-    const ext = path.extname(img.filename).toLowerCase();
-    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
-    const mime = mimeTypes[ext] || 'image/jpeg';
-    const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
-    imageCache.set(imageId, dataUrl);
+    const dataUrl = fileToDataUrl(fullPath);
+    if (dataUrl) imageCache.set(imageId, dataUrl);
+    return dataUrl;
+  }
+
+  async function stickerSlugToDataUrl(slug) {
+    const decoded = decodeURIComponent(slug);
+    if (stickerCache.has(decoded)) return stickerCache.get(decoded);
+
+    const sticker = await stickersService.getSticker(decoded);
+    if (!sticker || sticker.storage?.type !== 'local' || !sticker.storage?.filePath) return null;
+
+    const relPath = sticker.storage.filePath.replace(/^\/+/, '');
+    const fullPath = path.resolve(path.join(getUploadsSubdir('stickers'), relPath));
+    if (!isPathWithinUploads(fullPath)) return null;
+
+    const dataUrl = fileToDataUrl(fullPath);
+    if (dataUrl) stickerCache.set(decoded, dataUrl);
+    return dataUrl;
+  }
+
+  async function bgImageSlugToDataUrl(slug) {
+    const decoded = decodeURIComponent(slug);
+    if (bgImageCache.has(decoded)) return bgImageCache.get(decoded);
+
+    const image = await backgroundImagesService.getBackgroundImage(decoded);
+    if (!image || image.storage?.type !== 'local' || !image.storage?.filePath) return null;
+
+    const relPath = image.storage.filePath.replace(/^\/+/, '');
+    const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relPath));
+    if (!isPathWithinUploads(fullPath)) return null;
+
+    const dataUrl = fileToDataUrl(fullPath);
+    if (dataUrl) bgImageCache.set(decoded, dataUrl);
+    return dataUrl;
+  }
+
+  async function uploadsPathToDataUrl(subdir, relPath) {
+    const cacheKey = `${subdir}/${relPath}`;
+    if (uploadsCache.has(cacheKey)) return uploadsCache.get(cacheKey);
+
+    const fullPath = path.resolve(path.join(getUploadsSubdir(subdir), relPath));
+    if (!isPathWithinUploads(fullPath)) return null;
+
+    const dataUrl = fileToDataUrl(fullPath);
+    if (dataUrl) uploadsCache.set(cacheKey, dataUrl);
     return dataUrl;
   }
 
   async function resolveUrl(src) {
     if (!src || typeof src !== 'string') return src;
-    const m = src.match(PROTECTED_IMAGE_URL_PATTERN);
-    if (!m) return src;
-    return imageIdToDataUrl(parseInt(m[1], 10));
+    // Already data URL
+    if (src.startsWith('data:')) return src;
+
+    let m = src.match(PROTECTED_IMAGE_URL_PATTERN);
+    if (m) return imageIdToDataUrl(parseInt(m[1], 10)) || src;
+
+    m = src.match(PROTECTED_STICKER_URL_PATTERN);
+    if (m) return stickerSlugToDataUrl(m[1]) || src;
+
+    m = src.match(PROTECTED_BG_IMAGE_URL_PATTERN);
+    if (m) return bgImageSlugToDataUrl(m[1]) || src;
+
+    m = src.match(UPLOADS_STICKERS_PATTERN);
+    if (m) return uploadsPathToDataUrl('stickers', m[1]) || src;
+
+    m = src.match(UPLOADS_BG_IMAGES_PATTERN);
+    if (m) return uploadsPathToDataUrl('background-images', m[1]) || src;
+
+    return src;
   }
 
   const pages = bookData.pages || [];
@@ -579,6 +643,31 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
   }
 });
 
+// Get recent completed exports (last 24h) for notifications
+router.get('/recent', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT pe.id, pe.book_id, pe.status, pe.created_at, b.name as book_name
+       FROM public.pdf_exports pe
+       JOIN public.books b ON pe.book_id = b.id
+       WHERE pe.user_id = $1
+         AND pe.status = 'completed'
+         AND pe.created_at > NOW() - INTERVAL '24 hours'
+         AND (b.owner_id = $1 OR EXISTS (SELECT 1 FROM public.book_friends bf WHERE bf.book_id = b.id AND bf.user_id = $1))
+       ORDER BY pe.created_at DESC
+       LIMIT 20`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching recent PDF exports:', error);
+    res.status(500).json({ error: 'Failed to fetch recent exports' });
+  }
+});
+
 // Get single export
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -665,9 +754,15 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Export not ready for download' });
     }
 
+    // Path-Traversal-Schutz
+    const fullPath = path.resolve(exp.file_path);
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
+    }
+
     // Check if file exists
     try {
-      await fs.access(exp.file_path);
+      await fs.access(fullPath);
     } catch {
       return res.status(404).json({ error: 'PDF file not found' });
     }
@@ -677,7 +772,7 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     
-    const fileStream = require('fs').createReadStream(exp.file_path);
+    const fileStream = require('fs').createReadStream(fullPath);
     fileStream.pipe(res);
   } catch (error) {
     console.error('Error downloading PDF:', error);
@@ -710,12 +805,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Delete file if exists
+    // Delete file if exists (with Path-Traversal-Schutz)
     if (exp.file_path) {
-      try {
-        await fs.unlink(exp.file_path);
-      } catch (error) {
-        console.error('Error deleting PDF file:', error);
+      const fullPath = path.resolve(exp.file_path);
+      if (isPathWithinUploads(fullPath)) {
+        try {
+          await fs.unlink(fullPath);
+        } catch (error) {
+          console.error('Error deleting PDF file:', error);
+        }
       }
     }
 

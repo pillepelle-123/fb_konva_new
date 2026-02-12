@@ -59,6 +59,7 @@ interface GeneralSettingsProps {
 
 export interface GeneralSettingsRef {
   applyCurrentSelector: (applyToEntireBook?: boolean) => void;
+  discardCurrentSelector: () => void;
 }
 
 export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsProps>((props, ref) => {
@@ -122,12 +123,17 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const [pageThemeKey, setPageThemeKey] = useState(0);
   const [pagePaletteKey, setPagePaletteKey] = useState(0);
 
-  // Expose applyCurrentSelector method to parent
+  const discardSelectorRef = useRef<{ discard: () => void } | null>(null);
+
+  // Expose applyCurrentSelector and discardCurrentSelector to parent
   useImperativeHandle(ref, () => ({
     applyCurrentSelector: (applyToEntireBook?: boolean) => {
       // No longer needed - selectors handle apply internally
+    },
+    discardCurrentSelector: () => {
+      discardSelectorRef.current?.discard?.();
     }
-  }));
+  }), []);
 
 
   const stripColorFields = (obj: any) => {
@@ -191,6 +197,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
     return (
       <PaletteSelector
+        ref={discardSelectorRef}
         key={`page-palette-${pagePaletteKey}`}
         onBack={() => {
           setShowPagePalette(false);
@@ -206,6 +213,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   if (showPageLayout) {
     return (
       <SelectorLayout
+        ref={discardSelectorRef}
         key={`page-layout-${pageLayoutKey}`}
         onBack={() => {
           setShowPageLayout(false);
@@ -219,6 +227,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   if (showPageThemeSelector) {
     return (
       <SelectorTheme
+        ref={discardSelectorRef}
         key={`page-theme-${pageThemeKey}`}
         onBack={() => {
           setShowPageThemeSelector(false);

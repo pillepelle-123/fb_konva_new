@@ -490,6 +490,7 @@ export default function ImagesContent({
                 <img
                   src={getImageUrl(lightboxImage)}
                   alt={lightboxImage.original_name}
+                  crossOrigin="use-credentials"
                   className="w-full h-auto max-h-[85vh] object-contain"
                 />
               )}

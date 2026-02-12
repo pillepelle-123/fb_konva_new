@@ -31,27 +31,25 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
 
   const fetchProfilePicture = useCallback(async () => {
     if (!userId || !token) {
-      // Reset profile image URL when userId is not available
       setProfileImageUrl(null);
       return;
     }
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include'
       });
       if (response.ok) {
         const userData = await response.json();
         const pictureField = size === 'lg' || size === 'md' ? 'profile_picture_192' : 'profile_picture_32';
         if (userData[pictureField]) {
-          const baseUrl = apiUrl.replace('/api', '');
-          setProfileImageUrl(`${baseUrl}/uploads/profile_pictures/${userId}/${userData[pictureField]}`);
+          const sizeParam = size === 'lg' || size === 'md' ? '192' : '32';
+          setProfileImageUrl(`${apiUrl}/users/${userId}/profile-picture/${sizeParam}`);
         } else {
-          // Reset if no profile picture exists
           setProfileImageUrl(null);
         }
       } else {
-        // Reset on error
         setProfileImageUrl(null);
       }
     } catch (error) {
@@ -88,10 +86,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
 
       if (response.ok) {
         const data = await response.json();
-        // console.log('Profile picture response:', data);
-        const baseUrl = apiUrl.replace('/api', '');
-        const newUrl = `${baseUrl}${data.profilePicture192}?t=${Date.now()}`;
-        // console.log('Setting profile image URL to:', newUrl);
+        const newUrl = `${apiUrl}/users/${userId}/profile-picture/192?t=${Date.now()}`;
         setProfileImageUrl(newUrl);
         
         // Notify other components that profile picture was updated
@@ -115,6 +110,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
             className={`w-full h-full rounded-full ${className}`}
             src={imageUrl}
             alt={displayName}
+            crossOrigin={profileImageUrl ? 'use-credentials' : undefined}
           />
         </div>
         {canEdit && (
@@ -140,6 +136,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
         className={`${sizeClass} rounded-full ${className}`}
         src={imageUrl}
         alt={displayName}
+        crossOrigin={profileImageUrl ? 'use-credentials' : undefined}
       />
       {canEdit && (
         <button

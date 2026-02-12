@@ -20,7 +20,7 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
-const { getUploadsSubdir } = require('../utils/uploads-path');
+const { getUploadsSubdir, getUploadsDir, isPathWithinUploads } = require('../utils/uploads-path');
 
 const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -72,6 +72,43 @@ router.get('/search', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error searching users:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Serve profile picture (requires auth, same access as images)
+router.get('/:userId/profile-picture/:size', authenticateToken, async (req, res) => {
+  try {
+    const { userId, size } = req.params;
+    if (!['192', '32'].includes(size)) {
+      return res.status(400).json({ error: 'Invalid size' });
+    }
+    const result = await pool.query(
+      `SELECT profile_picture_192, profile_picture_32 FROM public.users WHERE id = $1`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const field = size === '192' ? 'profile_picture_192' : 'profile_picture_32';
+    const filename = result.rows[0][field];
+    if (!filename) {
+      return res.status(404).json({ error: 'Profile picture not found' });
+    }
+    const fullPath = path.resolve(path.join(getUploadsDir(), 'profile_pictures', userId, filename));
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
+    }
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Profile picture file not found' });
+    }
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error serving profile picture:', error);
+    res.status(500).json({ error: 'Failed to load profile picture' });
   }
 });
 

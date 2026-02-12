@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Eye, Paintbrush2 } from 'lucide-react';
 import { GLOBAL_THEMES, getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../../utils/global-themes';
 import { SelectorBase } from './selector-base';
@@ -17,7 +17,11 @@ interface SelectorThemeProps {
   isBookLevel?: boolean;
 }
 
-export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProps) {
+export interface SelectorThemeRef {
+  discard: () => void;
+}
+
+export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(function SelectorTheme({ onBack, isBookLevel = false }, ref) {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const canApplyToEntireBook = canEditBookSettings();
   
@@ -152,6 +156,8 @@ export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProp
     }
     onBack();
   };
+
+  useImperativeHandle(ref, () => ({ discard: handleCancel }), [handleCancel]);
 
   const handleApply = () => {
     if (!selectedTheme) return;
@@ -303,4 +309,4 @@ export function SelectorTheme({ onBack, isBookLevel = false }: SelectorThemeProp
       )}
     />
   );
-}
+});

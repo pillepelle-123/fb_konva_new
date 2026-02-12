@@ -84,17 +84,15 @@ function mapCategoryRow(row) {
 }
 
 function mapImageRow(row) {
-  const normalizeRelativePath = (value) =>
-    typeof value === 'string' ? value.replace(/^\/+/, '') : value
-
+  const slug = row.slug || ''
   const localFileUrl =
-    row.storage_type === 'local' && row.file_path
-      ? `/uploads/background-images/${normalizeRelativePath(row.file_path)}`
+    row.storage_type === 'local' && row.file_path && slug
+      ? `/api/background-images/${encodeURIComponent(slug)}/file`
       : null
 
   const localThumbnailUrl =
-    row.storage_type === 'local' && row.thumbnail_path
-      ? `/uploads/background-images/${normalizeRelativePath(row.thumbnail_path)}`
+    row.storage_type === 'local' && slug
+      ? `/api/background-images/${encodeURIComponent(slug)}/thumbnail`
       : null
 
   return {

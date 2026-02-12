@@ -54,6 +54,7 @@ export function ImageGrid({
               <img
                 src={item.thumbnailUrl}
                 alt={item.name}
+                crossOrigin={item.thumbnailUrl?.includes('/api/') ? 'use-credentials' : undefined}
                 className={`
                   w-full h-full transition-transform duration-200 group-hover:scale-105
                   ${item.format === 'vector' ? 'object-contain p-2' : 'object-cover'}

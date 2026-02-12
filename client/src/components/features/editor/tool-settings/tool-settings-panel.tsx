@@ -167,6 +167,25 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     setShowFontSelector(false);
     setShowColorSelector(null);
   }, [state.selectedElementIds]);
+
+  // When user clicks on canvas while a selector is open: discard changes and close (like "Discard Changes")
+  useEffect(() => {
+    const handleCanvasClicked = () => {
+      const hasOpenSelector = showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector;
+      if (hasOpenSelector) {
+        generalSettingsRef.current?.discardCurrentSelector?.();
+        // Also close book-level selectors (they may not be in GeneralSettings)
+        setShowPagePalette(false);
+        setShowBookPalette(false);
+        setShowPageLayout(false);
+        setShowBookLayout(false);
+        setShowPageThemeSelector(false);
+        setShowBookThemeSelector(false);
+      }
+    };
+    window.addEventListener('editor:canvasClicked', handleCanvasClicked);
+    return () => window.removeEventListener('editor:canvasClicked', handleCanvasClicked);
+  }, [showPagePalette, showBookPalette, showPageLayout, showBookLayout, showPageThemeSelector, showBookThemeSelector]);
   
   // Initialize background image state when selector opens
   useEffect(() => {

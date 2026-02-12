@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Layout, Filter } from 'lucide-react';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import type { PageTemplate, TemplateCategory } from '../../../../types/template-types';
@@ -16,7 +16,11 @@ interface SelectorLayoutProps {
   isBookLevel?: boolean;
 }
 
-export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutProps) {
+export interface SelectorLayoutRef {
+  discard: () => void;
+}
+
+export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>(function SelectorLayout({ onBack, isBookLevel = false }, ref) {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const canApplyToEntireBook = canEditBookSettings();
   
@@ -141,6 +145,8 @@ export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutPr
     }
     onBack();
   };
+
+  useImperativeHandle(ref, () => ({ discard: handleCancel }), [handleCancel]);
 
   const handleApply = () => {
     if (!selectedLayout) return;
@@ -355,4 +361,4 @@ export function SelectorLayout({ onBack, isBookLevel = false }: SelectorLayoutPr
       )}
     />
   );
-}
+});

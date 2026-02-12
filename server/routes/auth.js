@@ -6,6 +6,18 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/'
+};
+
+function setAuthCookie(res, token) {
+  res.cookie('auth_token', token, COOKIE_OPTS);
+}
+
 // Parse schema from DATABASE_URL
 const url = new URL(process.env.DATABASE_URL);
 const schema = url.searchParams.get('schema') || 'public';
@@ -41,6 +53,7 @@ router.post('/register', async (req, res) => {
       );
       const user = result.rows[0];
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);
+      setAuthCookie(res, token);
       return res.json({ token, user });
     }
     
@@ -52,7 +65,7 @@ router.post('/register', async (req, res) => {
     
     const user = result.rows[0];
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);
-    
+    setAuthCookie(res, token);
     res.json({ token, user });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -76,7 +89,7 @@ router.post('/login', async (req, res) => {
     }
     
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET);
-    
+    setAuthCookie(res, token);
     res.json({ 
       token, 
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
@@ -84,6 +97,12 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// Logout - clears auth cookie (client should also clear localStorage)
+router.post('/logout', (req, res) => {
+  res.clearCookie('auth_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+  res.json({ success: true });
 });
 
 // Get current user

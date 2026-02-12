@@ -33,6 +33,8 @@ const apiStorageSchema = z.object({
   thumbnailPath: z.string().nullable().optional(),
   bucket: z.string().nullable().optional(),
   objectKey: z.string().nullable().optional(),
+  publicUrl: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
 })
 
 const apiRecordSchema = z.object({
@@ -94,8 +96,10 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): StickerWit
     storageType,
   }
 
+  const resolveUrl = (u: string | null) => (u && apiBaseOrigin && u.startsWith('/') ? apiBaseOrigin + u : u)
+
   const url =
-    storagePublicUrl ??
+    resolveUrl(storagePublicUrl) ??
     (storageType === 'local'
       ? resolveLocalUrl(filePath)
       : storage.bucket && storage.objectKey
@@ -103,7 +107,7 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): StickerWit
         : filePath ?? '')
 
   const thumbnailUrl =
-    storageThumbnailUrl ??
+    resolveUrl(storageThumbnailUrl) ??
     (storageType === 'local'
       ? resolveLocalUrl(thumbnailPath)
       : storage.bucket && storage.objectKey
@@ -160,7 +164,7 @@ export async function loadStickerRegistry(force = false) {
         .filter((sticker) => sticker.format === 'vector' && sticker.url)
         .map(async (sticker) => {
           try {
-            const response = await fetch(sticker.url)
+            const response = await fetch(sticker.url, { credentials: 'include' })
             if (!response.ok) return
             const raw = await response.text()
             svgRawCache[sticker.filePath] = raw
