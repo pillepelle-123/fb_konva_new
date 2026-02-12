@@ -1,5 +1,5 @@
-import { createContext, useContext } from 'react';
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
+import { AuthContext } from '../../context/auth-context';
 
 interface User {
   id: number;
@@ -17,16 +17,10 @@ interface AuthContextType {
   loading: boolean;
 }
 
-// Use the same context name as auth-context.tsx to ensure compatibility
-// CanvasItemComponent imports useAuth from auth-context, so we need to match the interface
-// Since PDFExportAuthProvider is used in isolation (not simultaneously with AuthProvider),
-// using the same context name is safe
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within a PDFExportAuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider or PDFExportAuthProvider');
   }
   return context;
 };

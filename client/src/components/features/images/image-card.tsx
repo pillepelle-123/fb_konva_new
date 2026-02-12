@@ -23,6 +23,7 @@ interface ImageCardProps {
   onDelete?: (imageId: number) => void;
   getThumbUrl: (image: ImageData) => string;
   getImageUrl: (image: ImageData) => string;
+  getFileUrlForCanvas?: (image: ImageData) => string;
 }
 
 export default function ImageCard({
@@ -35,11 +36,13 @@ export default function ImageCard({
   onToggleSelection,
   onDelete,
   getThumbUrl,
-  getImageUrl
+  getImageUrl,
+  getFileUrlForCanvas
 }: ImageCardProps) {
   const handleImageClick = () => {
     if (mode === 'select') {
-      onImageSelect?.(image.id, getImageUrl(image));
+      const urlForCanvas = getFileUrlForCanvas ? getFileUrlForCanvas(image) : getImageUrl(image);
+      onImageSelect?.(image.id, urlForCanvas);
     } else {
       onImageClick?.();
     }

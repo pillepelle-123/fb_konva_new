@@ -1,12 +1,108 @@
 const express = require('express');
 const { Pool } = require('pg');
+const fs = require('fs').promises;
+const fsSync = require('fs');
+const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { generatePDFFromBook } = require('../services/pdf-export');
 const PDFExportQueue = require('../services/pdf-export-queue');
-const fs = require('fs').promises;
-const path = require('path');
+const { getUploadsDir, isPathWithinUploads } = require('../utils/uploads-path');
 
 const router = express.Router();
+
+// Regex to match protected image URLs for replacement (relative or absolute)
+const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/(\d+)(?:\?.*)?$/;
+
+/**
+ * Replaces protected /api/images/file/:id URLs with base64 data URLs in book data.
+ * This allows PDF rendering without requiring auth headers in Puppeteer.
+ * @param {Object} bookData - Book data with pages
+ * @param {number} bookId - Book ID for access check
+ * @param {number} userId - User ID for access check
+ * @returns {Promise<Object>} - Mutated bookData with resolved image URLs
+ */
+async function resolveProtectedImageUrls(bookData, bookId, userId) {
+  const imageCache = new Map(); // id -> dataUrl
+
+  async function imageIdToDataUrl(imageId) {
+    if (imageCache.has(imageId)) {
+      return imageCache.get(imageId);
+    }
+
+    const result = await pool.query(
+      `SELECT id, file_path, filename, uploaded_by, book_id FROM public.images WHERE id = $1`,
+      [imageId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const img = result.rows[0];
+    const isOwner = img.uploaded_by === userId;
+    const belongsToBook = img.book_id === bookId;
+    let hasBookAccess = false;
+    if (img.book_id) {
+      const bookCheck = await pool.query(
+        `SELECT 1 FROM public.books b
+         LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+         WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)`,
+        [img.book_id, userId]
+      );
+      hasBookAccess = bookCheck.rows.length > 0;
+    }
+    const hasAccess = isOwner || belongsToBook || hasBookAccess;
+    if (!hasAccess) {
+      return null;
+    }
+
+    const fullPath = path.resolve(path.join(getUploadsDir(), img.file_path));
+    if (!isPathWithinUploads(fullPath)) {
+      return null;
+    }
+    if (!fsSync.existsSync(fullPath)) {
+      return null;
+    }
+
+    const buf = fsSync.readFileSync(fullPath);
+    const ext = path.extname(img.filename).toLowerCase();
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    const mime = mimeTypes[ext] || 'image/jpeg';
+    const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+    imageCache.set(imageId, dataUrl);
+    return dataUrl;
+  }
+
+  async function resolveUrl(src) {
+    if (!src || typeof src !== 'string') return src;
+    const m = src.match(PROTECTED_IMAGE_URL_PATTERN);
+    if (!m) return src;
+    return imageIdToDataUrl(parseInt(m[1], 10));
+  }
+
+  const pages = bookData.pages || [];
+  for (const page of pages) {
+    // Resolve element images (image, sticker)
+    const elements = page.elements || [];
+    for (const element of elements) {
+      if ((element.type === 'image' || element.type === 'sticker') && element.src) {
+        const dataUrl = await resolveUrl(element.src);
+        if (dataUrl) element.src = dataUrl;
+      }
+    }
+
+    // Resolve page background image
+    const bg = page.background;
+    if (bg?.type === 'image' && bg?.value) {
+      const dataUrl = await resolveUrl(bg.value);
+      if (dataUrl) {
+        page.background = { ...bg, value: dataUrl };
+      }
+    }
+  }
+
+  return bookData;
+}
 
 // Parse schema from DATABASE_URL
 const url = new URL(process.env.DATABASE_URL);
@@ -82,6 +178,9 @@ async function processExport(job) {
   if (!bookData) {
     throw new Error('Failed to load book data');
   }
+
+  // Replace protected image URLs with base64 data URLs (Puppeteer cannot send auth headers)
+  await resolveProtectedImageUrls(bookData, bookId, userId);
 
   // Generate PDF
   const pdfPath = await generatePDFFromBook(
@@ -356,6 +455,9 @@ router.post('/', authenticateToken, async (req, res) => {
     // Bestimme Priorität (könnte später Premium-User bevorzugen)
     const priority = isOwner ? 10 : 5;
 
+    // Extract token for protected image loading in PDF renderer (Puppeteer)
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, '') || null;
+
     // Prepare options object
     const options = {
       quality,
@@ -365,7 +467,9 @@ router.post('/', authenticateToken, async (req, res) => {
       currentPageNumber: pageRange === 'current' ? currentPageNumber : undefined,
       currentPageIndex: pageRange === 'current' ? currentPageIndex : undefined, // Keep for backwards compatibility
       useCMYK: useCMYK === true,
-      iccProfile: useCMYK && iccProfile ? iccProfile : undefined
+      iccProfile: useCMYK && iccProfile ? iccProfile : undefined,
+      token,
+      user: req.user ? { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role } : null
     };
 
     // Füge zur optimierten Queue hinzu

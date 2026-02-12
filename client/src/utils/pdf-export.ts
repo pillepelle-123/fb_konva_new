@@ -11,32 +11,7 @@ async function convertImagesToBase64(layer: Konva.Layer): Promise<void> {
     const imageElement = imageNode.image();
     if (imageElement && imageElement.src && !imageElement.src.startsWith('data:')) {
       try {
-        let imageUrl = imageElement.src;
-
-        // Check if this is already a proxy URL, extract the original URL
-        let originalUrl = imageUrl;
-        if (imageUrl.includes('/images/proxy?url=')) {
-          try {
-            const urlObj = new URL(imageUrl);
-            const encodedUrl = urlObj.searchParams.get('url');
-            if (encodedUrl) {
-              originalUrl = decodeURIComponent(encodedUrl);
-            }
-          } catch (error) {
-            console.warn('Failed to parse proxy URL:', error);
-          }
-        }
-
-        // Check if this is an S3 URL that needs proxy
-        const isS3Url = originalUrl.includes('s3.amazonaws.com') || originalUrl.includes('s3.us-east-1.amazonaws.com');
-
-        // For S3 URLs, use the proxy endpoint to avoid CORS issues
-        if (isS3Url) {
-          // Get token from localStorage
-          const token = localStorage.getItem('token') || '';
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-          imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(originalUrl)}&token=${encodeURIComponent(token)}`;
-        }
+        const imageUrl = imageElement.src;
 
         // Fetch the image as blob and convert to base64
         const response = await fetch(imageUrl);

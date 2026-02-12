@@ -18,7 +18,20 @@ function getUploadsSubdir(subdir) {
   return path.join(getUploadsDir(), subdir);
 }
 
+/**
+ * Path-Traversal-Schutz: Prüft ob der aufgelöste Pfad innerhalb des Uploads-Verzeichnisses liegt.
+ * @param {string} fullPath - Aufgelöster absoluter Pfad
+ * @returns {boolean} true wenn sicher
+ */
+function isPathWithinUploads(fullPath) {
+  const uploadsDir = path.resolve(getUploadsDir());
+  const resolved = path.resolve(fullPath);
+  const relative = path.relative(uploadsDir, resolved);
+  return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
 module.exports = {
   getUploadsDir,
   getUploadsSubdir,
+  isPathWithinUploads,
 };

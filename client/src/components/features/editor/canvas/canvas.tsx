@@ -2886,6 +2886,9 @@ export default function Canvas() {
     const pos = e.target.getStage()?.getPointerPosition();
     if (!pos) return;
     
+    // Context menu only on active page – not on gray area or partner page
+    if (isPointerOutsideActivePage(pos)) return;
+    
     setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
   };
 
@@ -4635,72 +4638,82 @@ export default function Canvas() {
   const handleImageSelect = useCallback((imageId: number, imageUrl: string) => {
     if (pendingImageElementId && !canEditElements) return;
     if (!pendingImageElementId && !canCreateElements) return;
-    // If we have a pending element ID, update the existing placeholder element
-    if (pendingImageElementId) {
-      // Load image to get original dimensions
+    if (!pendingImageElementId && !pendingImagePosition) return;
+    
+    const elementIdToUpdate = pendingImageElementId;
+    const positionToUse = pendingImagePosition;
+    
+    const isProtectedImageUrl = imageUrl.includes('/api/images/file/');
+    const loadImageUrl = async (url: string): Promise<string> => {
+      if (isProtectedImageUrl && token) {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Failed to load image');
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      }
+      return url;
+    };
+    
+    const processImage = (loadableUrl: string) => {
       const img = new window.Image();
       img.onload = () => {
-        const element = currentPage?.elements.find(el => el.id === pendingImageElementId);
-        if (element) {
-          const maxWidth = 600;
-          const aspectRatio = img.width / img.height;
-          const width = maxWidth;
-          const height = maxWidth / aspectRatio;
-          
-          dispatch({
-            type: 'UPDATE_ELEMENT',
-            payload: {
-              id: pendingImageElementId,
-              updates: {
-                type: 'image',
-                src: imageUrl,
-                width: element.width || width,
-                height: element.height || height
+        const maxWidth = 600;
+        const aspectRatio = img.width / img.height;
+        const width = maxWidth;
+        const height = maxWidth / aspectRatio;
+        if (loadableUrl !== imageUrl) URL.revokeObjectURL(loadableUrl);
+        
+        if (elementIdToUpdate) {
+          const element = currentPage?.elements.find(el => el.id === elementIdToUpdate);
+          if (element) {
+            dispatch({
+              type: 'UPDATE_ELEMENT',
+              payload: {
+                id: elementIdToUpdate,
+                updates: {
+                  type: 'image',
+                  src: imageUrl,
+                  width: element.width || width,
+                  height: element.height || height
+                }
               }
-            }
-          });
+            });
+          }
+        } else if (positionToUse) {
+          const newElement: CanvasElement = {
+            id: uuidv4(),
+            type: 'image',
+            x: positionToUse.x,
+            y: positionToUse.y,
+            width,
+            height,
+            src: imageUrl,
+            cornerRadius: 0
+          };
+          addElementIfAllowed(newElement);
         }
+        
+        dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+        setShowImageModal(false);
+        setPendingImagePosition(null);
+        setPendingImageElementId(null);
       };
-      img.src = imageUrl;
-      
-      dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
+      img.onerror = () => {
+        if (loadableUrl !== imageUrl) URL.revokeObjectURL(loadableUrl);
+        console.error('Failed to load image');
+        setShowImageModal(false);
+        setPendingImagePosition(null);
+        setPendingImageElementId(null);
+      };
+      img.src = loadableUrl;
+    };
+    
+    loadImageUrl(imageUrl).then(processImage).catch(() => {
       setShowImageModal(false);
       setPendingImagePosition(null);
       setPendingImageElementId(null);
-      return;
-    }
-    
-    // Otherwise, create a new element (existing behavior)
-    if (!pendingImagePosition) return;
-    
-    // Load image to get original dimensions
-    const img = new window.Image();
-    img.onload = () => {
-      const maxWidth = 600;
-      const aspectRatio = img.width / img.height;
-      const width = maxWidth;
-      const height = maxWidth / aspectRatio;
-      
-      const newElement: CanvasElement = {
-        id: uuidv4(),
-        type: 'image',
-        x: pendingImagePosition.x,
-        y: pendingImagePosition.y,
-        width,
-        height,
-        src: imageUrl,
-        cornerRadius: 0
-      };
-      
-      addElementIfAllowed(newElement);
-    };
-    img.src = imageUrl;
-    
-    dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
-    setShowImageModal(false);
-    setPendingImagePosition(null);
-    setPendingImageElementId(null);
-  }, [pendingImageElementId, currentPage, pendingImagePosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch]);
+    });
+  }, [pendingImageElementId, currentPage, pendingImagePosition, canEditElements, canCreateElements, addElementIfAllowed, dispatch, token]);
 
   const handleImageModalClose = () => {
     setShowImageModal(false);

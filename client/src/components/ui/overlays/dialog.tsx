@@ -27,19 +27,51 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+const DialogTitle = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn(
+      "text-lg leading-none tracking-tight",
+      className
+    )}
+    {...props}
+  />
+))
+DialogTitle.displayName = DialogPrimitive.Title.displayName
+
+function hasDialogTitleInChildren(children: React.ReactNode): boolean {
+  let found = false
+  React.Children.forEach(children, (child) => {
+    if (child && typeof child === 'object' && 'type' in child && (child.type === DialogTitle || (child.type as { displayName?: string })?.displayName === 'DialogTitle')) {
+      found = true
+    }
+    if (child && typeof child === 'object' && 'props' in child && (child as React.ReactElement).props?.children) {
+      if (hasDialogTitleInChildren((child as React.ReactElement).props.children)) found = true
+    }
+  })
+  return found
+}
+
 interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   size?: 'sm' | 'md' | 'lg';
+  /** Accessible title for screen readers. Used as fallback when no DialogTitle is rendered. */
+  title?: string;
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, size = 'sm', children, ...props }, ref) => {
+>(({ className, size = 'sm', children, title, ...props }, ref) => {
   const sizeClasses = {
     sm: 'max-w-lg',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
   };
+
+  const needsFallbackTitle = !hasDialogTitleInChildren(children)
 
   return (
     <DialogPortal>
@@ -53,6 +85,9 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
+        {needsFallbackTitle && (
+          <DialogTitle className="sr-only">{title ?? 'Dialog'}</DialogTitle>
+        )}
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
           <X className="h-4 w-4" />
@@ -91,21 +126,6 @@ const DialogFooter = ({
   />
 )
 DialogFooter.displayName = "DialogFooter"
-
-const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cn(
-      "text-lg leading-none tracking-tight",
-      className
-    )}
-    {...props}
-  />
-))
-DialogTitle.displayName = DialogPrimitive.Title.displayName
 
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,

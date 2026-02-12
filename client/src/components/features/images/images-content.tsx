@@ -15,8 +15,10 @@ interface ImageData {
   book_id: number;
   created_at: string;
   file_path: string;
-  s3_url?: string;
   uploaded_by?: number;
+  signedUrl?: string;
+  signedThumbUrl?: string;
+  fileUrl?: string;
 }
 
 interface ImagesContentProps {
@@ -115,7 +117,7 @@ export default function ImagesContent({
         
         if (mode === 'select' && onImageUpload && data.images && data.images.length > 0) {
           const firstImage = data.images[0];
-          const imageUrl = firstImage.s3_url || `${apiUrl.replace('/api', '')}/uploads/${firstImage.file_path}`;
+          const imageUrl = `${apiUrl}/images/file/${firstImage.id}`;
           onImageUpload(imageUrl);
         }
       } else {
@@ -246,28 +248,24 @@ export default function ImagesContent({
   };
 
   const getImageUrl = (image: ImageData) => {
-    // Use S3 URL if available, fallback to local server
-    if (image.s3_url) {
-      return image.s3_url;
-    }
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    return `${apiUrl.replace('/api', '')}/uploads/${image.file_path}`;
+    if (image.signedUrl) {
+      return `${apiUrl}/images/serve?s=${encodeURIComponent(image.signedUrl)}`;
+    }
+    return `${apiUrl}/images/file/${image.id}`;
   };
 
   const getThumbUrl = (image: ImageData) => {
-    const ext = image.filename.split('.').pop();
-    const nameWithoutExt = image.filename.replace(`.${ext}`, '');
-    const thumbFilename = `${nameWithoutExt}_thumb.${ext}`;
-    
-    // Use S3 URL for thumbnail
-    if (image.s3_url) {
-      const s3BaseUrl = 'https://fb-konva.s3.us-east-1.amazonaws.com/';
-      const thumbS3Key = `images/${image.uploaded_by || 'unknown'}/${thumbFilename}`;
-      return `${s3BaseUrl}${thumbS3Key}`;
-    }
-    
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    return `${apiUrl.replace('/api', '')}/uploads/${image.file_path.replace(image.filename, thumbFilename)}`;
+    if (image.signedThumbUrl) {
+      return `${apiUrl}/images/serve?s=${encodeURIComponent(image.signedThumbUrl)}`;
+    }
+    return `${apiUrl}/images/file/${image.id}`;
+  };
+
+  const getFileUrlForCanvas = (image: ImageData) => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    return `${apiUrl}/images/file/${image.id}`;
   };
 
   if (loading) {
@@ -373,7 +371,13 @@ export default function ImagesContent({
           <p className="text-lg font-medium mb-2">
             {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
           </p>
-          <p className="text-muted-foreground">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+          <p className="text-muted-foreground mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+          {!showAsContent && (
+            <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+              <Plus className="h-4 w-4" />
+              <span>Add Images</span>
+            </Button>
+          )}
         </div>
 
         {totalPages > 1 && (
@@ -427,6 +431,7 @@ export default function ImagesContent({
                 onDelete={(imageId) => setShowDeleteConfirm([imageId])}
                 getThumbUrl={getThumbUrl}
                 getImageUrl={getImageUrl}
+                getFileUrlForCanvas={getFileUrlForCanvas}
               />
             ))}
           </div>

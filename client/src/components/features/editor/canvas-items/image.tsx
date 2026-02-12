@@ -6,8 +6,8 @@ import type { CanvasItemProps } from './base-canvas-item';
 import { getThemeRenderer } from '../../../../utils/themes-client';
 import { renderThemedBorder, createRectPath } from '../../../../utils/themed-border';
 import type { CanvasElement } from '../../../../context/editor-context';
-import { useAuth } from '../../../../context/auth-context';
 import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getAdaptiveImageUrl, type AdaptiveImageOptions } from '../../../../utils/image-resolution-utils';
 
@@ -189,74 +189,56 @@ export default function Image(props: ImageProps) {
   // Load existing image when src changes
   useEffect(() => {
     if ((element.type === 'image' || element.type === 'sticker') && element.src) {
-      // Check if this is an S3 URL that might have CORS issues
-      const isS3Url = element.src.includes('s3.amazonaws.com') || element.src.includes('s3.us-east-1.amazonaws.com');
-      
-      // Check if this is a local URL (localhost or same origin)
-      const isLocalUrl = element.src.startsWith('http://localhost') || element.src.startsWith('https://localhost') || 
-                        element.src.startsWith('http://127.0.0.1') || element.src.startsWith('https://127.0.0.1') ||
-                        (!element.src.startsWith('http://') && !element.src.startsWith('https://'));
-      
-      // For S3 URLs, use the proxy endpoint to avoid CORS issues
-      // Include token as query parameter for authentication
-      let imageUrl = element.src;
-      if (isS3Url && token) {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        imageUrl = `${apiUrl}/images/proxy?url=${encodeURIComponent(element.src)}&token=${encodeURIComponent(token)}`;
-      }
+      const src = element.src;
+      const isProtectedImageUrl = src.includes('/api/images/file/');
 
-      // Apply adaptive image resolution based on zoom level
-      // This optimizes memory usage by serving images at appropriate resolutions
-      imageUrl = getAdaptiveImageUrl(imageUrl, {
-        zoom: zoom || 1,
-        enabled: ADAPTIVE_IMAGE_RESOLUTION_ENABLED
-      });
-      
-      const img = new window.Image();
-      // Only set crossOrigin for S3 URLs or external URLs, not for local URLs
-      // SVG files from localhost can have CORS issues even with crossOrigin = 'anonymous'
-      if (isS3Url || (!isLocalUrl && !element.src.startsWith('/'))) {
-        img.crossOrigin = 'anonymous';
-      }
-      
-      img.onload = () => setImage(img);
-      img.onerror = (error) => {
-        console.warn('Failed to load image, trying fallback strategies:', error);
-
-        // First fallback: Try original URL if adaptive URL failed
-        const originalImageUrl = element.src;
-        if (isS3Url && token && imageUrl !== originalImageUrl) {
-          console.warn('Adaptive image resolution failed, trying original URL');
-          const originalImg = new window.Image();
-          originalImg.crossOrigin = 'anonymous';
-          originalImg.onload = () => setImage(originalImg);
-          originalImg.onerror = () => {
-            // Second fallback: Try without CORS for non-S3 URLs
-            if (!isS3Url) {
-              const fallbackImg = new window.Image();
-              fallbackImg.onload = () => setImage(fallbackImg);
-              fallbackImg.onerror = () => console.error('Failed to load image after all fallbacks:', element.src);
-              fallbackImg.src = element.src;
-            } else {
-              console.error('Failed to load S3 image after all attempts:', element.src);
-            }
-          };
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-          originalImg.src = `${apiUrl}/images/proxy?url=${encodeURIComponent(element.src)}&token=${encodeURIComponent(token)}`;
-        } else {
-          // Fallback: try loading without CORS (only for non-S3 URLs)
-          if (!isS3Url) {
-            const fallbackImg = new window.Image();
-            // Don't set crossOrigin for fallback
-            fallbackImg.onload = () => setImage(fallbackImg);
-            fallbackImg.onerror = () => console.error('Failed to load image:', element.src);
-            fallbackImg.src = element.src;
-          } else {
-            console.error('Failed to load S3 image through proxy:', element.src);
-          }
+      const loadImage = (url: string) => {
+        let imageUrl = url;
+        imageUrl = getAdaptiveImageUrl(imageUrl, {
+          zoom: zoom || 1,
+          enabled: ADAPTIVE_IMAGE_RESOLUTION_ENABLED
+        });
+        const img = new window.Image();
+        const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
+                          url.startsWith('http://127.0.0.1') || url.startsWith('https://127.0.0.1') ||
+                          (!url.startsWith('http://') && !url.startsWith('https://'));
+        if (!isLocalUrl && !url.startsWith('/')) {
+          img.crossOrigin = 'anonymous';
         }
+        img.onload = () => setImage(img);
+        img.onerror = (error) => {
+          console.warn('Failed to load image, trying fallback:', error);
+          const fallbackImg = new window.Image();
+          fallbackImg.onload = () => setImage(fallbackImg);
+          fallbackImg.onerror = () => console.error('Failed to load image:', url);
+          fallbackImg.src = url;
+        };
+        img.src = imageUrl;
       };
-      img.src = imageUrl;
+
+      if (isProtectedImageUrl && token) {
+        fetch(src, { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => {
+            if (!res.ok) throw new Error('Failed to fetch image');
+            return res.blob();
+          })
+          .then((blob) => {
+            const objectUrl = URL.createObjectURL(blob);
+            const img = new window.Image();
+            img.onload = () => {
+              setImage(img);
+              URL.revokeObjectURL(objectUrl);
+            };
+            img.onerror = () => {
+              URL.revokeObjectURL(objectUrl);
+              loadImage(src);
+            };
+            img.src = objectUrl;
+          })
+          .catch(() => loadImage(src));
+      } else {
+        loadImage(src);
+      }
     } else {
       setImage(null);
     }

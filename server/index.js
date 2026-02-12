@@ -41,6 +41,8 @@ pool.connect((err, client, release) => {
 // Static file serving
 const { getUploadsDir } = require('./utils/uploads-path');
 const UPLOADS_DIR = getUploadsDir();
+// Block direct access to user images - must use /api/images/file/:id or /api/images/serve
+app.use('/uploads/images', (req, res) => res.status(403).json({ error: 'Use authenticated API to access images' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // PDF Renderer static assets

@@ -1,40 +1,67 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+const { randomUUID } = require('crypto');
+const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
 const sharp = require('sharp');
-const AWS = require('aws-sdk');
+const rateLimit = require('express-rate-limit');
+const { getUploadsDir, getUploadsSubdir, isPathWithinUploads } = require('../utils/uploads-path');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Configure AWS S3
-if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-  console.error('AWS credentials missing in environment variables');
+// Rate limiting for uploads: 20 requests per 15 minutes per IP
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many upload requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Create images directory structure: uploads/images/{user_id}/
+const imagesBaseDir = getUploadsSubdir('images');
+if (!fs.existsSync(imagesBaseDir)) {
+  fs.mkdirSync(imagesBaseDir, { recursive: true });
 }
 
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-1',
-  signatureVersion: 'v4'
-});
-const s3 = new AWS.S3();
-const bucketName = process.env.AWS_S3_BUCKET || 'fb-konva';
+// Magic bytes (file signatures) for image validation - prevents spoofed MIME types
+const IMAGE_SIGNATURES = [
+  { ext: 'jpg', pattern: [0xFF, 0xD8, 0xFF] },
+  { ext: 'png', pattern: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] },
+  { ext: 'gif', pattern: [0x47, 0x49, 0x46, 0x38] },
+  { ext: 'webp', pattern: [0x52, 0x49, 0x46, 0x46], offset: 8, suffix: [0x57, 0x45, 0x42, 0x50] }
+];
 
-// Configure multer for memory storage (S3 upload)
-const storage = multer.memoryStorage();
+function validateImageMagicBytes(buffer) {
+  if (!buffer || buffer.length < 12) return { valid: false, ext: null };
+  const arr = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  for (const sig of IMAGE_SIGNATURES) {
+    if (arr.length < sig.pattern.length) continue;
+    const matches = sig.pattern.every((b, i) => arr[i] === b);
+    if (matches) {
+      if (sig.suffix) {
+        const suffixMatches = sig.suffix.every((b, i) => arr[sig.offset + i] === b);
+        if (!suffixMatches) continue;
+      }
+      return { valid: true, ext: sig.ext };
+    }
+  }
+  return { valid: false, ext: null };
+}
 
+// Multer memory storage - we validate and write manually for magic-byte check
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedMimeTypes.includes(file.mimetype.toLowerCase());
-    
+    const mimetype = allowedMimeTypes.includes(file.mimetype?.toLowerCase());
     if (!mimetype || !extname) {
       return cb(new Error('Only JPG, PNG, GIF, and WebP files are allowed'));
     }
@@ -42,8 +69,16 @@ const upload = multer({
   }
 });
 
-// Upload images to S3
-router.post('/upload', authenticateToken, upload.array('images', 10), async (req, res) => {
+function generateSignedUrl(imageId, thumb = false, expiresIn = '1h') {
+  return jwt.sign(
+    { imageId, thumb },
+    process.env.JWT_SECRET,
+    { expiresIn }
+  );
+}
+
+// Upload images to local storage (with rate limiting)
+router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 10), async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
     
@@ -55,52 +90,49 @@ router.post('/upload', authenticateToken, upload.array('images', 10), async (req
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
+    const userDir = path.join(imagesBaseDir, String(req.user.id));
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+
     const images = [];
     for (const file of files) {
-      const now = new Date();
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-      const ext = path.extname(file.originalname);
-      const filename = `image_${req.user.id}_${dateStr}_${timeStr}${ext}`;
-      const s3Key = `images/${req.user.id}/${filename}`;
-      
-      // Upload original image to S3
-      const uploadParams = {
-        Bucket: bucketName,
-        Key: s3Key,
-        Body: file.buffer,
-        ContentType: file.mimetype
-      };
-      
-      const s3Result = await s3.upload(uploadParams).promise();
-      
-      // Generate and upload thumbnail
-      const thumbFilename = `${filename.replace(ext, '')}_thumb${ext}`;
-      const thumbS3Key = `images/${req.user.id}/${thumbFilename}`;
+      // Magic-byte validation
+      const { valid, ext } = validateImageMagicBytes(file.buffer);
+      if (!valid) {
+        return res.status(400).json({ error: 'Invalid file type. File content does not match image format.' });
+      }
+
+      // Secure filename: UUID + validated extension
+      const secureFilename = `${randomUUID()}.${ext}`;
+      const filePath = path.join(userDir, secureFilename);
+      const dbFilePath = `images/${req.user.id}/${secureFilename}`;
+
+      fs.writeFileSync(filePath, file.buffer);
+
+      const thumbFilename = `${path.basename(secureFilename, '.' + ext)}_thumb.${ext}`;
+      const thumbPath = path.join(userDir, thumbFilename);
       
       try {
-        const thumbnailBuffer = await sharp(file.buffer)
+        await sharp(filePath)
           .resize(200, 200, { fit: 'cover' })
-          .toBuffer();
-        
-        const thumbUploadParams = {
-          Bucket: bucketName,
-          Key: thumbS3Key,
-          Body: thumbnailBuffer,
-          ContentType: file.mimetype
-        };
-        
-        await s3.upload(thumbUploadParams).promise();
+          .toFile(thumbPath);
       } catch (error) {
         console.error('Thumbnail generation failed:', error);
       }
       
       const result = await pool.query(
         'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path, s3_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [finalBookId, req.user.id, filename, file.originalname, s3Key, s3Result.Location]
+        [finalBookId, req.user.id, secureFilename, file.originalname || secureFilename, dbFilePath, null]
       );
       
-      images.push(result.rows[0]);
+      const row = result.rows[0];
+      images.push({
+        ...row,
+        fileUrl: `/api/images/file/${row.id}`,
+        signedUrl: generateSignedUrl(row.id, false),
+        signedThumbUrl: generateSignedUrl(row.id, true)
+      });
     }
 
     res.json({ images });
@@ -110,7 +142,116 @@ router.post('/upload', authenticateToken, upload.array('images', 10), async (req
   }
 });
 
-// Get images with pagination
+// Protected: Serve image by ID (requires Authorization header)
+// Access: eigene Bilder ODER Bilder zu Büchern, auf die der User Zugriff hat (Owner/Book-Friend)
+router.get('/file/:id', authenticateToken, async (req, res) => {
+  try {
+    const imageId = parseInt(req.params.id, 10);
+    if (isNaN(imageId)) {
+      return res.status(400).json({ error: 'Invalid image ID' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM public.images WHERE id = $1',
+      [imageId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const image = result.rows[0];
+    const userId = req.user.id;
+
+    // Zugriff: eigene Bilder ODER Bild gehört zu Buch, auf das User Zugriff hat
+    const isOwner = image.uploaded_by === userId;
+    let hasBookAccess = false;
+    if (!isOwner && image.book_id) {
+      const bookAccess = await pool.query(
+        `SELECT 1 FROM public.books b
+         LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+         WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)`,
+        [image.book_id, userId]
+      );
+      hasBookAccess = bookAccess.rows.length > 0;
+    }
+    if (!isOwner && !hasBookAccess) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const fullPath = path.resolve(path.join(getUploadsDir(), image.file_path));
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Image file not found' });
+    }
+
+    const ext = path.extname(image.filename).toLowerCase();
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).json({ error: 'Failed to load image' });
+  }
+});
+
+// Signed URL: Serve image without Authorization (for img tags) - token in query param
+router.get('/serve', async (req, res) => {
+  try {
+    const { s } = req.query;
+    if (!s) {
+      return res.status(400).json({ error: 'Token required' });
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(s, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const { imageId, thumb } = payload;
+    if (!imageId) {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM public.images WHERE id = $1',
+      [imageId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const image = result.rows[0];
+    const ext = path.extname(image.filename).toLowerCase();
+    const filename = thumb ? image.filename.replace(ext, '') + '_thumb' + ext : image.filename;
+    const dirPath = path.dirname(path.join(getUploadsDir(), image.file_path));
+    const fullPath = path.resolve(path.join(dirPath, filename));
+
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
+    }
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Image file not found' });
+    }
+
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).json({ error: 'Failed to load image' });
+  }
+});
+
+// Get images with pagination - includes signed URLs for grid/lightbox
 router.get('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
@@ -142,8 +283,16 @@ router.get('/', authenticateToken, async (req, res) => {
     const countParams = bookId ? [req.user.id, bookId] : [req.user.id];
     const countResult = await pool.query(countQuery, countParams);
     
+    const apiUrl = `${req.protocol}://${req.get('host')}/api`;
+    const images = result.rows.map(img => ({
+      ...img,
+      fileUrl: `${apiUrl}/images/file/${img.id}`,
+      signedUrl: generateSignedUrl(img.id, false),
+      signedThumbUrl: generateSignedUrl(img.id, true)
+    }));
+    
     res.json({
-      images: result.rows,
+      images,
       total: parseInt(countResult.rows[0].count),
       page: parseInt(page),
       totalPages: Math.ceil(countResult.rows[0].count / parseInt(limit))
@@ -154,7 +303,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete images from S3 and database
+// Delete images from local storage and database
 router.delete('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
@@ -165,37 +314,32 @@ router.delete('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Image IDs required' });
     }
 
-    // Get image details for S3 deletion
     const imagesResult = await pool.query(
       'SELECT * FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
       [imageIds, req.user.id]
     );
     
-    // Delete files from S3
+    const uploadsDir = getUploadsDir();
+
     for (const image of imagesResult.rows) {
       try {
-        // Delete original image
-        await s3.deleteObject({
-          Bucket: bucketName,
-          Key: image.file_path
-        }).promise();
-        
-        // Delete thumbnail
+        const fullPath = path.resolve(path.join(uploadsDir, image.file_path));
+        if (!isPathWithinUploads(fullPath)) continue;
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+
         const ext = path.extname(image.filename);
-        const nameWithoutExt = image.filename.replace(ext, '');
-        const thumbFilename = `${nameWithoutExt}_thumb${ext}`;
-        const thumbS3Key = `images/${req.user.id}/${thumbFilename}`;
-        
-        await s3.deleteObject({
-          Bucket: bucketName,
-          Key: thumbS3Key
-        }).promise();
-      } catch (s3Error) {
-        console.error('S3 deletion error:', s3Error);
+        const thumbFilename = image.filename.replace(ext, '') + '_thumb' + ext;
+        const thumbPath = path.resolve(path.join(path.dirname(fullPath), thumbFilename));
+        if (isPathWithinUploads(thumbPath) && fs.existsSync(thumbPath)) {
+          fs.unlinkSync(thumbPath);
+        }
+      } catch (fsError) {
+        console.error('File deletion error:', fsError);
       }
     }
     
-    // Delete from database
     await pool.query(
       'DELETE FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
       [imageIds, req.user.id]
@@ -205,112 +349,6 @@ router.delete('/', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting images:', error);
     res.status(500).json({ error: 'Failed to delete images' });
-  }
-});
-
-// Proxy endpoint to serve S3 images with CORS headers
-// This endpoint loads images from S3 and serves them with proper CORS headers
-// to avoid CORS issues when loading images into Konva canvas
-// Authentication can be done via token in query parameter (for Image elements) or via Authorization header
-router.get('/proxy', async (req, res) => {
-  try {
-    const { url, token } = req.query;
-    const jwt = require('jsonwebtoken');
-    
-    if (!url) {
-      return res.status(400).json({ error: 'URL parameter required' });
-    }
-    
-    // Authenticate via token in query parameter or Authorization header
-    let authenticated = false;
-    if (token) {
-      // Verify token from query parameter
-      try {
-        jwt.verify(token, process.env.JWT_SECRET);
-        authenticated = true;
-      } catch (error) {
-        // Token invalid, continue to check Authorization header
-      }
-    }
-    
-    if (!authenticated) {
-      // Try to authenticate via Authorization header
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const authToken = authHeader.substring(7);
-        try {
-          jwt.verify(authToken, process.env.JWT_SECRET);
-          authenticated = true;
-        } catch (error) {
-          // Token invalid
-        }
-      }
-    }
-    
-    if (!authenticated) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    // Parse S3 URL to get bucket and key
-    // S3 URLs can have different formats:
-    // - https://fb-konva.s3.us-east-1.amazonaws.com/images/2/image_2_20251021_111014.JPG
-    // - https://fb-konva.s3.amazonaws.com/images/2/image_2_20251021_111014.JPG
-    // - https://s3.us-east-1.amazonaws.com/fb-konva/images/2/image_2_20251021_111014.JPG
-    
-    let s3Key = null;
-    
-    // Try different URL patterns
-    // Pattern 1: https://bucket.s3.region.amazonaws.com/key
-    const pattern1 = /https?:\/\/fb-konva\.s3[^\/]*\.amazonaws\.com\/(.+)/;
-    let match = url.match(pattern1);
-    if (match) {
-      s3Key = decodeURIComponent(match[1]); // Decode URL-encoded characters
-    }
-    
-    // Pattern 2: https://s3.region.amazonaws.com/bucket/key
-    if (!s3Key) {
-      const pattern2 = /https?:\/\/s3[^\/]*\.amazonaws\.com\/fb-konva\/(.+)/;
-      match = url.match(pattern2);
-      if (match) {
-        s3Key = decodeURIComponent(match[1]);
-      }
-    }
-    
-    // Pattern 3: If URL is already just a key path (starts with images/)
-    if (!s3Key && url.startsWith('images/')) {
-      s3Key = decodeURIComponent(url);
-    }
-    
-    if (!s3Key) {
-      console.error('Failed to parse S3 URL:', url);
-      return res.status(400).json({ error: 'Invalid S3 URL format' });
-    }
-    
-    // Remove any query parameters that might have been included
-    s3Key = s3Key.split('?')[0];
-    
-    console.log('Parsed S3 URL:', { originalUrl: url, extractedKey: s3Key });
-    
-    // Get object from S3
-    const s3Params = {
-      Bucket: bucketName,
-      Key: s3Key
-    };
-    
-    const s3Object = await s3.getObject(s3Params).promise();
-    
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Content-Type', s3Object.ContentType || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-    
-    // Send image data
-    res.send(s3Object.Body);
-  } catch (error) {
-    console.error('Error proxying image:', error);
-    res.status(500).json({ error: 'Failed to load image' });
   }
 });
 
