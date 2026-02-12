@@ -1,90 +1,28 @@
-import { Button } from '../../../ui/primitives/button';
-import { Tooltip } from '../../../ui/composites/tooltip';
-import CompactList from '../../../shared/list';
-import ProfilePicture from '../../users/profile-picture';
-import { Trash2 } from 'lucide-react';
-import type { BookFriend } from '../book-manager-content';
-import type { Page } from '../../../../context/editor-context';
+import { PageExplorer, type PageItem } from '../../editor/editor-bar/page-explorer';
 
 interface PagesAssignmentsTabProps {
-  assignedUser: BookFriend | null;
-  currentPage: number;
-  onRemoveAssignment: () => void;
-  collaborators: BookFriend[];
-  renderBookFriend: (friend: BookFriend) => React.ReactNode;
-  currentPageType?: Page['pageType'];
+  pages?: PageItem[];
+  pageAssignments?: Record<number, { id: number; name: string; email: string }>;
+  onPageOrderChange?: (newPageOrder: number[]) => void;
 }
 
 export function PagesAssignmentsTab({
-  assignedUser,
-  currentPage,
-  onRemoveAssignment,
-  collaborators,
-  renderBookFriend,
-  currentPageType,
+  pages = [],
+  pageAssignments = {},
+  onPageOrderChange,
 }: PagesAssignmentsTabProps) {
-  const isCoverPage =
-    currentPageType === 'back-cover' ||
-    currentPageType === 'front-cover' ||
-    currentPage === 1 ||
-    currentPage === 2;
-
-  const availableCollaborators = assignedUser && !isCoverPage
-    ? collaborators.filter((friend) => friend.id !== assignedUser.id)
-    : isCoverPage
-      ? []
-      : collaborators;
-
   return (
     <div className="space-y-4">
-      {assignedUser ? (
-        <div className="p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
-          <p className="text-sm font-medium mb-3">Currently assigned to page {currentPage}:</p>
-          <div className="flex items-center gap-3 p-3 border rounded-lg bg-background relative">
-            <ProfilePicture
-              key={assignedUser.id}
-              name={assignedUser.name}
-              size="sm"
-              userId={assignedUser.id}
-              variant="withColoredBorder"
-            />
-            <div className="flex-1">
-              <p className="font-medium text-sm">
-                {assignedUser.name}{' '}
-                <span className="text-muted-foreground font-normal">({assignedUser.email})</span>
-              </p>
-            </div>
-            <Tooltip content="Remove Assignment">
-              <Button variant="destructive" size="sm" onClick={onRemoveAssignment} className="h-8 w-8 p-0">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </Tooltip>
-          </div>
-        </div>
+      <p className="text-sm font-medium">Alle Seiten des Buches</p>
+      {pages.length === 0 ? (
+        <p className="text-center text-muted-foreground py-4">Keine Seiten vorhanden.</p>
       ) : (
-        <p className="text-center text-muted-foreground py-4">
-          {isCoverPage ? 'Cover pages cannot be assigned to collaborators.' : `No user assigned to page ${currentPage}`}
-        </p>
-      )}
-
-      {isCoverPage ? (
-        <p className="text-center text-muted-foreground py-4">Assignments are disabled on Back Cover and Front Cover.</p>
-      ) : availableCollaborators.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Book Friends:</p>
-          <div className="overflow-y-auto">
-            <CompactList
-              items={availableCollaborators}
-              keyExtractor={(user) => user.id.toString()}
-              renderItem={renderBookFriend}
-              itemsPerPage={15}
-            />
-          </div>
-        </div>
-      ) : (
-        <p className="text-center text-muted-foreground py-4">No friends in this book</p>
+        <PageExplorer
+          pages={pages}
+          pageAssignments={pageAssignments}
+          onPageOrderChange={onPageOrderChange}
+        />
       )}
     </div>
   );
 }
-

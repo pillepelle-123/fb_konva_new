@@ -149,15 +149,18 @@ export function ColorSelector({
             <div className="relative">
               <div className="grid grid-cols-8 gap-1">
                 {favoriteColors.map((color, index) => (
-                  <button
+                  <div
                     key={index}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className="w-8 h-8 rounded border-2 border-gray-300 hover:border-gray-400 cursor-pointer relative group"
                     style={{ backgroundColor: color, pointerEvents: 'auto' }}
                     onClick={() => onChange(color)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(color); } }}
                     title={color}
                   >
                     <button
+                      type="button"
                       className="absolute -top-1 -right-1 w-4 h-4 text-muted-foreground rounded-full border border-muted-foreground opacity-0 group-hover:opacity-100 bg-white transition-opacity flex items-center justify-center z-10"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -168,7 +171,7 @@ export function ColorSelector({
                     >
                       <X className="h-3 w-3" />
                     </button>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>

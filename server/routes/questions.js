@@ -122,12 +122,6 @@ router.post('/from-pool', authenticateToken, async (req, res) => {
         [questionId, question_text, bookId, userId, poolId, displayOrder]
       );
       
-      // Track in book_questions junction table
-      await pool.query(
-        'INSERT INTO public.book_questions (book_id, question_pool_id, question_id) VALUES ($1, $2, $3) ON CONFLICT (book_id, question_pool_id) DO NOTHING',
-        [bookId, poolId, questionId]
-      );
-      
       createdQuestions.push(result.rows[0]);
     }
     

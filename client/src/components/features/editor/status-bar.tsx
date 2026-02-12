@@ -1,130 +1,59 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useEditor } from '../../../context/editor-context';
-import type { CanvasElement } from '../../../context/editor-context';
-import { Button } from '../../../components/ui/primitives';
-import { BookOpen, Download, Info, Layout } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/composites/tabs';
-import { exportThemeAndPalette } from '../../../utils/theme-palette-exporter';
-import { exportLayout } from '../../../utils/layout-exporter';
-import { calculatePageDimensions } from '../../../utils/template-utils';
-import { PagesSubmenu } from './editor-bar/page-explorer';
+import { PagesSubmenu } from './editor-bar/page-explorer-compact';
+import { PageExplorer, type PageItem } from './editor-bar/page-explorer';
+import { Button } from '../../ui/primitives/button';
+import { PanelBottomClose, PanelBottomOpen } from 'lucide-react';
 import { Tooltip } from '../../ui';
 import AddPageConfirmationDialog from '../../ui/overlays/add-page-confirmation-dialog';
 
-const matchesElementDescriptor = (element: CanvasElement, value: string) => {
-  const fallbackType = (element as CanvasElement & { type?: string }).type;
-  return element.textType === value || fallbackType === value;
-};
-
-type StatusBarSection = 'details' | 'pages';
+const ANIMATION_DURATION_MS = 200;
+const COMPACT_ROW_HEIGHT = 40;
+const EXPANDED_PANEL_HEIGHT = 90;
 
 export function StatusBar() {
   const { state, dispatch, getVisiblePages, ensurePagesLoaded } = useEditor();
-  const [activeSection, setActiveSection] = useState<StatusBarSection>('pages');
+  const [showPageExplorerPanel, setShowPageExplorerPanel] = useState(false);
   const [showAddPageDialog, setShowAddPageDialog] = useState(false);
   const [addPageInsertionIndex, setAddPageInsertionIndex] = useState<number | null>(null);
 
+  // Authors dürfen das PageExplorer-Panel nicht öffnen – beim Rollenwechsel schließen
+  useEffect(() => {
+    if (state.userRole === 'author') {
+      setShowPageExplorerPanel(false);
+    }
+  }, [state.userRole]);
+
   const visiblePages = useMemo(() => getVisiblePages(), [getVisiblePages]);
+
+  // Pages for PageExplorer (DnD panel): from currentBook in page order
+  const pageExplorerPages = useMemo<PageItem[]>(() => {
+    if (!state.currentBook?.pages) return [];
+    return state.currentBook.pages
+      .filter((p) => !(p as { isPreview?: boolean }).isPreview && !(p as { isPlaceholder?: boolean }).isPlaceholder)
+      .map((p) => ({ pageNumber: p.pageNumber ?? 0, pageType: p.pageType }));
+  }, [state.currentBook?.pages]);
+
+  // pageAssignments keyed by page number (1-based)
+  const pageAssignmentsMap = useMemo(() => {
+    const map: Record<number, { id: number; name: string; email: string }> = {};
+    if (!state.pageAssignments) return map;
+    Object.entries(state.pageAssignments).forEach(([key, user]) => {
+      const pageNum = typeof key === 'string' ? parseInt(key, 10) : key;
+      if (!isNaN(pageNum) && user) {
+        map[pageNum] = { id: user.id, name: user.name, email: user.email };
+      }
+    });
+    return map;
+  }, [state.pageAssignments]);
+
+  const handlePageOrderChange = (newPageOrder: number[]) => {
+    dispatch({ type: 'REORDER_PAGES_TO_ORDER', payload: { pageOrder: newPageOrder } });
+  };
 
   if (!state.currentBook) return null;
   const currentBook = state.currentBook;
   const isRestrictedView = state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0;
-
-  const handleExportThemeAndPalette = () => {
-    const currentPage = currentBook.pages[state.activePageIndex];
-    if (!currentPage) {
-      console.warn('No current page found');
-      return;
-    }
-
-    const elements = (currentPage.elements || []) as CanvasElement[];
-    
-    // Check if we have the required elements
-    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna'));
-    const hasFreeText = elements.some((el) => matchesElementDescriptor(el, 'free_text'));
-    const hasShape = elements.some(el => 
-      el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || 
-      el.type === 'polygon' || el.type === 'heart' || el.type === 'star' ||
-      el.type === 'speech-bubble' || el.type === 'dog' || el.type === 'cat' || el.type === 'smiley'
-    );
-
-    if (!hasQna && !hasFreeText && !hasShape) {
-      alert('Bitte fügen Sie mindestens ein Element hinzu:\n- QnA Inline Textbox\n- Free Text Textbox\n- Shape (Rect, Circle, etc.)');
-      return;
-    }
-
-    // Prompt for theme and palette names
-    const themeName = prompt('Geben Sie einen Namen für das Theme ein:');
-    if (!themeName || themeName.trim() === '') {
-      return;
-    }
-
-    const paletteName = prompt('Geben Sie einen Namen für die Color Palette ein:', themeName);
-    if (!paletteName || paletteName.trim() === '') {
-      return;
-    }
-
-    exportThemeAndPalette(
-      themeName.trim(),
-      paletteName.trim(),
-      elements,
-      currentPage.background,
-      currentPage.themeId || currentPage.background?.pageTheme
-    );
-  };
-
-  const handleExportLayout = () => {
-    const currentPage = currentBook.pages[state.activePageIndex];
-    if (!currentPage) {
-      console.warn('No current page found');
-      return;
-    }
-
-    const elements = (currentPage.elements || []) as CanvasElement[];
-    
-    // Check if we have qna or image elements
-    const hasQna = elements.some((el) => matchesElementDescriptor(el, 'qna'));
-    const hasImage = elements.some(el => el.type === 'image');
-
-    if (!hasQna && !hasImage) {
-      alert('Bitte fügen Sie mindestens ein Element hinzu:\n- QnA Inline Textbox\n- Image');
-      return;
-    }
-
-    // Prompt for template details
-    const templateName = prompt('Geben Sie einen Namen für das Layout ein:');
-    if (!templateName || templateName.trim() === '') {
-      return;
-    }
-
-    const templateId = prompt('Geben Sie eine ID für das Layout ein (z.B. "my-layout-1"):', 
-      templateName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
-    if (!templateId || templateId.trim() === '') {
-      return;
-    }
-
-    const categoryInput = prompt('Geben Sie die Kategorie ein (structured/freeform/mixed):', 'freeform');
-    const category = (categoryInput === 'structured' || categoryInput === 'freeform' || categoryInput === 'mixed') 
-      ? categoryInput 
-      : 'freeform';
-
-    // Berechne Canvas-Größe aus pageSize und orientation
-    const pageSize = state.currentBook?.pageSize || 'A4';
-    const orientation = state.currentBook?.orientation || 'portrait';
-    const canvasSize = calculatePageDimensions(pageSize, orientation);
-
-    exportLayout(
-      templateId.trim(),
-      templateName.trim(),
-      category,
-      elements,
-      currentPage.background,
-      currentPage.themeId || currentPage.background?.pageTheme,
-      currentPage.colorPaletteId,
-      undefined, // thumbnail
-      canvasSize
-    );
-  };
 
   const handlePageSelect = (pageNumber: number) => {
     if (!currentBook) return;
@@ -168,55 +97,6 @@ export function StatusBar() {
   };
 
 
-  const renderDetailsContent = (condensed: boolean) => (
-    <div
-      className={`flex items-center ${condensed ? 'gap-3 text-[11px]' : 'gap-4 text-sm flex-wrap'} text-muted-foreground overflow-hidden`}
-    >
-      <span className="font-medium whitespace-nowrap">
-        Tool: <span className="text-foreground">{state.activeTool}</span>
-      </span>
-      <span className="font-medium whitespace-nowrap hidden sm:inline">
-        Book ID: <span className="text-foreground">{currentBook.id}</span> | Page ID:{' '}
-        <span className="text-foreground">
-          {currentBook.pages[state.activePageIndex]?.database_id || ''}
-        </span>{' '}
-        | Page Number: <span className="text-foreground">{state.activePageIndex + 1}</span>
-      </span>
-      {state.pageAssignments[state.activePageIndex + 1] && (
-        <span className="font-medium whitespace-nowrap hidden lg:inline">
-          User: <span className="text-foreground">{state.pageAssignments[state.activePageIndex + 1].id}</span>
-        </span>
-      )}
-      <span className="font-medium whitespace-nowrap">
-        Selected:{' '}
-        <span className="text-foreground">
-          {state.selectedElementIds.length}
-        </span>{' '}
-        element{state.selectedElementIds.length !== 1 ? 's' : ''}
-      </span>
-      <div className="flex items-center gap-2 ml-auto">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportLayout}
-          className={`h-7 text-xs ${condensed ? 'px-2' : ''}`}
-        >
-          <Layout className="h-3 w-3 mr-1" />
-          Export Layout
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportThemeAndPalette}
-          className={`h-7 text-xs ${condensed ? 'px-2' : ''}`}
-        >
-          <Download className="h-3 w-3 mr-1" />
-          Export Theme + Palette
-        </Button>
-      </div>
-    </div>
-  );
-
   const renderPageExplorer = (mode: 'expanded' | 'compact' | 'micro') => (
     <PagesSubmenu
       pages={visiblePages}
@@ -245,38 +125,68 @@ export function StatusBar() {
         }}
       >
         <div className="flex flex-col">
-          <div className="flex items-center gap-2 px-2 h-10">
-            {/* <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={toggleExpanded}
-            >
-              <ToggleIcon className="h-4 w-4" />
-              <span className="sr-only">{isExpanded ? 'Collapse status bar' : 'Expand status bar'}</span>
-            </Button> */}
-
-            <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as StatusBarSection)} className="shrink-0">
-              <TabsList className="h-8 bg-muted">
-                <TabsTrigger value="details" className="px-3 py-1 text-xs sm:text-sm">
-                <Info className="h-4 w-4" />
-                </TabsTrigger>
-                <TabsTrigger value="pages" className="px-3 py-1 text-xs sm:text-sm">
-                  <Tooltip content="Page Explorer" side="top" backgroundColor="bg-background" textColor="text-foreground">
-                  <BookOpen className="h-4 w-4" />
+          {/* Wie Toolbar: Inhalte immer im DOM, nur Höhe animiert (transition-all duration-200) */}
+          <div
+            className="overflow-hidden transition-all ease-in-out shrink-0"
+            style={{ height: showPageExplorerPanel ? 0 : COMPACT_ROW_HEIGHT, transitionDuration: `${ANIMATION_DURATION_MS}ms` }}
+          >
+            <div className="flex items-center gap-2 px-2 h-10 shrink-0">
+              {state.userRole !== 'author' && (
+                <Tooltip
+                  content="Open page order panel"
+                  side="right"
+                  backgroundColor="bg-background"
+                  textColor="text-foreground"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPageExplorerPanel(true)}
+                    className="h-8 w-8 p-0 flex items-center justify-center"
+                  >
+                    <PanelBottomOpen className="h-5 w-5" />
+                  </Button>
                 </Tooltip>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="flex-1 min-w-0 p-0">
-              {activeSection === 'details' ? (
-                renderDetailsContent(true)
-              ) : (
+              )}
+              <div className="flex-1 min-w-0 p-0">
                 <div className="max-w-full">
                   {renderPageExplorer('micro')}
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+          <div
+            className="overflow-hidden transition-all ease-in-out shrink-0"
+            style={{ height: showPageExplorerPanel ? EXPANDED_PANEL_HEIGHT : 0, transitionDuration: `${ANIMATION_DURATION_MS}ms` }}
+          >
+            <div className="flex items-end gap-2 px-2 pb-2 pt-1 min-h-[70px]">
+              <Tooltip
+                content="Close page order panel"
+                side="top"
+                backgroundColor="bg-background"
+                textColor="text-foreground"
+              >
+                <div className="flex-shrink-0 pb-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPageExplorerPanel(false)}
+                    className="h-8 w-8 p-0 flex items-center justify-center"
+                  >
+                    <PanelBottomClose className="h-5 w-5" />
+                  </Button>
+                </div>
+              </Tooltip>
+              <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-thin">
+                <PageExplorer
+                  pages={pageExplorerPages}
+                  pageAssignments={pageAssignmentsMap}
+                  onPageOrderChange={handlePageOrderChange}
+                  layout="horizontal"
+                  activePageNumber={currentBook.pages[state.activePageIndex]?.pageNumber}
+                  onPageSelect={handlePageSelect}
+                />
+              </div>
             </div>
           </div>
         </div>

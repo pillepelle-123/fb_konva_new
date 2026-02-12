@@ -31,13 +31,15 @@ export const ImageSelectionModal: React.FC<ImageSelectionModalProps> = ({
       title="Select Image"
     >
       {ImagesContent && (
-        <ImagesContent
-          token={token}
-          mode="select"
-          onImageSelect={onImageSelect}
-          onImageUpload={(imageUrl: unknown) => onImageSelect(0, imageUrl)}
-          onClose={onImageModalClose}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <ImagesContent
+            token={token}
+            mode="select"
+            onImageSelect={onImageSelect}
+            onImageUpload={(imageUrl: unknown) => onImageSelect(0, imageUrl)}
+            onClose={onImageModalClose}
+          />
+        </div>
       )}
     </Modal>
   );

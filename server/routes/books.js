@@ -589,8 +589,9 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           let elementsUpdated = false;
           
           for (const element of elements) {
-            if (element.textType === 'question' && element.questionId && element.questionId > 0) {
-              // Check if question exists before creating association
+            // Question or QnA elements have a question on the page (questionId is UUID)
+            const hasQuestionOnPage = (element.textType === 'question' || element.textType === 'qna') && element.questionId;
+            if (hasQuestionOnPage) {
               const questionExists = await pool.query(
                 'SELECT id FROM public.questions WHERE id = $1',
                 [element.questionId]
@@ -604,8 +605,8 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
               }
             }
             
-            // Create answer placeholders for answer elements
-            if (element.textType === 'answer' && element.questionId && element.questionId > 0 && pageAssignment.rows.length > 0) {
+            // Create answer placeholders for answer elements (or QnA which has answer area)
+            if ((element.textType === 'answer' || element.textType === 'qna') && element.questionId && pageAssignment.rows.length > 0) {
               const assignedUserId = pageAssignment.rows[0].user_id;
               
               // Check if question exists before creating answer
@@ -1124,8 +1125,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
         let elementsUpdated = false;
         
         for (const element of elements) {
-          if (element.textType === 'question' && element.questionId) {
-            // Check if question exists before creating association
+          // Question or QnA elements have a question on the page (questionId is UUID)
+          const hasQuestionOnPage = (element.textType === 'question' || element.textType === 'qna') && element.questionId;
+          if (hasQuestionOnPage) {
             const questionExists = await pool.query(
               'SELECT id FROM public.questions WHERE id = $1',
               [element.questionId]
@@ -1199,7 +1201,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         // Create answer placeholders for all questions on assigned pages
         if (pageAssignment.rows.length > 0) {
           const assignedUserId = pageAssignment.rows[0].user_id;
-          const questionElements = elements.filter(el => el.textType === 'question' && el.questionId);
+          const questionElements = elements.filter(el => (el.textType === 'question' || el.textType === 'qna') && el.questionId);
           
           for (const questionElement of questionElements) {
             // Check if question exists before creating answer

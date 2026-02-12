@@ -81,6 +81,7 @@ interface TempState {
     pageSize: string;
     orientation: string;
   };
+  pendingPageOrder: number[] | null;
 }
 
 export default function BookManagerContent({ bookId, onClose, isStandalone = false, hideActions = false, onActionsReady, initialTab }: BookManagerContentProps) {
@@ -112,7 +113,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     bookSettings: {
       pageSize: state?.currentBook?.pageSize || 'A4',
       orientation: state?.currentBook?.orientation || 'portrait'
-    }
+    },
+    pendingPageOrder: null
   });
   const [originalState, setOriginalState] = useState<TempState>({
     bookFriends: [],
@@ -126,7 +128,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     bookSettings: {
       pageSize: state?.currentBook?.pageSize || 'A4',
       orientation: state?.currentBook?.orientation || 'portrait'
-    }
+    },
+    pendingPageOrder: null
   });
   const [allFriends, setAllFriends] = useState<User[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -160,9 +163,37 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [showAnswerList, setShowAnswerList] = useState(false);
   const [selectedQuestionForAnswers, setSelectedQuestionForAnswers] = useState<{ id: string; text: string } | null>(null);
 
+  // Standalone mode: pages and page assignments from API
+  const [standalonePages, setStandalonePages] = useState<Array<{ pageNumber: number; pageType?: string }>>([]);
+  const [standalonePageAssignmentsMap, setStandalonePageAssignmentsMap] = useState<Record<number, User>>({});
+
   const currentPage = (state?.activePageIndex !== undefined ? state.activePageIndex + 1 : 1);
   const currentPageMeta = state?.currentBook?.pages?.find((page) => page.pageNumber === currentPage);
   const assignedUser = tempState.hasRemovedAssignment ? null : (tempState.pendingAssignment !== null ? tempState.pendingAssignment : state?.pageAssignments?.[currentPage]);
+
+  // Pages and assignments for "all pages" view (standalone: from API; editor: from state)
+  const basePages = useMemo(() => {
+    if (isStandalone) return standalonePages;
+    const pages = state?.currentBook?.pages?.filter((p) => !(p as { isPreview?: boolean }).isPreview && !(p as { isPlaceholder?: boolean }).isPlaceholder) ?? [];
+    return pages.map((p) => ({ pageNumber: p.pageNumber ?? 0, pageType: p.pageType }));
+  }, [isStandalone, standalonePages, state?.currentBook?.pages]);
+
+  const allPages = useMemo(() => {
+    if (!tempState.pendingPageOrder || tempState.pendingPageOrder.length === 0) return basePages;
+    const pageMap = new Map(basePages.map((p) => [p.pageNumber, p]));
+    return tempState.pendingPageOrder
+      .map((pnum) => pageMap.get(pnum))
+      .filter((p): p is { pageNumber: number; pageType?: string } => p != null);
+  }, [basePages, tempState.pendingPageOrder]);
+
+  const effectivePageAssignments = useMemo(() => {
+    if (isStandalone) return standalonePageAssignmentsMap;
+    const base = state?.pageAssignments ?? {};
+    const result = { ...base };
+    if (tempState.hasRemovedAssignment) delete result[currentPage];
+    else if (tempState.pendingAssignment) result[currentPage] = tempState.pendingAssignment;
+    return result;
+  }, [isStandalone, standalonePageAssignmentsMap, state?.pageAssignments, tempState.hasRemovedAssignment, tempState.pendingAssignment, currentPage]);
   
   const hasChanges = () => {
     // Compare basic properties
@@ -172,6 +203,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     if (tempState.hasRemovedAssignment !== originalState.hasRemovedAssignment) return true;
     if (JSON.stringify(tempState.tempQuestions) !== JSON.stringify(originalState.tempQuestions)) return true;
     if (JSON.stringify(tempState.bookSettings) !== JSON.stringify(originalState.bookSettings)) return true;
+    if (JSON.stringify(tempState.pendingPageOrder) !== JSON.stringify(originalState.pendingPageOrder)) return true;
     
     // Compare Sets
     if (tempState.removedFriends.size !== originalState.removedFriends.size) return true;
@@ -187,6 +219,10 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     return false;
   };
   
+  const handlePageOrderChange = useCallback((newPageOrder: number[]) => {
+    setTempState(prev => ({ ...prev, pendingPageOrder: newPageOrder }));
+  }, []);
+
   const handlePermissionChange = (userId: number, field: 'pageAccessLevel' | 'editorInteractionLevel' | 'book_role', value: string) => {
     setTempState(prev => ({
       ...prev,
@@ -421,6 +457,11 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         });
       });
     }
+
+    // Reorder pages if user changed order in Pages & Assignments tab
+    if (currentTempState.pendingPageOrder && currentTempState.pendingPageOrder.length > 0) {
+      dispatch({ type: 'REORDER_PAGES_TO_ORDER', payload: { pageOrder: currentTempState.pendingPageOrder } });
+    }
   }, [tempState, state, dispatch]);
   
   const saveToDatabase = async () => {
@@ -531,6 +572,11 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       // Update question order
       if (tempState.questionOrders && tempState.questionOrders.length > 0 && typeof bookId === 'number') {
         await apiService.updateQuestionOrder(bookId, tempState.questionOrders);
+      }
+
+      // Update page order
+      if (tempState.pendingPageOrder && tempState.pendingPageOrder.length > 0 && typeof bookId === 'number') {
+        await apiService.updatePageOrder(bookId, tempState.pendingPageOrder);
       }
     } catch (error) {
       console.error('Error saving to database:', error);
@@ -879,7 +925,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         tempQuestions: {},
         deletedQuestions: new Set<string>(),
         questionOrders: undefined,
-        bookSettings: { pageSize: 'A4', orientation: 'portrait' }
+        bookSettings: { pageSize: 'A4', orientation: 'portrait' },
+        pendingPageOrder: null
       };
       setTempState(initialState);
       setOriginalState(initialState);
@@ -898,7 +945,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         bookSettings: {
           pageSize: state?.currentBook?.pageSize || 'A4',
           orientation: state?.currentBook?.orientation || 'portrait'
-        }
+        },
+        pendingPageOrder: null
       };
       setTempState(initialState);
       setOriginalState(initialState);
@@ -932,6 +980,20 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
             orientation: data.orientation || 'portrait'
           }
         }));
+        // Store pages and page assignments for standalone "all pages" view
+        if (data.pages?.length) {
+          setStandalonePages(data.pages.map((p: { pageNumber?: number; page_number?: number; pageType?: string }) => ({
+            pageNumber: p.pageNumber ?? p.page_number ?? 0,
+            pageType: p.pageType
+          })));
+        }
+        if (data.pageAssignments?.length) {
+          const map: Record<number, User> = {};
+          data.pageAssignments.forEach((pa: { page_number: number; user_id: number; name: string; email: string }) => {
+            map[pa.page_number] = { id: pa.user_id, name: pa.name, email: pa.email };
+          });
+          setStandalonePageAssignmentsMap(map);
+        }
       }
     } catch (error) {
       console.error('Error fetching book data:', error);
@@ -1138,12 +1200,9 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         
         <TabsContent value="pages-assignments" className="space-y-4">
           <PagesAssignmentsTab
-            assignedUser={assignedUser}
-            currentPage={currentPage}
-            onRemoveAssignment={handleRemoveAssignment}
-            collaborators={allBookCollaborators}
-            renderBookFriend={renderBookFriend}
-            currentPageType={currentPageMeta?.pageType}
+            pages={allPages}
+            pageAssignments={effectivePageAssignments}
+            onPageOrderChange={handlePageOrderChange}
           />
         </TabsContent>
         

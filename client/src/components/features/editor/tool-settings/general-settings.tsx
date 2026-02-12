@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog } from 'lucide-react';
+import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog, UserCog } from 'lucide-react';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
@@ -15,6 +15,7 @@ import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { PageBackgroundSettings } from './page-background-settings';
 import type { PageBackground } from '../../../../context/editor-context';
 import { EditorSettings } from './editor-settings';
+import { PageAssignmentSettings } from './page-assignment-settings';
 
 
 interface GeneralSettingsProps {
@@ -117,6 +118,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const [localShowEditorSettings, setLocalShowEditorSettings] = useState(false);
   const showEditorSettings = externalSetShowEditorSettings ? (externalShowEditorSettings ?? false) : localShowEditorSettings;
   const setShowEditorSettings = externalSetShowEditorSettings || setLocalShowEditorSettings;
+  const [showPageAssignmentSettings, setShowPageAssignmentSettings] = useState(false);
   
   // Keys to force remount when dialogs are opened
   const [pageLayoutKey, setPageLayoutKey] = useState(0);
@@ -170,6 +172,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
   if (showEditorSettings) {
     return <EditorSettings />;
+  }
+
+  if (showPageAssignmentSettings) {
+    return <PageAssignmentSettings onBack={() => setShowPageAssignmentSettings(false)} />;
   }
   
   if (showBackgroundSettings) {
@@ -311,6 +317,15 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                 >
                   <Columns3Cog className="h-4 w-4 mr-2" />
                   Editor
+                </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowPageAssignmentSettings(true)}
+                  className="w-full justify-start"
+                >
+                  <UserCog className="h-4 w-4 mr-2" />
+                  Page Assignment
                 </Button>
               </div>
             </div>

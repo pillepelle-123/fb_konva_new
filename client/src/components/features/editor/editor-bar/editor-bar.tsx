@@ -5,8 +5,7 @@ import type { Page } from '../../../../context/editor-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
 import BookExportModal from '../book-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
-import { Modal } from '../../../ui/overlays/modal';
-import BookManagerContent from '../../books/book-manager-content';
+import BookManagerModal from '../../books/book-manager-modal';
 import { Button } from '../../../ui/primitives/button';
 import { toast } from 'sonner';
 
@@ -23,7 +22,7 @@ import { Settings, X } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { EditorBarContainer } from './editor-bar-container';
 
-import { PagesSubmenu } from './page-explorer';
+import { PagesSubmenu } from './page-explorer-compact';
 import { PageAssignmentButton } from './page-assignment-button';
 
 
@@ -479,33 +478,4 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     </>
   );
 }
-
-function BookManagerModal({ isOpen, onClose, bookId, initialTab }: { isOpen: boolean; onClose: () => void; bookId: number; initialTab?: string }) {
-  const [actions, setActions] = useState<React.ReactNode>(null);
-  
-  // Memoize the callback to prevent infinite loops
-  const handleActionsReady = useCallback((newActions: React.ReactNode) => {
-    setActions(newActions);
-  }, []);
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Book Manager"
-      size="lg"
-      closeOnBackdrop={false}
-      actions={actions}
-    >
-      <BookManagerContent 
-        bookId={bookId} 
-        onClose={onClose}
-        hideActions={true}
-        onActionsReady={handleActionsReady}
-        initialTab={initialTab}
-      />
-    </Modal>
-  );
-}
-
 

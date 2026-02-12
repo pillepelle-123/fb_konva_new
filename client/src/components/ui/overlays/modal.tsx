@@ -77,7 +77,7 @@ export function Modal({
         </div>
         
         {displayActions && (
-          <div className="flex-shrink-0 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-4">
+          <div className="flex-shrink-0 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 px-2 pt-4">
             {displayActions}
           </div>
         )}

@@ -150,6 +150,15 @@ class ApiService {
     return response.json();
   }
 
+  async updatePageOrder(bookId: number, pageOrder: number[]) {
+    const response = await fetch(`${this.baseUrl}/books/${bookId}/page-order`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ pageOrder })
+    });
+    if (!response.ok) throw new Error('Failed to update page order');
+  }
+
   // Answer operations
   async getUserAnswers(bookId: number) {
     const response = await fetch(`${this.baseUrl}/answers/book/${bookId}`, { headers: this.getHeaders() });

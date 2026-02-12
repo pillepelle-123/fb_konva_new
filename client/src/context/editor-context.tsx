@@ -895,6 +895,7 @@ type EditorAction =
   | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null; skipHistory?: boolean } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean; preserveColors?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number; count?: number } }
+  | { type: 'REORDER_PAGES_TO_ORDER'; payload: { pageOrder: number[] } }
   | { type: 'TOGGLE_MAGNETIC_SNAPPING' }
   | { type: 'SET_QNA_ACTIVE_SECTION'; payload: 'question' | 'answer' }
   | { type: 'TOGGLE_STYLE_PAINTER' }
@@ -4331,6 +4332,45 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         finalReorderState = markPageIndexAsModified(finalReorderState, i);
       }
       return finalReorderState;
+    }
+    
+    case 'REORDER_PAGES_TO_ORDER': {
+      if (!state.currentBook || state.userRole === 'author') return state;
+      const savedState = saveToHistory(state, 'Reorder Pages', {
+        cloneEntireBook: true,
+        command: 'INITIAL'
+      });
+      const { pageOrder } = action.payload;
+      const pages = savedState.currentBook!.pages;
+      if (!pageOrder?.length || pageOrder.length !== pages.length) return state;
+      const pageByNumber = new Map(pages.map((p) => [p.pageNumber ?? 0, p]));
+      const reorderedPages = pageOrder
+        .map((pnum) => pageByNumber.get(pnum))
+        .filter((p): p is NonNullable<typeof p> => p != null);
+      if (reorderedPages.length !== pages.length) return state;
+      const renumberedPages = reorderedPages.map((p, index) => ({ ...p, pageNumber: index + 1 }));
+      const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      const newPageAssignments: Record<number, unknown> = {};
+      pageOrder.forEach((oldPageNumber, newIndex) => {
+        const oldAssignment = savedState.pageAssignments?.[oldPageNumber];
+        if (oldAssignment !== undefined) {
+          newPageAssignments[newIndex + 1] = oldAssignment;
+        }
+      });
+      const activePageId = pages[savedState.activePageIndex ?? 0]?.id;
+      const newActiveIndex = activePageId
+        ? pagesWithCorrectPairIds.findIndex((p) => p.id === activePageId)
+        : savedState.activePageIndex;
+      return withPreviewInvalidation({
+        ...savedState,
+        currentBook: {
+          ...savedState.currentBook!,
+          pages: pagesWithCorrectPairIds
+        },
+        pageAssignments: newPageAssignments,
+        activePageIndex: newActiveIndex >= 0 ? newActiveIndex : savedState.activePageIndex,
+        hasUnsavedChanges: true
+      });
     }
     
     case 'MOVE_ELEMENT_TO_FRONT':
