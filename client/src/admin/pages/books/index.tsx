@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui'
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui'
 import { DataTable, DataTableColumnHeader } from '../../components/table'
 import type { DataTableBulkAction, DataTableFilterField } from '../../components/table'
 import { BookFormDialog } from '../../components/forms'
@@ -12,12 +19,6 @@ const STATUS_LABELS: Record<AdminBook['status'], string> = {
   active: 'Aktiv',
   draft: 'Entwurf',
   archived: 'Archiviert',
-}
-
-const STATUS_VARIANT: Record<AdminBook['status'], 'default' | 'secondary' | 'destructive'> = {
-  active: 'default',
-  draft: 'secondary',
-  archived: 'destructive',
 }
 
 function formatDate(value: string) {
@@ -56,7 +57,21 @@ export default function AdminBooksPage() {
           }
           return row.getValue(id) === value
         },
-        cell: ({ row }) => <Badge variant={STATUS_VARIANT[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>,
+        cell: ({ row }) => (
+          <Select
+            value={row.original.status}
+            onValueChange={(value) => updateBook({ id: row.original.id, status: value as AdminBook['status'] })}
+          >
+            <SelectTrigger className="h-8 w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">{STATUS_LABELS.active}</SelectItem>
+              <SelectItem value="draft">{STATUS_LABELS.draft}</SelectItem>
+              <SelectItem value="archived">{STATUS_LABELS.archived}</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
       },
       {
         accessorKey: 'pageCount',
@@ -78,20 +93,28 @@ export default function AdminBooksPage() {
         header: () => <span className="sr-only">Aktionen</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, book: row.original })}>
-                  <Edit2 className="h-4 w-4" />
-                  <span className="sr-only">Bearbeiten</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Buch bearbeiten</TooltipContent>
-            </Tooltip>
+            <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, book: row.original })}>
+              <Edit2 className="h-4 w-4" />
+              <span className="sr-only">Bearbeiten</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              onClick={async () => {
+                if (confirm(`Buch "${row.original.name}" unwiderruflich löschen? Alle Seiten, Antworten und zugehörigen Daten werden gelöscht.`)) {
+                  await bulkAction({ action: 'delete', ids: [row.original.id] })
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Löschen</span>
+            </Button>
           </div>
         ),
       },
     ],
-    [],
+    [updateBook, bulkAction],
   )
 
   const filterFields = useMemo<DataTableFilterField[]>(

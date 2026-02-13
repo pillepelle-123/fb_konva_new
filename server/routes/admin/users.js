@@ -29,7 +29,7 @@ function mapUserRow(row) {
     name: row.name,
     email: row.email,
     role: row.role,
-    status: row.admin_status,
+    status: row.admin_state,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at || null,
   }
@@ -64,7 +64,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     const statusFilters = parseListParam(filters.status)
     if (statusFilters.length > 0) {
       values.push(statusFilters)
-      whereClauses.push(`u.admin_status = ANY($${paramIndex})`)
+      whereClauses.push(`u.admin_state = ANY($${paramIndex})`)
       paramIndex += 1
     }
 
@@ -85,7 +85,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
           orderSql = `ORDER BY u.role ${dir}`
           break
         case 'status':
-          orderSql = `ORDER BY u.admin_status ${dir}`
+          orderSql = `ORDER BY u.admin_state ${dir}`
           break
         case 'createdAt':
         default:
@@ -111,7 +111,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
           u.name,
           u.email,
           u.role,
-          u.admin_status,
+          u.admin_state,
           u.created_at,
           NULL::timestamp AS last_login_at
         FROM ${schema}.users u
@@ -147,9 +147,9 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 
     const result = await pool.query(
       `
-        INSERT INTO ${schema}.users (name, email, password_hash, role, registered, invitation_token, admin_status)
+        INSERT INTO ${schema}.users (name, email, password_hash, role, registered, invitation_token, admin_state)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, email, role, admin_status, created_at,
+        RETURNING id, name, email, role, admin_state, created_at,
           NULL::timestamp AS last_login_at
       `,
       [name, email, passwordHash, role, registered, invitationToken, status],
@@ -197,7 +197,7 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     if (status) {
-      fields.push(`admin_status = $${paramIndex}`)
+      fields.push(`admin_state = $${paramIndex}`)
       values.push(status)
       paramIndex += 1
 
@@ -218,7 +218,7 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
       UPDATE ${schema}.users
       SET ${fields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, name, email, role, admin_status, created_at, NULL::timestamp AS last_login_at
+      RETURNING id, name, email, role, admin_state, created_at, NULL::timestamp AS last_login_at
     `
 
     const result = await pool.query(updateSql, values)
@@ -254,7 +254,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
       await pool.query(
         `
           UPDATE ${schema}.users
-          SET admin_status = 'active', registered = TRUE, invitation_token = NULL
+          SET admin_state = 'active', registered = TRUE, invitation_token = NULL
           WHERE id = ANY($1)
         `,
         [ids],
@@ -263,7 +263,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
       await pool.query(
         `
           UPDATE ${schema}.users
-          SET admin_status = 'suspended'
+          SET admin_state = 'suspended'
           WHERE id = ANY($1)
         `,
         [ids],
@@ -274,7 +274,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
 
     const refreshed = await pool.query(
       `
-        SELECT id, name, email, role, admin_status, created_at, NULL::timestamp AS last_login_at
+        SELECT id, name, email, role, admin_state, created_at, NULL::timestamp AS last_login_at
         FROM ${schema}.users
         WHERE id = ANY($1)
       `,

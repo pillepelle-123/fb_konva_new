@@ -40,7 +40,7 @@ client/src/admin/
 
 - Gemeinsam genutzte Middleware: `authenticateToken` + `requireAdmin`.
 - Neue Schema-Felder:
-  - `users.admin_status`
+  - `users.admin_state`
   - `books.admin_state`
   - `pages.admin_state`
 - Neue Tabellen:
@@ -87,7 +87,7 @@ Frontend
 
 Backend
 - [ ] `/api/admin/users` reagiert mit paginierten Daten + Filter (role/status).
-- [ ] CRUD & Bulk Aktionen aktualisieren `admin_status` korrekt.
+- [ ] CRUD & Bulk Aktionen aktualisieren `admin_state` korrekt.
 - [ ] `/api/admin/books` liefert Counters & Status; Archivierung toggelt `archived`.
 - [ ] `/api/admin/pages` liefert Assignments (Name + ID); Bulk Actions aktualisieren `page_assignments` & `admin_state`.
 - [ ] `/api/admin/background-images` erstellt/aktualisiert Metadaten (Slug, Defaults, Tags, Kategorie); `bulk-delete` entfernt mehrere Einträge.
@@ -113,7 +113,7 @@ Backend
 
 ## ToDos / Offene Punkte
 
-- Migrationen deployen & ggf. Backfill (admin_state/admin_status) prüfen.
+- Migrationen deployen & ggf. Backfill (admin_state) prüfen.
 - Automatische Thumbnail-Generierung (PNG/WEBP) für hochgeladene SVGs/Pixelgrafiken.
 - Optionales Feature Flagging (z. B. LaunchDarkly) für stufenweise Aktivierung.
 - Monitoring/Logging (z. B. Winston, pino) für Admin-Aktionen integrieren.

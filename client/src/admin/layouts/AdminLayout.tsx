@@ -62,17 +62,24 @@ export function AdminLayout({ children }: PropsWithChildren) {
               )
             }
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-background/70 text-foreground transition-colors group-hover:bg-background group-hover:text-foreground">
-                <Icon className="h-4 w-4" />
+            {({ isActive }) => (
+              <div className="flex items-center gap-3">
+                {/* <div className="flex h-9 w-9 items-center justify-center rounded-md bg-background/70 text-foreground transition-colors group-hover:bg-background group-hover:text-foreground"> */}
+                  <Icon className="h-6 w-6" />
+                {/* </div> */}
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium leading-tight">{item.label}</span>
+                  <span
+                    className={cn(
+                      'text-xs',
+                      isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-muted-foreground/80',
+                    )}
+                  >
+                    {item.description}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium leading-tight">{item.label}</span>
-                <span className="text-xs text-muted-foreground group-hover:text-muted-foreground/80">
-                  {item.description}
-                </span>
-              </div>
-            </div>
+            )}
           </NavLink>
         )
       })}
@@ -85,7 +92,7 @@ export function AdminLayout({ children }: PropsWithChildren) {
         <aside className="hidden border-r bg-background/90 lg:flex lg:flex-col">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Settings className="h-5 w-5" />
+              <Settings className="h-6 w-6" />
             </div>
             <div>
               <div className="text-sm font-semibold">Admin-Konsole</div>
@@ -131,7 +138,7 @@ export function AdminLayout({ children }: PropsWithChildren) {
               </div>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" className="hidden sm:inline-flex gap-2">
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-6 w-6" />
                   Einstellungen
                 </Button>
                 {user ? (

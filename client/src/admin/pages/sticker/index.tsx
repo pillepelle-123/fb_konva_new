@@ -136,37 +136,27 @@ export default function AdminStickersPage() {
         header: () => <span className="sr-only">Aktionen</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditingSticker(row.original)
-                    setIsEditOpen(true)
-                  }}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bearbeiten</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    if (confirm(`Sticker "${row.original.name}" löschen?`)) {
-                      await deleteSticker(row.original.slug)
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Löschen</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setEditingSticker(row.original)
+                setIsEditOpen(true)
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={async () => {
+                if (confirm(`Sticker "${row.original.name}" löschen?`)) {
+                  await deleteSticker(row.original.slug)
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
           </div>
         ),
       },

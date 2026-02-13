@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui'
+import { Badge, Button} from '../../../components/ui'
 import { DataTable, DataTableColumnHeader } from '../../components/table'
 import type { DataTableBulkAction, DataTableFilterField } from '../../components/table'
 import { UserFormDialog } from '../../components/forms'
@@ -100,16 +100,13 @@ export default function AdminUsersPage() {
         header: () => <span className="sr-only">Aktionen</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, user: row.original })}>
-                  <Edit2 className="h-4 w-4" />
-                  <span className="sr-only">Bearbeiten</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bearbeiten</TooltipContent>
-            </Tooltip>
-          </div>
+            
+            <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, user: row.original })}>
+              <Edit2 className="h-4 w-4" />
+              {/* <span className="sr-only">Bearbeiten</span> */}
+            </Button>
+          
+          </div> 
         ),
       },
     ],

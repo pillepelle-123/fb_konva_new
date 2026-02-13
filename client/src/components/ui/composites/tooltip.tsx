@@ -168,11 +168,13 @@ export function Tooltip({
 export const TooltipProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
 // Allow className/props without passing them to Fragment
+// Note: asChild is a Radix convention - we destructure it to avoid passing to DOM (invalid attribute)
 export const TooltipTrigger = ({
   children,
   className,
+  asChild,
   ...rest
-}: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) => (
+}: { children: React.ReactNode; className?: string; asChild?: boolean } & React.HTMLAttributes<HTMLDivElement>) => (
   <div className={className} {...rest}>
     {children}
   </div>
