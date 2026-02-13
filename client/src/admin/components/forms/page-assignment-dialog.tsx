@@ -46,11 +46,11 @@ export function PageAssignmentDialog({
     await onSubmit(assigneeId)
   }
 
-  const title = mode === 'assign' ? 'Seite zuweisen' : 'Seite veröffentlichen'
+  const title = mode === 'assign' ? 'Assign page' : 'Publish page'
   const description =
     mode === 'assign'
-      ? 'Wähle eine Person aus, die Verantwortung für die ausgewählten Seiten übernimmt.'
-      : 'Bestätige die Veröffentlichung der Seiten.'
+      ? 'Select a person to take responsibility for the selected pages.'
+      : 'Confirm publishing the pages.'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,16 +63,16 @@ export function PageAssignmentDialog({
 
           {mode === 'assign' ? (
             <div className="space-y-1">
-              <Label>Verantwortliche Person</Label>
+              <Label>Assignee</Label>
               <Select
                 value={assigneeId ? String(assigneeId) : ''}
                 onValueChange={(value) => setAssigneeId(value ? Number(value) : null)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Person auswählen" />
+                  <SelectValue placeholder="Select person" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Keine Zuweisung</SelectItem>
+                  <SelectItem value="">No assignment</SelectItem>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={String(user.id)}>
                       {user.name} · {user.email}
@@ -83,16 +83,16 @@ export function PageAssignmentDialog({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Die markierten Seiten werden veröffentlicht und für Leser:innen sichtbar.
+              The selected pages will be published and visible to readers.
             </p>
           )}
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Abbrechen
+              Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Bestätigen…' : 'Bestätigen'}
+              {isSubmitting ? 'Confirming…' : 'Confirm'}
             </Button>
           </DialogFooter>
         </form>

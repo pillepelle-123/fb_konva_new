@@ -16,7 +16,7 @@ export function DataTablePagination<TData>({
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        Zeige
+        Show
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
           value={table.getState().pagination.pageSize}
@@ -26,11 +26,11 @@ export function DataTablePagination<TData>({
         >
           {rowsPerPageOptions.map((pageSize) => (
             <option key={pageSize} value={pageSize}>
-              {pageSize} / Seite
+              {pageSize} per page
             </option>
           ))}
         </select>
-        · Seite {currentPage} von {pageCount || 1}
+        · Page {currentPage} of {pageCount || 1}
       </div>
       <div className="flex items-center gap-2">
         <Button
@@ -47,7 +47,7 @@ export function DataTablePagination<TData>({
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
         >
-          Zurück
+          Previous
         </Button>
         <Button
           variant="outline"
@@ -55,7 +55,7 @@ export function DataTablePagination<TData>({
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
         >
-          Weiter
+          Next
         </Button>
         <Button
           variant="outline"

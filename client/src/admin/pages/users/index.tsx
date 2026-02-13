@@ -10,8 +10,8 @@ import { Edit2, ShieldCheck, Trash2, UserMinus } from 'lucide-react'
 
 const ROLE_LABELS: Record<AdminUser['role'], string> = {
   admin: 'Admin',
-  editor: 'Editor:in',
-  user: 'Nutzer:in',
+  editor: 'Editor',
+  user: 'User',
 }
 
 const STATUS_VARIANT: Record<AdminUser['status'], 'default' | 'secondary' | 'destructive'> = {
@@ -21,14 +21,14 @@ const STATUS_VARIANT: Record<AdminUser['status'], 'default' | 'secondary' | 'des
 }
 
 const STATUS_LABELS: Record<AdminUser['status'], string> = {
-  active: 'Aktiv',
-  invited: 'Eingeladen',
-  suspended: 'Gesperrt',
+  active: 'Active',
+  invited: 'Invited',
+  suspended: 'Suspended',
 }
 
 function formatDate(value: string | null) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
     () => [
       {
         accessorKey: 'name',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="name" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.original.name}</span>
@@ -55,7 +55,7 @@ export default function AdminUsersPage() {
       },
       {
         accessorKey: 'role',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Rolle" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="role" />,
         filterFn: (row, id, value) => {
           if (!value) return true
           if (Array.isArray(value)) {
@@ -72,7 +72,7 @@ export default function AdminUsersPage() {
       },
       {
         accessorKey: 'status',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="status" />,
         filterFn: (row, id, value) => {
           if (!value) return true
           if (Array.isArray(value)) {
@@ -87,17 +87,17 @@ export default function AdminUsersPage() {
       },
       {
         accessorKey: 'lastLoginAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Letzter Login" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="lastLoginAt" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.lastLoginAt)}</span>,
       },
       {
         accessorKey: 'createdAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Erstellt am" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="createdAt" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Aktionen</span>,
+        header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             
@@ -117,21 +117,21 @@ export default function AdminUsersPage() {
     () => [
       {
         id: 'role',
-        label: 'Rolle',
+        label: 'role',
         options: [
           { value: 'admin', label: 'Admin' },
-          { value: 'editor', label: 'Editor:in' },
-          { value: 'user', label: 'Nutzer:in' },
+          { value: 'editor', label: 'Editor' },
+          { value: 'user', label: 'User' },
         ],
       },
       {
         id: 'status',
-        label: 'Status',
+        label: 'status',
         type: 'multi',
         options: [
-          { value: 'active', label: 'Aktiv' },
-          { value: 'invited', label: 'Eingeladen' },
-          { value: 'suspended', label: 'Gesperrt' },
+          { value: 'active', label: 'Active' },
+          { value: 'invited', label: 'Invited' },
+          { value: 'suspended', label: 'Suspended' },
         ],
       },
     ],
@@ -142,7 +142,7 @@ export default function AdminUsersPage() {
     () => [
       {
         id: 'activate',
-        label: 'Aktivieren',
+        label: 'Activate',
         icon: ShieldCheck,
         onAction: async (rows) => {
           await bulkAction({ action: 'activate', ids: rows.map((row) => row.id) })
@@ -150,7 +150,7 @@ export default function AdminUsersPage() {
       },
       {
         id: 'suspend',
-        label: 'Sperren',
+        label: 'Suspend',
         icon: UserMinus,
         onAction: async (rows) => {
           await bulkAction({ action: 'suspend', ids: rows.map((row) => row.id) })
@@ -158,7 +158,7 @@ export default function AdminUsersPage() {
       },
       {
         id: 'delete',
-        label: 'Löschen',
+        label: 'Delete',
         icon: Trash2,
         intent: 'destructive',
         onAction: async (rows) => {
@@ -181,9 +181,9 @@ export default function AdminUsersPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Benutzerverwaltung</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">User Management</h1>
         <p className="text-sm text-muted-foreground">
-          Rollen verwalten, Einladungen steuern und Nutzungsstatus überwachen.
+          Manage roles, invitations, and user status.
         </p>
       </header>
       <DataTable
@@ -191,14 +191,14 @@ export default function AdminUsersPage() {
         columns={columns}
         filterFields={filterFields}
         bulkActions={bulkActions}
-        searchPlaceholder="Nach Namen oder E-Mail suchen…"
+        searchPlaceholder="Search by name or email…"
         emptyState={{
-          title: 'Noch keine Benutzer:innen im System',
-          description: 'Importiere bestehende Accounts oder lade Kolleg:innen ein.',
+          title: 'No users in the system yet',
+          description: 'Import existing accounts or invite colleagues.',
         }}
         isLoading={isLoading}
         onCreate={() => setDialogState({ open: true })}
-        createLabel="Benutzer:in einladen"
+        createLabel="Invite user"
       />
       <UserFormDialog
         open={dialogState.open}

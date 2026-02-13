@@ -27,14 +27,14 @@ interface UserFormDialogProps {
 
 const ROLE_OPTIONS: Array<{ value: AdminUser['role']; label: string }> = [
   { value: 'admin', label: 'Admin' },
-  { value: 'editor', label: 'Editor:in' },
-  { value: 'user', label: 'Nutzer:in' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'user', label: 'User' },
 ]
 
 const STATUS_OPTIONS: Array<{ value: AdminUser['status']; label: string }> = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'invited', label: 'Eingeladen' },
-  { value: 'suspended', label: 'Gesperrt' },
+  { value: 'active', label: 'Active' },
+  { value: 'invited', label: 'Invited' },
+  { value: 'suspended', label: 'Suspended' },
 ]
 
 export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmitting }: UserFormDialogProps) {
@@ -67,8 +67,8 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmittin
       <DialogContent className="max-w-lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{user ? 'Benutzer:in bearbeiten' : 'Neue:r Benutzer:in'}</DialogTitle>
-            <DialogDescription>Verwalte Stammdaten und Rollen.</DialogDescription>
+            <DialogTitle>{user ? 'Edit user' : 'New user'}</DialogTitle>
+            <DialogDescription>Manage user data and roles.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1">
@@ -77,12 +77,12 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmittin
                 id="admin-user-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Vor- und Nachname"
+                placeholder="First and last name"
                 required
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="admin-user-email">E-Mail</Label>
+              <Label htmlFor="admin-user-email">Email</Label>
               <Input
                 id="admin-user-email"
                 type="email"
@@ -94,10 +94,10 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmittin
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>Rolle</Label>
+                <Label>Role</Label>
                 <Select value={role} onValueChange={(value) => setRole(value as AdminUser['role'])}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Rolle auswählen" />
+                    <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLE_OPTIONS.map((option) => (
@@ -112,7 +112,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmittin
                 <Label>Status</Label>
                 <Select value={status} onValueChange={(value) => setStatus(value as AdminUser['status'])}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Status auswählen" />
+                    <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((option) => (
@@ -127,10 +127,10 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isSubmittin
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Abbrechen
+              Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Speichern…' : 'Speichern'}
+              {isSubmitting ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

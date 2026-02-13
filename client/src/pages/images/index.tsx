@@ -13,7 +13,7 @@ export default function ImagesList() {
         showAsContent={true}
       />
       
-      <FloatingActionButton />
+      {/* <FloatingActionButton /> */}
     </div>
   );
 }

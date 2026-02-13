@@ -246,7 +246,7 @@ export default function FriendsList() {
         />
       </div>
       
-      <FloatingActionButton />
+      {/* <FloatingActionButton /> */}
     </div>
   );
 }

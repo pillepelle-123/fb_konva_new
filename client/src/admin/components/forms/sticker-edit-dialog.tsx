@@ -65,12 +65,12 @@ function StickerPreview({ slug, token }: { slug: string; token: string | null })
     }
   }, [slug, token])
 
-  if (!slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Kein Sticker</div>
-  if (error) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Vorschau nicht verfügbar</div>
-  if (!objectUrl) return <div className="flex aspect-square animate-pulse items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Lade…</div>
+  if (!slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">No sticker</div>
+  if (error) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Preview unavailable</div>
+  if (!objectUrl) return <div className="flex aspect-square animate-pulse items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Loading…</div>
   return (
     <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md border bg-muted/30 p-2">
-      <img src={objectUrl} alt="Sticker-Vorschau" className="max-h-full max-w-full object-contain" />
+      <img src={objectUrl} alt="Sticker preview" className="max-h-full max-w-full object-contain" />
     </div>
   )
 }
@@ -169,9 +169,9 @@ export function AdminStickerEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-[120vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Sticker bearbeiten</DialogTitle>
+          <DialogTitle>Edit sticker</DialogTitle>
           <DialogDescription>
-            Passe Meta-Informationen an. Dateien bleiben unverändert – Uploads erfolgen über den separaten Dialog.
+            Update metadata. Files remain unchanged – uploads are done via the separate dialog.
           </DialogDescription>
         </DialogHeader>
 
@@ -198,7 +198,7 @@ export function AdminStickerEditDialog({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label>Kategorie</Label>
+                <Label>Category</Label>
                 <CreatableCombobox
                   options={categoryOptions}
                   value={categoryId ? String(categoryId) : undefined}
@@ -206,8 +206,8 @@ export function AdminStickerEditDialog({
                     setCategoryId(value ? Number(value) : null)
                   }}
                   onCreateOption={handleCreateCategory}
-                  placeholder="Kategorie wählen..."
-                  inputPlaceholder="Kategorie suchen oder erstellen..."
+                  placeholder="Select category..."
+                  inputPlaceholder="Search or create category..."
                   allowClear={false}
                 />
               </div>
@@ -215,7 +215,7 @@ export function AdminStickerEditDialog({
                 <Label htmlFor="sticker-edit-format">Format</Label>
                 <Select value={format} onValueChange={(value) => setFormat(value)}>
                   <SelectTrigger id="sticker-edit-format">
-                    <SelectValue placeholder="Format wählen" />
+                    <SelectValue placeholder="Select format" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="vector">Vector</SelectItem>
@@ -227,7 +227,7 @@ export function AdminStickerEditDialog({
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2 flex flex-col gap-2">
-                <Label htmlFor="sticker-edit-description">Beschreibung</Label>
+                <Label htmlFor="sticker-edit-description">Description</Label>
                 <Textarea
                   id="sticker-edit-description"
                   value={description}
@@ -237,23 +237,23 @@ export function AdminStickerEditDialog({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Vorschau</Label>
+                <Label>Preview</Label>
                 <StickerPreview slug={slug} token={token} />
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="sticker-edit-file-path">Dateipfad (relativ)</Label>
+                <Label htmlFor="sticker-edit-file-path">File path (relative)</Label>
                 <Input
                   id="sticker-edit-file-path"
                   value={filePath}
                   onChange={(event) => setFilePath(event.target.value)}
-                  placeholder="z. B. emoji/happy.svg oder https://..."
+                  placeholder="e.g. emoji/happy.svg or https://..."
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="sticker-edit-thumbnail">Thumbnail-Pfad</Label>
+                <Label htmlFor="sticker-edit-thumbnail">Thumbnail path</Label>
                 <Input
                   id="sticker-edit-thumbnail"
                   value={thumbnailPath}
@@ -264,7 +264,7 @@ export function AdminStickerEditDialog({
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="sticker-edit-tags">Tags (kommagetrennt)</Label>
+              <Label htmlFor="sticker-edit-tags">Tags (comma-separated)</Label>
               <Input
                 id="sticker-edit-tags"
                 value={tagsInput}
@@ -275,10 +275,10 @@ export function AdminStickerEditDialog({
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Abbrechen
+                Cancel
               </Button>
               <Button type="submit" disabled={!canSubmit} className="min-w-[120px]">
-                {isSubmitting ? 'Speichere...' : 'Speichern'}
+                {isSubmitting ? 'Saving...' : 'Save'}
               </Button>
             </DialogFooter>
           </form>

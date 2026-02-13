@@ -12,34 +12,34 @@ export function AdminLayout({ children }: PropsWithChildren) {
   const navItems = useMemo(
     () => [
       {
-        label: 'Benutzer',
+        label: 'Users',
         to: '/admin/users',
         icon: Users,
-        description: 'Rollen, Einladungen & Status verwalten',
+        description: 'Manage roles, invitations & status',
       },
       {
-        label: 'Bücher',
+        label: 'Books',
         to: '/admin/books',
         icon: LibraryBig,
-        description: 'Bücher, Kollaborationen & Assets',
+        description: 'Books, collaborations & assets',
       },
       {
-        label: 'Seiten',
+        label: 'Pages',
         to: '/admin/pages',
         icon: FileText,
-        description: 'Seitenfortschritt & Zuweisungen',
+        description: 'Page progress & assignments',
       },
       {
         label: 'Background Images',
         to: '/admin/background-images',
         icon: Image,
-        description: 'Hintergrundbilder verwalten & hochladen',
+        description: 'Manage & upload background images',
       },
       {
-        label: 'Sticker',
+        label: 'Stickers',
         to: '/admin/stickers',
         icon: Sticker,
-        description: 'Sticker verwalten & hochladen',
+        description: 'Manage & upload stickers',
       },
     ],
     [],
@@ -95,8 +95,8 @@ export function AdminLayout({ children }: PropsWithChildren) {
               <Settings className="h-6 w-6" />
             </div>
             <div>
-              <div className="text-sm font-semibold">Admin-Konsole</div>
-              <div className="text-xs text-muted-foreground">Steuerzentrale</div>
+              <div className="text-sm font-semibold">Admin Console</div>
+              <div className="text-xs text-muted-foreground">Control center</div>
             </div>
           </div>
           {renderNav('desktop')}
@@ -113,7 +113,7 @@ export function AdminLayout({ children }: PropsWithChildren) {
                   </SheetTrigger>
                   <SheetContent side="left" className="w-72 p-0">
                     <div className="border-b px-6 py-4">
-                      <div className="text-sm font-semibold">Admin-Konsole</div>
+                      <div className="text-sm font-semibold">Admin Console</div>
                       <div className="text-xs text-muted-foreground">Navigation</div>
                     </div>
                     {renderNav('mobile')}
@@ -122,24 +122,24 @@ export function AdminLayout({ children }: PropsWithChildren) {
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold">
                     {location.pathname.startsWith('/admin/users')
-                      ? 'Benutzerverwaltung'
+                      ? 'User Management'
                       : location.pathname.startsWith('/admin/books')
-                        ? 'Bücherverwaltung'
+                        ? 'Book Management'
                         : location.pathname.startsWith('/admin/pages')
-                          ? 'Seitenstatus'
+                          ? 'Page Status'
                           : location.pathname.startsWith('/admin/background-images')
                             ? 'Background Images'
                             : location.pathname.startsWith('/admin/stickers')
-                              ? 'Sticker'
-                              : 'Übersicht'}
+                              ? 'Stickers'
+                              : 'Overview'}
                   </span>
-                  <span className="text-xs text-muted-foreground">Systemweite Administration & Monitoring</span>
+                  <span className="text-xs text-muted-foreground">System-wide administration & monitoring</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" className="hidden sm:inline-flex gap-2">
                   <Settings className="h-6 w-6" />
-                  Einstellungen
+                  Settings
                 </Button>
                 {user ? (
                   <div className="flex items-center gap-3 rounded-full border bg-background px-3 py-1">

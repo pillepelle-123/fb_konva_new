@@ -26,9 +26,9 @@ interface BookFormDialogProps {
 }
 
 const STATUS_OPTIONS: Array<{ value: AdminBook['status']; label: string }> = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'draft', label: 'Entwurf' },
-  { value: 'archived', label: 'Archiviert' },
+  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'archived', label: 'Archived' },
 ]
 
 export function BookFormDialog({ open, onOpenChange, book, onSubmit, isSubmitting }: BookFormDialogProps) {
@@ -55,12 +55,12 @@ export function BookFormDialog({ open, onOpenChange, book, onSubmit, isSubmittin
       <DialogContent className="max-w-lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{book ? 'Buch bearbeiten' : 'Neues Buch'}</DialogTitle>
-            <DialogDescription>Metadaten des Buchs pflegen.</DialogDescription>
+            <DialogTitle>{book ? 'Edit book' : 'New book'}</DialogTitle>
+            <DialogDescription>Manage book metadata.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="admin-book-name">Titel</Label>
+              <Label htmlFor="admin-book-name">Name</Label>
               <Input
                 id="admin-book-name"
                 value={name}
@@ -73,7 +73,7 @@ export function BookFormDialog({ open, onOpenChange, book, onSubmit, isSubmittin
               <Label>Status</Label>
               <Select value={status} onValueChange={(value) => setStatus(value as AdminBook['status'])}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Status wählen" />
+                  <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((option) => (
@@ -87,10 +87,10 @@ export function BookFormDialog({ open, onOpenChange, book, onSubmit, isSubmittin
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Abbrechen
+              Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Speichern…' : 'Speichern'}
+              {isSubmitting ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

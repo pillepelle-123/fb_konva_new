@@ -6,7 +6,7 @@ const AdminApp = lazy(() => import('./AdminApp'))
 export function AdminRoute() {
   return (
     <AdminGuard>
-      <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center">Lade Admin…</div>}>
+      <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center">Loading admin…</div>}>
         <AdminApp />
       </Suspense>
     </AdminGuard>

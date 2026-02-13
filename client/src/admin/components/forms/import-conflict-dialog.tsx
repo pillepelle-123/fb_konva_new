@@ -90,21 +90,20 @@ export function ImportConflictDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" title={`Import-Konflikte: ${resourceLabel}`}>
+      <DialogContent size="lg" title={`Import conflicts: ${resourceLabel}`}>
         <DialogHeader>
-          <DialogTitle>Import-Konflikte</DialogTitle>
+          <DialogTitle>Import conflicts</DialogTitle>
           <DialogDescription>
-            {conflicts.length} von {totalItems} {resourceLabel} existieren bereits. Wähle für jeden Konflikt eine
-            Aktion.
+            {conflicts.length} of {totalItems} {resourceLabel} already exist. Choose an action for each conflict.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => handleApplyAll('skip')}>
-              Alle überspringen
+              Skip all
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleApplyAll('overwrite')}>
-              Alle überschreiben
+              Overwrite all
             </Button>
           </div>
           <div className="max-h-64 overflow-y-auto space-y-4 rounded-md border p-4">
@@ -115,21 +114,21 @@ export function ImportConflictDialog({
                   <div className="text-sm font-medium">{c.name}</div>
                   <div className="text-xs text-muted-foreground">
                     Slug: /{c.slug}
-                    {c.existingName ? ` · Vorhanden: "${c.existingName}"` : ''}
+                    {c.existingName ? ` · Existing: "${c.existingName}"` : ''}
                   </div>
                   <div className="flex flex-col gap-2">
                     <RadioGroup
                       value={choice.type}
                       onValueChange={(v) => handleChoiceChange(c.slug, v as ResolutionChoice)}
                       options={[
-                        { value: 'skip', label: 'Überspringen' },
-                        { value: 'overwrite', label: 'Überschreiben' },
-                        { value: 'newSlug', label: 'Mit neuem Slug (siehe Feld unten)' },
+                        { value: 'skip', label: 'Skip' },
+                        { value: 'overwrite', label: 'Overwrite' },
+                        { value: 'newSlug', label: 'Use new slug (see field below)' },
                       ]}
                     />
                     {choice.type === 'newSlug' && (
                       <Input
-                        placeholder={`z.B. ${c.slug}-import`}
+                        placeholder={`e.g. ${c.slug}-import`}
                         value={choice.newSlug ?? ''}
                         onChange={(e) => handleChoiceChange(c.slug, 'newSlug', e.target.value)}
                         className="h-8 w-48"
@@ -143,10 +142,10 @@ export function ImportConflictDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Abbrechen
+            Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={isLoading}>
-            {isLoading ? 'Importiere…' : 'Import bestätigen'}
+            {isLoading ? 'Importing…' : 'Confirm import'}
           </Button>
         </DialogFooter>
       </DialogContent>

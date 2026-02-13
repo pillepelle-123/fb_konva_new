@@ -52,9 +52,9 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({
   table,
   filterFields = [],
-  searchPlaceholder = 'Suchen…',
+  searchPlaceholder = 'Search…',
   onCreate,
-  createLabel = 'Neu erstellen',
+  createLabel = 'Create new',
   bulkActions = [],
 }: DataTableToolbarProps<TData>) {
   const selectedRows = table.getSelectedRowModel().flatRows
@@ -120,7 +120,7 @@ export function DataTableToolbar<TData>({
                         className="mt-2 justify-start px-0 text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => column.setFilterValue(undefined)}
                       >
-                        Filter zurücksetzen
+                        Reset filter
                       </Button>
                     ) : null}
                   </div>
@@ -139,7 +139,7 @@ export function DataTableToolbar<TData>({
                 <SelectValue placeholder={filter.placeholder ?? filter.label} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle</SelectItem>
+                <SelectItem value="">All</SelectItem>
                 {filter.options.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -158,7 +158,7 @@ export function DataTableToolbar<TData>({
               table.setGlobalFilter('')
             }}
           >
-            Filter löschen
+            Clear filters
           </Button>
         ) : null}
       </div>
@@ -166,7 +166,7 @@ export function DataTableToolbar<TData>({
         {selectedRows.length > 0 ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-              {selectedRows.length} ausgewählt
+              {selectedRows.length} selected
             </div>
             {bulkActions.map((action) => {
               const Icon = action.icon ?? (action.intent === 'destructive' ? Trash2 : undefined)

@@ -163,7 +163,7 @@ export function UploadStickersDialog({
 
     const files = items.map((item) => item.file).filter((file): file is File => Boolean(file))
     if (files.length !== items.length) {
-      alert('Bitte wähle für jeden Eintrag eine Datei aus.')
+      alert('Please select a file for each entry.')
       return
     }
 
@@ -212,23 +212,23 @@ export function UploadStickersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Sticker hinzufügen</DialogTitle>
+          <DialogTitle>Add stickers</DialogTitle>
           <DialogDescription>
-            Lade neue Sticker hoch, lege Kategorie und Metadaten fest. Die Dateien werden lokal gespeichert.
+            Upload new stickers, set category and metadata. Files are stored locally.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label>Sticker-Dateien (SVG/PNG)</Label>
+              <Label>Sticker files (SVG/PNG)</Label>
               <Input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" multiple onChange={handleFileSelection} />
               <p className="text-xs text-muted-foreground">
-                Unterstützt werden SVG- und Pixel-Dateien.
+                SVG and pixel files are supported.
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Kategorie</Label>
+              <Label>Category</Label>
               <CreatableCombobox
                 options={categoryOptions}
                 value={selectedCategoryId ? String(selectedCategoryId) : undefined}
@@ -243,8 +243,8 @@ export function UploadStickersDialog({
                   }
                 }}
                 onCreateOption={handleCreateCategory}
-                placeholder="Kategorie wählen oder erstellen"
-                inputPlaceholder="Kategorie..."
+                placeholder="Select or create category"
+                inputPlaceholder="Category..."
                 allowClear={false}
               />
             </div>
@@ -252,19 +252,19 @@ export function UploadStickersDialog({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="upload-base-name">Basisname (Multi-Upload)</Label>
+              <Label htmlFor="upload-base-name">Base name (multi-upload)</Label>
               <Input
                 id="upload-base-name"
-                placeholder="z. B. Emoji Happy"
+                placeholder="e.g. Emoji Happy"
                 value={baseName}
                 onChange={(event) => handleBaseNameChange(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Bei mehreren Dateien wird automatisch eine fortlaufende Nummer ergänzt (01, 02, 03, ...).
+                For multiple files, a sequential number is added automatically (01, 02, 03, ...).
               </p>
             </div>
             <div className="md:col-span-2 flex flex-col gap-2">
-              <Label htmlFor="upload-description">Beschreibung (optional)</Label>
+              <Label htmlFor="upload-description">Description (optional)</Label>
               <Textarea
                 id="upload-description"
                 value={globalDescription}
@@ -290,7 +290,7 @@ export function UploadStickersDialog({
                       size="sm"
                       onClick={() => setItems((prev) => prev.filter((candidate) => candidate.id !== item.id))}
                     >
-                      Entfernen
+                      Remove
                     </Button>
                   </div>
 
@@ -328,7 +328,7 @@ export function UploadStickersDialog({
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label>Tags (kommagetrennt)</Label>
+                      <Label>Tags (comma-separated)</Label>
                       <Input
                         value={item.tags}
                         onChange={(event) =>
@@ -340,7 +340,7 @@ export function UploadStickersDialog({
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label>Beschreibung</Label>
+                      <Label>Description</Label>
                       <Textarea
                         value={item.description}
                         onChange={(event) =>
@@ -361,10 +361,10 @@ export function UploadStickersDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-              Abbrechen
+              Cancel
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!canSubmit} className="min-w-[120px]">
-              {isSubmitting ? 'Lade hoch...' : `${items.length} Sticker hochladen`}
+              {isSubmitting ? 'Uploading...' : `Upload ${items.length} sticker(s)`}
             </Button>
           </DialogFooter>
         </div>

@@ -16,13 +16,13 @@ import { useAdminBooks } from '../../hooks'
 import { Archive, Edit2, RefreshCw, Trash2 } from 'lucide-react'
 
 const STATUS_LABELS: Record<AdminBook['status'], string> = {
-  active: 'Aktiv',
-  draft: 'Entwurf',
-  archived: 'Archiviert',
+  active: 'Active',
+  draft: 'Draft',
+  archived: 'Archived',
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
@@ -38,7 +38,7 @@ export default function AdminBooksPage() {
     () => [
       {
         accessorKey: 'name',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Titel" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="name" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.original.name}</span>
@@ -48,7 +48,7 @@ export default function AdminBooksPage() {
       },
       {
         accessorKey: 'status',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="status" />,
         filterFn: (row, id, value) => {
           if (!value) return true
           if (Array.isArray(value)) {
@@ -75,40 +75,40 @@ export default function AdminBooksPage() {
       },
       {
         accessorKey: 'pageCount',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Seiten" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="pageCount" />,
         cell: ({ row }) => <span>{row.original.pageCount}</span>,
       },
       {
         accessorKey: 'collaboratorCount',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Kollaborator:innen" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="collaboratorCount" />,
         cell: ({ row }) => <span>{row.original.collaboratorCount}</span>,
       },
       {
         accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Zuletzt geändert" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="updatedAt" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Aktionen</span>,
+        header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, book: row.original })}>
               <Edit2 className="h-4 w-4" />
-              <span className="sr-only">Bearbeiten</span>
+              <span className="sr-only">Edit</span>
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="text-destructive hover:text-destructive"
               onClick={async () => {
-                if (confirm(`Buch "${row.original.name}" unwiderruflich löschen? Alle Seiten, Antworten und zugehörigen Daten werden gelöscht.`)) {
+                if (confirm(`Permanently delete book "${row.original.name}"? All pages, answers and related data will be deleted.`)) {
                   await bulkAction({ action: 'delete', ids: [row.original.id] })
                 }
               }}
             >
               <Trash2 className="h-4 w-4" />
-              <span className="sr-only">Löschen</span>
+              <span className="sr-only">Delete</span>
             </Button>
           </div>
         ),
@@ -121,11 +121,11 @@ export default function AdminBooksPage() {
     () => [
       {
         id: 'status',
-        label: 'Status',
+        label: 'status',
         options: [
-          { value: 'active', label: 'Aktiv' },
-          { value: 'draft', label: 'Entwurf' },
-          { value: 'archived', label: 'Archiviert' },
+          { value: 'active', label: 'Active' },
+          { value: 'draft', label: 'Draft' },
+          { value: 'archived', label: 'Archived' },
         ],
       },
     ],
@@ -136,7 +136,7 @@ export default function AdminBooksPage() {
     () => [
       {
         id: 'archive',
-        label: 'Archivieren',
+        label: 'Archive',
         icon: Archive,
         onAction: async (rows) => {
           await bulkAction({ action: 'archive', ids: rows.map((row) => row.id) })
@@ -144,7 +144,7 @@ export default function AdminBooksPage() {
       },
       {
         id: 'restore',
-        label: 'Reaktivieren',
+        label: 'Restore',
         icon: RefreshCw,
         onAction: async (rows) => {
           await bulkAction({ action: 'restore', ids: rows.map((row) => row.id) })
@@ -152,7 +152,7 @@ export default function AdminBooksPage() {
       },
       {
         id: 'delete',
-        label: 'Löschen',
+        label: 'Delete',
         icon: Trash2,
         intent: 'destructive',
         onAction: async (rows) => {
@@ -175,9 +175,9 @@ export default function AdminBooksPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Bücherverwaltung</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Book Management</h1>
         <p className="text-sm text-muted-foreground">
-          Projekte monitoren, Status aktualisieren und Zusammenarbeit steuern.
+          Monitor projects, update status, and manage collaboration.
         </p>
       </header>
       <DataTable
@@ -185,14 +185,14 @@ export default function AdminBooksPage() {
         columns={columns}
         filterFields={filterFields}
         bulkActions={bulkActions}
-        searchPlaceholder="Nach Titel oder Owner suchen…"
+        searchPlaceholder="Search by title or owner…"
         emptyState={{
-          title: 'Noch keine Bücher vorhanden',
-          description: 'Lege das erste Buch an oder importiere bestehende Projekte.',
+          title: 'No books yet',
+          description: 'Create the first book or import existing projects.',
         }}
         isLoading={isLoading}
         onCreate={() => setDialogState({ open: true })}
-        createLabel="Neues Buch"
+        createLabel="New book"
       />
       <BookFormDialog
         open={dialogState.open}

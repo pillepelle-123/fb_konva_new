@@ -196,7 +196,7 @@ export function UploadBackgroundImagesDialog({
 
     const files = items.map((item) => item.file).filter((file): file is File => Boolean(file))
     if (files.length !== items.length) {
-      alert('Bitte wähle für jeden Eintrag eine Datei aus.')
+      alert('Please select a file for each entry.')
       return
     }
 
@@ -257,23 +257,23 @@ export function UploadBackgroundImagesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Hintergrundbilder hinzufügen</DialogTitle>
+          <DialogTitle>Add background images</DialogTitle>
           <DialogDescription>
-            Lade neue SVGs hoch, lege Kategorie und Standardwerte fest. Die Dateien werden lokal gespeichert.
+            Upload new SVGs, set category and default values. Files are stored locally.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label>Bild-Dateien (SVG/PNG)</Label>
+              <Label>Image files (SVG/PNG)</Label>
               <Input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" multiple onChange={handleFileSelection} />
               <p className="text-xs text-muted-foreground">
-                Unterstützt werden aktuell SVG- und Pixel-Dateien. Die tatsächliche Verarbeitung wird serverseitig vorgenommen.
+                SVG and pixel files are supported. Processing is done server-side.
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Kategorie</Label>
+              <Label>Category</Label>
               <CreatableCombobox
                 options={categoryOptions}
                 value={selectedCategoryId ? String(selectedCategoryId) : undefined}
@@ -288,8 +288,8 @@ export function UploadBackgroundImagesDialog({
                   }
                 }}
                 onCreateOption={handleCreateCategory}
-                placeholder="Kategorie wählen oder erstellen"
-                inputPlaceholder="Kategorie..."
+                placeholder="Select or create category"
+                inputPlaceholder="Category..."
                 allowClear={false}
               />
             </div>
@@ -297,28 +297,28 @@ export function UploadBackgroundImagesDialog({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="upload-base-name">Basisname (Multi-Upload)</Label>
+              <Label htmlFor="upload-base-name">Base name (multi-upload)</Label>
               <Input
                 id="upload-base-name"
-                placeholder="z. B. Abstract Floral Aesthetic"
+                placeholder="e.g. Abstract Floral Aesthetic"
                 value={baseName}
                 onChange={(event) => handleBaseNameChange(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Bei mehreren Dateien wird automatisch eine fortlaufende Nummer ergänzt (01, 02, 03, ...).
+                For multiple files, a sequential number is added automatically (01, 02, 03, ...).
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="upload-palette">Palette Slots</Label>
+              <Label htmlFor="upload-palette">Palette slots</Label>
               <Input
                 id="upload-palette"
                 value={globalPaletteSlots}
                 onChange={(event) => setGlobalPaletteSlots(event.target.value)}
-                placeholder="z. B. auto, standard"
+                placeholder="e.g. auto, standard"
               />
             </div>
             <div className="md:col-span-2 flex flex-col gap-2">
-              <Label htmlFor="upload-description">Beschreibung (optional)</Label>
+              <Label htmlFor="upload-description">Description (optional)</Label>
               <Textarea
                 id="upload-description"
                 value={globalDescription}
@@ -344,7 +344,7 @@ export function UploadBackgroundImagesDialog({
                       size="sm"
                       onClick={() => setItems((prev) => prev.filter((candidate) => candidate.id !== item.id))}
                     >
-                      Entfernen
+                      Remove
                     </Button>
                   </div>
 
@@ -428,10 +428,10 @@ export function UploadBackgroundImagesDialog({
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Standard" />
+                          <SelectValue placeholder="Default" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Standard</SelectItem>
+                          <SelectItem value="">Default</SelectItem>
                           {POSITION_OPTIONS.map((position) => (
                             <SelectItem key={position} value={position}>
                               {position}
@@ -458,17 +458,17 @@ export function UploadBackgroundImagesDialog({
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Standard" />
+                          <SelectValue placeholder="Default" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Standard</SelectItem>
+                          <SelectItem value="">Default</SelectItem>
                           <SelectItem value="repeat">Repeat</SelectItem>
                           <SelectItem value="no-repeat">No Repeat</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label>Breite (%)</Label>
+                      <Label>Width (%)</Label>
                       <Input
                         type="number"
                         min={0}
@@ -564,7 +564,7 @@ export function UploadBackgroundImagesDialog({
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label>Tags (kommagetrennt)</Label>
+                      <Label>Tags (comma-separated)</Label>
                       <Input
                         value={item.tags}
                         onChange={(event) =>
@@ -578,7 +578,7 @@ export function UploadBackgroundImagesDialog({
                       />
                     </div>
                     <div className="flex flex-col gap-2 md:col-span-2">
-                      <Label>Beschreibung</Label>
+                      <Label>Description</Label>
                       <Textarea
                         value={item.description}
                         rows={2}
@@ -597,17 +597,17 @@ export function UploadBackgroundImagesDialog({
             </div>
           ) : (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Wähle eine oder mehrere Dateien aus, um die Einstellungen vorzunehmen.
+              Select one or more files to configure settings.
             </div>
           )}
         </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
+            Cancel
           </Button>
           <Button type="button" disabled={!canSubmit} onClick={() => void handleSubmit()}>
-            {isSubmitting ? 'Wird angelegt...' : 'Hintergrundbilder erstellen'}
+            {isSubmitting ? 'Creating...' : 'Create background images'}
           </Button>
         </DialogFooter>
       </DialogContent>

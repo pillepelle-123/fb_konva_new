@@ -137,7 +137,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     const { name, email, role = 'user', status = 'invited' } = req.body
 
     if (!name || !email) {
-      return res.status(400).json({ error: 'Name und E-Mail sind erforderlich.' })
+      return res.status(400).json({ error: 'Name and email are required.' })
     }
 
     const passwordSeed = crypto.randomBytes(16).toString('hex')
@@ -158,7 +158,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     res.status(201).json({ user: mapUserRow(result.rows[0]) })
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'E-Mail ist bereits vergeben.' })
+      return res.status(409).json({ error: 'Email is already in use.' })
     }
     console.error('Admin user create error:', error)
     res.status(500).json({ error: 'Server error' })
@@ -171,7 +171,7 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const { name, email, role, status } = req.body
 
     if (Number.isNaN(userId)) {
-      return res.status(400).json({ error: 'Ungültige Benutzer-ID.' })
+      return res.status(400).json({ error: 'Invalid user ID.' })
     }
 
     const fields = []
@@ -209,7 +209,7 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     if (fields.length === 0) {
-      return res.status(400).json({ error: 'Keine Änderungen übermittelt.' })
+      return res.status(400).json({ error: 'No changes submitted.' })
     }
 
     values.push(userId)
@@ -224,13 +224,13 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const result = await pool.query(updateSql, values)
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Benutzer:in nicht gefunden.' })
+      return res.status(404).json({ error: 'User not found.' })
     }
 
     res.json({ user: mapUserRow(result.rows[0]) })
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'E-Mail ist bereits vergeben.' })
+      return res.status(409).json({ error: 'Email is already in use.' })
     }
     console.error('Admin user update error:', error)
     res.status(500).json({ error: 'Server error' })
@@ -241,7 +241,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
   const { action, ids } = req.body
 
   if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: 'Keine IDs übermittelt.' })
+    return res.status(400).json({ error: 'No IDs submitted.' })
   }
 
   try {
@@ -269,7 +269,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
         [ids],
       )
     } else {
-      return res.status(400).json({ error: 'Unbekannte Aktion.' })
+      return res.status(400).json({ error: 'Unknown action.' })
     }
 
     const refreshed = await pool.query(

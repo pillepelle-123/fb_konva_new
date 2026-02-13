@@ -35,7 +35,7 @@ const DEFAULT_PAGE_SIZE = 100
 
 function formatDate(value: string) {
   try {
-    return new Intl.DateTimeFormat('de-DE', {
+    return new Intl.DateTimeFormat('en-US', {
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(new Date(value))
@@ -117,23 +117,23 @@ export default function AdminStickersPage() {
       },
       {
         id: 'category',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kategorie</span>,
+        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">category</span>,
         accessorFn: (row) => row.category.name,
         cell: ({ row }) => <Badge variant="secondary">{row.original.category.name}</Badge>,
       },
       {
         accessorKey: 'format',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Format</span>,
+        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">format</span>,
         cell: ({ row }) => <span className="text-sm capitalize text-muted-foreground">{row.original.format}</span>,
       },
       {
         accessorKey: 'updatedAt',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zuletzt geändert</span>,
+        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">updatedAt</span>,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Aktionen</span>,
+        header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -150,7 +150,7 @@ export default function AdminStickersPage() {
               variant="ghost"
               size="icon"
               onClick={async () => {
-                if (confirm(`Sticker "${row.original.name}" löschen?`)) {
+                if (confirm(`Delete sticker "${row.original.name}"?`)) {
                   await deleteSticker(row.original.slug)
                 }
               }}
@@ -168,7 +168,7 @@ export default function AdminStickersPage() {
     () => [
       {
         id: 'bulk-export',
-        label: 'Exportieren',
+        label: 'Export',
         icon: Download,
         onAction: async (rows) => {
           if (rows.length === 0) return
@@ -177,11 +177,11 @@ export default function AdminStickersPage() {
       },
       {
         id: 'bulk-delete',
-        label: 'Löschen',
+        label: 'Delete',
         intent: 'destructive',
         onAction: async (rows) => {
           if (rows.length === 0) return
-          if (!confirm(`${rows.length} Sticker löschen? Vorgang kann nicht rückgängig gemacht werden.`)) {
+          if (!confirm(`Delete ${rows.length} sticker(s)? This action cannot be undone.`)) {
             return
           }
           await bulkDelete(rows.map((row) => row.slug))
@@ -202,13 +202,13 @@ export default function AdminStickersPage() {
             Sticker
           </h1>
           <p className="text-sm text-muted-foreground">
-            Verwalte bestehende Sticker, aktualisiere Metadaten oder lade neue Sticker hoch.
+            Manage existing stickers, update metadata or upload new stickers.
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
             <FileDown className="h-4 w-4" />
-            Importieren
+            Import
           </Button>
           <input
             ref={importInputRef}
@@ -235,23 +235,23 @@ export default function AdminStickersPage() {
           />
           <Button onClick={() => setIsUploadOpen(true)} className="gap-2">
             <Upload className="h-4 w-4" />
-            Neue Sticker
+            New stickers
           </Button>
         </div>
       </header>
 
       <div className="grid gap-4 rounded-lg border bg-card p-4 md:grid-cols-4">
         <div className="flex flex-col gap-2 md:col-span-2">
-          <Label htmlFor="sticker-search">Suche</Label>
+          <Label htmlFor="sticker-search">Search</Label>
           <Input
             id="sticker-search"
-            placeholder="Nach Namen oder Slug suchen..."
+            placeholder="Search by name or slug..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label>Kategorie</Label>
+          <Label>category</Label>
           <CreatableCombobox
             options={categoryOptions.map(({ value, label, description }) => ({ value, label, description }))}
             value={selectedCategoryOption ? selectedCategoryOption.value : undefined}
@@ -264,13 +264,13 @@ export default function AdminStickersPage() {
               setSelectedCategory(category.slug)
               return String(category.id)
             }}
-            placeholder="Kategorie filtern"
-            inputPlaceholder="Kategorie suchen oder erstellen"
+            placeholder="Filter by category"
+            inputPlaceholder="Search or create category"
             allowClear
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label>Format</Label>
+          <Label>format</Label>
           <Select
             value={selectedFormat ?? ''}
             onValueChange={(value) => {
@@ -278,10 +278,10 @@ export default function AdminStickersPage() {
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Format wählen" />
+              <SelectValue placeholder="Select format" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle Formate</SelectItem>
+              <SelectItem value="">All formats</SelectItem>
               {formatFilterOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
@@ -297,15 +297,15 @@ export default function AdminStickersPage() {
         columns={columns}
         isLoading={stickersQuery.isLoading}
         bulkActions={bulkActions}
-        searchPlaceholder="Filtere Ergebnisse über das Suchfeld oben..."
+        searchPlaceholder="Filter results using the search field above..."
         emptyState={{
-          title: stickersQuery.isLoading ? 'Lade Sticker...' : 'Keine Sticker gefunden',
-          description: 'Lade neue Dateien hoch oder passe deine Filter an.',
-          actionLabel: 'Upload-Dialog öffnen',
+          title: stickersQuery.isLoading ? 'Loading stickers...' : 'No stickers found',
+          description: 'Upload new files or adjust your filters.',
+          actionLabel: 'Open upload dialog',
           onAction: () => setIsUploadOpen(true),
         }}
         onCreate={() => setIsUploadOpen(true)}
-        createLabel="Neue Sticker"
+        createLabel="New stickers"
       />
 
       <AdminStickerEditDialog
@@ -343,7 +343,7 @@ export default function AdminStickersPage() {
         }}
         conflicts={importConflict?.conflicts ?? []}
         totalItems={importConflict?.totalItems ?? 0}
-        resourceLabel="Sticker"
+        resourceLabel="Stickers"
         isLoading={isImporting}
         onConfirm={async (resolution) => {
           if (!importConflict) return

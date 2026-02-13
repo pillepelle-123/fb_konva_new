@@ -54,14 +54,14 @@ export function DataTable<TData>({
               (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
             }
             onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label="Alle auswählen"
+            aria-label="Select all"
           />
         ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Zeile auswählen"
+            aria-label="Select row"
           />
         ),
         enableSorting: false,
@@ -128,7 +128,7 @@ export function DataTable<TData>({
             {isLoading ? (
               <tr>
                 <td colSpan={columnsWithSelection.length} className="px-4 py-8 text-center text-muted-foreground">
-                  Daten werden geladen…
+                  Loading data…
                 </td>
               </tr>
             ) : hasRows ? (
@@ -165,7 +165,7 @@ export function DataTable<TData>({
                       ) : null}
                     </div>
                   ) : (
-                    'Keine Daten vorhanden.'
+                    'No data available.'
                   )}
                 </td>
               </tr>

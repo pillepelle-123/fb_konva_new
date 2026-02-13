@@ -9,9 +9,9 @@ import { useAdminPageRecords, useAdminUsers } from '../../hooks'
 import { CheckCircle2, PenSquare, UserPlus, UserX } from 'lucide-react'
 
 const STATUS_LABELS: Record<AdminPageRecord['status'], string> = {
-  draft: 'Entwurf',
+  draft: 'Draft',
   in_review: 'In Review',
-  published: 'Veröffentlicht',
+  published: 'Published',
 }
 
 const STATUS_VARIANT: Record<AdminPageRecord['status'], 'secondary' | 'default' | 'highlight'> = {
@@ -21,7 +21,7 @@ const STATUS_VARIANT: Record<AdminPageRecord['status'], 'secondary' | 'default' 
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
@@ -46,7 +46,7 @@ export default function AdminPageRecordsPage() {
     () => [
       {
         accessorKey: 'bookName',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Buch" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="bookName" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.original.bookName}</span>
@@ -56,7 +56,7 @@ export default function AdminPageRecordsPage() {
       },
       {
         accessorKey: 'pageNumber',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Seite" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="pageNumber" />,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <Badge variant="secondary">#{row.original.pageNumber}</Badge>
@@ -65,14 +65,14 @@ export default function AdminPageRecordsPage() {
       },
       {
         accessorKey: 'assignedTo',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Zugewiesen" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="assignedTo" />,
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground">{row.original.assignedTo ?? 'Nicht zugewiesen'}</div>
+          <div className="text-sm text-muted-foreground">{row.original.assignedTo ?? 'Unassigned'}</div>
         ),
       },
       {
         accessorKey: 'status',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="status" />,
         filterFn: (row, id, value) => {
           if (!value) return true
           if (Array.isArray(value)) {
@@ -89,12 +89,12 @@ export default function AdminPageRecordsPage() {
       },
       {
         accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Aktualisiert" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="updatedAt" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Aktionen</span>,
+        header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             <Tooltip>
@@ -105,10 +105,10 @@ export default function AdminPageRecordsPage() {
                   onClick={() => setAssignmentState({ open: true, rows: [row.original], mode: 'assign' })}
                 >
                   <PenSquare className="h-4 w-4" />
-                  <span className="sr-only">Seite zuweisen</span>
+                  <span className="sr-only">Assign page</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Zuweisen</TooltipContent>
+              <TooltipContent>Assign</TooltipContent>
             </Tooltip>
           </div>
         ),
@@ -121,11 +121,11 @@ export default function AdminPageRecordsPage() {
     () => [
       {
         id: 'status',
-        label: 'Status',
+        label: 'status',
         options: [
-          { value: 'draft', label: 'Entwurf' },
+          { value: 'draft', label: 'Draft' },
           { value: 'in_review', label: 'In Review' },
-          { value: 'published', label: 'Veröffentlicht' },
+          { value: 'published', label: 'Published' },
         ],
       },
     ],
@@ -136,7 +136,7 @@ export default function AdminPageRecordsPage() {
     () => [
       {
         id: 'assign',
-        label: 'Zuweisen',
+        label: 'Assign',
         icon: UserPlus,
         onAction: (rows) => {
           setAssignmentState({ open: true, rows, mode: 'assign' })
@@ -144,7 +144,7 @@ export default function AdminPageRecordsPage() {
       },
       {
         id: 'publish',
-        label: 'Veröffentlichen',
+        label: 'Publish',
         icon: CheckCircle2,
         onAction: (rows) => {
           setAssignmentState({ open: true, rows, mode: 'publish' })
@@ -152,7 +152,7 @@ export default function AdminPageRecordsPage() {
       },
       {
         id: 'unassign',
-        label: 'Zuweisung entfernen',
+        label: 'Remove assignment',
         icon: UserX,
         onAction: async (rows) => {
           await pageRecords.bulkAction({ action: 'unassign', ids: rows.map((row) => row.id) })
@@ -175,9 +175,9 @@ export default function AdminPageRecordsPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Seitenstatus</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Page Status</h1>
         <p className="text-sm text-muted-foreground">
-          Produktionsfortschritt über alle Bücher hinweg überwachen und Aufgaben verteilen.
+          Monitor production progress across all books and assign tasks.
         </p>
       </header>
       <DataTable
@@ -185,10 +185,10 @@ export default function AdminPageRecordsPage() {
         columns={columns}
         filterFields={filterFields}
         bulkActions={bulkActions}
-        searchPlaceholder="Nach Buch, Seite oder Mitarbeitenden suchen…"
+        searchPlaceholder="Search by book, page or assignee…"
         emptyState={{
-          title: 'Noch keine Seiten im Tracking',
-          description: 'Sobald Seiten erstellt werden, erscheinen sie hier zur Steuerung.',
+          title: 'No pages in tracking yet',
+          description: 'Pages will appear here once they are created.',
         }}
         isLoading={pageRecords.isLoading}
       />

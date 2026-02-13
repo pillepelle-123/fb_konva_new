@@ -67,12 +67,12 @@ function BackgroundImagePreview({ slug, token }: { slug: string; token: string |
     }
   }, [slug, token])
 
-  if (!slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Kein Bild</div>
-  if (error) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Vorschau nicht verfügbar</div>
-  if (!objectUrl) return <div className="flex aspect-square animate-pulse items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Lade…</div>
+  if (!slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">No image</div>
+  if (error) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Preview unavailable</div>
+  if (!objectUrl) return <div className="flex aspect-square animate-pulse items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Loading…</div>
   return (
     <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md border bg-muted/30 p-2">
-      <img src={objectUrl} alt="Hintergrundbild-Vorschau" className="max-h-full max-w-full object-contain" />
+      <img src={objectUrl} alt="Background image preview" className="max-h-full max-w-full object-contain" />
     </div>
   )
 }
@@ -210,9 +210,9 @@ export function AdminBackgroundImageEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-[120vh]  overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Hintergrundbild bearbeiten</DialogTitle>
+          <DialogTitle>Edit background image</DialogTitle>
           <DialogDescription>
-            Passe Meta-Informationen an. Dateien bleiben unverändert – Uploads erfolgen über den separaten Dialog.
+            Update metadata. Files remain unchanged – uploads are done via the separate dialog.
           </DialogDescription>
         </DialogHeader>
 
@@ -239,7 +239,7 @@ export function AdminBackgroundImageEditDialog({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label>Kategorie</Label>
+                <Label>Category</Label>
                 <CreatableCombobox
                   options={categoryOptions}
                   value={categoryId ? String(categoryId) : undefined}
@@ -247,8 +247,8 @@ export function AdminBackgroundImageEditDialog({
                     setCategoryId(value ? Number(value) : null)
                   }}
                   onCreateOption={handleCreateCategory}
-                  placeholder="Kategorie wählen..."
-                  inputPlaceholder="Kategorie suchen oder erstellen..."
+                  placeholder="Select category..."
+                  inputPlaceholder="Search or create category..."
                   allowClear={false}
                 />
               </div>
@@ -256,7 +256,7 @@ export function AdminBackgroundImageEditDialog({
                 <Label htmlFor="bg-edit-format">Format</Label>
                 <Select value={format} onValueChange={(value) => setFormat(value)}>
                   <SelectTrigger id="bg-edit-format">
-                    <SelectValue placeholder="Format wählen" />
+                    <SelectValue placeholder="Select format" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="vector">Vector</SelectItem>
@@ -268,7 +268,7 @@ export function AdminBackgroundImageEditDialog({
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2 flex flex-col gap-2">
-                <Label htmlFor="bg-edit-description">Beschreibung</Label>
+                <Label htmlFor="bg-edit-description">Description</Label>
                 <Textarea
                   id="bg-edit-description"
                   value={description}
@@ -278,23 +278,23 @@ export function AdminBackgroundImageEditDialog({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Vorschau</Label>
+                <Label>Preview</Label>
                 <BackgroundImagePreview slug={slug} token={token} />
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-file-path">Dateipfad (relativ)</Label>
+                <Label htmlFor="bg-edit-file-path">File path (relative)</Label>
                 <Input
                   id="bg-edit-file-path"
                   value={filePath}
                   onChange={(event) => setFilePath(event.target.value)}
-                  placeholder="z. B. floral/abstract.svg oder https://..."
+                  placeholder="e.g. floral/abstract.svg or https://..."
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-thumbnail">Thumbnail-Pfad</Label>
+                <Label htmlFor="bg-edit-thumbnail">Thumbnail path</Label>
                 <Input
                   id="bg-edit-thumbnail"
                   value={thumbnailPath}
@@ -309,10 +309,10 @@ export function AdminBackgroundImageEditDialog({
                 <Label htmlFor="bg-edit-size">Default Size</Label>
                 <Select value={defaultSize ?? ''} onValueChange={(value) => setDefaultSize(value || null)}>
                   <SelectTrigger id="bg-edit-size">
-                    <SelectValue placeholder="nicht gesetzt" />
+                    <SelectValue placeholder="not set" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nicht gesetzt</SelectItem>
+                    <SelectItem value="">Not set</SelectItem>
                     {DEFAULT_SIZES.map((size) => (
                       <SelectItem key={size} value={size}>
                         {size}
@@ -325,10 +325,10 @@ export function AdminBackgroundImageEditDialog({
                 <Label htmlFor="bg-edit-position">Position</Label>
                 <Select value={defaultPosition ?? ''} onValueChange={(value) => setDefaultPosition(value || null)}>
                   <SelectTrigger id="bg-edit-position">
-                    <SelectValue placeholder="nicht gesetzt" />
+                    <SelectValue placeholder="not set" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nicht gesetzt</SelectItem>
+                    <SelectItem value="">Not set</SelectItem>
                     {DEFAULT_POSITIONS.map((position) => (
                       <SelectItem key={position} value={position}>
                         {position}
@@ -341,17 +341,17 @@ export function AdminBackgroundImageEditDialog({
                 <Label htmlFor="bg-edit-repeat">Repeat</Label>
                 <Select value={defaultRepeat ?? ''} onValueChange={(value) => setDefaultRepeat(value || null)}>
                   <SelectTrigger id="bg-edit-repeat">
-                    <SelectValue placeholder="nicht gesetzt" />
+                    <SelectValue placeholder="not set" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nicht gesetzt</SelectItem>
+                    <SelectItem value="">Not set</SelectItem>
                     <SelectItem value="repeat">Repeat</SelectItem>
                     <SelectItem value="no-repeat">No Repeat</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-width">Breite (%)</Label>
+                <Label htmlFor="bg-edit-width">Width (%)</Label>
                 <Input
                   id="bg-edit-width"
                   type="number"
@@ -396,7 +396,7 @@ export function AdminBackgroundImageEditDialog({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-palettes">Palette Slots</Label>
+                <Label htmlFor="bg-edit-palettes">Palette slots</Label>
                 <Input
                   id="bg-edit-palettes"
                   value={paletteSlots ?? ''}
@@ -405,7 +405,7 @@ export function AdminBackgroundImageEditDialog({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-tags">Tags (kommagetrennt)</Label>
+                <Label htmlFor="bg-edit-tags">Tags (comma-separated)</Label>
                 <Input
                   id="bg-edit-tags"
                   value={tagsInput}
@@ -417,10 +417,10 @@ export function AdminBackgroundImageEditDialog({
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Abbrechen
+                Cancel
               </Button>
               <Button type="submit" disabled={!canSubmit} className="min-w-[120px]">
-                {isSubmitting ? 'Speichere...' : 'Speichern'}
+                {isSubmitting ? 'Saving...' : 'Save'}
               </Button>
             </DialogFooter>
           </form>
