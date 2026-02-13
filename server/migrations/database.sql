@@ -386,11 +386,8 @@ CREATE TABLE IF NOT EXISTS stickers (
   category_id INTEGER NOT NULL REFERENCES sticker_categories(id) ON DELETE RESTRICT,
   description TEXT,
   format TEXT NOT NULL,
-  storage_type TEXT NOT NULL DEFAULT 'local' CHECK (storage_type IN ('local', 's3')),
   file_path TEXT,
   thumbnail_path TEXT,
-  bucket TEXT,
-  object_key TEXT,
   tags TEXT[],
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -398,7 +395,6 @@ CREATE TABLE IF NOT EXISTS stickers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_stickers_category_id ON stickers(category_id);
-CREATE INDEX IF NOT EXISTS idx_stickers_storage_type ON stickers(storage_type);
 
 -- ###############################################################
 -- Background Images Tables
@@ -419,11 +415,8 @@ CREATE TABLE IF NOT EXISTS background_images (
   category_id INTEGER NOT NULL REFERENCES background_image_categories(id) ON DELETE RESTRICT,
   description TEXT,
   format TEXT NOT NULL,
-  storage_type TEXT NOT NULL DEFAULT 'local' CHECK (storage_type IN ('local', 's3')),
   file_path TEXT,
   thumbnail_path TEXT,
-  bucket TEXT,
-  object_key TEXT,
   default_size TEXT,
   default_position TEXT,
   default_repeat TEXT,
@@ -438,7 +431,6 @@ CREATE TABLE IF NOT EXISTS background_images (
 );
 
 CREATE INDEX IF NOT EXISTS idx_background_images_category_id ON background_images(category_id);
-CREATE INDEX IF NOT EXISTS idx_background_images_storage_type ON background_images(storage_type);
 
 -- ###############################################################
 -- PDF Exports Tables

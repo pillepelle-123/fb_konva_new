@@ -109,12 +109,11 @@ Backend
 - Für Auditing/Activity-Logs: Separate Tabelle `admin_logs` + Hook (Mutation Success Handler).
 - `background-images.json` wird ausschließlich als Legacy-Seed für das Importscript genutzt.
 - Frontend lädt Metadaten zur Laufzeit über `/api/background-images` (`loadBackgroundImageRegistry()` in `main.tsx`) und befüllt SVG-Rohdaten dynamisch.
-- Dateispeicher aktuell lokal (`uploads/background-images`). Der File-Service ist modular aufgebaut und kann auf S3 erweitert werden (`storage_type`, `bucket`, `object_key`).
+- Dateispeicher lokal (`uploads/background-images`).
 
 ## ToDos / Offene Punkte
 
 - Migrationen deployen & ggf. Backfill (admin_state/admin_status) prüfen.
-- File-Service um echten S3-Adapter erweitern (Upload/Delete), ggf. Presigned-URL-Flow.
 - Automatische Thumbnail-Generierung (PNG/WEBP) für hochgeladene SVGs/Pixelgrafiken.
 - Optionales Feature Flagging (z. B. LaunchDarkly) für stufenweise Aktivierung.
 - Monitoring/Logging (z. B. Winston, pino) für Admin-Aktionen integrieren.

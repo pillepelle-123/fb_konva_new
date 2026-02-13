@@ -1,13 +1,12 @@
 import { z } from 'zod'
-import { apiFetch, apiFetchFormData } from './http'
+import { apiFetch, apiFetchFormData, AdminApiError } from './http'
 import type { AdminBackgroundImageInput } from '../types'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
 const storageSchema = z.object({
-  type: z.enum(['local', 's3']),
   filePath: z.string().nullable(),
   thumbnailPath: z.string().nullable(),
-  bucket: z.string().nullable(),
-  objectKey: z.string().nullable(),
   publicUrl: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
 })
@@ -77,9 +76,7 @@ const adminBackgroundImageUploadResponseSchema = z.object({
   items: z.array(
     z.object({
       originalName: z.string(),
-      storage: storageSchema.extend({
-        type: z.enum(['local', 's3']).optional(),
-      }),
+      storage: storageSchema,
     }),
   ),
 })
@@ -89,7 +86,6 @@ export interface AdminBackgroundImageListParams {
   pageSize?: number
   search?: string
   category?: string
-  storageType?: string
   sort?: string
   order?: 'asc' | 'desc'
 }
@@ -101,7 +97,6 @@ function buildQuery(params?: AdminBackgroundImageListParams) {
   if (params.pageSize) searchParams.set('pageSize', String(params.pageSize))
   if (params.search) searchParams.set('search', params.search)
   if (params.category) searchParams.set('category', params.category)
-  if (params.storageType) searchParams.set('storageType', params.storageType)
   if (params.sort) searchParams.set('sort', params.sort)
   if (params.order) searchParams.set('order', params.order)
   const query = searchParams.toString()
@@ -222,5 +217,74 @@ export async function uploadAdminBackgroundImageFiles(
     adminBackgroundImageUploadResponseSchema,
   )
   return response.items
+}
+
+export interface ExportConflict {
+  slug: string
+  name: string
+  existingName: string | null
+}
+
+export interface ImportConflictResponse {
+  conflicts: ExportConflict[]
+  totalItems: number
+}
+
+export interface ImportSuccessResponse {
+  imported: unknown[]
+  totalItems: number
+}
+
+export async function exportAdminBackgroundImages(token: string | null, slugs: string[]): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/admin/background-images/export`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ slugs }),
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new AdminApiError(errorText || response.statusText, response.status)
+  }
+  const blob = await response.blob()
+  const date = new Date().toISOString().slice(0, 10)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `export-background-images-${date}.zip`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function importAdminBackgroundImages(
+  token: string | null,
+  file: File,
+  resolution?: Record<string, string>,
+): Promise<ImportSuccessResponse | ImportConflictResponse> {
+  const formData = new FormData()
+  formData.append('file', file, file.name)
+  if (resolution && Object.keys(resolution).length > 0) {
+    formData.append('resolution', JSON.stringify(resolution))
+  }
+  const response = await fetch(`${API_BASE_URL}/admin/background-images/import`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  })
+  const data = (await response.json()) as ImportSuccessResponse | ImportConflictResponse
+  if (response.status === 409) {
+    return data as ImportConflictResponse
+  }
+  if (!response.ok) {
+    throw new AdminApiError(
+      (data as { error?: string })?.error || response.statusText,
+      response.status,
+    )
+  }
+  return data as ImportSuccessResponse
 }
 

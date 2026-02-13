@@ -8,6 +8,8 @@ import {
   updateAdminBackgroundImage,
   deleteAdminBackgroundImage,
   bulkDeleteAdminBackgroundImages,
+  exportAdminBackgroundImages,
+  importAdminBackgroundImages,
   fetchAdminBackgroundImageCategories,
   createAdminBackgroundImageCategory,
   updateAdminBackgroundImageCategory,
@@ -102,6 +104,21 @@ export function useAdminBackgroundImages(params?: AdminBackgroundImageListParams
       uploadAdminBackgroundImageFiles(token, payload),
   })
 
+  const exportMutation = useMutation({
+    mutationFn: (slugs: string[]) => exportAdminBackgroundImages(token, slugs),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: (params: { file: File; resolution?: Record<string, string> }) =>
+      importAdminBackgroundImages(token, params.file, params.resolution),
+    onSuccess: (result) => {
+      if ('imported' in result && result.imported.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'background-images'] })
+        queryClient.invalidateQueries({ queryKey: ['admin', 'background-image-categories'] })
+      }
+    },
+  })
+
   return {
     imagesQuery,
     categoriesQuery,
@@ -112,6 +129,9 @@ export function useAdminBackgroundImages(params?: AdminBackgroundImageListParams
     createCategory: createCategoryMutation.mutateAsync,
     updateCategory: updateCategoryMutation.mutateAsync,
     uploadFiles: uploadFilesMutation.mutateAsync,
+    exportImages: exportMutation.mutateAsync,
+    importImages: importMutation.mutateAsync,
+    isImporting: importMutation.isPending,
     isLoading: imagesQuery.isLoading,
     isMutating:
       createImagesMutation.isPending ||

@@ -1,5 +1,10 @@
+const fs = require('fs/promises')
+const path = require('path')
+const archiver = require('archiver')
+const AdmZip = require('adm-zip')
 const { Pool } = require('pg')
-const { deleteBackgroundImageFile } = require('./file-storage')
+const { deleteBackgroundImageFile, saveBackgroundImageAtPath } = require('./file-storage')
+const { getUploadsSubdir } = require('../utils/uploads-path')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -86,14 +91,13 @@ function mapCategoryRow(row) {
 function mapImageRow(row) {
   const slug = row.slug || ''
   const localFileUrl =
-    row.storage_type === 'local' && row.file_path && slug
+    row.file_path && slug
       ? `/api/background-images/${encodeURIComponent(slug)}/file`
       : null
 
-  const localThumbnailUrl =
-    row.storage_type === 'local' && slug
-      ? `/api/background-images/${encodeURIComponent(slug)}/thumbnail`
-      : null
+  const localThumbnailUrl = slug
+    ? `/api/background-images/${encodeURIComponent(slug)}/thumbnail`
+    : null
 
   return {
     id: row.id,
@@ -109,11 +113,8 @@ function mapImageRow(row) {
     },
     format: row.format,
     storage: {
-      type: row.storage_type,
       filePath: row.file_path,
       thumbnailPath: row.thumbnail_path,
-      bucket: row.bucket,
-      objectKey: row.object_key,
       publicUrl: localFileUrl,
       thumbnailUrl: localThumbnailUrl || localFileUrl,
     },
@@ -186,7 +187,6 @@ async function listBackgroundImages({
   pageSize = 50,
   search,
   categorySlug,
-  storageType,
   sort = 'updated_at',
   order = 'desc',
 }) {
@@ -202,11 +202,6 @@ async function listBackgroundImages({
   if (categorySlug) {
     values.push(categorySlug)
     filters.push(`LOWER(c.slug) = LOWER($${values.length})`)
-  }
-
-  if (storageType) {
-    values.push(storageType)
-    filters.push(`bi.storage_type = $${values.length}`)
   }
 
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
@@ -281,11 +276,8 @@ async function createBackgroundImage(payload) {
     categoryId,
     description,
     format,
-    storageType = 'local',
     filePath,
     thumbnailPath,
-    bucket,
-    objectKey,
     defaults = {},
     paletteSlots,
     tags,
@@ -302,11 +294,8 @@ async function createBackgroundImage(payload) {
         category_id,
         description,
         format,
-        storage_type,
         file_path,
         thumbnail_path,
-        bucket,
-        object_key,
         default_size,
         default_position,
         default_repeat,
@@ -321,13 +310,11 @@ async function createBackgroundImage(payload) {
       )
       VALUES (
         $1, $2, $3, $4, $5,
-        $6,
-        $7, $8,
-        $9, $10,
-        $11, $12, $13, $14, $15,
+        $6, $7,
+        $8, $9, $10, $11, $12,
+        $13::jsonb,
+        $14, $15,
         $16::jsonb,
-        $17, $18,
-        $19::jsonb,
         NOW(), NOW()
       )
       RETURNING *
@@ -338,11 +325,8 @@ async function createBackgroundImage(payload) {
       categoryId,
       description || null,
       format || 'vector',
-      storageType,
       filePath || null,
       thumbnailPath || null,
-      bucket || null,
-      objectKey || null,
       defaults.size || null,
       defaults.position || null,
       defaults.repeat || null,
@@ -372,7 +356,6 @@ async function updateBackgroundImage(identifier, payload) {
 
   const name = payload.name || existing.name
   const categoryId = payload.categoryId || existing.category.id
-  const storageType = payload.storageType || existing.storage.type
 
   const defaults = {
     size: payload.defaults?.size ?? existing.defaults.size,
@@ -403,22 +386,19 @@ async function updateBackgroundImage(identifier, payload) {
         category_id = $3,
         description = $4,
         format = $5,
-        storage_type = $6,
-        file_path = $7,
-        thumbnail_path = $8,
-        bucket = $9,
-        object_key = $10,
-        default_size = $11,
-        default_position = $12,
-        default_repeat = $13,
-        default_width = $14,
-        default_opacity = $15,
-        background_color = $16::jsonb,
-        palette_slots = $17,
-        tags = $18,
-        metadata = $19::jsonb,
+        file_path = $6,
+        thumbnail_path = $7,
+        default_size = $8,
+        default_position = $9,
+        default_repeat = $10,
+        default_width = $11,
+        default_opacity = $12,
+        background_color = $13::jsonb,
+        palette_slots = $14,
+        tags = $15,
+        metadata = $16::jsonb,
         updated_at = NOW()
-      WHERE id = $20
+      WHERE id = $17
       RETURNING *
     `,
     [
@@ -427,11 +407,8 @@ async function updateBackgroundImage(identifier, payload) {
       categoryId,
       payload.description || existing.description,
       payload.format || existing.format,
-      storageType,
       payload.filePath !== undefined ? payload.filePath : existing.storage.filePath,
       payload.thumbnailPath !== undefined ? payload.thumbnailPath : existing.storage.thumbnailPath,
-      payload.bucket !== undefined ? payload.bucket : existing.storage.bucket,
-      payload.objectKey !== undefined ? payload.objectKey : existing.storage.objectKey,
       defaults.size,
       defaults.position,
       defaults.repeat,
@@ -468,12 +445,9 @@ async function deleteBackgroundImageFileWithLookup(identifier) {
     return
   }
 
-  if (image.storage?.type === 'local' && image.storage?.filePath) {
+  if (image.storage?.filePath) {
     await deleteBackgroundImageFile({
-      storageType: image.storage.type,
       filePath: image.storage.filePath,
-      bucket: image.storage.bucket,
-      objectKey: image.storage.objectKey,
       uploadPath: 'background-images',
     })
   }
@@ -508,6 +482,190 @@ async function bulkDeleteBackgroundImages(idsOrSlugs = []) {
   }
 }
 
+async function exportBackgroundImages(slugs, res) {
+  const uploadsDir = getUploadsSubdir('background-images')
+  const items = []
+  const images = []
+
+  for (const slug of slugs) {
+    const image = await getBackgroundImage(slug)
+    if (!image || !image.storage?.filePath) continue
+    images.push(image)
+    const relPath = image.storage.filePath.replace(/^\/+/, '')
+    const fileRef = `files/${relPath}`
+    items.push({
+      slug: image.slug,
+      name: image.name,
+      description: image.description,
+      category: { name: image.category.name, slug: image.category.slug },
+      format: image.format,
+      fileRef,
+      thumbnailRef: image.storage.thumbnailPath
+        ? `files/${image.storage.thumbnailPath.replace(/^\/+/, '')}`
+        : fileRef,
+      defaults: image.defaults,
+      paletteSlots: image.paletteSlots,
+      tags: image.tags,
+      metadata: image.metadata,
+    })
+  }
+
+  const manifest = {
+    version: 1,
+    type: 'background-images',
+    exportedAt: new Date().toISOString(),
+    items,
+  }
+
+  const archive = archiver('zip', { zlib: { level: 9 } })
+  archive.pipe(res)
+
+  archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' })
+
+  for (const image of images) {
+    const relPath = image.storage.filePath.replace(/^\/+/, '')
+    const fullPath = path.join(uploadsDir, relPath)
+    try {
+      const buffer = await fs.readFile(fullPath)
+      const zipPath = `files/${relPath}`
+      archive.append(buffer, { name: zipPath })
+      if (
+        image.storage.thumbnailPath &&
+        image.storage.thumbnailPath !== image.storage.filePath
+      ) {
+        const thumbRelPath = image.storage.thumbnailPath.replace(/^\/+/, '')
+        const thumbFullPath = path.join(uploadsDir, thumbRelPath)
+        try {
+          const thumbBuffer = await fs.readFile(thumbFullPath)
+          archive.append(thumbBuffer, { name: `files/${thumbRelPath}` })
+        } catch {
+          // Thumbnail optional, use main file as fallback
+        }
+      }
+    } catch (err) {
+      console.warn(`Export: Could not read file for ${image.slug}:`, err.message)
+    }
+  }
+
+  await archive.finalize()
+}
+
+async function getOrCreateCategoryBySlug(name, slug) {
+  const { rows } = await pool.query(
+    `SELECT id FROM background_image_categories WHERE slug = $1 LIMIT 1`,
+    [slug],
+  )
+  if (rows.length > 0) return rows[0].id
+  const category = await createCategory(name || slug)
+  return category.id
+}
+
+async function slugExists(slug) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM background_images WHERE slug = $1 LIMIT 1`,
+    [slug],
+  )
+  return rows.length > 0
+}
+
+async function getExistingNameBySlug(slug) {
+  const { rows } = await pool.query(
+    `SELECT name FROM background_images WHERE slug = $1 LIMIT 1`,
+    [slug],
+  )
+  return rows.length ? rows[0].name : null
+}
+
+async function importBackgroundImages(zipBuffer, resolution = {}) {
+  const zip = new AdmZip(zipBuffer)
+  const manifestEntry = zip.getEntry('manifest.json')
+  if (!manifestEntry) {
+    throw new Error('Invalid export: manifest.json not found')
+  }
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf8'))
+  if (manifest.type !== 'background-images' || !Array.isArray(manifest.items)) {
+    throw new Error('Invalid export: invalid manifest type or items')
+  }
+
+  const conflicts = []
+  for (const item of manifest.items) {
+    const exists = await slugExists(item.slug)
+    if (exists) {
+      const existingName = await getExistingNameBySlug(item.slug)
+      conflicts.push({ slug: item.slug, name: item.name, existingName })
+    }
+  }
+
+  if (conflicts.length > 0 && Object.keys(resolution).length === 0) {
+    return { conflicts, totalItems: manifest.items.length }
+  }
+
+  const imported = []
+
+  for (const item of manifest.items) {
+    let effectiveSlug = item.slug
+    let action = 'create'
+    if (resolution[item.slug] === 'skip') continue
+    if (resolution[item.slug] === 'overwrite') {
+      action = 'overwrite'
+    } else if (typeof resolution[item.slug] === 'string' && resolution[item.slug] !== 'overwrite') {
+      effectiveSlug = resolution[item.slug]
+    } else if (await slugExists(item.slug)) {
+      continue
+    }
+
+    if (action === 'overwrite') {
+      await deleteBackgroundImageFileWithLookup(item.slug)
+    }
+
+    const fileRef = item.fileRef || `files/${item.category.slug}/${item.slug}${item.format === 'pixel' ? '.png' : '.svg'}`
+    const relPath = fileRef.replace(/^files\//, '')
+    const fileEntry = zip.getEntry(fileRef)
+    if (!fileEntry) {
+      console.warn(`Import: File not found in ZIP: ${fileRef}`)
+      continue
+    }
+    const buffer = fileEntry.getData()
+    const savedPath = await saveBackgroundImageAtPath({
+      relativePath: relPath,
+      buffer,
+      uploadPath: 'background-images',
+    })
+    const thumbnailRef = item.thumbnailRef || fileRef
+    const thumbRelPath = thumbnailRef.replace(/^files\//, '')
+    let thumbnailPath = savedPath
+    if (thumbRelPath !== relPath) {
+      const thumbEntry = zip.getEntry(thumbnailRef)
+      if (thumbEntry) {
+        const thumbBuffer = thumbEntry.getData()
+        thumbnailPath = await saveBackgroundImageAtPath({
+          relativePath: thumbRelPath,
+          buffer: thumbBuffer,
+          uploadPath: 'background-images',
+        })
+      }
+    }
+
+    const categoryId = await getOrCreateCategoryBySlug(item.category?.name, item.category?.slug || 'uncategorized')
+    const record = await createBackgroundImage({
+      name: item.name,
+      slug: effectiveSlug,
+      categoryId,
+      description: item.description ?? null,
+      format: item.format || 'vector',
+      filePath: savedPath,
+      thumbnailPath,
+      defaults: item.defaults || {},
+      paletteSlots: item.paletteSlots ?? null,
+      tags: item.tags || [],
+      metadata: item.metadata || {},
+    })
+    if (record) imported.push(record)
+  }
+
+  return { imported, totalItems: manifest.items.length }
+}
+
 module.exports = {
   listCategories,
   createCategory,
@@ -519,6 +677,8 @@ module.exports = {
   updateBackgroundImage,
   deleteBackgroundImage,
   bulkDeleteBackgroundImages,
+  exportBackgroundImages,
+  importBackgroundImages,
   slugify,
   pool,
 }

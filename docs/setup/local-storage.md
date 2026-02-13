@@ -1,6 +1,6 @@
 # Bild-Speicherung (Lokal)
 
-> **Hinweis:** AWS S3 wird für Benutzer-Bilder nicht mehr verwendet. Alle Bilder werden lokal gespeichert.
+Alle Bilder werden lokal gespeichert.
 
 ## Aktuelle Konfiguration
 

@@ -11,7 +11,7 @@ const router = express.Router()
 router.get('/:identifier/file', authenticateToken, async (req, res) => {
   try {
     const image = await backgroundImagesService.getBackgroundImage(req.params.identifier)
-    if (!image || image.storage?.type !== 'local' || !image.storage?.filePath) {
+    if (!image || !image.storage?.filePath) {
       return res.status(404).json({ error: 'Background image not found' })
     }
     const relPath = image.storage.filePath.replace(/^\/+/, '')
@@ -37,7 +37,7 @@ router.get('/:identifier/file', authenticateToken, async (req, res) => {
 router.get('/:identifier/thumbnail', authenticateToken, async (req, res) => {
   try {
     const image = await backgroundImagesService.getBackgroundImage(req.params.identifier)
-    if (!image || image.storage?.type !== 'local') {
+    if (!image || !image.storage?.filePath) {
       return res.status(404).json({ error: 'Background image not found' })
     }
     const relPath = (image.storage.thumbnailPath || image.storage.filePath || '').replace(/^\/+/, '')
@@ -67,7 +67,6 @@ router.get('/', async (req, res) => {
       pageSize = '100',
       search,
       category,
-      storageType,
     } = req.query
 
     const result = await backgroundImagesService.listBackgroundImages({
@@ -75,7 +74,6 @@ router.get('/', async (req, res) => {
       pageSize: Math.min(Number(pageSize) || 100, 500),
       search,
       categorySlug: category,
-      storageType,
       sort: 'name',
       order: 'asc',
     })

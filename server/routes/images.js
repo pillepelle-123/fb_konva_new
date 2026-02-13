@@ -122,8 +122,8 @@ router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 
       }
       
       const result = await pool.query(
-        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path, s3_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [finalBookId, req.user.id, secureFilename, file.originalname || secureFilename, dbFilePath, null]
+        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [finalBookId, req.user.id, secureFilename, file.originalname || secureFilename, dbFilePath]
       );
       
       const row = result.rows[0];

@@ -145,7 +145,6 @@ async function importBackgroundImages() {
             category_id,
             description,
             format,
-            storage_type,
             file_path,
             thumbnail_path,
             default_size,
@@ -162,7 +161,6 @@ async function importBackgroundImages() {
           )
           VALUES (
             $1, $2, $3, $4, $5,
-            'local',
             $6, $7,
             $8, $9, $10,
             $11, $12,
@@ -178,7 +176,6 @@ async function importBackgroundImages() {
             category_id = EXCLUDED.category_id,
             description = EXCLUDED.description,
             format = EXCLUDED.format,
-            storage_type = EXCLUDED.storage_type,
             file_path = EXCLUDED.file_path,
             thumbnail_path = EXCLUDED.thumbnail_path,
             default_size = EXCLUDED.default_size,

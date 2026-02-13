@@ -24,7 +24,6 @@ router.get('/', async (req, res) => {
       pageSize = '50',
       search,
       category,
-      storageType,
       format,
       sort,
       order,
@@ -35,7 +34,6 @@ router.get('/', async (req, res) => {
       pageSize: Math.min(Number(pageSize) || 50, 500),
       search,
       categorySlug: category,
-      storageType,
       format,
       sort,
       order,
@@ -204,6 +202,50 @@ router.post('/bulk-delete', async (req, res) => {
   } catch (error) {
     console.error('Admin bulk delete sticker error:', error)
     res.status(500).json({ error: 'Failed to delete stickers' })
+  }
+})
+
+router.post('/export', async (req, res) => {
+  try {
+    const slugs = Array.isArray(req.body?.slugs) ? req.body.slugs : []
+    if (slugs.length === 0) {
+      return res.status(400).json({ error: 'At least one slug is required' })
+    }
+    const date = new Date().toISOString().slice(0, 10)
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="export-stickers-${date}.zip"`,
+    )
+    res.setHeader('Content-Type', 'application/zip')
+    await stickersService.exportStickers(slugs, res)
+  } catch (error) {
+    console.error('Admin export stickers error:', error)
+    res.status(500).json({ error: 'Failed to export stickers' })
+  }
+})
+
+router.post('/import', upload.fields([{ name: 'file', maxCount: 1 }]), async (req, res) => {
+  try {
+    const file = req.files?.file?.[0]
+    if (!file || !file.buffer) {
+      return res.status(400).json({ error: 'ZIP file is required' })
+    }
+    let resolution = {}
+    if (req.body?.resolution) {
+      try {
+        resolution = JSON.parse(req.body.resolution)
+      } catch {
+        return res.status(400).json({ error: 'Invalid resolution JSON' })
+      }
+    }
+    const result = await stickersService.importStickers(file.buffer, resolution)
+    if (result.conflicts) {
+      return res.status(409).json(result)
+    }
+    res.status(201).json(result)
+  } catch (error) {
+    console.error('Admin import stickers error:', error)
+    res.status(500).json({ error: 'Failed to import stickers' })
   }
 })
 

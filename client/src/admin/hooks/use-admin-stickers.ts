@@ -8,6 +8,8 @@ import {
   updateAdminSticker,
   deleteAdminSticker,
   bulkDeleteAdminStickers,
+  exportAdminStickers,
+  importAdminStickers,
   fetchAdminStickerCategories,
   createAdminStickerCategory,
   updateAdminStickerCategory,
@@ -102,6 +104,21 @@ export function useAdminStickers(params?: AdminStickerListParams) {
       uploadAdminStickerFiles(token, payload),
   })
 
+  const exportMutation = useMutation({
+    mutationFn: (slugs: string[]) => exportAdminStickers(token, slugs),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: (params: { file: File; resolution?: Record<string, string> }) =>
+      importAdminStickers(token, params.file, params.resolution),
+    onSuccess: (result) => {
+      if ('imported' in result && result.imported.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'stickers'] })
+        queryClient.invalidateQueries({ queryKey: ['admin', 'sticker-categories'] })
+      }
+    },
+  })
+
   return {
     stickersQuery,
     categoriesQuery,
@@ -112,6 +129,9 @@ export function useAdminStickers(params?: AdminStickerListParams) {
     createCategory: createCategoryMutation.mutateAsync,
     updateCategory: updateCategoryMutation.mutateAsync,
     uploadFiles: uploadFilesMutation.mutateAsync,
+    exportStickers: exportMutation.mutateAsync,
+    importStickers: importMutation.mutateAsync,
+    isImporting: importMutation.isPending,
     isLoading: stickersQuery.isLoading,
     isMutating:
       createStickersMutation.isPending ||

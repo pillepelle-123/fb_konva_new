@@ -11,7 +11,7 @@ const router = express.Router()
 router.get('/:identifier/file', authenticateToken, async (req, res) => {
   try {
     const sticker = await stickersService.getSticker(req.params.identifier)
-    if (!sticker || sticker.storage?.type !== 'local' || !sticker.storage?.filePath) {
+    if (!sticker || !sticker.storage?.filePath) {
       return res.status(404).json({ error: 'Sticker not found' })
     }
     const relPath = sticker.storage.filePath.replace(/^\/+/, '')
@@ -37,7 +37,7 @@ router.get('/:identifier/file', authenticateToken, async (req, res) => {
 router.get('/:identifier/thumbnail', authenticateToken, async (req, res) => {
   try {
     const sticker = await stickersService.getSticker(req.params.identifier)
-    if (!sticker || sticker.storage?.type !== 'local') {
+    if (!sticker || !sticker.storage?.filePath) {
       return res.status(404).json({ error: 'Sticker not found' })
     }
     const relPath = (sticker.storage.thumbnailPath || sticker.storage.filePath || '').replace(/^\/+/, '')
@@ -67,7 +67,6 @@ router.get('/', async (req, res) => {
       pageSize = '100',
       search,
       category,
-      storageType,
       format,
     } = req.query
 
@@ -76,7 +75,6 @@ router.get('/', async (req, res) => {
       pageSize: Math.min(Number(pageSize) || 100, 500),
       search,
       categorySlug: category,
-      storageType,
       format,
       sort: 'name',
       order: 'asc',

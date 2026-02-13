@@ -29,16 +29,7 @@ vi.mock('../../../../../utils/global-themes', () => ({
 }));
 
 vi.mock('../../../../../utils/image-resolution-utils', () => ({
-  getAdaptiveImageUrl: vi.fn((url, options) => {
-    // Mock implementation that adds resize parameters for S3 URLs
-    if (url.includes('s3.amazonaws.com') && options.enabled) {
-      const scale = options.zoom >= 1.5 ? 1 : options.zoom >= 0.75 ? 0.75 : 0.5;
-      const width = Math.round(800 * scale);
-      const height = Math.round(600 * scale);
-      return `${url}?width=${width}&height=${height}&fit=contain`;
-    }
-    return url;
-  }),
+  getAdaptiveImageUrl: vi.fn((url: string) => url),
 }));
 
 // Mock localStorage
@@ -64,7 +55,7 @@ describe('Image Component - Adaptive Resolution', () => {
     y: 100,
     width: 200,
     height: 150,
-    src: 'https://example.s3.amazonaws.com/test-image.jpg',
+    src: 'https://example.com/test-image.jpg',
   };
 
   const mockProps = {
@@ -101,7 +92,7 @@ describe('Image Component - Adaptive Resolution', () => {
       // Should call getAdaptiveImageUrl with enabled: true
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ enabled: true, zoom: 1.0 })
       );
     });
@@ -122,7 +113,7 @@ describe('Image Component - Adaptive Resolution', () => {
       // Should call getAdaptiveImageUrl with enabled: false
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ enabled: false, zoom: 1.0 })
       );
     });
@@ -141,7 +132,7 @@ describe('Image Component - Adaptive Resolution', () => {
       // Should call getAdaptiveImageUrl with enabled: true
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ enabled: true, zoom: 1.0 })
       );
     });
@@ -164,7 +155,7 @@ describe('Image Component - Adaptive Resolution', () => {
 
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ zoom: 1.5 })
       );
     });
@@ -180,7 +171,7 @@ describe('Image Component - Adaptive Resolution', () => {
 
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ zoom: 1.0 })
       );
     });
@@ -196,7 +187,7 @@ describe('Image Component - Adaptive Resolution', () => {
 
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ zoom: 0.5 })
       );
     });
@@ -215,7 +206,7 @@ describe('Image Component - Adaptive Resolution', () => {
 
       const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
       expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('s3.amazonaws.com'),
+        expect.stringContaining('example.com'),
         expect.objectContaining({ zoom: 1 }) // Default fallback
       );
     });
@@ -227,28 +218,7 @@ describe('Image Component - Adaptive Resolution', () => {
       mockLocalStorage.getItem.mockReturnValue(null);
     });
 
-    it('handles S3 URLs with proxy endpoint', () => {
-      const s3Element = {
-        ...mockElement,
-        src: 'https://bucket.s3.amazonaws.com/path/image.jpg'
-      };
-
-      render(
-        <AuthProvider>
-          <EditorProvider>
-            <Image {...mockProps} element={s3Element} />
-          </EditorProvider>
-        </AuthProvider>
-      );
-
-      const { getAdaptiveImageUrl } = require('../../../../../utils/image-resolution-utils');
-      expect(getAdaptiveImageUrl).toHaveBeenCalledWith(
-        expect.stringContaining('/images/proxy?url='),
-        expect.any(Object)
-      );
-    });
-
-    it('handles non-S3 URLs directly', () => {
+    it('handles external URLs', () => {
       const localElement = {
         ...mockElement,
         src: 'http://localhost:3000/image.jpg'

@@ -45,11 +45,8 @@ export function AdminStickerEditDialog({
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [format, setFormat] = useState('vector')
-  const [storageType, setStorageType] = useState<'local' | 's3'>('local')
   const [filePath, setFilePath] = useState('')
   const [thumbnailPath, setThumbnailPath] = useState('')
-  const [bucket, setBucket] = useState('')
-  const [objectKey, setObjectKey] = useState('')
   const [tagsInput, setTagsInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -60,11 +57,8 @@ export function AdminStickerEditDialog({
       setCategoryId(sticker.category?.id ?? null)
       setDescription(sticker.description ?? '')
       setFormat(sticker.format ?? 'vector')
-      setStorageType(sticker.storage.type)
       setFilePath(sticker.storage.filePath ?? '')
       setThumbnailPath(sticker.storage.thumbnailPath ?? '')
-      setBucket(sticker.storage.bucket ?? '')
-      setObjectKey(sticker.storage.objectKey ?? '')
       setTagsInput(sticker.tags?.join(', ') ?? '')
     } else if (!open) {
       setIsSubmitting(false)
@@ -94,11 +88,8 @@ export function AdminStickerEditDialog({
         categoryId,
         description: description || null,
         format,
-        storageType,
         filePath: filePath || null,
         thumbnailPath: thumbnailPath || null,
-        bucket: bucket || null,
-        objectKey: objectKey || null,
         tags: tagsInput
           .split(',')
           .map((tag) => tag.trim())
@@ -193,19 +184,7 @@ export function AdminStickerEditDialog({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="sticker-storage-type">Storage Typ</Label>
-                <Select value={storageType} onValueChange={(value: 'local' | 's3') => setStorageType(value)}>
-                  <SelectTrigger id="sticker-storage-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="local">Local</SelectItem>
-                    <SelectItem value="s3">S3</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="sticker-edit-file-path">Dateipfad (relativ oder URL)</Label>
+                <Label htmlFor="sticker-edit-file-path">Dateipfad (relativ)</Label>
                 <Input
                   id="sticker-edit-file-path"
                   value={filePath}
@@ -222,18 +201,6 @@ export function AdminStickerEditDialog({
                   placeholder="Optional"
                 />
               </div>
-              {storageType === 's3' ? (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sticker-edit-bucket">S3 Bucket</Label>
-                    <Input id="sticker-edit-bucket" value={bucket} onChange={(event) => setBucket(event.target.value)} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sticker-edit-object-key">Object Key</Label>
-                    <Input id="sticker-edit-object-key" value={objectKey} onChange={(event) => setObjectKey(event.target.value)} />
-                  </div>
-                </>
-              ) : null}
             </div>
 
             <div className="flex flex-col gap-2">

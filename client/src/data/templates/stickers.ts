@@ -28,11 +28,8 @@ const apiCategorySchema = z.object({
 })
 
 const apiStorageSchema = z.object({
-  type: z.enum(['local', 's3']).nullable().optional(),
   filePath: z.string().nullable().optional(),
   thumbnailPath: z.string().nullable().optional(),
-  bucket: z.string().nullable().optional(),
-  objectKey: z.string().nullable().optional(),
   publicUrl: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
 })
@@ -82,7 +79,6 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): StickerWit
 
   const filePath = storage.filePath ?? undefined
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
-  const storageType = (storage.type as 'local' | 's3' | undefined) ?? 'local'
 
   const sticker: Sticker = {
     id: record.slug ?? record.id ?? record.name,
@@ -93,26 +89,12 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): StickerWit
     thumbnail: thumbnailPath ?? filePath ?? '',
     description: record.description ?? undefined,
     tags: record.tags ?? undefined,
-    storageType,
   }
 
   const resolveUrl = (u: string | null) => (u && apiBaseOrigin && u.startsWith('/') ? apiBaseOrigin + u : u)
 
-  const url =
-    resolveUrl(storagePublicUrl) ??
-    (storageType === 'local'
-      ? resolveLocalUrl(filePath)
-      : storage.bucket && storage.objectKey
-        ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
-        : filePath ?? '')
-
-  const thumbnailUrl =
-    resolveUrl(storageThumbnailUrl) ??
-    (storageType === 'local'
-      ? resolveLocalUrl(thumbnailPath)
-      : storage.bucket && storage.objectKey
-        ? `https://${storage.bucket}.s3.amazonaws.com/${storage.objectKey}`
-        : thumbnailPath ?? url)
+  const url = resolveUrl(storagePublicUrl) ?? resolveLocalUrl(filePath) ?? filePath ?? ''
+  const thumbnailUrl = resolveUrl(storageThumbnailUrl) ?? resolveLocalUrl(thumbnailPath) ?? thumbnailPath ?? url
 
   return {
     ...sticker,
@@ -151,7 +133,6 @@ export async function loadStickerRegistry(force = false) {
       thumbnail: getOpenMojiUrl(sticker.hexcode),
       description: `${sticker.emoji} ${sticker.name}`,
       tags: sticker.tags,
-      storageType: 'external' as const,
       url: getOpenMojiUrl(sticker.hexcode),
     }));
 

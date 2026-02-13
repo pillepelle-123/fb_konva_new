@@ -46,30 +46,10 @@ export function getAdaptiveImageUrl(
 
 /**
  * Generates a resized image URL for supported image services
- * Currently supports basic query parameter resizing for S3/cloudfront URLs
+ * Local uploads use the original URL; external services could be extended here
  */
-function getResizedImageUrl(url: string, width: number, height: number): string {
-  try {
-    // For S3/CloudFront URLs: Add resize parameters
-    if (url.includes('amazonaws.com') || url.includes('s3.') || url.includes('cloudfront.net')) {
-      const separator = url.includes('?') ? '&' : '?';
-
-      // Round to nearest integer and ensure minimum size
-      const w = Math.max(50, Math.round(width));
-      const h = Math.max(50, Math.round(height));
-
-      return `${url}${separator}width=${w}&height=${h}&fit=contain&format=auto`;
-    }
-
-    // For other image services (Imgix, Cloudinary, etc.), you could add support here
-    // For now, return original URL
-    return url;
-
-  } catch (error) {
-    // If URL manipulation fails, return original
-    console.warn('Failed to generate resized image URL:', error);
-    return url;
-  }
+function getResizedImageUrl(url: string, _width: number, _height: number): string {
+  return url;
 }
 
 /**

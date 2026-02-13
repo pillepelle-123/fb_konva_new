@@ -47,11 +47,8 @@ export interface AdminBackgroundImage {
   category: AdminBackgroundImageCategory
   format: string
   storage: {
-    type: 'local' | 's3'
     filePath: string | null
     thumbnailPath: string | null
-    bucket: string | null
-    objectKey: string | null
     publicUrl?: string | null
     thumbnailUrl?: string | null
   }
@@ -76,11 +73,8 @@ export interface AdminBackgroundImageInput {
   categoryId: number
   description?: string | null
   format?: string
-  storageType?: 'local' | 's3'
   filePath?: string | null
   thumbnailPath?: string | null
-  bucket?: string | null
-  objectKey?: string | null
   defaults?: {
     size?: string | null
     position?: string | null
@@ -110,11 +104,8 @@ export interface AdminSticker {
   category: AdminStickerCategory
   format: string
   storage: {
-    type: 'local' | 's3'
     filePath: string | null
     thumbnailPath: string | null
-    bucket: string | null
-    objectKey: string | null
     publicUrl?: string | null
     thumbnailUrl?: string | null
   }
@@ -130,11 +121,8 @@ export interface AdminStickerInput {
   categoryId: number
   description?: string | null
   format?: string
-  storageType?: 'local' | 's3'
   filePath?: string | null
   thumbnailPath?: string | null
-  bucket?: string | null
-  objectKey?: string | null
   tags?: string[]
   metadata?: Record<string, unknown>
 }

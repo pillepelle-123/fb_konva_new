@@ -26,11 +26,8 @@ interface UploadStickersDialogProps {
     {
       originalName: string
       storage: {
-        type?: string
         filePath?: string | null
         thumbnailPath?: string | null
-        bucket?: string | null
-        objectKey?: string | null
       }
     }[]
   >
@@ -191,11 +188,8 @@ export function UploadStickersDialog({
           categoryId: selectedCategory.id,
           description: item.description || null,
           format: isVector ? 'vector' : 'pixel',
-          storageType: (uploadInfo.type as 'local' | 's3' | undefined) ?? 'local',
           filePath: uploadInfo.filePath ?? null,
           thumbnailPath: uploadInfo.thumbnailPath ?? uploadInfo.filePath ?? null,
-          bucket: uploadInfo.bucket ?? null,
-          objectKey: uploadInfo.objectKey ?? null,
           tags: item.tags
             .split(',')
             .map((tag) => tag.trim())

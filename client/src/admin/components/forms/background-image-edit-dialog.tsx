@@ -50,11 +50,8 @@ export function AdminBackgroundImageEditDialog({
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [format, setFormat] = useState('vector')
-  const [storageType, setStorageType] = useState<'local' | 's3'>('local')
   const [filePath, setFilePath] = useState('')
   const [thumbnailPath, setThumbnailPath] = useState('')
-  const [bucket, setBucket] = useState('')
-  const [objectKey, setObjectKey] = useState('')
   const [defaultSize, setDefaultSize] = useState<string | null>(null)
   const [defaultPosition, setDefaultPosition] = useState<string | null>(null)
   const [defaultRepeat, setDefaultRepeat] = useState<string | null>(null)
@@ -74,11 +71,8 @@ export function AdminBackgroundImageEditDialog({
       setCategoryId(image.category?.id ?? null)
       setDescription(image.description ?? '')
       setFormat(image.format ?? 'vector')
-      setStorageType(image.storage.type)
       setFilePath(image.storage.filePath ?? '')
       setThumbnailPath(image.storage.thumbnailPath ?? '')
-      setBucket(image.storage.bucket ?? '')
-      setObjectKey(image.storage.objectKey ?? '')
       setDefaultSize(image.defaults.size)
       setDefaultPosition(image.defaults.position)
       setDefaultRepeat(image.defaults.repeat)
@@ -120,11 +114,8 @@ export function AdminBackgroundImageEditDialog({
         categoryId,
         description: description || null,
         format,
-        storageType,
         filePath: filePath || null,
         thumbnailPath: thumbnailPath || null,
-        bucket: bucket || null,
-        objectKey: objectKey || null,
         defaults: {
           size: defaultSize,
           position: defaultPosition,
@@ -234,19 +225,7 @@ export function AdminBackgroundImageEditDialog({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-storage-type">Storage Typ</Label>
-                <Select value={storageType} onValueChange={(value: 'local' | 's3') => setStorageType(value)}>
-                  <SelectTrigger id="bg-storage-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="local">Local</SelectItem>
-                    <SelectItem value="s3">S3</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-edit-file-path">Dateipfad (relativ oder URL)</Label>
+                <Label htmlFor="bg-edit-file-path">Dateipfad (relativ)</Label>
                 <Input
                   id="bg-edit-file-path"
                   value={filePath}
@@ -263,18 +242,6 @@ export function AdminBackgroundImageEditDialog({
                   placeholder="Optional"
                 />
               </div>
-              {storageType === 's3' ? (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="bg-edit-bucket">S3 Bucket</Label>
-                    <Input id="bg-edit-bucket" value={bucket} onChange={(event) => setBucket(event.target.value)} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="bg-edit-object-key">Object Key</Label>
-                    <Input id="bg-edit-object-key" value={objectKey} onChange={(event) => setObjectKey(event.target.value)} />
-                  </div>
-                </>
-              ) : null}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

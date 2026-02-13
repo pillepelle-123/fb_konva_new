@@ -5,7 +5,7 @@ Diese Dokumentation ist nach Kategorien organisiert:
 ## 📚 Inhaltsverzeichnis
 
 ### Setup & Konfiguration
-- [AWS S3 Setup](setup/aws-s3-setup.md) - Anleitung für AWS S3 Konfiguration
+- [Lokale Speicherung](setup/local-storage.md) - Bild-Speicherung und Upload-Konfiguration
 - [Admin-Bereich](setup/admin-area.md) - Dokumentation des Admin-Bereichs
 
 ### Features

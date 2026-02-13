@@ -155,7 +155,6 @@ export interface BackgroundImage {
   paletteSlots?: 'standard' | 'auto';
   description?: string;
   tags?: string[];
-  storageType?: 'local' | 's3';
 }
 
 export interface BackgroundImageWithUrl extends BackgroundImage {
@@ -172,7 +171,6 @@ export interface Sticker {
   thumbnail: string;
   description?: string;
   tags?: string[];
-  storageType?: 'local' | 's3';
 }
 
 export interface StickerWithUrl extends Sticker {

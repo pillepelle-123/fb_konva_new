@@ -33,11 +33,8 @@ interface UploadBackgroundImagesDialogProps {
     {
       originalName: string
       storage: {
-        type?: string
         filePath?: string | null
         thumbnailPath?: string | null
-        bucket?: string | null
-        objectKey?: string | null
       }
     }[]
   >
@@ -206,7 +203,7 @@ export function UploadBackgroundImagesDialog({
     const categorySlug =
       selectedCategorySlug ||
       selectedCategory.slug ||
-      slugify(selectedCategory.name, 'uncategorized')
+      slugify(selectedCategory.name || 'uncategorized')
 
     setIsSubmitting(true)
     try {
@@ -224,11 +221,8 @@ export function UploadBackgroundImagesDialog({
           categoryId: selectedCategory.id,
           description: item.description || null,
           format: isVector ? 'vector' : 'pixel',
-          storageType: (uploadInfo.type as 'local' | 's3' | undefined) ?? 'local',
           filePath: uploadInfo.filePath ?? null,
           thumbnailPath: uploadInfo.thumbnailPath ?? uploadInfo.filePath ?? null,
-          bucket: uploadInfo.bucket ?? null,
-          objectKey: uploadInfo.objectKey ?? null,
           defaults: {
             size: item.defaults.size,
             position: item.defaults.position,
@@ -265,8 +259,7 @@ export function UploadBackgroundImagesDialog({
         <DialogHeader>
           <DialogTitle>Hintergrundbilder hinzufügen</DialogTitle>
           <DialogDescription>
-            Lade neue SVGs hoch, lege Kategorie und Standardwerte fest. Die Dateien werden lokal gespeichert – eine S3-Integration
-            ist vorbereitet.
+            Lade neue SVGs hoch, lege Kategorie und Standardwerte fest. Die Dateien werden lokal gespeichert.
           </DialogDescription>
         </DialogHeader>
 

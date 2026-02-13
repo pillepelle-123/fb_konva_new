@@ -3,8 +3,6 @@ const fs = require('fs/promises')
 const { randomUUID } = require('crypto')
 const { getUploadsSubdir } = require('../utils/uploads-path')
 
-const STORAGE_TYPE = process.env.BACKGROUND_IMAGE_STORAGE_TYPE || 'local'
-
 function slugify(value, fallback = 'file') {
   if (!value) return fallback
   const base = value
@@ -53,11 +51,8 @@ async function saveLocalBackgroundImage({ category, originalName, buffer, upload
   const publicUrl = `/uploads/${uploadPath}/${normalizedRelative}`
 
   return {
-    storageType: 'local',
     filePath: relativePath,
     thumbnailPath: relativePath,
-    bucket: null,
-    objectKey: null,
     publicUrl,
     thumbnailUrl: publicUrl,
   }
@@ -78,22 +73,24 @@ async function deleteLocalBackgroundImage({ filePath, uploadPath = 'background-i
 }
 
 async function saveBackgroundImageFile({ category, originalName, buffer, uploadPath = 'background-images' }) {
-  if (STORAGE_TYPE === 's3') {
-    throw new Error('S3 storage not yet implemented. Configure local storage or extend file-storage.js')
-  }
   return saveLocalBackgroundImage({ category, originalName, buffer, uploadPath })
 }
 
-async function deleteBackgroundImageFile({ storageType, filePath, bucket, objectKey, uploadPath = 'background-images' }) {
-  if (storageType === 's3') {
-    // Placeholder for S3 deletion when implemented
-    return
-  }
+async function deleteBackgroundImageFile({ filePath, uploadPath = 'background-images' }) {
   await deleteLocalBackgroundImage({ filePath, uploadPath })
+}
+
+async function saveBackgroundImageAtPath({ relativePath, buffer, uploadPath = 'background-images' }) {
+  const storageDir = getUploadsSubdir(uploadPath)
+  const fullPath = path.join(storageDir, relativePath)
+  await ensureDir(path.dirname(fullPath))
+  await fs.writeFile(fullPath, buffer)
+  return relativePath.replace(/\\/g, '/')
 }
 
 module.exports = {
   saveBackgroundImageFile,
   deleteBackgroundImageFile,
+  saveBackgroundImageAtPath,
 }
 

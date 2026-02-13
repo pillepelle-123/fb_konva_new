@@ -39,7 +39,7 @@ Diese Datei enthält die vollständigen Details zur Dateiorganisation im fb-konv
 - Test-Analysen (z.B. `test-issue-analysis.md`)
 
 **`docs/setup/`** - Setup-Anleitungen
-- Setup-Dokumentationen (z.B. `admin-area.md`, `aws-s3-setup.md`)
+- Setup-Dokumentationen (z.B. `admin-area.md`, `local-storage.md`)
 
 **`docs/architecture/`** - Architektur-Dokumentationen
 - Architektur-Beschreibungen (z.B. `shared-utilities.md`)
