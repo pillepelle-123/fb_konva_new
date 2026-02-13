@@ -31,7 +31,7 @@ export function StatusBar() {
     if (!state.currentBook?.pages) return [];
     return state.currentBook.pages
       .filter((p) => !(p as { isPreview?: boolean }).isPreview && !(p as { isPlaceholder?: boolean }).isPlaceholder)
-      .map((p) => ({ pageNumber: p.pageNumber ?? 0, pageType: p.pageType }));
+      .map((p) => ({ pageNumber: p.pageNumber ?? 0, pageType: p.pageType, id: (p as { id?: number }).id }));
   }, [state.currentBook?.pages]);
 
   // pageAssignments keyed by page number (1-based)

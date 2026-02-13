@@ -902,6 +902,10 @@ export default function Canvas() {
   // Phase 2.3: Determine if element should be interactive based on current tool
   // This optimizes performance by reducing event listeners on non-interactive elements
   const shouldElementBeInteractive = useCallback((element: CanvasElement): boolean => {
+    // Page number elements are never interactive (not selectable or transformable)
+    if (element.isPageNumber) {
+      return false;
+    }
     // Always interactive in select mode (for selection, dragging, etc.)
     if (state.activeTool === 'select') {
       return true;
@@ -1353,7 +1357,12 @@ export default function Canvas() {
       const stage = stageRef.current;
       
       if (state.selectedElementIds.length > 0) {
-        const selectedNodes = state.selectedElementIds.map(id => {
+        // Exclude page number elements from transformer (they are not transformable)
+        const selectableIds = state.selectedElementIds.filter(id => {
+          const el = currentPage?.elements.find(e => e.id === id);
+          return !el?.isPageNumber;
+        });
+        const selectedNodes = selectableIds.map(id => {
           try {
             let node = stage.findOne(`#${id}`);
             if (!node) {
@@ -1699,7 +1708,11 @@ export default function Canvas() {
         // Check if transformer and stage are still valid
         if (!transformerRef.current || !stageRef.current) return;
         
-        const selectedNodes = state.selectedElementIds.map(id => {
+        const selectableIds = state.selectedElementIds.filter(id => {
+          const el = currentPage?.elements.find(e => e.id === id);
+          return !el?.isPageNumber;
+        });
+        const selectedNodes = selectableIds.map(id => {
           try {
             let node = stage.findOne(`#${id}`);
             if (!node) {
@@ -1787,7 +1800,9 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    
+    if (state.pageNumberingPreview) {
+      dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
+    }
     // Deactivate style painter on any click
     if (state.stylePainterActive && e.evt.button === 0) {
       dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
@@ -2761,7 +2776,11 @@ export default function Canvas() {
               const transformer = transformerRef.current;
               const stage = stageRef.current;
               if (stage) {
-                const selectedNodes = state.selectedElementIds.map(id => {
+                const selectableIds = state.selectedElementIds.filter(id => {
+                  const el = currentPage?.elements.find(e => e.id === id);
+                  return !el?.isPageNumber;
+                });
+                const selectedNodes = selectableIds.map(id => {
                   try {
                     let node = stage.findOne(`#${id}`);
                     if (!node) {
@@ -3338,6 +3357,9 @@ export default function Canvas() {
   };
 
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (state.pageNumberingPreview) {
+      dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
+    }
     // Nach einem ungültigen Platzierungsversuch (Outside-Page-Tooltip)
     // soll der aktuelle Modus erhalten bleiben und keine Selektion
     // / Werkzeug-Umschaltung stattfinden.
@@ -3484,7 +3506,7 @@ export default function Canvas() {
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
-  }, [state.activeTool, state.stylePainterActive, dispatch]);
+  }, [state.activeTool, state.stylePainterActive, state.pageNumberingPreview, dispatch]);
 
 
   
@@ -5399,6 +5421,9 @@ export default function Canvas() {
                     lockElements={state.editorSettings?.editor?.lockElements ?? false}
                     dispatch={dispatch}
                     isZoomingRef={isZoomingRef}
+                    pageIndex={state.activePageIndex}
+                    activePageIndex={state.activePageIndex}
+                    pageNumberingPreview={state.pageNumberingPreview}
                     questionText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionText : undefined}
                     answerText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerText : undefined}
                     questionStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionStyle : undefined}
@@ -5739,6 +5764,9 @@ export default function Canvas() {
                         zoom={zoom}
                         hoveredElementId={null}
                         pageSide={isActiveLeft ? 'right' : 'left'}
+                        pageIndex={partnerPageIndex}
+                        activePageIndex={state.activePageIndex}
+                        pageNumberingPreview={null}
                       />
                     </Group>
                   );

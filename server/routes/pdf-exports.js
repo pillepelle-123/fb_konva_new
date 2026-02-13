@@ -634,6 +634,7 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
       endPage: exp.end_page,
       fileSize: exp.file_size,
       errorMessage: exp.error_message,
+      downloadCount: exp.download_count ?? 0,
       createdAt: exp.created_at,
       completedAt: exp.completed_at
     })));
@@ -643,7 +644,31 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get recent completed exports (last 24h) for notifications
+// Get count of PDF export notifications (for badge): within 24h AND not yet downloaded
+router.get('/notification-count', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT COUNT(*)::int as count
+       FROM public.pdf_exports pe
+       JOIN public.books b ON pe.book_id = b.id
+       WHERE pe.user_id = $1
+         AND pe.status = 'completed'
+         AND pe.created_at > NOW() - INTERVAL '24 hours'
+         AND COALESCE(pe.download_count, 0) = 0
+         AND (b.owner_id = $1 OR EXISTS (SELECT 1 FROM public.book_friends bf WHERE bf.book_id = b.id AND bf.user_id = $1))`,
+      [userId]
+    );
+
+    res.json({ count: result.rows[0]?.count ?? 0 });
+  } catch (error) {
+    console.error('Error fetching PDF export notification count:', error);
+    res.status(500).json({ count: 0 });
+  }
+});
+
+// Get recent completed exports for notifications: within 24h AND not yet downloaded (download_count = 0)
 router.get('/recent', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -655,6 +680,7 @@ router.get('/recent', authenticateToken, async (req, res) => {
        WHERE pe.user_id = $1
          AND pe.status = 'completed'
          AND pe.created_at > NOW() - INTERVAL '24 hours'
+         AND COALESCE(pe.download_count, 0) = 0
          AND (b.owner_id = $1 OR EXISTS (SELECT 1 FROM public.book_friends bf WHERE bf.book_id = b.id AND bf.user_id = $1))
        ORDER BY pe.created_at DESC
        LIMIT 20`,
@@ -710,6 +736,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       endPage: exp.end_page,
       fileSize: exp.file_size,
       errorMessage: exp.error_message,
+      downloadCount: exp.download_count ?? 0,
       createdAt: exp.created_at,
       completedAt: exp.completed_at
     });
@@ -766,6 +793,12 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     } catch {
       return res.status(404).json({ error: 'PDF file not found' });
     }
+
+    // Increment download count
+    await pool.query(
+      'UPDATE public.pdf_exports SET download_count = COALESCE(download_count, 0) + 1 WHERE id = $1',
+      [id]
+    );
 
     // Send file
     const fileName = `${exp.book_name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export_${exp.id}.pdf`;

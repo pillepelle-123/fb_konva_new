@@ -26,6 +26,7 @@ import {
 } from '../../components/features/books/create/types';
 import { convertTemplateToElements } from '../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../utils/template-utils';
+import { addPageNumbersToPages } from '../../utils/page-number-utils';
 import { calculatePagePairId } from '../../utils/book-structure';
 import { useAuth } from '../../context/auth-context';
 
@@ -46,6 +47,7 @@ const initialState: WizardState = {
     orientation: 'portrait',
     presetId: null,
     startMode: 'custom',
+    showPageNumbers: false,
   },
   design: {
     layoutTemplate: featuredTemplates[0],
@@ -317,6 +319,11 @@ export default function BookCreatePage() {
         });
       }
 
+      if (wizardState.basic.showPageNumbers) {
+        const canvasSize = calculatePageDimensions(wizardState.basic.pageSize, wizardState.basic.orientation);
+        addPageNumbersToPages(pages as Array<{ pageNumber: number; elements: unknown[]; [key: string]: unknown }>, canvasSize);
+      }
+
       // Persist full book including generated pages
       await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/books/${newBook.id}`, {
         method: 'PUT',
@@ -555,6 +562,10 @@ export default function BookCreatePage() {
           background: shouldHaveThemeAndBackground ? background : null,
           backgroundTransform: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? { mirror: true } : null,
         });
+      }
+
+      if (wizardState.basic.showPageNumbers) {
+        addPageNumbersToPages(pages as Array<{ pageNumber: number; elements: unknown[]; [key: string]: unknown }>, canvasSize);
       }
 
       // Assign questions to qna textboxes in order

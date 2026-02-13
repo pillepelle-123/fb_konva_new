@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../../context/auth-context';
 import { useSocket } from '../../../context/socket-context';
 import { Button } from '../../ui/primitives/button';
-import { Send } from 'lucide-react';
+import { Send, ChevronLeft } from 'lucide-react';
 import ProfilePicture from '../../features/users/profile-picture';
 import type { Conversation } from './types';
 
@@ -22,6 +22,8 @@ interface ChatWindowProps {
   shouldFocusInput?: boolean;
   onInputFocused?: () => void;
   variant?: 'default' | 'embedded';
+  /** Callback to return to conversation list (mobile only). When provided, shows a back button. */
+  onBackToConversations?: () => void;
 }
 
 export default function ChatWindow({
@@ -30,7 +32,8 @@ export default function ChatWindow({
   onMessageSent,
   shouldFocusInput,
   onInputFocused,
-  variant = 'default'
+  variant = 'default',
+  onBackToConversations
 }: ChatWindowProps) {
   const { token, user } = useAuth();
   const { socket } = useSocket();
@@ -223,9 +226,36 @@ export default function ChatWindow({
     );
   }
 
+  const displayName = conversationMeta?.is_group
+    ? (conversationMeta.title || conversationMeta.book_name || 'Group Chat')
+    : (conversationMeta?.direct_partner?.name || 'Conversation');
+
   return (
     <div className="h-full flex flex-col">
-      {conversationMeta?.is_group && (
+      {/* Mobile: Back button header to return to conversation list */}
+      {onBackToConversations && (
+        <div className="md:hidden flex items-center gap-2 px-4 py-3 border-b bg-background">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBackToConversations}
+            className="shrink-0 -ml-2"
+            aria-label="Back to conversations"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{displayName}</p>
+            {conversationMeta?.is_group && conversationMeta.book_name && (
+              <p className="text-xs text-muted-foreground truncate">Book: {conversationMeta.book_name}</p>
+            )}
+          </div>
+          {isChatDisabled && (
+            <span className="text-xs font-semibold text-destructive uppercase shrink-0">Disabled</span>
+          )}
+        </div>
+      )}
+      {conversationMeta?.is_group && !onBackToConversations && (
         <div className="px-4 py-3 border-b bg-muted/50 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">

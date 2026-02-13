@@ -102,24 +102,48 @@ export default function MessengerPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full min-h-[200px]">
         <div className="text-muted-foreground">Loading conversations...</div>
       </div>
     );
   }
 
   return (
-    // <div className="container h-full mx-auto px-4 py-8 border border-grey-400">
-      <div className="container h-full flex mx-auto border border-grey-400">
-        <div className="w-1/3 border-r">
-          <ConversationList 
+    <div className="container h-full flex mx-auto min-h-0">
+      {/* Mobile: Toggle between list and chat view */}
+      <div className="md:hidden flex-1 flex flex-col min-h-0 h-full">
+        {selectedConversation ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ChatWindow
+              conversationId={selectedConversation}
+              conversationMeta={conversations.find(c => c.id === selectedConversation) || undefined}
+              onMessageSent={fetchConversations}
+              shouldFocusInput={shouldFocusInput}
+              onInputFocused={() => setShouldFocusInput(false)}
+              onBackToConversations={() => setSelectedConversation(null)}
+            />
+          </div>
+        ) : (
+          <ConversationList
+            conversations={conversations}
+            selectedConversation={selectedConversation}
+            onConversationSelect={handleConversationSelect}
+            onConversationsUpdate={fetchConversations}
+          />
+        )}
+      </div>
+
+      {/* Desktop: Side-by-side layout */}
+      <div className="hidden md:flex flex-1 min-h-0 h-full">
+        <div className="w-1/3 min-w-0 border-r flex flex-col">
+          <ConversationList
             conversations={conversations}
             selectedConversation={selectedConversation}
             onConversationSelect={handleConversationSelect}
             onConversationsUpdate={fetchConversations}
           />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0 flex flex-col">
           {selectedConversation ? (
             <ChatWindow
               conversationId={selectedConversation}
@@ -129,12 +153,12 @@ export default function MessengerPage() {
               onInputFocused={() => setShouldFocusInput(false)}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="flex items-center justify-center flex-1 text-muted-foreground">
               Select a conversation to start messaging
             </div>
           )}
         </div>
       </div>
-    // </div>
+    </div>
   );
 }

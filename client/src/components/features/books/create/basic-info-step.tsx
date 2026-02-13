@@ -3,6 +3,8 @@ import { ArrowBigRight, BookHeart, Sparkles } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { StepContainer } from '../shared/step-container';
 import { FormField } from '../../../ui/layout/form-field';
+import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Label } from '../../../ui/primitives/label';
 import { BOOK_ORIENTATIONS, BOOK_PAGE_DIMENSIONS, type BookOrientation, type BookPageSize } from '../../../../constants/book-formats';
 import type { WizardState } from './types';
 
@@ -178,6 +180,16 @@ export function BasicInfoStep({
                   ))}
                 </div>
               </FormField>
+            </div>
+            <div className="md:col-span-2 flex items-center gap-2">
+              <Checkbox
+                id="show-page-numbers"
+                checked={wizardState.basic.showPageNumbers ?? false}
+                onCheckedChange={(checked) => onChange({ showPageNumbers: Boolean(checked) })}
+              />
+              <Label htmlFor="show-page-numbers" variant="xs" className="text-sm font-medium cursor-pointer">
+                Show Page Numbers
+              </Label>
             </div>
 
           </div>

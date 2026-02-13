@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/auth-context';
 import { Link } from 'react-router-dom';
 import { MessageCircle, FileDown } from 'lucide-react';
 import ProfilePicture from '../users/profile-picture';
 import type { Conversation } from './types';
 import { useSocket } from '../../../context/socket-context';
+import {
+  getReadNotificationIds,
+  markPdfExportAsRead,
+  markAllAsRead
+} from '../../../utils/notification-read-storage';
 
 interface NotificationPopoverProps {
   onUpdate: () => void;
   onClose: () => void;
+  /** Called when user clicks an entry (notification or "View all"). Use e.g. to close mobile nav menu. */
+  onEntryClick?: () => void;
 }
 
 interface PDFExportNotification {
@@ -19,12 +26,17 @@ interface PDFExportNotification {
   createdAt: string;
 }
 
-export default function NotificationPopover({ onUpdate, onClose }: NotificationPopoverProps) {
-  const { token } = useAuth();
+export default function NotificationPopover({ onUpdate, onClose, onEntryClick }: NotificationPopoverProps) {
+  const { token, user } = useAuth();
   const { socket } = useSocket();
   const [unreadConversations, setUnreadConversations] = useState<Conversation[]>([]);
   const [pdfExportNotifications, setPdfExportNotifications] = useState<PDFExportNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [readVersion, setReadVersion] = useState(0);
+
+  const readIds = user ? getReadNotificationIds(user.id) : { conversationIds: new Set<number>(), pdfExportIds: new Set<number>() };
+
+  const isPdfUnread = useCallback((p: PDFExportNotification) => !readIds.pdfExportIds.has(p.id), [readVersion, readIds.pdfExportIds]);
 
   useEffect(() => {
     fetchUnreadConversations();
@@ -81,24 +93,65 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
       
       if (response.ok) {
         const data = await response.json();
-        setPdfExportNotifications(data.filter((exp: any) => exp.status === 'completed'));
+        setPdfExportNotifications(
+          data
+            .filter((exp: any) => exp.status === 'completed')
+            .map((exp: any) => ({
+              id: exp.id,
+              bookId: exp.book_id ?? exp.bookId,
+              bookName: exp.book_name ?? exp.bookName ?? '',
+              status: exp.status,
+              createdAt: exp.created_at ?? exp.createdAt
+            }))
+        );
       }
     } catch (error) {
       // Silently fail - this is optional
     }
   };
 
-  const markAsRead = async (conversationId: number) => {
+  const markConversationAsReadInPopover = async (conversationId: number) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       await fetch(`${apiUrl}/messenger/conversations/${conversationId}/read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
+      fetchUnreadConversations();
       onUpdate();
     } catch (error) {
       console.error('Error marking conversation as read:', error);
     }
+  };
+
+  const handleMarkPdfAsRead = (pdfId: number) => {
+    if (user) {
+      markPdfExportAsRead(user.id, pdfId);
+      setReadVersion(v => v + 1);
+      onUpdate();
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!user) return;
+    const convIds = unreadConversations.map(c => c.id);
+    const pdfIds = pdfExportNotifications.map(p => p.id);
+    markAllAsRead(user.id, convIds, pdfIds);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    await Promise.all(
+      convIds.map((id) =>
+        fetch(`${apiUrl}/messenger/conversations/${id}/read`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      )
+    );
+    setReadVersion(v => v + 1);
+    fetchUnreadConversations();
+    fetchPDFExportNotifications();
+    onUpdate();
+    onClose();
+    onEntryClick?.();
   };
 
   const formatTime = (timestamp: string) => {
@@ -127,13 +180,15 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3>Notifications</h3>
-        <Link 
-          to="/messenger" 
-          className="text-sm text-primary hover:underline"
-          onClick={() => { onUpdate(); onClose(); }}
-        >
-          View all
-        </Link>
+        {(unreadConversations.length > 0 || pdfExportNotifications.some(isPdfUnread)) && (
+          <button
+            type="button"
+            className="text-sm text-primary hover:underline"
+            onClick={handleMarkAllAsRead}
+          >
+            Mark all as read
+          </button>
+        )}
       </div>
       
       {(unreadConversations.length === 0 && pdfExportNotifications.length === 0) ? (
@@ -143,87 +198,116 @@ export default function NotificationPopover({ onUpdate, onClose }: NotificationP
         </div>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {pdfExportNotifications.map((notification) => (
-            <Link
-              key={`pdf-${notification.id}`}
-              to={`/books/${notification.bookId}/export`}
-              onClick={() => { onClose(); }}
-              className="block p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 mt-0.5">
-                  <FileDown className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-sm truncate">PDF Export Ready</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(notification.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {notification.bookName}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ))}
-          {unreadConversations.map((conversation) => {
-            const isGroup = conversation.is_group;
-            const partner = conversation.direct_partner;
-            const conversationName = isGroup
-              ? conversation.title || conversation.book_name || 'Book Chat'
-              : partner?.name || 'Conversation';
-            const senderName = conversation.last_message_sender_name?.trim();
-            const avatarLabel = isGroup
-              ? senderName || 'Teilnehmer'
-              : partner?.name || conversationName;
-            const avatarUserId = isGroup
-              ? conversation.last_message_sender_id ?? undefined
-              : partner?.id;
-            const previewText = conversation.last_message
-              ? isGroup && senderName
-                ? `${senderName}: ${conversation.last_message}`
-                : conversation.last_message
-              : 'Keine Nachrichten';
-            const timestampLabel = conversation.last_message_time
-              ? formatTime(conversation.last_message_time)
-              : '';
-            const conversationLink = `/messenger?conversationId=${conversation.id}`;
-
-            return (
-            <Link
-              key={conversation.id}
-              to={conversationLink}
-              onClick={() => { markAsRead(conversation.id); onClose(); }}
-              className="block p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="flex items-start gap-3">
-                <ProfilePicture 
-                  name={avatarLabel} 
-                  size="sm" 
-                  userId={avatarUserId}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-sm truncate">{conversationName}</span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        {timestampLabel}
-                      </span>
-                      <div className="bg-highlight text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                        {conversation.unread_count}
-                      </div>
+          {[
+            ...pdfExportNotifications.map((n) => ({ type: 'pdf' as const, item: n, ts: new Date(n.createdAt || 0).getTime() })),
+            ...unreadConversations.map((c) => ({ type: 'conv' as const, item: c, ts: new Date(c.last_message_time || 0).getTime() }))
+          ]
+            .sort((a, b) => b.ts - a.ts)
+            .map((entry) =>
+              entry.type === 'pdf' ? (
+                <div
+                  key={`pdf-${entry.item.id}`}
+                  className={`flex items-start gap-2 p-3 rounded-lg transition-colors ${
+                    isPdfUnread(entry.item) ? 'bg-highlight/15' : ''
+                  } hover:bg-muted`}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); handleMarkPdfAsRead(entry.item.id); }}
+                    className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                    style={{ backgroundColor: isPdfUnread(entry.item) ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
+                    aria-label="Mark as read"
+                  />
+                  <Link
+                    to={`/books/${entry.item.bookId}/export`}
+                    onClick={() => { handleMarkPdfAsRead(entry.item.id); onClose(); onEntryClick?.(); }}
+                    className="flex-1 min-w-0 flex items-start gap-3"
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      <FileDown className="h-4 w-4 text-primary" />
                     </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {previewText}
-                  </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        PDF Ready{entry.item.bookName ? ` – ${entry.item.bookName}` : ''}
+                      </p>
+                    </div>
+                  </Link>
                 </div>
-              </div>
-            </Link>
-            );
-          })}
+              ) : (() => {
+                const conversation = entry.item;
+                const isGroup = conversation.is_group;
+                const partner = conversation.direct_partner;
+                const conversationName = isGroup
+                  ? conversation.title || conversation.book_name || 'Book Chat'
+                  : partner?.name || 'Conversation';
+                const senderName = conversation.last_message_sender_name?.trim();
+                const avatarLabel = isGroup
+                  ? senderName || 'Teilnehmer'
+                  : partner?.name || conversationName;
+                const avatarUserId = isGroup
+                  ? conversation.last_message_sender_id ?? undefined
+                  : partner?.id;
+                const previewText = conversation.last_message
+                  ? isGroup && senderName
+                    ? `${senderName}: ${conversation.last_message}`
+                    : conversation.last_message
+                  : 'Keine Nachrichten';
+                const timestampLabel = conversation.last_message_time
+                  ? formatTime(conversation.last_message_time)
+                  : '';
+                const conversationLink = `/messenger?conversationId=${conversation.id}`;
+
+                const isConvUnread = conversation.unread_count > 0;
+                return (
+                  <div
+                    key={`conv-${conversation.id}`}
+                    className={`flex items-start gap-2 p-3 rounded-lg transition-colors ${
+                      isConvUnread ? 'bg-highlight/15' : ''
+                    } hover:bg-muted`}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isConvUnread) markConversationAsReadInPopover(conversation.id);
+                      }}
+                      className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                      style={{ backgroundColor: isConvUnread ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
+                      aria-label="Mark as read"
+                    />
+                    <Link
+                      to={conversationLink}
+                      onClick={() => { markConversationAsReadInPopover(conversation.id); onClose(); onEntryClick?.(); }}
+                      className="flex-1 min-w-0 flex items-start gap-3"
+                    >
+                      <ProfilePicture
+                        name={avatarLabel}
+                        size="sm"
+                        userId={avatarUserId}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-sm truncate">{conversationName}</span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">
+                              {timestampLabel}
+                            </span>
+                            {conversation.unread_count > 0 && (
+                              <div className="bg-highlight text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                                {conversation.unread_count}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {previewText}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
+                );
+              })()
+            )}
         </div>
       )}
     </div>

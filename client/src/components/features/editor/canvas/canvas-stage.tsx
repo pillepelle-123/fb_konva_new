@@ -37,6 +37,16 @@ const CanvasStage = forwardRef<Konva.Stage, CanvasStageProps>(({
   style,
   interactive = true // Default to interactive mode
 }, ref) => {
+  // Guard: Konva Stage wirft Fehler bei width/height <= 0 oder NaN
+  const isValidSize = typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0 && !Number.isNaN(width) && !Number.isNaN(height);
+  if (!isValidSize) {
+    return (
+      <div style={{ width: Math.max(1, width || 1), height: Math.max(1, height || 1), display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }}>
+        <span className="text-muted-foreground text-sm">Canvas wird geladen…</span>
+      </div>
+    );
+  }
+
   // Use provided cursor style if available, otherwise use default logic
   const defaultCursor = interactive 
     ? (activeTool === 'pan' ? 'grab' : (activeTool === 'select' ? 'default' : (activeTool === 'pipette' ? 'crosshair' : 'crosshair')))

@@ -623,9 +623,9 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
                 );
                 
                 if (existingAnswer.rows.length === 0) {
-                  // Create new answer placeholder
+                  // Create new answer placeholder (ON CONFLICT for page moves / re-saves)
                   const newAnswer = await pool.query(
-                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id',
+                    'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING id',
                     [element.questionId, assignedUserId, '']
                   );
                   
@@ -710,9 +710,24 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
     // Full book update with pages
     if (pageSize && orientation && pages) {
-      // Update book metadata
-      const bookTheme = req.body.bookTheme || req.body.themeId || 'default';
-      await pool.query(
+      const client = await pool.connect();
+      const db = { query: (text, params) => client.query(text, params) };
+      try {
+        await client.query('BEGIN');
+
+        // Cleanup: restore any leftover temporary page numbers from failed saves
+        await db.query(
+          'UPDATE public.pages SET page_number = ABS(page_number) - 10000 WHERE book_id = $1 AND page_number < -10000',
+          [bookId]
+        );
+        await db.query(
+          'UPDATE public.pages SET page_number = ABS(page_number) WHERE book_id = $1 AND page_number < 0',
+          [bookId]
+        );
+
+        // Update book metadata
+        const bookTheme = req.body.bookTheme || req.body.themeId || 'default';
+        await db.query(
         `UPDATE public.books 
          SET name = $1,
              page_size = $2,
@@ -749,14 +764,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
         ]
       );
 
-      // Only temporarily set page numbers to negative if we're saving all pages (not partial save)
-      if (!onlyModifiedPages) {
-        // First, temporarily set all existing page numbers to negative values to avoid conflicts
-        await pool.query(
-          'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1 AND page_number > 0',
-          [bookId]
-        );
-      }
+        // Only temporarily set page numbers to negative if we're saving all pages (not partial save)
+        if (!onlyModifiedPages) {
+          // First, temporarily set all existing page numbers to negative values to avoid conflicts
+          await db.query(
+            'UPDATE public.pages SET page_number = -page_number WHERE book_id = $1 AND page_number > 0',
+            [bookId]
+          );
+        }
       
       // UPSERT pages: update existing, insert new
       // Process pages in reverse order (highest pageNumber first) to avoid conflicts
@@ -774,7 +789,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (page.id && processedPageIds.has(page.id) && typeof page.id === 'number' && Number.isInteger(page.id) && page.id > 0 && page.id < 2147483647) {
           // Check if this page already has the target pageNumber in the database
           // If so, we can skip it. If not, we should update it.
-          const existingPageCheck = await pool.query(
+          const existingPageCheck = await db.query(
             'SELECT page_number FROM public.pages WHERE id = $1 AND book_id = $2',
             [page.id, bookId]
           );
@@ -795,7 +810,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           // Update existing page
           // First, check if another page (not this one) already has the target pageNumber
           // If so, we need to temporarily move it to avoid conflicts
-          const conflictingPage = await pool.query(
+          const conflictingPage = await db.query(
             'SELECT id FROM public.pages WHERE book_id = $1 AND ABS(page_number) = $2 AND id != $3',
             [bookId, page.pageNumber, page.id]
           );
@@ -808,7 +823,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             // Only move pages with positive page_number (not already moved)
             if (!processedPageIds.has(conflictingPageId)) {
               // Get the current page_number to encode it properly
-              const currentPage = await pool.query(
+              const currentPage = await db.query(
                 'SELECT page_number FROM public.pages WHERE id = $1 AND book_id = $2',
                 [conflictingPageId, bookId]
               );
@@ -818,7 +833,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 if (currentPageNumber > 0) {
                   // Calculate the new page_number in JavaScript to avoid PostgreSQL type ambiguity
                   const newPageNumber = -currentPageNumber - 10000;
-                  await pool.query(
+                  await db.query(
                     'UPDATE public.pages SET page_number = $1 WHERE id = $2 AND book_id = $3',
                     [newPageNumber, conflictingPageId, bookId]
                   );
@@ -854,7 +869,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
           const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
           
-          await pool.query(
+          await db.query(
             `UPDATE public.pages 
              SET page_number = $1,
                  elements = $2,
@@ -893,7 +908,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         } else {
           // Always check if a page with this pageNumber already exists for this book
           // Use ABS() to handle cases where page_number might be temporarily negated
-          const existingPage = await pool.query(
+          const existingPage = await db.query(
             'SELECT id FROM public.pages WHERE book_id = $1 AND ABS(page_number) = $2',
             [bookId, page.pageNumber]
           );
@@ -938,7 +953,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
             };
 
-            await pool.query(
+            await db.query(
               `UPDATE public.pages 
                SET page_number = $1,
                    elements = $2,
@@ -1011,7 +1026,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
             const themeIdToInsert = 'themeId' in page ? (page.themeId || null) : null;
             
-            const pageResult = await pool.query(
+            const pageResult = await db.query(
               `INSERT INTO public.pages (
                  book_id,
                  page_number,
@@ -1051,7 +1066,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             completePageData.id = pageId;
             completePageData.database_id = pageId;
             
-            await pool.query(
+            await db.query(
               'UPDATE public.pages SET elements = $1 WHERE id = $2',
               [JSON.stringify(completePageData), pageId]
             );
@@ -1072,7 +1087,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
         // Debug: Prüfe gespeicherten Zustand nach Update/Insert
         try {
-          const storedPage = await pool.query(
+          const storedPage = await db.query(
             'SELECT id, elements FROM public.pages WHERE id = $1',
             [pageId]
           );
@@ -1099,7 +1114,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
 
         // Remove existing question associations for this page
-        await pool.query(
+        await db.query(
           'DELETE FROM public.question_pages WHERE page_id = $1',
           [pageId]
         );
@@ -1113,7 +1128,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           pageAssignment = { rows: [{ user_id: pageAssignmentFromState.userId }] };
         } else {
           // Fallback to database
-          pageAssignment = await pool.query(
+          pageAssignment = await db.query(
             'SELECT user_id FROM public.page_assignments WHERE page_id = $1',
             [pageId]
           );
@@ -1128,13 +1143,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
           // Question or QnA elements have a question on the page (questionId is UUID)
           const hasQuestionOnPage = (element.textType === 'question' || element.textType === 'qna') && element.questionId;
           if (hasQuestionOnPage) {
-            const questionExists = await pool.query(
+            const questionExists = await db.query(
               'SELECT id FROM public.questions WHERE id = $1',
               [element.questionId]
             );
             
             if (questionExists.rows.length > 0) {
-              await pool.query(
+              await db.query(
                 'INSERT INTO public.question_pages (question_id, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
                 [element.questionId, pageId]
               );
@@ -1145,19 +1160,19 @@ router.put('/:id', authenticateToken, async (req, res) => {
               const assignedUserId = pageAssignment.rows[0].user_id;
               
               // Check if question exists before creating answer
-              const questionExists = await pool.query(
+              const questionExists = await db.query(
                 'SELECT id FROM public.questions WHERE id = $1',
                 [element.questionId]
               );
               
               if (questionExists.rows.length > 0) {
-                const existingAnswer = await pool.query(
+                const existingAnswer = await db.query(
                   'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
                   [element.questionId, assignedUserId]
                 );
                 
                 if (existingAnswer.rows.length === 0) {
-                  await pool.query(
+                  await db.query(
                     'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
                     [element.questionId, assignedUserId, '']
                   );
@@ -1171,19 +1186,19 @@ router.put('/:id', authenticateToken, async (req, res) => {
             const assignedUserId = pageAssignment.rows[0].user_id;
             
             // Check if question exists before creating answer
-            const questionExists = await pool.query(
+            const questionExists = await db.query(
               'SELECT id FROM public.questions WHERE id = $1',
               [element.questionId]
             );
             
             if (questionExists.rows.length > 0) {
-              const existingAnswer = await pool.query(
+              const existingAnswer = await db.query(
                 'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
                 [element.questionId, assignedUserId]
               );
               
               if (existingAnswer.rows.length === 0) {
-                const newAnswer = await pool.query(
+                const newAnswer = await db.query(
                   'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO UPDATE SET answer_text = EXCLUDED.answer_text RETURNING id',
                   [element.questionId, assignedUserId, '']
                 );
@@ -1205,20 +1220,20 @@ router.put('/:id', authenticateToken, async (req, res) => {
           
           for (const questionElement of questionElements) {
             // Check if question exists before creating answer
-            const questionExists = await pool.query(
+            const questionExists = await db.query(
               'SELECT id FROM public.questions WHERE id = $1',
               [questionElement.questionId]
             );
             
             if (questionExists.rows.length > 0) {
-              const existingAnswer = await pool.query(
+              const existingAnswer = await db.query(
                 'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
                 [questionElement.questionId, assignedUserId]
               );
               
               if (existingAnswer.rows.length === 0) {
-                await pool.query(
-                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                await db.query(
+                  'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
                   [questionElement.questionId, assignedUserId, '']
                 );
               }
@@ -1245,7 +1260,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             ...(pageMeta.backgroundTransform ? { backgroundTransform: pageMeta.backgroundTransform } : {})
           };
           
-          await pool.query(
+          await db.query(
             'UPDATE public.pages SET elements = $1 WHERE id = $2',
             [JSON.stringify(updatedPageData), pageId]
           );
@@ -1255,7 +1270,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Delete pages that are no longer in the pages array (only if saving all pages)
       if (!onlyModifiedPages && allPageIds.length > 0) {
         const placeholders = allPageIds.map((_, i) => `$${i + 2}`).join(',');
-        await pool.query(
+        await db.query(
           `DELETE FROM public.pages WHERE book_id = $1 AND id NOT IN (${placeholders})`,
           [bookId, ...allPageIds]
         );
@@ -1270,7 +1285,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           .filter(id => id && typeof id === 'number' && Number.isInteger(id) && id > 0 && id < 2147483647);
         if (modifiedPageIds.length > 0) {
           const placeholders = modifiedPageIds.map((_, i) => `$${i + 2}`).join(',');
-          await pool.query(
+          await db.query(
             `UPDATE public.pages SET page_number = ABS(page_number) WHERE book_id = $1 AND id NOT IN (${placeholders}) AND page_number < 0`,
             [bookId, ...modifiedPageIds]
           );
@@ -1280,12 +1295,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
         // First, restore pages that were temporarily moved (page_number < -10000)
         // These were moved to make room for original pages
         // Formula: original_page_number = ABS(page_number) - 10000
-        await pool.query(
+        await db.query(
           'UPDATE public.pages SET page_number = ABS(page_number) - 10000 WHERE book_id = $1 AND page_number < -10000',
           [bookId]
         );
         // Then restore other pages with negative page numbers
-        await pool.query(
+        await db.query(
           'UPDATE public.pages SET page_number = ABS(page_number) WHERE book_id = $1 AND page_number < 0',
           [bookId]
         );
@@ -1294,7 +1309,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // After all pages are processed, create answer placeholders for newly assigned users
       if (req.body.pageAssignments) {
         for (const [pageNumber, assignment] of Object.entries(req.body.pageAssignments)) {
-          const pageResult = await pool.query(
+          const pageResult = await db.query(
             'SELECT id FROM public.pages WHERE book_id = $1 AND page_number = $2',
             [bookId, parseInt(pageNumber)]
           );
@@ -1312,20 +1327,20 @@ router.put('/:id', authenticateToken, async (req, res) => {
               
               for (const questionElement of questionElements) {
                 // Check if question exists before creating answer
-                const questionExists = await pool.query(
+                const questionExists = await db.query(
                   'SELECT id FROM public.questions WHERE id = $1',
                   [questionElement.questionId]
                 );
                 
                 if (questionExists.rows.length > 0) {
-                  const existingAnswer = await pool.query(
+                  const existingAnswer = await db.query(
                     'SELECT id FROM public.answers WHERE question_id = $1 AND user_id = $2',
                     [questionElement.questionId, assignedUserId]
                   );
                   
                   if (existingAnswer.rows.length === 0) {
-                    await pool.query(
-                      'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3)',
+                    await db.query(
+                      'INSERT INTO public.answers (id, question_id, user_id, answer_text) VALUES (uuid_generate_v4(), $1, $2, $3) ON CONFLICT (user_id, question_id) DO NOTHING',
                       [questionElement.questionId, assignedUserId, '']
                     );
                   }
@@ -1335,11 +1350,24 @@ router.put('/:id', authenticateToken, async (req, res) => {
           }
         }
       }
+
+        await client.query('COMMIT');
+      } catch (txError) {
+        await client.query('ROLLBACK');
+        throw txError;
+      } finally {
+        client.release();
+      }
     }
 
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error saving book (PUT /:id):', error);
+    console.error('Book ID:', req.params.id);
+    console.error('User ID:', req.user?.id);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Server error', details: error.message });
   } finally {
     // Always remove the save key when done
     const saveKey = `${req.user.id}-${req.params.id}`;

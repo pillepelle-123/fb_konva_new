@@ -19,9 +19,15 @@ class CanvasErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[CanvasErrorBoundary] Canvas error caught:', error);
-    console.error('[CanvasErrorBoundary] Error info:', errorInfo);
+    console.error('[CanvasErrorBoundary] Canvas error caught:', error?.message ?? String(error));
+    if (error?.stack) console.error('[CanvasErrorBoundary] Stack:', error.stack);
     console.error('[CanvasErrorBoundary] Component stack:', errorInfo.componentStack);
+    // Vollständiges Error-Objekt für Debugging (z.B. bei Konva/Stage-Fehlern)
+    console.error('[CanvasErrorBoundary] Full error info:', {
+      message: error?.message,
+      name: error?.name,
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   render() {

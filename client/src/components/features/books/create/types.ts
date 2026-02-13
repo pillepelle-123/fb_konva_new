@@ -40,6 +40,7 @@ export type WizardState = {
     orientation: BookOrientation;
     presetId: string | null;
     startMode: 'preset' | 'assistant' | 'custom';
+    showPageNumbers: boolean;
   };
   design: {
     layoutTemplate?: PageTemplate | null;

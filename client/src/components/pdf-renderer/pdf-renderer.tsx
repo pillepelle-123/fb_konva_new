@@ -2354,15 +2354,16 @@ export function PDFRenderer({
           }
           
           if (textContent && textContent.trim() !== '') {
-            // Use element properties with better defaults
+            // Use element properties with better defaults (supports page number elements)
             const fontSize = element.fontSize || element.font?.fontSize || 50;
             const fontColor = element.fontColor || element.font?.fontColor || '#000000';
-            const fontBold = element.font?.fontBold ?? false;
-            const fontItalic = element.font?.fontItalic ?? false;
+            const fontBold = element.fontBold ?? element.font?.fontBold ?? false;
+            const fontItalic = element.fontItalic ?? element.font?.fontItalic ?? false;
             const fontFamilyRaw = element.fontFamily || element.font?.fontFamily || 'Arial, sans-serif';
             const fontFamily = resolveFontFamily(fontFamilyRaw, fontBold, fontItalic);
             const fontWeight = element.fontWeight || element.font?.fontWeight || (fontBold ? 'bold' : 'normal');
             const fontStyle = element.fontStyle || element.font?.fontStyle || (fontItalic ? 'italic' : 'normal');
+            const textOpacity = element.fontOpacity ?? element.opacity ?? 1;
             
             // Set offsetX and offsetY to center the rotation pivot point
             const offsetX = elementWidth / 2;
@@ -2377,7 +2378,7 @@ export function PDFRenderer({
               offsetX: offsetX,
               offsetY: offsetY,
               rotation: elementRotation,
-              opacity: elementOpacity,
+              opacity: textOpacity,
               listening: false,
             });
             

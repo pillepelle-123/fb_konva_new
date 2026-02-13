@@ -20,6 +20,7 @@ interface PDFExport {
   endPage?: number;
   fileSize?: number;
   errorMessage?: string;
+  downloadCount?: number;
   createdAt: string;
   completedAt?: string;
 }
@@ -195,6 +196,7 @@ export function BookExportManager({
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        await loadExports(); // Refresh to show updated download count
       } else {
         toast.error('Failed to download PDF');
       }
@@ -432,6 +434,7 @@ export function BookExportManager({
                           Created: {new Date(exp.createdAt).toLocaleString()}
                           {exp.completedAt && ` • Completed: ${new Date(exp.completedAt).toLocaleString()}`}
                           {exp.fileSize && ` • Size: ${formatFileSize(exp.fileSize)}`}
+                          {exp.status === 'completed' && (exp.downloadCount ?? 0) > 0 && ` • Downloads: ${exp.downloadCount}`}
                           {exp.errorMessage && (
                             <div className="mt-1 text-destructive text-xs">{exp.errorMessage}</div>
                           )}

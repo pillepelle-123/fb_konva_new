@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog, UserCog } from 'lucide-react';
+import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog, UserCog, Hash } from 'lucide-react';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
@@ -16,6 +16,7 @@ import { PageBackgroundSettings } from './page-background-settings';
 import type { PageBackground } from '../../../../context/editor-context';
 import { EditorSettings } from './editor-settings';
 import { PageAssignmentSettings } from './page-assignment-settings';
+import { PageNumberingSettings } from './page-numbering-settings';
 
 
 interface GeneralSettingsProps {
@@ -119,6 +120,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const showEditorSettings = externalSetShowEditorSettings ? (externalShowEditorSettings ?? false) : localShowEditorSettings;
   const setShowEditorSettings = externalSetShowEditorSettings || setLocalShowEditorSettings;
   const [showPageAssignmentSettings, setShowPageAssignmentSettings] = useState(false);
+  const [showPageNumberingSettings, setShowPageNumberingSettings] = useState(false);
   
   // Keys to force remount when dialogs are opened
   const [pageLayoutKey, setPageLayoutKey] = useState(0);
@@ -176,6 +178,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
 
   if (showPageAssignmentSettings) {
     return <PageAssignmentSettings onBack={() => setShowPageAssignmentSettings(false)} />;
+  }
+
+  if (showPageNumberingSettings) {
+    return <PageNumberingSettings onBack={() => setShowPageNumberingSettings(false)} />;
   }
   
   if (showBackgroundSettings) {
@@ -326,6 +332,15 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                 >
                   <UserCog className="h-4 w-4 mr-2" />
                   Page Assignment
+                </Button>
+                <Button
+                  variant="ghost_hover"
+                  size="sm"
+                  onClick={() => setShowPageNumberingSettings(true)}
+                  className="w-full justify-start"
+                >
+                  <Hash className="h-4 w-4 mr-2" />
+                  Page Numbering
                 </Button>
               </div>
             </div>

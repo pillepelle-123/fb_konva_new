@@ -7,6 +7,7 @@ import ThemedShape from './themed-shape.tsx';
 
 import TextboxQna from './textbox-qna.tsx';
 import TextboxFreeText from './textbox-free-text.tsx';
+import { PageNumberItem } from './page-number-item.tsx';
 import Image from './image.tsx';
 import Sticker from './sticker.tsx';
 import QrCodeCanvasItem from './qr-code.tsx';
@@ -16,7 +17,7 @@ interface CanvasItemComponentProps extends CanvasItemProps {
 }
 
 function CanvasItemComponent(props: CanvasItemComponentProps) {
-  const { element, onDragStart, onSelect, hoveredElementId, interactive = true, activeTool, lockElements, dispatch: dispatchProp } = props;
+  const { element, onDragStart, onSelect, hoveredElementId, interactive = true, activeTool, lockElements, dispatch: dispatchProp, pageIndex, activePageIndex, pageNumberingPreview } = props;
   // PERFORMANCE OPTIMIZATION: dispatch is passed as prop to avoid useEditor() hook
   // This prevents re-renders when Context state changes but props stay the same
   // useEditor() is only used as fallback if dispatch is not provided (should not happen in normal flow)
@@ -146,6 +147,12 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
   }
 
   if (element.type === 'text') {
+    // Page number elements - simple non-interactive text
+    if (element.isPageNumber) {
+      const isActivePage = pageIndex !== undefined && activePageIndex !== undefined && pageIndex === activePageIndex;
+      const preview = isActivePage ? pageNumberingPreview : null;
+      return <PageNumberItem key={element.id} element={element} pageNumberingPreview={preview ?? undefined} />;
+    }
     // Check for QnA textType
     if (element.textType === 'qna') {
       // Force re-render when QnA settings change by using a key
@@ -213,6 +220,11 @@ const arePropsEqual = (
   
   // Page side
   if (prevProps.pageSide !== nextProps.pageSide) return false;
+
+  // Page numbering preview (for live preview on active page)
+  if (prevProps.pageIndex !== nextProps.pageIndex) return false;
+  if (prevProps.activePageIndex !== nextProps.activePageIndex) return false;
+  if (prevProps.pageNumberingPreview !== nextProps.pageNumberingPreview) return false;
   
   // State values
   if (prevProps.activeTool !== nextProps.activeTool) return false;

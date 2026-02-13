@@ -23,6 +23,7 @@ export default function Navigation() {
   const [mobileBooksMenuOpen, setMobileBooksMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [mobileNotificationOpen, setMobileNotificationOpen] = useState(false);
   const [profileUpdateKey, setProfileUpdateKey] = useState(0);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
@@ -91,14 +92,16 @@ export default function Navigation() {
         // Listen for PDF export completion notifications
         socket.on('pdf_export_completed', (data: { exportId: number; bookId: number; bookName: string; status: string; error?: string }) => {
           if (data.status === 'completed') {
-            // Show toast notification
+            // Sofort Badge aktualisieren (optimistic update)
+            setUnreadCount(prev => prev + 1);
+            // Toast anzeigen
             toast.success(`PDF export for "${data.bookName}" is ready!`, {
               action: {
                 label: 'View',
                 onClick: () => navigate(`/books/${data.bookId}/export`)
               }
             });
-            // Refresh notifications
+            // Exakten Count vom Server holen
             fetchUnreadCount();
           } else if (data.status === 'failed') {
             toast.error(`PDF export for "${data.bookName}" failed: ${data.error || 'Unknown error'}`);
@@ -124,17 +127,35 @@ export default function Navigation() {
     try {
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/messenger/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          setUnreadCount(data.count);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [messengerRes, pdfRes] = await Promise.all([
+        fetch(`${apiUrl}/messenger/unread-count`, { headers }),
+        fetch(`${apiUrl}/pdf-exports/recent`, { headers })
+      ]);
+
+      let messengerCount = 0;
+      let pdfCount = 0;
+
+      if (messengerRes.ok) {
+        const ct = messengerRes.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          const data = await messengerRes.json();
+          messengerCount = data.count ?? 0;
         }
       }
+      if (pdfRes.ok) {
+        const ct = pdfRes.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          const data = await pdfRes.json();
+          const pdfList = Array.isArray(data) ? data : [];
+          const pdfIds = pdfList.map((p: { id: number }) => p.id);
+          const { getUnreadPdfCount } = await import('../../utils/notification-read-storage');
+          pdfCount = user ? getUnreadPdfCount(user.id, pdfIds) : pdfIds.length;
+        }
+      }
+
+      setUnreadCount(messengerCount + pdfCount);
     } catch (error) {
       console.error('Error fetching unread count:', error);
       setUnreadCount(0);
@@ -153,7 +174,7 @@ export default function Navigation() {
   return (
     <nav className="relative bg-primary sticky top-0 z-50 pb-4 shadow-lg" style={{ clipPath: 'ellipse(1200px 100% at 50% 0%)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center">
+        <div className="flex pt-2 items-center">
           {/* Logo */}
           <Link to={user ? '/dashboard' : '/'} className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background md:mr-2">
@@ -331,11 +352,11 @@ export default function Navigation() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button - Badge nur wenn Menü geschlossen */}
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden text-white hover:bg-white/10 ml-auto"
+            className="md:hidden relative text-white hover:bg-white/10 ml-auto"
             onClick={() => {
               setIsMobileMenuOpen(!isMobileMenuOpen);
               setUserMenuOpen(false);
@@ -344,6 +365,11 @@ export default function Navigation() {
             }}
           >
             <Menu className="h-5 w-5" />
+            {user && unreadCount > 0 && !isMobileMenuOpen && (
+              <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
           </Button>
         </div>
 
@@ -397,7 +423,7 @@ export default function Navigation() {
                       setMobileBooksMenuOpen(false);
                     }}>
                       <Button
-                        variant="ghost"
+                        variant="highlight"
                         className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
                       >
                         <Plus className="h-4 w-4" />
@@ -491,23 +517,44 @@ export default function Navigation() {
               </>
             )}
             {user && (
-              <div className="pt-4 border-t space-y-1">
-                <Button
-                  variant="ghost"
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                >
-                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`mobile-${profileUpdateKey}`} />
-                  <span>{user.name}</span>
-                  <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${
-                    userMenuOpen ? 'rotate-180' : ''
-                  }`} />
-                  {/* <User className="h-4 w-4" />
-                  <span>{user.name}</span>
-                  <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${
-                    userMenuOpen ? 'rotate-180' : ''
-                  }`} /> */}
-                </Button>
+              <div className="pt-4 border-t border-white/20 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="flex-1 justify-start space-x-2 text-white hover:bg-white/10 hover:text-white min-w-0"
+                  >
+                    <ProfilePicture name={user.name} size="sm" userId={user.id} key={`mobile-${profileUpdateKey}`} className="shrink-0" />
+                    <span className="truncate">{user.name}</span>
+                    <ChevronDown className={`h-3 w-3 ml-auto shrink-0 transition-transform ${
+                      userMenuOpen ? 'rotate-180' : ''
+                    }`} />
+                  </Button>
+                  <Popover open={mobileNotificationOpen} onOpenChange={setMobileNotificationOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="relative shrink-0 text-white hover:bg-white/10 p-2"
+                        aria-label="Notifications"
+                      >
+                        <Bell className="h-5 w-5" />
+                        {unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </div>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80" align="end">
+                      <NotificationPopover
+                        onUpdate={fetchUnreadCount}
+                        onClose={() => setMobileNotificationOpen(false)}
+                        onEntryClick={() => setIsMobileMenuOpen(false)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 {userMenuOpen && (
                   <div className="pl-4 space-y-1">
                     <Button

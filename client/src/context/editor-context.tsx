@@ -128,6 +128,7 @@ import { getBorderTheme } from '../utils/theme-utils';
 import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { calculatePageDimensions } from '../utils/template-utils';
+import { createPageNumberElement, type PageNumberingSettings } from '../utils/page-number-utils';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
@@ -376,7 +377,11 @@ export interface CanvasElement {
   fontFamily?: string;
   fontStyle?: 'normal' | 'italic';
   fontColor?: string;
+  fontBold?: boolean;
+  fontItalic?: boolean;
+  fontOpacity?: number;
   textType?: 'question' | 'answer' | 'text' | 'qna' | 'free_text';
+  isPageNumber?: boolean; // Page number elements are not selectable/transformable
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
   questionElementId?: string; // Legacy - for linking answer to question element
@@ -835,6 +840,8 @@ export interface EditorState {
   modifiedPageIds: Set<number>; // Track which pages have been modified since last save
   tempQuestions: Record<string, string>;
   tempAnswers: Record<string, string>;
+  /** Live preview for page numbering settings (reverted on Cancel or click outside) */
+  pageNumberingPreview: PageNumberingSettings | null;
 }
 
 type EditorAction =
@@ -877,6 +884,9 @@ type EditorAction =
   | { type: 'DELETE_TEMP_QUESTION'; payload: { questionId: string } }
   | { type: 'UPDATE_TEMP_ANSWER'; payload: { questionId: string; text: string; userId?: number; answerId?: string } }
   | { type: 'UPDATE_BOOK_NAME'; payload: string }
+  | { type: 'UPDATE_PAGE_NUMBERING'; payload: { enabled: boolean; settings: PageNumberingSettings } }
+  | { type: 'SET_PAGE_NUMBERING_PREVIEW'; payload: PageNumberingSettings | null }
+  | { type: 'CLEAR_PAGE_NUMBERING_PREVIEW' }
   | { type: 'CLEAR_TEMP_DATA' }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -965,6 +975,7 @@ const initialState: EditorState = {
   pagePreviewCache: {},
   pagePreviewVersions: {},
   modifiedPageIds: new Set<number>(),
+  pageNumberingPreview: null,
 };
 
 const BASE_HISTORY_LIMIT = 20;
@@ -4254,6 +4265,70 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
         hasUnsavedChanges: true
       };
+
+    case 'UPDATE_PAGE_NUMBERING': {
+      if (!state.currentBook) return state;
+      if (state.editorInteractionLevel === 'answer_only') return state;
+      const savedState = saveToHistory(state, 'Page Numbering', { cloneEntireBook: true });
+      const book = savedState.currentBook!;
+      const { enabled, settings } = action.payload;
+      const canvasSize = calculatePageDimensions(book.pageSize || 'A4', book.orientation || 'portrait');
+      const totalPages = book.pages.length;
+
+      const updatedPages = book.pages.map((page, index) => {
+        const pageNumber = index + 1;
+        const isSpecial = pageNumber === 1 || pageNumber === 2 || pageNumber === 3 || pageNumber === totalPages;
+        if (isSpecial) return page;
+
+        const elements = page.elements || [];
+        const existingPageNumberEl = elements.find((el: CanvasElement) => el.isPageNumber);
+
+        if (!enabled) {
+          return { ...page, elements: elements.filter((el: CanvasElement) => !el.isPageNumber) };
+        }
+
+        const contentPageNumber = book.pages
+          .slice(0, index)
+          .filter((_, i) => {
+            const pn = i + 1;
+            return pn !== 1 && pn !== 2 && pn !== 3 && pn !== totalPages;
+          }).length + 1;
+
+        const updates = {
+          fontFamily: settings.fontFamily,
+          fontSize: settings.fontSize,
+          fontBold: settings.fontBold,
+          fontItalic: settings.fontItalic,
+          fontColor: settings.fontColor,
+          fontOpacity: settings.fontOpacity,
+        };
+
+        if (existingPageNumberEl) {
+          return {
+            ...page,
+            elements: elements.map((el: CanvasElement) =>
+              el.isPageNumber ? { ...el, ...updates, text: String(contentPageNumber) } : el
+            ),
+          };
+        }
+
+        const newEl = createPageNumberElement(contentPageNumber, canvasSize.width, canvasSize.height, settings);
+        return { ...page, elements: [...elements, newEl] };
+      });
+
+      const updatedBook = { ...book, pages: updatedPages };
+      const affectedIndexes = updatedPages.map((_, i) => i);
+      return invalidatePagePreviews(
+        { ...savedState, currentBook: updatedBook, hasUnsavedChanges: true, pageNumberingPreview: null },
+        affectedIndexes
+      );
+    }
+
+    case 'SET_PAGE_NUMBERING_PREVIEW':
+      return { ...state, pageNumberingPreview: action.payload };
+
+    case 'CLEAR_PAGE_NUMBERING_PREVIEW':
+      return { ...state, pageNumberingPreview: null };
     
     case 'UPDATE_BOOK_SETTINGS':
       if (!state.currentBook) return state;
@@ -4361,7 +4436,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const newActiveIndex = activePageId
         ? pagesWithCorrectPairIds.findIndex((p) => p.id === activePageId)
         : savedState.activePageIndex;
-      return withPreviewInvalidation({
+      const reorderState = withPreviewInvalidation({
         ...savedState,
         currentBook: {
           ...savedState.currentBook!,
@@ -4371,6 +4446,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         activePageIndex: newActiveIndex >= 0 ? newActiveIndex : savedState.activePageIndex,
         hasUnsavedChanges: true
       });
+      return markAllPagesAsModified(reorderState);
     }
     
     case 'MOVE_ELEMENT_TO_FRONT':

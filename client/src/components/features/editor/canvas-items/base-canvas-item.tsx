@@ -42,6 +42,11 @@ export interface CanvasItemProps {
   answerStyle?: RichTextStyle;
   assignedUser?: { id: string } | null;
   isZoomingRef?: React.MutableRefObject<boolean>; // Ref to track zooming state
+  /** Page index for page number preview (only active page shows preview) */
+  pageIndex?: number;
+  activePageIndex?: number;
+  /** Live preview for page numbering settings */
+  pageNumberingPreview?: import('../../../../utils/page-number-utils').PageNumberingSettings | null;
 }
 
 interface BaseCanvasItemProps extends CanvasItemProps {

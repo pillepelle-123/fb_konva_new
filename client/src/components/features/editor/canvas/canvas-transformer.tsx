@@ -1,6 +1,32 @@
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useCallback } from 'react';
 import { Transformer } from 'react-konva';
 import Konva from 'konva';
+
+/**
+ * Workaround für Konva-Bug: Transformer.startDrag wirft "Cannot set properties of undefined (setting 'dragStatus')"
+ * wenn _createDragElement früh zurückkehrt (z.B. getStage() === null während React Re-Renders).
+ */
+function patchTransformerStartDrag(transformer: Konva.Transformer): void {
+  const originalStartDrag = transformer.startDrag.bind(transformer);
+  transformer.startDrag = function (evt: unknown, bubbleEvent?: boolean) {
+    if (!this.getStage()) return;
+    originalStartDrag(evt, bubbleEvent);
+  };
+}
+
+/**
+ * Workaround für Konva-Bug: Transformer._batchChangeChild wirft "Cannot read properties of undefined (reading 'setAttrs')"
+ * wenn findOne(selector) null zurückgibt (z.B. Anker-Elemente noch nicht erstellt oder bereits zerstört).
+ */
+function patchTransformerBatchChangeChild(transformer: Konva.Transformer): void {
+  const t = transformer as Konva.Transformer & { _batchChangeChild(selector: string, attrs: Record<string, unknown>): void };
+  t._batchChangeChild = function (selector: string, attrs: Record<string, unknown>) {
+    const anchor = this.findOne(selector);
+    if (anchor && typeof anchor.setAttrs === 'function') {
+      anchor.setAttrs(attrs);
+    }
+  };
+}
 
 interface CanvasTransformerProps {
   onDragStart?: (e: Konva.KonvaEventObject<DragEvent>) => void;
@@ -33,6 +59,18 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
   resizeEnabled = true,
   rotateEnabled = true
 }, ref) => {
+  const setRef = useCallback(
+    (node: Konva.Transformer | null) => {
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+      if (node) {
+        patchTransformerStartDrag(node);
+        patchTransformerBatchChangeChild(node);
+      }
+    },
+    [ref]
+  );
+
   // Defensive programming: Ensure transformer nodes are valid
   useEffect(() => {
     const checkTransformerNodes = () => {
@@ -71,7 +109,7 @@ const CanvasTransformer = forwardRef<Konva.Transformer, CanvasTransformerProps>(
 
   return (
     <Transformer
-      ref={ref}
+      ref={setRef}
       keepRatio={keepRatio}
       enabledAnchors={resizeEnabled ? (enabledAnchors !== undefined ? enabledAnchors : (keepRatio ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'] : ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top-center', 'middle-left', 'middle-right', 'bottom-center'])) : []}
       boundBoxFunc={boundBoxFunc || ((oldBox, newBox) => {

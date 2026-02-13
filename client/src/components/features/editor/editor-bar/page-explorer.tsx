@@ -18,6 +18,8 @@ import { Tooltip } from '../../../ui/composites/tooltip';
 export interface PageItem {
   pageNumber: number;
   pageType?: string;
+  /** Stable ID for DnD – prevents visual jump-back when pageNumber changes after reorder */
+  id?: number | string;
 }
 
 export interface PageExplorerProps {
@@ -180,6 +182,11 @@ function NonDraggablePagePair({
   );
 }
 
+function getPairSortableId(pair: PageItem[]): string {
+  const stableId = pair[0]?.id ?? pair[0]?.pageNumber;
+  return `pair-${stableId}`;
+}
+
 function SortablePagePair({
   pair,
   pageAssignments,
@@ -193,9 +200,9 @@ function SortablePagePair({
   activePageNumber?: number;
   onPageSelect?: (pageNumber: number) => void;
 }) {
-  const id = `pair-${pair[0].pageNumber}`;
+  const sortableId = getPairSortableId(pair);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
+    id: sortableId,
   });
 
   const style = {
@@ -250,7 +257,7 @@ export function PageExplorer({
     [pagePairs, totalPages]
   );
   const sortableIds = useMemo(
-    () => draggablePairs.map((p) => `pair-${p[0].pageNumber}`),
+    () => draggablePairs.map((p) => getPairSortableId(p)),
     [draggablePairs]
   );
 
@@ -264,8 +271,8 @@ export function PageExplorer({
     const { active, over } = event;
     if (!over || active.id === over.id || !onPageOrderChange) return;
 
-    const oldIdx = draggablePairs.findIndex((p) => `pair-${p[0].pageNumber}` === active.id);
-    const newIdx = draggablePairs.findIndex((p) => `pair-${p[0].pageNumber}` === over.id);
+    const oldIdx = draggablePairs.findIndex((p) => getPairSortableId(p) === active.id);
+    const newIdx = draggablePairs.findIndex((p) => getPairSortableId(p) === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
 
     const reorderedDraggable = arrayMove(draggablePairs, oldIdx, newIdx);
@@ -291,7 +298,7 @@ export function PageExplorer({
         <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
           <div className={containerClassName}>
             {pagePairs.map((pair) => (
-              <div key={`pair-${pair[0].pageNumber}`} className={layout === 'horizontal' ? 'flex-shrink-0' : undefined}>
+              <div key={getPairSortableId(pair)} className={layout === 'horizontal' ? 'flex-shrink-0' : undefined}>
                 {isPairDraggable(pair, totalPages) ? (
                   <SortablePagePair
                     pair={pair}
