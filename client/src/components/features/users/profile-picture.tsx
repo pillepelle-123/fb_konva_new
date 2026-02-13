@@ -107,7 +107,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
           style={{ backgroundColor: `#${getConsistentColor(displayName)}` }}
         >
           <img
-            className={`w-full h-full rounded-full ${className}`}
+            className={`w-full h-full rounded-full object-cover ${className}`}
             src={imageUrl}
             alt={displayName}
             crossOrigin={profileImageUrl ? 'use-credentials' : undefined}
@@ -133,7 +133,7 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
   return (
     <div className="relative inline-block">
       <img
-        className={`${sizeClass} rounded-full ${className}`}
+        className={`${sizeClass} rounded-full object-cover ${className}`}
         src={imageUrl}
         alt={displayName}
         crossOrigin={profileImageUrl ? 'use-credentials' : undefined}

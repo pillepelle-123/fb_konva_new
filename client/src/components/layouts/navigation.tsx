@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { Book, BookUser, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessagesSquare, Users, LayoutDashboard, LibraryBig, Plus } from 'lucide-react';
+import { Book, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessagesSquare, Users, LayoutDashboard, LibraryBig, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useIsDesktop } from '../../hooks/useMediaQuery';
 import ProfilePicture from '../features/users/profile-picture';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
 import NotificationPopover from '../features/messenger/notification-popover';
@@ -26,6 +27,7 @@ export default function Navigation() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   
+  const isDesktop = useIsDesktop();
   const isInEditor = location.pathname.startsWith('/editor/');
 
   const isActive = (path: string) => location.pathname === path;
@@ -149,15 +151,15 @@ export default function Navigation() {
   ];
 
   return (
-    <nav className="relative bg-primary sticky top-0 z-50 pb-4 shadow-lg" style={{ clipPath: 'ellipse(70% 100% at 50% 0%)' }}>
+    <nav className="relative bg-primary sticky top-0 z-50 pb-4 shadow-lg" style={{ clipPath: 'ellipse(1200px 100% at 50% 0%)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center">
           {/* Logo */}
           <Link to={user ? '/dashboard' : '/'} className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background md:mr-2">
               <LibraryBig className="h-7 w-7 text-primary"/>
             </div>
-            <span className="text-2xl text-primary-foreground pt-2" style={{ fontFamily: '"Gochi Hand", cursive' }}>dein-freundebuch.de</span>
+            <span className=" sm:inline md:hidden lg:inline text-2xl text-primary-foreground pt-2" style={{ fontFamily: '"Gochi Hand", cursive' }}>dein-freundebuch.de</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -292,7 +294,7 @@ export default function Navigation() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="relative text-white hover:bg-white/10 p-2"
+                      className="relative text-white hover:bg-white/10 p-2 shrink-0"
                     >
                       <Bell className="h-5 w-5" />
                       {unreadCount > 0 && (
@@ -307,21 +309,21 @@ export default function Navigation() {
                   </PopoverContent>
                 </Popover>
                 
-                <div className="relative">
+                <div className="relative shrink-0">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center space-x-2 text-sm text-white/80 hover:bg-white/10 hover:text-white p-1"
+                  className="flex items-center justify-center text-sm text-white/80 hover:bg-white/10 hover:text-white p-1 shrink-0"
                 >
-                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`desktop-${profileUpdateKey}`} />
+                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`desktop-${profileUpdateKey}`} className="shrink-0" />
                   {/* <User className="h-4 w-4" />
                   <span>{user.name}</span>
                   <ChevronDown className={`h-3 w-3 transition-transform ${
                     userMenuOpen ? 'rotate-180' : ''
                   }`} /> */}
                 </Button>
-                {userMenuOpen && (
+                {userMenuOpen && isDesktop && (
                   <NavigationSubMenu onClose={() => setUserMenuOpen(false)} />
                 )}
                 </div>
@@ -347,7 +349,7 @@ export default function Navigation() {
 
         {/* Mobile Navigation */}
         {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-white/20 py-4 space-y-2">
+          <div className="md:hidden border-t border-white/20 space-y-2">
             {user ? (
               <>
                 <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
@@ -508,42 +510,42 @@ export default function Navigation() {
                 </Button>
                 {userMenuOpen && (
                   <div className="pl-4 space-y-1">
-                    <Link to="/messenger" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setUserMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <MessagesSquare className="h-4 w-4" />
-                        <span>Messenger</span>
-                      </Button>
-                    </Link>
-                    <Link to="/my-profile" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setUserMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <IdCard className="h-4 w-4" />
-                        <span>Profile</span>
-                      </Button>
-                    </Link>
-                    <Link to="/settings" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setUserMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <Settings className="h-4 w-4" />
-                        <span>Settings</span>
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        navigate('/messenger');
+                        setIsMobileMenuOpen(false);
+                        setUserMenuOpen(false);
+                      }}
+                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
+                    >
+                      <MessagesSquare className="h-4 w-4" />
+                      <span>Messenger</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        navigate('/my-profile');
+                        setIsMobileMenuOpen(false);
+                        setUserMenuOpen(false);
+                      }}
+                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
+                    >
+                      <IdCard className="h-4 w-4" />
+                      <span>Profile</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        navigate('/settings');
+                        setIsMobileMenuOpen(false);
+                        setUserMenuOpen(false);
+                      }}
+                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Settings</span>
+                    </Button>
                     <Button
                       variant="ghost"
                       onClick={() => {

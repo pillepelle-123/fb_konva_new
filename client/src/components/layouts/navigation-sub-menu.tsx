@@ -25,7 +25,7 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
   }, [onClose]);
 
   return createPortal(
-    <div ref={menuRef} className="fixed top-16 right-4 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-[9999]">
+    <div ref={menuRef} className="hidden md:block fixed top-16 right-4 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-[9999]">
       <Link to="/messenger" onClick={onClose}>
         <Button
           variant="ghost"
