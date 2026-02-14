@@ -325,7 +325,7 @@ export default function Navigation() {
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-80">
+                  <PopoverContent className="w-80 sm:w-[calc(100vw-2rem)] sm:max-w-md">
                     <NotificationPopover onUpdate={fetchUnreadCount} onClose={() => setNotificationOpen(false)} />
                   </PopoverContent>
                 </Popover>
@@ -546,7 +546,7 @@ export default function Navigation() {
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-80" align="end">
+                    <PopoverContent className="w-80 sm:w-[calc(100vw-2rem)] sm:max-w-md" align="end">
                       <NotificationPopover
                         onUpdate={fetchUnreadCount}
                         onClose={() => setMobileNotificationOpen(false)}

@@ -655,6 +655,7 @@ export default function Canvas() {
   // Memory optimization: Limit cache size to prevent excessive RAM usage
   const MAX_CACHE_ENTRIES = 20; // Maximum number of cached images
   const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
+  const [backgroundSvgLoadedVersion, setBackgroundSvgLoadedVersion] = useState(0);
   const backgroundImageCacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
   const loadingImagesRef = useRef<Set<string>>(new Set());
   const failedBackgroundUrlsRef = useRef<Set<string>>(new Set()); // Avoid retries and repeated errors
@@ -3650,6 +3651,7 @@ export default function Canvas() {
       templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
       applyPalette: (currentPage?.background as any)?.applyPalette,
     }),
+    backgroundSvgLoadedVersion,
   ]);
 
   // Listen for cache invalidation events (e.g., when palette changes)
@@ -3725,9 +3727,16 @@ export default function Canvas() {
       }
     };
 
+    const handleSvgLoaded = () => {
+      setBackgroundSvgLoadedVersion((v) => v + 1);
+      window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: {} }));
+    };
+
     window.addEventListener('invalidateBackgroundImageCache', handleInvalidateCache as EventListener);
+    window.addEventListener('backgroundImageSvgLoaded', handleSvgLoaded as EventListener);
     return () => {
       window.removeEventListener('invalidateBackgroundImageCache', handleInvalidateCache as EventListener);
+      window.removeEventListener('backgroundImageSvgLoaded', handleSvgLoaded as EventListener);
     };
   }, [state.currentBook?.pages]);
 

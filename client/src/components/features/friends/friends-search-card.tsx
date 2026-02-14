@@ -6,7 +6,7 @@ import { UserPlus } from 'lucide-react';
 interface User {
   id: number;
   name: string;
-  email: string;
+  email?: string;
 }
 
 interface FriendsSearchCardProps {
@@ -25,7 +25,7 @@ export default function FriendsSearchCard({ user, onAddFriend, onSelectFriend, i
             <ProfilePicture name={user.name} size="sm" userId={user.id} />
             <div>
               <p className="font-medium">{user.name}</p>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              {user.email && <p className="text-sm text-muted-foreground">{user.email}</p>}
             </div>
           </div>
           {isAlreadyFriend ? (

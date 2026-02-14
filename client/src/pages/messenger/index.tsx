@@ -12,10 +12,11 @@ export default function MessengerPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [archivedFilter, setArchivedFilter] = useState(false);
 
   useEffect(() => {
     fetchConversations();
-  }, []);
+  }, [archivedFilter]);
 
   useEffect(() => {
     if (loading) return;
@@ -54,7 +55,8 @@ export default function MessengerPage() {
   const fetchConversations = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/messenger/conversations`, {
+      const url = `${apiUrl}/messenger/conversations${archivedFilter ? '?archived=true' : ''}`;
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -73,8 +75,18 @@ export default function MessengerPage() {
     }
   };
 
+  const handleArchivedFilterChange = (archived: boolean) => {
+    setArchivedFilter(archived);
+    setLoading(true);
+  };
+
   const handleConversationSelect = (conversationId: number) => {
     setSelectedConversation(conversationId);
+  };
+
+  const handleNewConversationCreated = (conversationId: number) => {
+    setSelectedConversation(conversationId);
+    setShouldFocusInput(true);
   };
 
   const createConversation = async (friendId: number) => {
@@ -129,6 +141,9 @@ export default function MessengerPage() {
             selectedConversation={selectedConversation}
             onConversationSelect={handleConversationSelect}
             onConversationsUpdate={fetchConversations}
+            onNewConversationCreated={handleNewConversationCreated}
+            archivedFilter={archivedFilter}
+            onArchivedFilterChange={handleArchivedFilterChange}
           />
         )}
       </div>
@@ -141,6 +156,9 @@ export default function MessengerPage() {
             selectedConversation={selectedConversation}
             onConversationSelect={handleConversationSelect}
             onConversationsUpdate={fetchConversations}
+            onNewConversationCreated={handleNewConversationCreated}
+            archivedFilter={archivedFilter}
+            onArchivedFilterChange={handleArchivedFilterChange}
           />
         </div>
         <div className="flex-1 min-w-0 flex flex-col">

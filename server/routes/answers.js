@@ -21,10 +21,51 @@ pool.on('connect', (client) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { id, questionId, answerText, userId: requestUserId } = req.body;
-    const userId = requestUserId || req.user.id;
+    let userId = req.user.id;
+
+    // Only allow requestUserId when requester is publisher/owner and target user is in the book
+    if (requestUserId !== undefined && requestUserId !== null && Number(requestUserId) !== req.user.id) {
+      const questionAndBook = await pool.query(`
+        SELECT q.id, b.owner_id, bf.book_role
+        FROM public.questions q
+        JOIN public.books b ON q.book_id = b.id
+        LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+        WHERE q.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+      `, [questionId, req.user.id]);
+
+      if (questionAndBook.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized to access this question' });
+      }
+
+      const isOwner = questionAndBook.rows[0].owner_id === req.user.id;
+      const isPublisher = questionAndBook.rows[0].book_role === 'publisher';
+      if (!isOwner && !isPublisher) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      // Verify target user is assigned to the book (page_assignment or book_friend as author)
+      const targetUserInBook = await pool.query(`
+        SELECT 1 FROM (
+          SELECT pa.user_id FROM public.page_assignments pa
+          JOIN public.pages p ON pa.page_id = p.id
+          WHERE p.book_id = (SELECT book_id FROM public.questions WHERE id = $1) AND pa.user_id = $2
+          UNION
+          SELECT bf.user_id FROM public.book_friends bf
+          JOIN public.books b ON bf.book_id = b.id
+          JOIN public.questions q ON q.book_id = b.id
+          WHERE q.id = $1 AND bf.user_id = $2
+        ) sub
+      `, [questionId, requestUserId]);
+
+      if (targetUserInBook.rows.length === 0) {
+        return res.status(403).json({ error: 'Target user is not assigned to this book' });
+      }
+
+      userId = Number(requestUserId);
+    }
 
     // Strip HTML tags from answer text
-    const cleanAnswerText = answerText.replace(/<[^>]*>/g, '').trim();
+    const cleanAnswerText = (typeof answerText === 'string' ? answerText : '').replace(/<[^>]*>/g, '').trim();
 
     if (!questionId || cleanAnswerText === undefined || cleanAnswerText === null) {
       return res.status(400).json({ error: 'Missing questionId or answerText' });
@@ -44,12 +85,15 @@ router.post('/', authenticateToken, async (req, res) => {
     if (id) {
       // Use provided UUID - check if answer already exists
       const existingAnswer = await pool.query(
-        'SELECT id FROM public.answers WHERE id = $1',
+        'SELECT id, user_id FROM public.answers WHERE id = $1',
         [id]
       );
 
       if (existingAnswer.rows.length > 0) {
-        // Update existing answer
+        // Update existing answer - verify it belongs to the target userId
+        if (existingAnswer.rows[0].user_id !== userId) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
         result = await pool.query(
           'UPDATE public.answers SET answer_text = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
           [cleanAnswerText, id]

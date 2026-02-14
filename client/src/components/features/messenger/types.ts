@@ -17,5 +17,8 @@ export interface Conversation {
   unread_count: number;
   participants: ConversationParticipant[] | null;
   direct_partner?: ConversationParticipant | null;
+  muted?: boolean;
+  archived?: boolean;
+  blocked_by_other?: boolean;
 }
 

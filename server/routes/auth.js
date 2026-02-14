@@ -6,6 +6,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Secure cookie options: httpOnly prevents XSS, secure enforces HTTPS in production, sameSite mitigates CSRF
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -40,7 +41,7 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
-    const existingUser = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT id, name, email, role, password_hash, registered FROM public.users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
       if (existingUser.rows[0].registered) {
         return res.status(400).json({ error: 'User already exists' });
@@ -77,7 +78,7 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    const result = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id, name, email, role, password_hash, registered FROM public.users WHERE email = $1', [email]);
     const user = result.rows[0];
     
     if (!user || !await bcrypt.compare(password, user.password_hash)) {

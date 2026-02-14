@@ -17,10 +17,26 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
+// Helper: Check if user has access to book (owner or book_friend)
+async function checkBookAccess(bookId, userId) {
+  const bookAccess = await pool.query(`
+    SELECT b.id FROM public.books b
+    LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
+    WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)
+  `, [bookId, userId]);
+  return bookAccess.rows.length > 0;
+}
+
 // Get questions by book ID
 router.get('/book/:bookId', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.bookId;
+    const userId = req.user.id;
+
+    if (!(await checkBookAccess(bookId, userId))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const result = await pool.query(
       'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
       [bookId]
@@ -37,9 +53,13 @@ router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.bookId;
     const userId = req.user.id;
-    
-      // Get questions from pages assigned to the current user
-      const result = await pool.query(`
+
+    if (!(await checkBookAccess(bookId, userId))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get questions from pages assigned to the current user
+    const result = await pool.query(`
       SELECT DISTINCT q.*
       FROM public.questions q
       JOIN public.pages p ON p.book_id = q.book_id
@@ -59,6 +79,12 @@ router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
 router.get('/:bookId', authenticateToken, async (req, res) => {
   try {
     const bookId = req.params.bookId;
+    const userId = req.user.id;
+
+    if (!(await checkBookAccess(bookId, userId))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const result = await pool.query(
       'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
       [bookId]

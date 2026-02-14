@@ -32,7 +32,7 @@ router.get('/stats', auth, async (req, res) => {
       pool.query('SELECT COUNT(DISTINCT b.id) as count FROM public.books b LEFT JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1 OR b.owner_id = $1', [userId]),
       pool.query('SELECT COUNT(*) as count FROM public.questions q JOIN public.books b ON q.book_id = b.id JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1', [userId]),
       pool.query('SELECT COUNT(*) as count FROM public.answers a JOIN public.questions q ON a.question_id = q.id JOIN public.books b ON q.book_id = b.id JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1', [userId]),
-      pool.query('SELECT COUNT(*) as count FROM public.friendships WHERE (user_id = $1 OR friend_id = $1)', [userId])
+      pool.query('SELECT COUNT(*) as count FROM public.friendships WHERE (user_id = $1 OR friend_id = $1) AND ended_at IS NULL', [userId])
     ]);
     
     res.json({
@@ -111,7 +111,7 @@ router.get('/all', auth, async (req, res) => {
         pool.query('SELECT COUNT(DISTINCT b.id) as count FROM public.books b LEFT JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1 OR b.owner_id = $1', [userId]),
         pool.query('SELECT COUNT(*) as count FROM public.questions q JOIN public.books b ON q.book_id = b.id JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1', [userId]),
         pool.query('SELECT COUNT(*) as count FROM public.answers a JOIN public.questions q ON a.question_id = q.id JOIN public.books b ON q.book_id = b.id JOIN public.book_friends bf ON b.id = bf.book_id WHERE bf.user_id = $1', [userId]),
-        pool.query('SELECT COUNT(*) as count FROM public.friendships WHERE (user_id = $1 OR friend_id = $1)', [userId])
+        pool.query('SELECT COUNT(*) as count FROM public.friendships WHERE (user_id = $1 OR friend_id = $1) AND ended_at IS NULL', [userId])
       ]),
       // Messages query
       pool.query(`

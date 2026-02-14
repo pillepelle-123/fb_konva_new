@@ -41,14 +41,36 @@ router.post('/invite', authenticateToken, async (req, res) => {
       );
     }
     
-    const friendId = user.rows[0].id;
-    
-    // Add friendship
-    await pool.query(
-      'INSERT INTO public.friendships (user_id, friend_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
-      [userId, friendId]
+    const receiverId = user.rows[0].id;
+
+    // Create friend invitation instead of direct friendship
+    const blocked = await pool.query('SELECT 1 FROM public.user_blocks WHERE blocker_id = $1 AND blocked_id = $2', [receiverId, userId]);
+    if (blocked.rows.length > 0) {
+      return res.status(403).json({ error: 'Cannot send invitation' });
+    }
+    const existingFriendship = await pool.query(
+      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
+      [userId, receiverId]
     );
-    
+    if (existingFriendship.rows.length > 0) {
+      return res.status(400).json({ error: 'Already friends' });
+    }
+    const pending = await pool.query(
+      'SELECT id FROM public.friend_invitations WHERE sender_id = $1 AND receiver_id = $2 AND status = $3',
+      [userId, receiverId, 'pending']
+    );
+    if (pending.rows.length > 0) {
+      return res.status(400).json({ error: 'Invitation already pending' });
+    }
+    const result = await pool.query(
+      'INSERT INTO public.friend_invitations (sender_id, receiver_id, status) VALUES ($1, $2, $3) ON CONFLICT (sender_id, receiver_id) DO UPDATE SET status = $3, created_at = CURRENT_TIMESTAMP, responded_at = NULL RETURNING *',
+      [userId, receiverId, 'pending']
+    );
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user_${receiverId}`).emit('friend_invitation_received', { invitationId: result.rows[0].id, senderId: userId, receiverId });
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error inviting user:', error);

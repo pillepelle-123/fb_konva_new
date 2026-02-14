@@ -1569,17 +1569,7 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
       return res.status(409).json({ error: 'User is already a collaborator on this book' });
     }
 
-    // Add friendship if it doesn't exist
-    await pool.query(
-      'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [userId, collaboratorId]
-    );
-    await pool.query(
-      'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [collaboratorId, userId]
-    );
-
-    // Add collaborator with default permissions
+    // Add collaborator with default permissions (no automatic friendship - book and friendship are separate)
     const result = await pool.query(
       'INSERT INTO public.book_friends (book_id, user_id, book_role, page_access_level, editor_interaction_level) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [bookId, collaboratorId, 'author', 'own_page', 'full_edit']
@@ -1622,22 +1612,14 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Verify the friend relationship exists or create it if it doesn't
+    // User must already be a friend to add to book - no automatic friendship creation
     const friendship = await pool.query(
-      'SELECT * FROM public.friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
+      'SELECT * FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
       [userId, userToAdd]
     );
 
     if (friendship.rows.length === 0) {
-      // Auto-create friendship when adding to book
-      await pool.query(
-        'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [userId, userToAdd]
-      );
-      await pool.query(
-        'INSERT INTO public.friendships (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [userToAdd, userId]
-      );
+      return res.status(403).json({ error: 'User must be a friend to add to this book. Add them as a friend first.' });
     }
 
     // Check if user is already in book_friends

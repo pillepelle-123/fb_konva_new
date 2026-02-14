@@ -459,9 +459,68 @@ CREATE INDEX IF NOT EXISTS idx_pdf_exports_status ON public.pdf_exports(status);
 CREATE INDEX IF NOT EXISTS idx_pdf_exports_created_at ON public.pdf_exports(created_at);
 
 -- ###############################################################
+-- Migration: Friend Invitations and User Blocks
+-- ###############################################################
+
+CREATE TABLE IF NOT EXISTS public.friend_invitations (
+  id SERIAL PRIMARY KEY,
+  sender_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  receiver_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  responded_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(sender_id, receiver_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friend_invitations_receiver ON public.friend_invitations(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_friend_invitations_sender ON public.friend_invitations(sender_id);
+
+CREATE TABLE IF NOT EXISTS public.user_blocks (
+  id SERIAL PRIMARY KEY,
+  blocker_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  blocked_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  friendship_id INTEGER REFERENCES public.friendships(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(blocker_id, blocked_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks(blocker_id);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks(blocked_id);
+
+-- ###############################################################
+-- Migration: Conversation Participant Settings (muted, archived)
+-- ###############################################################
+
+CREATE TABLE IF NOT EXISTS public.conversation_participant_settings (
+  id SERIAL PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  muted BOOLEAN NOT NULL DEFAULT FALSE,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE(conversation_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cps_conversation ON public.conversation_participant_settings(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_cps_user ON public.conversation_participant_settings(user_id);
+
+-- ###############################################################
+-- Migration: Conversation Invitations for Direct Chats
+-- ###############################################################
+
+CREATE TABLE IF NOT EXISTS public.conversation_invitations (
+  id SERIAL PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  inviter_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  invitee_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  responded_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_invitations_invitee ON public.conversation_invitations(invitee_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_invitations_conversation ON public.conversation_invitations(conversation_id);
+
+-- ###############################################################
 -- Insert initial admin user (password: admin123)
 -- ###############################################################
 
 INSERT INTO users (name, email, password_hash, role) 
 VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin')
 ON CONFLICT (email) DO NOTHING;
+

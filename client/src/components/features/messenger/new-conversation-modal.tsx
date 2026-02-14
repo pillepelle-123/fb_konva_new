@@ -8,13 +8,13 @@ import ProfilePicture from '../../features/users/profile-picture';
 interface Friend {
   id: number;
   name: string;
-  email: string;
+  email?: string;
 }
 
 interface NewConversationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConversationCreated: () => void;
+  onConversationCreated: (conversationId?: number) => void;
 }
 
 export default function NewConversationModal({
@@ -64,8 +64,9 @@ export default function NewConversationModal({
       });
 
       if (response.ok) {
-        onConversationCreated();
+        const data = await response.json();
         onClose();
+        onConversationCreated(data.conversationId);
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -98,7 +99,7 @@ export default function NewConversationModal({
                   <ProfilePicture name={friend.name} size="sm" userId={friend.id} />
                   <div>
                     <p className="font-medium">{friend.name}</p>
-                    <p className="text-sm text-muted-foreground">{friend.email}</p>
+                    {friend.email && <p className="text-sm text-muted-foreground">{friend.email}</p>}
                   </div>
                 </div>
                 <Button size="sm" variant="outline">

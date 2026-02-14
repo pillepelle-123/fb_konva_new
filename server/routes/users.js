@@ -21,6 +21,7 @@ pool.on('connect', (client) => {
 });
 
 const { getUploadsSubdir, getUploadsDir, isPathWithinUploads } = require('../utils/uploads-path');
+const { validateImageMagicBytes } = require('../utils/image-validation');
 
 const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -62,7 +63,7 @@ router.get('/search', authenticateToken, async (req, res) => {
     
     const searchTerm = `%${q.trim()}%`;
     const result = await pool.query(
-      `SELECT id, name, email FROM public.users 
+      `SELECT id, name FROM public.users 
        WHERE (name ILIKE $1 OR SPLIT_PART(email, '@', 1) ILIKE $1) 
        AND id != $2 LIMIT 20`,
       [searchTerm, currentUserId]
@@ -118,7 +119,7 @@ router.get('/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     
     const result = await pool.query(
-      'SELECT id, name, email, role, created_at, profile_picture_192, profile_picture_32 FROM public.users WHERE id = $1',
+      'SELECT id, name, role, created_at, profile_picture_192, profile_picture_32 FROM public.users WHERE id = $1',
       [userId]
     );
     
@@ -179,6 +180,17 @@ router.post('/profile-picture', authenticateToken, profileUpload.fields([{ name:
 
     const profile192 = req.files.profile192[0];
     const profile32 = req.files.profile32[0];
+
+    // Magic-bytes validation before saving
+    const buf192 = fs.readFileSync(profile192.path);
+    const buf32 = fs.readFileSync(profile32.path);
+    const valid192 = validateImageMagicBytes(buf192);
+    const valid32 = validateImageMagicBytes(buf32);
+    if (!valid192.valid || !valid32.valid) {
+      try { fs.unlinkSync(profile192.path); } catch (_) {}
+      try { fs.unlinkSync(profile32.path); } catch (_) {}
+      return res.status(400).json({ error: 'Invalid image file - only JPG, PNG, GIF, and WebP are allowed' });
+    }
     
     await pool.query(
       'UPDATE public.users SET profile_picture_192 = $1, profile_picture_32 = $2 WHERE id = $3',

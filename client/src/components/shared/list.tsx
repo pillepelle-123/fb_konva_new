@@ -1,4 +1,5 @@
-import { useState, ReactNode } from 'react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '../ui/primitives/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -9,6 +10,8 @@ interface ListProps<T> {
   keyExtractor: (item: T) => string | number;
   interactive?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  /** 'notifications' = scrollable list without pagination, for notification popover */
+  variant?: 'default' | 'notifications';
 }
 
 export default function List<T>({ 
@@ -17,17 +20,44 @@ export default function List<T>({
   renderItem, 
   keyExtractor,
   interactive = false,
-  size = 'md'
+  size = 'md',
+  variant = 'default'
 }: ListProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const totalPages = Math.ceil(items.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = items.slice(startIndex, startIndex + itemsPerPage);
+  const currentItems = variant === 'notifications' ? items : items.slice(startIndex, startIndex + itemsPerPage);
+
+  const sizeClasses = {
+    sm: 'min-h-12',
+    md: 'min-h-16', 
+    lg: 'min-h-20'
+  };
+
+  const listContent = (
+    <div className={variant === 'notifications' ? 'space-y-1' : 'space-y-4'}>
+      {currentItems.map(item => (
+        <div 
+          key={keyExtractor(item)}
+          className={`${variant === 'notifications' ? '' : sizeClasses[size]} ${interactive ? 'hover:bg-[hsl(var(--secondary))] cursor-pointer transition-colors' : ''}`}
+        >
+          {renderItem(item)}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (variant === 'notifications') {
+    return (
+      <div className="max-h-72 overflow-y-auto -mx-1 px-1">
+        {listContent}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Pagination */}
       {items.length > itemsPerPage && (
         <div className="flex justify-center items-center space-x-2">
           <Button
@@ -51,26 +81,7 @@ export default function List<T>({
           </Button>
         </div>
       )}
-
-      {/* Items List */}
-      <div className="space-y-4">
-        {currentItems.map(item => {
-          const sizeClasses = {
-            sm: 'min-h-12',
-            md: 'min-h-16', 
-            lg: 'min-h-20'
-          };
-          
-          return (
-            <div 
-              key={keyExtractor(item)}
-              className={`${sizeClasses[size]} ${interactive ? 'hover:bg-[hsl(var(--secondary))] cursor-pointer transition-colors' : ''}`}
-            >
-              {renderItem(item)}
-            </div>
-          );
-        })}
-      </div>
+      {listContent}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { Card, CardContent } from '../../ui/composites/card';
 import InviteUserDialog from './invite-user-dialog';
 import UnsavedChangesDialog from '../../ui/overlays/unsaved-changes-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../ui/overlays/dialog';
+import ConfirmationDialog from '../../ui/overlays/confirmation-dialog';
 import { QuestionList } from '../questions/question-list';
 import { AnswerList } from '../questions/answer-list';
 import { PagesAssignmentsTab } from './book-manager-tabs/pages-assignments-tab';
@@ -1405,37 +1406,26 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         </div>
       )}
       
-      {removeConfirm.show && removeConfirm.user && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-2">Remove Friend from Book</h3>
-            <p className="text-sm mb-4">
-              Are you sure you want to remove <strong>{removeConfirm.user.name}</strong> from this book?
-              <br /><br />
-              This will:
-              <br />• Remove their access to the book
-              <br />• Remove all their page assignments
-              <br />• Keep their answers but mark them as inactive
-            </p>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline"
-                onClick={() => setRemoveConfirm({ show: false, user: null })}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive"
-                onClick={() => handleRemoveFriend(removeConfirm.user!)}
-                className="flex-1"
-              >
-                Remove Friend
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={removeConfirm.show && !!removeConfirm.user}
+        onOpenChange={(open) => !open && setRemoveConfirm({ show: false, user: null })}
+        title="Mitarbeiter aus Buch entfernen"
+        description={removeConfirm.user ? (
+          <>
+            Möchtest du <strong>{removeConfirm.user.name}</strong> wirklich aus diesem Buch entfernen?
+            <br /><br />
+            Dies bewirkt:
+            <br />• Entfernung des Zugriffs auf das Buch
+            <br />• Entfernung aller Seitenzuweisungen
+            <br />• Antworten bleiben erhalten, werden aber als inaktiv markiert
+          </>
+        ) : ''}
+        onConfirm={() => removeConfirm.user && handleRemoveFriend(removeConfirm.user)}
+        onCancel={() => setRemoveConfirm({ show: false, user: null })}
+        confirmText="Entfernen"
+        cancelText="Abbrechen"
+        confirmVariant="destructive"
+      />
       
       <InviteUserDialog
         open={showInviteDialog}

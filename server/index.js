@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { Pool } = require('pg');
 const { createServer } = require('http');
@@ -21,6 +23,87 @@ const PORT = process.env.PORT || 5000;
 // Middleware - credentials: true allows cookies for cross-origin (e.g. dev)
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
 app.use(cookieParser());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Debug: Request counting to find rate-limit culprits (enable with DEBUG_RATE_LIMIT=1)
+const DEBUG_RATE_LIMIT = process.env.DEBUG_RATE_LIMIT === '1';
+const requestCounts = new Map(); // path pattern -> count
+let totalApiRequests = 0;
+
+function normalizePath(p) {
+  // Group similar endpoints for clearer stats
+  if (/^\/api\/background-images\/[^/]+\/file$/.test(p)) return 'background-images/:id/file';
+  if (/^\/api\/stickers\/[^/]+\/file$/.test(p)) return 'stickers/:id/file';
+  if (/^\/api\/background-images\?/.test(p)) return 'background-images (list)';
+  if (/^\/api\/stickers\?/.test(p)) return 'stickers (list)';
+  if (/^\/api\/books\/\d+$/.test(p)) return 'books/:id';
+  if (/^\/api\/users\/\d+$/.test(p)) return 'users/:id';
+  if (/^\/api\/images\/file\/\d+$/.test(p)) return 'images/file/:id';
+  return p.replace(/^\/api/, '').replace(/\d+/g, ':id') || p;
+}
+
+app.use('/api', (req, res, next) => {
+  const pattern = normalizePath(req.path);
+  const prev = requestCounts.get(pattern) || 0;
+  requestCounts.set(pattern, prev + 1);
+  totalApiRequests++;
+  if (DEBUG_RATE_LIMIT) {
+    console.log(`[REQ ${totalApiRequests}] ${req.method} ${req.path}`);
+  }
+  if (totalApiRequests === 100 || totalApiRequests === 140 || totalApiRequests === 150) {
+    const sorted = [...requestCounts.entries()].sort((a, b) => b[1] - a[1]);
+    console.log(`\n--- Rate limit debug: ${totalApiRequests} requests (top endpoints) ---`);
+    sorted.slice(0, 15).forEach(([p, c]) => console.log(`  ${c}x  ${p}`));
+    console.log('---\n');
+  }
+  next();
+});
+
+// Global API rate limiting: 150 requests per 15 minutes per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.API_RATE_LIMIT_MAX || '150', 10),
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res, _next, options) => {
+    const sorted = [...requestCounts.entries()].sort((a, b) => b[1] - a[1]);
+    console.log('\n!!! RATE LIMIT (429) - Top request sources:');
+    sorted.slice(0, 10).forEach(([p, c]) => console.log(`  ${c}x  ${p}`));
+    console.log('');
+    res.status(429).json(options.message);
+  },
+  // Skip endpoints that are polled, loaded frequently, or essential for UI
+  skip: (req) => {
+    const p = req.path;
+    return /\/users\/\d+\/profile-picture\/\d+/.test(p) ||
+      /\/users\/\d+$/.test(p) ||
+      /\/messenger\/unread-count/.test(p) ||
+      /\/pdf-exports\/recent/.test(p) ||
+      /\/debug\/request-stats/.test(p) ||
+      /\/background-images/.test(p) ||
+      /\/stickers/.test(p) ||
+      /\/messenger\/conversations\/\d+\/messages/.test(p) ||
+      /\/messenger\/conversations\/\d+\/read/.test(p) ||
+      /\/messenger\/conversations\/\d+\/unread/.test(p) ||
+      /\/messenger\/conversations/.test(p);
+  }
+});
+app.use('/api', apiLimiter);
+
+// Debug endpoint: GET /api/debug/request-stats (excluded from rate limit)
+app.get('/api/debug/request-stats', (_req, res) => {
+  const sorted = [...requestCounts.entries()].sort((a, b) => b[1] - a[1]);
+  res.json({
+    totalApiRequests,
+    byEndpoint: Object.fromEntries(sorted),
+    top10: sorted.slice(0, 10).map(([p, c]) => ({ endpoint: p, count: c }))
+  });
+});
+
 // Increase JSON body size limit to 50MB for large books (64+ pages with many elements)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -66,7 +149,9 @@ app.use('/api/images', require('./routes/images'));
 app.use('/api/page-assignments', require('./routes/page-assignments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/friendships', require('./routes/friendships'));
+app.use('/api/friend-invitations', require('./routes/friend-invitations'));
 app.use('/api/friends', require('./routes/friends'));
+app.use('/api/user-blocks', require('./routes/user-blocks'));
 app.use('/api/answers', require('./routes/answers'));
 app.use('/api/messenger', require('./routes/messenger'));
 app.use('/api/dashboard', require('./routes/dashboard'));
@@ -140,5 +225,7 @@ app.get('/api/health', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  // console.log(`Server running on port ${PORT}`);
+  if (DEBUG_RATE_LIMIT) {
+    console.log(`[DEBUG] Rate limit logging enabled. Stats: http://localhost:${PORT}/api/debug/request-stats`);
+  }
 });

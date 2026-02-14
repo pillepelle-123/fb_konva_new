@@ -39,7 +39,7 @@ import { TOOL_ICONS } from './tool-settings-utils';
 import { getCurrentMenu, getParentMenu, getMenuTitle } from './settings-navigation';
 
 // Data
-import { svgRawImports } from '../../../../data/templates/stickers';
+import { loadStickerSvg, svgRawImports } from '../../../../data/templates/stickers';
 
 // Other Components
 import ChatWindow from '../../messenger/chat-window';
@@ -225,12 +225,9 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
     const cachedSvg = stickerFilePath ? svgRawImports[stickerFilePath] : undefined;
     let svgContent = cachedSvg;
 
-    if (!svgContent && baseUrl && !baseUrl.startsWith('data:')) {
+    if (!svgContent && stickerFilePath && baseUrl && !baseUrl.startsWith('data:')) {
       try {
-        const response = await fetch(baseUrl);
-        if (response.ok) {
-          svgContent = await response.text();
-        }
+        svgContent = await loadStickerSvg(stickerFilePath, baseUrl);
       } catch (error) {
         console.warn('Sticker-SVG konnte nicht geladen werden:', error);
       }

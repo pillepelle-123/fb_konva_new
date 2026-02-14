@@ -2,6 +2,7 @@ import type { PageBackground } from '../context/editor-context.tsx';
 import {
   getBackgroundImageById,
   getBackgroundImageWithUrl as getBackgroundImageWithUrlInternal,
+  loadBackgroundImageSvg,
   svgRawImports
 } from '../data/templates/background-images.ts';
 import { colorPalettes } from '../data/templates/color-palettes.ts';
@@ -136,8 +137,13 @@ export function getBackgroundImageUrl(
   }
 
   if (template.format === 'vector') {
-    const rawSvg = svgRawImports[template.filePath];
+    let rawSvg = svgRawImports[template.filePath];
     const paletteColors = resolvePaletteColors(options);
+
+    // Trigger on-demand load when SVG not yet cached (fire-and-forget)
+    if (!rawSvg && template.url) {
+      loadBackgroundImageSvg(template.filePath, template.url).catch(() => {});
+    }
 
     if (rawSvg && paletteColors) {
       const containsPaletteTokens = /PALETTE_[A-Z_]+/.test(rawSvg);

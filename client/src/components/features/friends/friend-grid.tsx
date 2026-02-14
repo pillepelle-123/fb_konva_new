@@ -4,7 +4,7 @@ import FriendsCard from './friend-card';
 interface Friend {
   id: number;
   name: string;
-  email: string;
+  email?: string;
   role: string;
 }
 
@@ -13,13 +13,15 @@ interface FriendGridProps {
   itemsPerPage?: number;
   onRoleChange?: (friend: Friend) => void;
   onRemove?: (friend: Friend) => void;
+  onBlock?: (friend: Friend) => void;
 }
 
 export default function FriendGrid({ 
   friends, 
   itemsPerPage = 12, 
   onRoleChange, 
-  onRemove 
+  onRemove,
+  onBlock 
 }: FriendGridProps) {
   return (
     <Grid
@@ -31,6 +33,7 @@ export default function FriendGrid({
           friend={friend}
           onRoleChange={onRoleChange}
           onRemove={onRemove}
+          onBlock={onBlock}
           showFriendActions={true}
         />
       )}

@@ -110,22 +110,18 @@ export function Tooltip({
   return (
     <div 
       ref={triggerRef}
-      className="relative"
+      className="relative inline-flex"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ display: 'contents', pointerEvents: 'none' }}
+      style={{ width: fullWidth ? '100%' : 'auto' }}
     >
-      <div style={{ 
-        pointerEvents: 'auto', 
-        display: 'flex', 
-        width: fullWidth ? '100%' : 'auto'
-      }}>
+      <div className={fullWidth ? 'w-full' : ''}>
         {children}
       </div>
       {mounted && createPortal(
         <div
           className={cn(
-            "fixed z-[10001] px-2 py-1 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
+            "fixed z-[10003] px-2 py-1 text-sm rounded-md shadow-lg break-words transition-all duration-200 ease-out pointer-events-none",
             backgroundColor?.startsWith('#') ? '' : backgroundColor,
             textColor?.startsWith('#') ? '' : textColor,
             side === "bottom_editor_bar" || side === "bottom" || side === "top" ? "transform -translate-x-1/2 max-w-xs" : side === "floating_button_fixed" ? "transform -translate-x-1/2 max-w-xs" : side === "left" ? "transform -translate-x-full -translate-y-1/2 max-w-xs" : "transform -translate-y-1/2 whitespace-nowrap",

@@ -139,21 +139,7 @@ export async function loadStickerRegistry(force = false) {
     // Kombiniere API-Sticker und OpenMoji-Sticker
     const allStickers = [...transformed, ...openMojiStickers];
     rebuildDerivedState(allStickers)
-
-    await Promise.all(
-      transformed
-        .filter((sticker) => sticker.format === 'vector' && sticker.url)
-        .map(async (sticker) => {
-          try {
-            const response = await fetch(sticker.url, { credentials: 'include' })
-            if (!response.ok) return
-            const raw = await response.text()
-            svgRawCache[sticker.filePath] = raw
-          } catch (error) {
-            console.warn(`SVG konnte nicht geladen werden (${sticker.filePath}):`, error)
-          }
-        }),
-    )
+    // SVG preload removed – SVGs are loaded on-demand via loadStickerSvg()
   } catch (error) {
     console.error('Sticker konnten nicht geladen werden:', error)
     rebuildDerivedState([])
@@ -190,6 +176,18 @@ export function searchStickers(query: string): StickerWithUrl[] {
 
 export function getStickerWithUrl(id: string): StickerWithUrl | undefined {
   return registryMap.get(id)
+}
+
+/** Load a single sticker SVG on demand. Caches result. */
+export async function loadStickerSvg(filePath: string, url: string): Promise<string> {
+  if (svgRawCache[filePath]) return svgRawCache[filePath]
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await fetch(url, { headers, credentials: 'include' })
+  if (!response.ok) throw new Error(`Failed to load sticker SVG (${response.status})`)
+  const raw = await response.text()
+  svgRawCache[filePath] = raw
+  return raw
 }
 
 export function getStickersWithUrl(): StickerWithUrl[] {

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
+import ConfirmationDialog from '../../components/ui/overlays/confirmation-dialog';
 import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
 import InviteUserDialog from '../../components/features/books/invite-user-dialog';
@@ -12,7 +13,7 @@ import FloatingActionButton from '../../components/ui/composites/floating-action
 interface Friend {
   id: number;
   name: string;
-  email: string;
+  email?: string;
   role: string;
 }
 
@@ -22,6 +23,7 @@ export default function FriendsList() {
   const [loading, setLoading] = useState(true);
   const [showRoleModal, setShowRoleModal] = useState<Friend | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<Friend | null>(null);
+  const [showBlockConfirm, setShowBlockConfirm] = useState<Friend | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [showFindFriendsDialog, setShowFindFriendsDialog] = useState(false);
   const [inviteError, setInviteError] = useState<string | undefined>();
@@ -67,6 +69,26 @@ export default function FriendsList() {
       console.error('Error removing friend:', error);
     }
     setShowRemoveConfirm(null);
+  };
+
+  const handleBlockFriend = async (friend: Friend) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/user-blocks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ blockedId: friend.id })
+      });
+      if (response.ok) {
+        fetchFriends();
+      }
+    } catch (error) {
+      console.error('Error blocking friend:', error);
+    }
+    setShowBlockConfirm(null);
   };
 
   const handleInviteFriend = async (name: string, email: string) => {
@@ -165,7 +187,8 @@ export default function FriendsList() {
           <FriendGrid 
             friends={friends} 
             onRoleChange={setShowRoleModal} 
-            onRemove={setShowRemoveConfirm} 
+            onRemove={setShowRemoveConfirm}
+            onBlock={setShowBlockConfirm}
           />
         )}
 
@@ -202,29 +225,31 @@ export default function FriendsList() {
           </DialogContent>
         </Dialog>
 
-        {/* Remove Confirmation Dialog */}
-        <Dialog open={!!showRemoveConfirm} onOpenChange={() => setShowRemoveConfirm(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Remove Friend</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to remove {showRemoveConfirm?.name} from your friends? This will remove them from all shared books.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setShowRemoveConfirm(null)} className="flex-1">
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive" 
-                onClick={() => showRemoveConfirm && handleRemoveFriend(showRemoveConfirm.id)} 
-                className="flex-1"
-              >
-                Remove Friend
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Remove Friend Confirmation */}
+        <ConfirmationDialog
+          open={!!showRemoveConfirm}
+          onOpenChange={(open) => !open && setShowRemoveConfirm(null)}
+          title="Freund entfernen"
+          description={showRemoveConfirm ? `Möchtest du ${showRemoveConfirm.name} wirklich aus deiner Freundesliste entfernen?` : ''}
+          onConfirm={() => showRemoveConfirm && handleRemoveFriend(showRemoveConfirm.id)}
+          onCancel={() => setShowRemoveConfirm(null)}
+          confirmText="Entfernen"
+          cancelText="Abbrechen"
+          confirmVariant="destructive"
+        />
+
+        {/* Block Friend Confirmation */}
+        <ConfirmationDialog
+          open={!!showBlockConfirm}
+          onOpenChange={(open) => !open && setShowBlockConfirm(null)}
+          title="Nutzer blockieren"
+          description={showBlockConfirm ? `Möchtest du ${showBlockConfirm.name} wirklich blockieren? Der Nutzer wird aus deiner Freundesliste ausgeblendet und kann dir keine Nachrichten mehr senden.` : ''}
+          onConfirm={() => showBlockConfirm && handleBlockFriend(showBlockConfirm)}
+          onCancel={() => setShowBlockConfirm(null)}
+          confirmText="Blockieren"
+          cancelText="Abbrechen"
+          confirmVariant="destructive"
+        />
 
         {/* Find Friends Dialog */}
         <FindFriendsDialog 

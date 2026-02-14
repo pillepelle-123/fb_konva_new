@@ -3,7 +3,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/composites/card';
 import { Checkbox } from '../../ui/primitives/checkbox';
 import ProfilePicture from '../users/profile-picture';
-import { MessageCircle, UserCog, UserMinus } from 'lucide-react';
+import { MessageCircle, UserCog, UserMinus, Ban } from 'lucide-react';
 
 interface Friend {
   id: number;
@@ -20,6 +20,7 @@ interface FriendsCardProps {
   onPageAssignment?: (friendId: number, assign: boolean) => void;
   onRoleChange?: (friend: Friend) => void;
   onRemove?: (friend: Friend) => void;
+  onBlock?: (friend: Friend) => void;
   showFriendActions?: boolean;
 }
 
@@ -30,6 +31,7 @@ export default function FriendsCard({
   onPageAssignment,
   onRoleChange,
   onRemove,
+  onBlock,
   showFriendActions = false
 }: FriendsCardProps) {
   const navigate = useNavigate();
@@ -44,9 +46,11 @@ export default function FriendsCard({
             <CardTitle className="text-lg line-clamp-1">
               {friend.name}
             </CardTitle>
-            <CardDescription className="text-sm">
-              {friend.email}
-            </CardDescription>
+            {friend.email && (
+              <CardDescription className="text-sm">
+                {friend.email}
+              </CardDescription>
+            )}
             <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
               friend.role === 'publisher' 
                 ? 'bg-blue-100 text-blue-800' 
@@ -69,7 +73,7 @@ export default function FriendsCard({
             />
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-row gap-2">
             <Button 
               variant="outline" 
               size="sm"
@@ -77,19 +81,30 @@ export default function FriendsCard({
               onClick={() => navigate(`/messenger?friendId=${friend.id}`)}
             >
               <MessageCircle className="h-4 w-4" />
-              <span>Send Message</span>
+              {/* <span>Send Message</span> */}
             </Button>
             
             {showFriendActions ? (
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="w-full space-x-2 text-destructive hover:text-destructive"
-                onClick={() => onRemove?.(friend)}
-              >
-                <UserMinus className="h-4 w-4" />
-                <span>Remove from Friends List</span>
-              </Button>
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="w-full space-x-2 text-destructive hover:text-destructive"
+                  onClick={() => onRemove?.(friend)}
+                >
+                  <UserMinus className="h-4 w-4" />
+                  {/* <span>Remove from Friends List</span> */}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="w-full space-x-2 text-destructive hover:text-destructive"
+                  onClick={() => onBlock?.(friend)}
+                >
+                  <Ban className="h-4 w-4" />
+                  {/* <span>Block User</span> */}
+                </Button>
+              </>
             ) : (
               <>
                 <Button 
@@ -110,6 +125,15 @@ export default function FriendsCard({
                 >
                   <UserMinus className="h-4 w-4" />
                   <span>Remove Access</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="w-full space-x-2 text-destructive hover:text-destructive"
+                  onClick={() => onBlock?.(friend)}
+                >
+                  <Ban className="h-4 w-4" />
+                  <span>Block User</span>
                 </Button>
               </>
             )}

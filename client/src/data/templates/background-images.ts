@@ -154,25 +154,24 @@ export async function loadBackgroundImageRegistry(force = false) {
     const payload = apiListResponseSchema.parse(await response.json())
     const transformed = payload.items.map(transformApiRecord)
     rebuildDerivedState(transformed)
-
-    await Promise.all(
-      transformed
-        .filter((image) => image.format === 'vector' && image.url)
-        .map(async (image) => {
-          try {
-            const response = await fetch(image.url, { credentials: 'include' })
-            if (!response.ok) return
-            const raw = await response.text()
-            svgRawCache[image.filePath] = raw
-          } catch (error) {
-            console.warn(`SVG konnte nicht geladen werden (${image.filePath}):`, error)
-          }
-        }),
-    )
+    // SVG preload removed – SVGs are loaded on-demand via loadBackgroundImageSvg()
   } catch (error) {
     console.error('Hintergrundbilder konnten nicht geladen werden:', error)
     rebuildDerivedState([])
   }
+}
+
+/** Load a single background image SVG on demand (for palette support). Caches result. */
+export async function loadBackgroundImageSvg(filePath: string, url: string): Promise<string> {
+  if (svgRawCache[filePath]) return svgRawCache[filePath]
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const response = await fetch(url, { headers, credentials: 'include' })
+  if (!response.ok) throw new Error(`Failed to load SVG (${response.status})`)
+  const raw = await response.text()
+  svgRawCache[filePath] = raw
+  window.dispatchEvent(new CustomEvent('backgroundImageSvgLoaded', { detail: { filePath } }))
+  return raw
 }
 
 export function getBackgroundImages(): BackgroundImage[] {

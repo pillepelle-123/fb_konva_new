@@ -48,6 +48,12 @@ export function markPdfExportAsRead(userId: number, pdfExportId: number) {
   saveReadIds(userId, conversationIds, pdfExportIds);
 }
 
+export function markPdfExportAsUnread(userId: number, pdfExportId: number) {
+  const { conversationIds, pdfExportIds } = getReadNotificationIds(userId);
+  pdfExportIds.delete(pdfExportId);
+  saveReadIds(userId, conversationIds, pdfExportIds);
+}
+
 export function markAllAsRead(
   userId: number,
   conversationIds: number[],
@@ -63,4 +69,76 @@ export function markAllAsRead(
 export function getUnreadPdfCount(userId: number, pdfExportIds: number[]): number {
   const { pdfExportIds: readIds } = getReadNotificationIds(userId);
   return pdfExportIds.filter(id => !readIds.has(id)).length;
+}
+
+/** Read keys für friend_inv, conv_inv (localStorage-only, kein Backend) */
+const READ_KEYS_PREFIX = 'notification_read_keys_';
+
+export function getReadNotificationKeys(userId: number): Set<string> {
+  try {
+    const raw = localStorage.getItem(`${READ_KEYS_PREFIX}${userId}`);
+    if (!raw) return new Set();
+    const data = JSON.parse(raw);
+    return new Set(data.keys ?? []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function toggleReadNotificationKey(userId: number, key: string): boolean {
+  const current = getReadNotificationKeys(userId);
+  const isRead = current.has(key);
+  if (isRead) {
+    current.delete(key);
+  } else {
+    current.add(key);
+  }
+  try {
+    localStorage.setItem(
+      `${READ_KEYS_PREFIX}${userId}`,
+      JSON.stringify({ keys: Array.from(current) })
+    );
+  } catch (e) {
+    console.warn('Failed to save read notification keys:', e);
+  }
+  return !isRead; // returns new state: true = now read
+}
+
+const HIDDEN_KEYS_PREFIX = 'notification_hidden_';
+
+export function getHiddenNotificationKeys(userId: number): Set<string> {
+  try {
+    const raw = localStorage.getItem(`${HIDDEN_KEYS_PREFIX}${userId}`);
+    if (!raw) return new Set();
+    const data = JSON.parse(raw);
+    return new Set(data.keys ?? []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function addReadNotificationKeys(userId: number, keys: string[]) {
+  const current = getReadNotificationKeys(userId);
+  keys.forEach((k) => current.add(k));
+  try {
+    localStorage.setItem(
+      `${READ_KEYS_PREFIX}${userId}`,
+      JSON.stringify({ keys: Array.from(current) })
+    );
+  } catch (e) {
+    console.warn('Failed to save read notification keys:', e);
+  }
+}
+
+export function addHiddenNotificationKeys(userId: number, keys: string[]) {
+  const current = getHiddenNotificationKeys(userId);
+  keys.forEach(k => current.add(k));
+  try {
+    localStorage.setItem(
+      `${HIDDEN_KEYS_PREFIX}${userId}`,
+      JSON.stringify({ keys: Array.from(current) })
+    );
+  } catch (e) {
+    console.warn('Failed to save hidden notification keys:', e);
+  }
 }
