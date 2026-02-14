@@ -9,14 +9,14 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { blockedId } = req.body;
-    const blockerId = typeof req.user.id === 'number' ? req.user.id : parseInt(req.user.id, 10);
+    const blockerId = req.user.id;
 
     if (!blockedId) {
       return res.status(400).json({ error: 'blockedId is required' });
     }
 
     const blockedIdNum = typeof blockedId === 'number' ? blockedId : parseInt(blockedId, 10);
-    if (isNaN(blockedIdNum) || blockedIdNum <= 0 || isNaN(blockerId) || blockerId <= 0) {
+    if (isNaN(blockedIdNum) || blockedIdNum <= 0) {
       return res.status(400).json({ error: 'blockedId must be a valid positive number' });
     }
 
@@ -55,7 +55,7 @@ router.post('/', authenticateToken, async (req, res) => {
 // Unblock a user
 router.delete('/:blockedId', authenticateToken, async (req, res) => {
   try {
-    const blockerId = typeof req.user.id === 'number' ? req.user.id : parseInt(req.user.id, 10);
+    const blockerId = req.user.id;
     const blockedId = parseInt(req.params.blockedId, 10);
 
     if (isNaN(blockedId)) {

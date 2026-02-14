@@ -81,7 +81,7 @@ export default function ImageCard({
             size="sm"
             onClick={() => onDelete?.(image.id)}
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-5 w-5" />
           </Button>
         )}
 

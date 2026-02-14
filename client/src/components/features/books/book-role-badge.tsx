@@ -1,7 +1,7 @@
 import { Badge } from '../../ui/composites/badge';
 
 interface BookRoleBadgeProps {
-  userRole: 'owner' | 'publisher' | 'author';
+  userRole?: 'owner' | 'publisher' | 'author';
   variant?: 'addressedToUser' | 'default';
 }
 

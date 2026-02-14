@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/auth-context';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
-import { Badge } from '../../ui/composites/badge';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { Users, Edit, FileText, Image, CircleHelp, RotateCcw, Trash2, Archive, Contact, Pen, Settings, FilePenLine, Eye, Download } from 'lucide-react';
-import PageUserIcon from '../../ui/icons/page-user-icon';
+import { Popover, PopoverTrigger, PopoverContent } from '../../ui/overlays/popover';
+import { Users, FileText, Image, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis } from 'lucide-react';
 import BookRoleBadge from './book-role-badge';
 
 interface Book {
@@ -17,9 +16,9 @@ interface Book {
   pageCount: number;
   collaboratorCount: number;
   isOwner: boolean;
-  userRole: 'owner' | 'publisher' | 'author';
-  created_at: string;
-  updated_at: string;
+  userRole?: 'owner' | 'publisher' | 'author';
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface BookCardProps {
@@ -111,7 +110,7 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
               onClick={() => { setEditName(book.name); setIsEditing(true); }}
               className="text-white hover:bg-white/20 p-1 h-6 w-6"
             >
-              <Pen className="h-3 w-3" />
+              <Pen className="h-5 w-5" />
             </Button>
             </Tooltip>
           )}
@@ -121,11 +120,56 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
   );
 }
 
+type ActionButton = {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  variant: 'default' | 'outline' | 'destructive';
+  action: () => void;
+};
+
 export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager, hideActions = false }: BookCardProps) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(book.name);
   const { token } = useAuth();
+  const actionsContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(400);
+
+  const actionButtons: ActionButton[] = [
+    { id: 'edit', label: 'Edit Book', icon: FilePenLine, variant: 'default', action: () => navigate(`/editor/${book.id}`) },
+    { id: 'preview', label: 'Preview Book', icon: Eye, variant: 'outline', action: () => navigate(`/editor/${book.id}?preview=true`) },
+    { id: 'exports', label: 'Exports', icon: Download, variant: 'outline', action: () => navigate(`/books/${book.id}/export`) },
+    ...((book.userRole === 'owner' || book.userRole === 'publisher') ? [
+      { id: 'manage', label: 'Manage Book', icon: Settings, variant: 'outline' as const, action: () => navigate(`/books/${book.id}/manager`) },
+      { id: 'archive', label: 'Archive Book', icon: Archive, variant: 'outline' as const, action: () => onArchive?.(book.id) },
+    ] : []),
+  ];
+
+  useEffect(() => {
+    const el = actionsContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const getVisibleCount = (width: number) => {
+    if (width < 180) return 1;
+    if (width < 260) return 2;
+    if (width < 320) return 3;
+    if (width < 380) return 4;
+    return actionButtons.length;
+  };
+
+  const visibleCount = Math.min(getVisibleCount(containerWidth), actionButtons.length);
+  const hasOverflow = visibleCount < actionButtons.length;
+  const visibleButtons = actionButtons.slice(0, visibleCount);
+  const overflowButtons = actionButtons.slice(visibleCount);
 
   const handleRename = async () => {
     if (editName.trim() && editName !== book.name) {
@@ -170,8 +214,12 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
         </div>
         
         <div className="text-xs text-muted-foreground">
-          Created: {new Date(book.created_at).toLocaleDateString()}
-          {book.updated_at && ` • Updated: ${new Date(book.updated_at).toLocaleDateString()}`}
+          {book.created_at && (
+            <>
+              Created: {new Date(book.created_at).toLocaleDateString()}
+              {book.updated_at && ` • Updated: ${new Date(book.updated_at).toLocaleDateString()}`}
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-sm">
@@ -189,7 +237,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
         </div>
 
         {!hideActions && (
-        <div className="flex gap-2 pt-2">
+        <div ref={actionsContainerRef} className="flex gap-2 pt-2 min-w-0">
           {isArchived ? (
             <>
               <Button 
@@ -208,66 +256,61 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                   onClick={() => onDelete?.(book.id)}
                   className="space-x-2"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-5 w-5" />
                   <span>Delete</span>
                 </Button>
               )}
             </>
           ) : (
             <>
-              <div className="flex-1">
-                <Tooltip content="Edit Book" side="bottom">
-                <Link to={`/editor/${book.id}`} className="block w-full">
-                  <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
-                    <FilePenLine className="h-5 w-5" />
-                    <span>Edit Book</span>
-                  </Button>
-                </Link>
+              <div className="flex-1 min-w-0">
+                <Tooltip content="Edit Book" side="bottom" fullWidth>
+                  <Link to={`/editor/${book.id}`} className="block w-full">
+                    <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
+                      <FilePenLine className="h-5 w-5" />
+                      <span>Edit Book</span>
+                    </Button>
+                  </Link>
                 </Tooltip>
               </div>
-              <Tooltip content="Preview Book" side="bottom">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(`/editor/${book.id}?preview=true`)}
-                  className="space-x-2"
-                >
-                  <Eye className="h-5 w-5" />
-                </Button>
-              </Tooltip>
-              <Tooltip content="Exports" side="bottom">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(`/books/${book.id}/export`)}
-                  className="space-x-2"
-                >
-                  <Download className="h-5 w-5" />
-                </Button>
-              </Tooltip>
-              {(book.userRole === 'owner' || book.userRole === 'publisher') && (
-                <>
-                  <Tooltip content="Manage Book" side="bottom">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigate(`/books/${book.id}/manager`)}
-                      className="space-x-2"
-                    >
-                      <Settings className="h-5 w-5" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip content="Archive" side="bottom">
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={() => onArchive?.(book.id)}
-                      className="space-x-2"
-                    >
-                      <Archive className="h-5 w-5" />
-                    </Button>
-                  </Tooltip>
-                </>
+              {visibleButtons.slice(1).map((btn) => (
+                <Tooltip key={btn.id} content={btn.label} side="bottom">
+                  <Button
+                    variant={btn.variant}
+                    size="sm"
+                    onClick={() => btn.action()}
+                    className="space-x-2 shrink-0"
+                  >
+                    <btn.icon className="h-5 w-5" />
+                  </Button>
+                </Tooltip>
+              ))}
+              {hasOverflow && (
+                <Tooltip content="Weitere Aktionen" side="bottom">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="shrink-0">
+                        <Ellipsis className="h-5 w-5" />
+                      </Button>
+                    </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="end" side="top">
+                    <div className="flex flex-col gap-1">
+                      {overflowButtons.map((btn) => (
+                        <Button
+                          key={btn.id}
+                          variant={btn.variant}
+                          size="sm"
+                          onClick={() => btn.action()}
+                          className="w-full justify-start gap-2"
+                        >
+                          <btn.icon className="h-4 w-4 shrink-0" />
+                          <span>{btn.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                  </Popover>
+                </Tooltip>
               )}
             </>
           )}

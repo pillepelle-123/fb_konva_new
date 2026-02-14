@@ -49,7 +49,7 @@ router.post('/invite', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Cannot send invitation' });
     }
     const existingFriendship = await pool.query(
-      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
+      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
       [userId, receiverId]
     );
     if (existingFriendship.rows.length > 0) {

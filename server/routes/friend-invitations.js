@@ -47,7 +47,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Check if already friends (aktiv)
     const existingFriendship = await pool.query(
-      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
+      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
       [senderId, receiverIdNum]
     );
     if (existingFriendship.rows.length > 0) {

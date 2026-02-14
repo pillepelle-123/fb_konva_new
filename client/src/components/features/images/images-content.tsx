@@ -4,7 +4,7 @@ import { ButtonGroup } from '../../ui/composites/button-group';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 import { Alert, AlertDescription } from '../../ui/composites/alert';
-import { Image, Plus, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck, AlertTriangle } from 'lucide-react';
+import { Image, Plus, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
 import ImageCard from './image-card';
 
 interface ImageData {
@@ -49,6 +49,7 @@ export default function ImagesContent({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadZoneExpanded, setUploadZoneExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastUploadRef = useRef<string>('');
 
@@ -282,103 +283,143 @@ export default function ImagesContent({
   return (
     <>
       {showAsContent && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-                <Image/>
-                <span>My Images</span>
-              </h1>
-              <p className="text-muted-foreground">Manage your uploaded images</p>
-            </div>
-            <div className="flex gap-2">
-              {onClose && (
-                <Button variant="outline" onClick={onClose}>
-                  Back
-                </Button>
-              )}
-              {multiSelectMode ? (
-                <ButtonGroup>
+        <>
+          {/* Fixierte Leiste mit integrierter Drop-Zone */}
+          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
+            <div className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Image className="h-6 w-6 shrink-0 text-foreground" />
+                <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
+                  My Images
+                </h1>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {onClose && (
+                  <Button variant="outline" onClick={onClose}>
+                    Back
+                  </Button>
+                )}
+                {multiSelectMode ? (
+                  <ButtonGroup>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setMultiSelectMode(false);
+                        deselectAllImages();
+                      }}
+                    >
+                      <SquareX className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={selectAllImages}
+                      disabled={selectedImages.size === images.length}
+                    >
+                      <CopyCheck className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={deselectAllImages}
+                      disabled={selectedImages.size === 0}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
+                      disabled={selectedImages.size === 0}
+                      className="space-x-2"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span> ({selectedImages.size})</span>
+                    </Button>
+                  </ButtonGroup>
+                ) : (
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setMultiSelectMode(false);
-                      deselectAllImages();
-                    }}
+                    size="icon"
+                    onClick={() => setMultiSelectMode(true)}
                   >
-                    <SquareX className="h-4 w-4" />
+                    <SquareCheckBig className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={selectAllImages}
-                    disabled={selectedImages.size === images.length}
-                  >
-                    <CopyCheck className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={deselectAllImages}
-                    disabled={selectedImages.size === 0}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
-                    disabled={selectedImages.size === 0}
-                    className="space-x-2"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    <span> ({selectedImages.size})</span>
-                  </Button>
-                </ButtonGroup>
-              ) : (
+                )}
                 <Button
-                  variant="outline"
-                  onClick={() => setMultiSelectMode(true)}
+                  variant="default"
+                  onClick={() => setUploadZoneExpanded((v) => !v)}
+                  className="space-x-2"
                 >
-                  <SquareCheckBig className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
+                  <span>Add Images</span>
+                  {uploadZoneExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
-              )}
-
-              <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
-                <Plus className="h-4 w-4" />
-                <span>Add Images</span>
-              </Button>
+              </div>
             </div>
+
+            {uploadZoneExpanded && (
+              <div
+                className={`mt-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+              >
+                <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-base font-medium mb-2">
+                  {isUploading ? 'Uploading images...' : 'Drop images here or click "Upload" to add images'}
+                </p>
+                <p className="text-muted-foreground text-sm mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+                <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Upload</span>
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
-      <div className="space-y-6">
+      <div className={`space-y-6 ${showAsContent ? 'py-4' : ''}`}>
+        {showAsContent && (
+          <p className="text-muted-foreground -mt-2">
+            Manage your uploaded images
+          </p>
+        )}
         {uploadError && (
           <Alert variant="destructive">
-            {/* <AlertTriangle className="h-5 w-5" /> */}
             {uploadError}
           </Alert>
         )}
 
-        <div
-          className={`border-2 border-dashed rounded-lg p-8 mt-6 text-center transition-colors ${
-            isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-          } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-        >
-          <Image className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-lg font-medium mb-2">
-            {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
-          </p>
-          <p className="text-muted-foreground mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
-          {!showAsContent && (
+        {!showAsContent && (
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 mt-6 text-center transition-colors ${
+              isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+            } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+          >
+            <Image className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium mb-2">
+              {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
+            </p>
+            <p className="text-muted-foreground mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
             <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
               <Plus className="h-4 w-4" />
               <span>Add Images</span>
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {totalPages > 1 && (
           <div className="flex justify-center items-center space-x-2">

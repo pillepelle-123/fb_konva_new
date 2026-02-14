@@ -112,7 +112,7 @@ router.post('/conversations', auth, async (req, res) => {
     // Check friendship or book collaboration before allowing conversation
     const relationshipCheck = await pool.query(`
       SELECT 1 FROM public.friendships f
-      WHERE f.user_id = LEAST($1, $2) AND f.friend_id = GREATEST($1, $2) AND f.ended_at IS NULL
+      WHERE f.user_id = LEAST($1::int, $2::int) AND f.friend_id = GREATEST($1::int, $2::int) AND f.ended_at IS NULL
       UNION
       SELECT 1 FROM public.books b
       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
@@ -424,29 +424,27 @@ router.post('/conversations/:id/block', auth, async (req, res) => {
       return res.status(400).json({ error: 'Can only block in direct chats' });
     }
 
-    const blockedId = row.other_user_id;
-    if (!blockedId) {
+    const blockedId = typeof row.other_user_id === 'number' ? row.other_user_id : parseInt(row.other_user_id, 10);
+    if (!blockedId || isNaN(blockedId)) {
       return res.status(400).json({ error: 'No other participant to block' });
     }
 
-    const blockerIdNum = typeof blockerId === 'number' ? blockerId : parseInt(blockerId, 10);
-    const blockedIdNum = typeof blockedId === 'number' ? blockedId : parseInt(blockedId, 10);
     const friendship = await pool.query(
       'SELECT id FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL LIMIT 1',
-      [blockerIdNum, blockedIdNum]
+      [blockerId, blockedId]
     );
     const friendshipId = friendship.rows[0]?.id || null;
 
     await pool.query(
       'INSERT INTO public.user_blocks (blocker_id, blocked_id, friendship_id) VALUES ($1, $2, $3) ON CONFLICT (blocker_id, blocked_id) DO NOTHING',
-      [blockerIdNum, blockedIdNum, friendshipId]
+      [blockerId, blockedId, friendshipId]
     );
 
     await pool.query(
       `INSERT INTO public.conversation_participant_settings (conversation_id, user_id, muted, archived)
        VALUES ($1, $2, FALSE, TRUE)
        ON CONFLICT (conversation_id, user_id) DO UPDATE SET archived = TRUE`,
-      [conversationId, blockerIdNum]
+      [conversationId, blockerId]
     );
 
     res.json({ success: true });

@@ -126,32 +126,34 @@ export default function BookArchive() {
   }
 
   return (
-    <div className={`page-transition-container ${animationClass}`}>
+    <div className={`page-transition-container ${isTransitioning ? 'slide-to-right-exit-active' : animationClass}`}>
       <div className="page-transition-wrapper">
-        <div className="container mx-auto px-4 py-4">
-          <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Book Archive</h1>
-            <p className="text-muted-foreground">
-              View and manage your archived book projects
-            </p>
-            <div className="pt-2">
+        <div className="container mx-auto px-4">
+          {/* Fixierte Leiste */}
+          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b flex justify-between items-center gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <Archive className="h-6 w-6 shrink-0 text-foreground" />
+              <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
+                Book Archive
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                onClick={handleNavigateToBooks}
+                className="space-x-2"
+              >
+                <Book className="h-4 w-4" />
+                <span>View My Books</span>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex flex-col flex-start gap-2 justify-center items-center">
-          <Button 
-            variant="ghost" 
-            onClick={handleNavigateToBooks}
-            className="space-x-2"
-          >
-            <Book className="h-4 w-4" />
-            <span>View My Books</span>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          </div>
-        </div>
+
+          <div className="space-y-6 py-4">
+        <p className="text-muted-foreground -mt-2">
+          View and manage your archived book projects
+        </p>
 
         {/* Archived Books */}
         {books.length === 0 ? (

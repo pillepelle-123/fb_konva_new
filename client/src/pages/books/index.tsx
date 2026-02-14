@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
@@ -6,8 +6,9 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
-import { Book, BookPlus, Archive, ChevronRight, ChevronUp, Plus } from 'lucide-react';
-import PageUserIcon from '../../components/ui/icons/page-user-icon';
+import { Slider } from '../../components/ui/primitives/slider';
+import MultipleSelector, { type Option } from '../../components/ui/multi-select';
+import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import '../../styles/page-transitions.css';
 
@@ -20,7 +21,24 @@ interface Book {
   collaboratorCount: number;
   isOwner: boolean;
   userRole: 'owner' | 'publisher' | 'author';
+  created_at?: string;
+  updated_at?: string;
 }
+
+const PAGE_SIZE_OPTIONS: Option[] = [
+  { value: 'A4', label: 'A4' },
+  { value: 'A5', label: 'A5' },
+  { value: 'Square', label: 'Square (21×21)' },
+];
+const ORIENTATION_OPTIONS: Option[] = [
+  { value: 'portrait', label: 'Portrait' },
+  { value: 'landscape', label: 'Landscape' },
+];
+const USER_ROLE_OPTIONS: Option[] = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'publisher', label: 'Publisher' },
+  { value: 'author', label: 'Author' },
+];
 
 export default function BooksList() {
   const { token } = useAuth();
@@ -34,6 +52,68 @@ export default function BooksList() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [animationClass, setAnimationClass] = useState('');
+
+  const [filterBarOpen, setFilterBarOpen] = useState(false);
+  const [filterName, setFilterName] = useState('');
+  const [filterPageSizes, setFilterPageSizes] = useState<Option[]>([]);
+  const [filterOrientations, setFilterOrientations] = useState<Option[]>([]);
+  const [filterPageCountMin, setFilterPageCountMin] = useState(0);
+  const [filterUserRoles, setFilterUserRoles] = useState<Option[]>([]);
+
+  const [appliedFilterName, setAppliedFilterName] = useState('');
+  const [appliedFilterPageSizes, setAppliedFilterPageSizes] = useState<Option[]>([]);
+  const [appliedFilterOrientations, setAppliedFilterOrientations] = useState<Option[]>([]);
+  const [appliedFilterPageCountMin, setAppliedFilterPageCountMin] = useState(0);
+  const [appliedFilterUserRoles, setAppliedFilterUserRoles] = useState<Option[]>([]);
+
+  const maxPageCount = useMemo(() => Math.max(...books.map((b) => b.pageCount), 1), [books]);
+
+  const appliedPageSizeValues = useMemo(() => new Set(appliedFilterPageSizes.map((o) => o.value)), [appliedFilterPageSizes]);
+  const appliedOrientationValues = useMemo(() => new Set(appliedFilterOrientations.map((o) => o.value)), [appliedFilterOrientations]);
+  const appliedUserRoleValues = useMemo(() => new Set(appliedFilterUserRoles.map((o) => o.value)), [appliedFilterUserRoles]);
+
+  const filteredBooks = useMemo(() => {
+    return books.filter((book) => {
+      if (appliedFilterName.trim()) {
+        const nameLower = book.name.toLowerCase();
+        const searchLower = appliedFilterName.toLowerCase();
+        if (!nameLower.includes(searchLower)) return false;
+      }
+      if (appliedPageSizeValues.size > 0 && !appliedPageSizeValues.has(book.pageSize)) return false;
+      if (appliedOrientationValues.size > 0 && !appliedOrientationValues.has(book.orientation)) return false;
+      if (book.pageCount < appliedFilterPageCountMin) return false;
+      if (appliedUserRoleValues.size > 0 && !appliedUserRoleValues.has(book.userRole)) return false;
+      return true;
+    });
+  }, [books, appliedFilterName, appliedPageSizeValues, appliedOrientationValues, appliedFilterPageCountMin, appliedUserRoleValues]);
+
+  const hasActiveFilters =
+    appliedFilterName.trim() !== '' ||
+    appliedFilterPageSizes.length > 0 ||
+    appliedFilterOrientations.length > 0 ||
+    appliedFilterPageCountMin > 0 ||
+    appliedFilterUserRoles.length > 0;
+
+  const applyFilters = () => {
+    setAppliedFilterName(filterName);
+    setAppliedFilterPageSizes(filterPageSizes);
+    setAppliedFilterOrientations(filterOrientations);
+    setAppliedFilterPageCountMin(filterPageCountMin);
+    setAppliedFilterUserRoles(filterUserRoles);
+  };
+
+  const resetFilters = () => {
+    setFilterName('');
+    setFilterPageSizes([]);
+    setFilterOrientations([]);
+    setFilterPageCountMin(0);
+    setFilterUserRoles([]);
+    setAppliedFilterName('');
+    setAppliedFilterPageSizes([]);
+    setAppliedFilterOrientations([]);
+    setAppliedFilterPageCountMin(0);
+    setAppliedFilterUserRoles([]);
+  };
 
   useEffect(() => {
     fetchBooks();
@@ -108,62 +188,157 @@ export default function BooksList() {
   }
 
   return (
+    <>
     <div className={`page-transition-container ${isTransitioning ? 'slide-to-left-exit-active' : animationClass}`}>
       <div className="page-transition-wrapper">
-        <div className="container mx-auto px-4 py-4">
-          <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-start gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center space-x-2">
-              <Book/>
-              <span>My Books</span>
-            </h1>
-            <p className="text-muted-foreground">
-              Manage and organize your book projects
-            </p>
-            <div className="pt-2">
+        <div className="container mx-auto px-4">
+          {/* Fixierte Leiste */}
+          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
+            <div className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Book className="h-6 w-6 shrink-0 text-foreground" />
+                <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
+                  My Books
+                </h1>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant={filterBarOpen ? 'default' : 'ghost'}
+                  onClick={() => setFilterBarOpen((v) => !v)}
+                  className="space-x-2"
+                >
+                  <Funnel className="h-4 w-4" />
+                  <span>Filter Books</span>
+                  {hasActiveFilters && (
+                    <span className="ml-1 h-2 w-2 rounded-full bg-primary-foreground/80" aria-hidden />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleNavigateToArchive}
+                  className="space-x-2"
+                >
+                  <Archive className="h-4 w-4" />
+                  <span>View Archive</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => navigate('/books/create')}
+                  className="space-x-2"
+                  variant="highlight"
+                >
+                  <BookPlus className="h-5 w-5" />
+                  <span>Create a Book</span>
+                </Button>
+              </div>
             </div>
+
+            {filterBarOpen && (
+              <div className="mt-4 flex flex-row items-start gap-4">
+                <div className="flex flex-row flex-wrap items-start gap-4 flex-1 min-w-0">
+                  <div className="flex flex-col shrink-0">
+                    <span className="text-xs text-muted-foreground mb-1">Name</span>
+                    <Input
+                      placeholder="Contains..."
+                      value={filterName}
+                      onChange={(e) => setFilterName(e.target.value)}
+                      className="h-8 text-sm w-[140px]"
+                    />
+                  </div>
+                  <div className="flex flex-col shrink-0 w-[140px]">
+                    <span className="text-xs text-muted-foreground mb-1">Page Size</span>
+                    <MultipleSelector
+                      value={filterPageSizes}
+                      onChange={setFilterPageSizes}
+                      options={PAGE_SIZE_OPTIONS}
+                      placeholder="All"
+                      hidePlaceholderWhenSelected
+                      className="min-h-8"
+                    />
+                  </div>
+                  <div className="flex flex-col shrink-0 w-[140px]">
+                    <span className="text-xs text-muted-foreground mb-1">Orientation</span>
+                    <MultipleSelector
+                      value={filterOrientations}
+                      onChange={setFilterOrientations}
+                      options={ORIENTATION_OPTIONS}
+                      placeholder="All"
+                      hidePlaceholderWhenSelected
+                      className="min-h-8"
+                    />
+                  </div>
+                  <div className="flex flex-col shrink-0 w-[140px]">
+                    <span className="text-xs text-muted-foreground mb-1">Page Count ≥</span>
+                    <Slider
+                      label="Page Count ≥"
+                      value={filterPageCountMin}
+                      onChange={setFilterPageCountMin}
+                      min={0}
+                      max={maxPageCount}
+                      step={1}
+                      unit=""
+                      hasLabel={false}
+                      className="w-full min-w-0"
+                    />
+                  </div>
+                  <div className="flex flex-col shrink-0 w-[140px]">
+                    <span className="text-xs text-muted-foreground mb-1">My Role</span>
+                    <MultipleSelector
+                      value={filterUserRoles}
+                      onChange={setFilterUserRoles}
+                      options={USER_ROLE_OPTIONS}
+                      placeholder="All"
+                      hidePlaceholderWhenSelected
+                      className="min-h-8"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end">
+                  <Button variant="ghost" size="sm" onClick={resetFilters} className="space-x-1.5">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reset Filter</span>
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={applyFilters}>
+                    Apply Filter
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="flex flex-col gap-2 justify-center items-center">
-            <Button 
-              variant="ghost" 
-              onClick={handleNavigateToArchive}
-              className="space-x-2"
-            >
-              <Archive className="h-4 w-4" />
-              <span>View Archive</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button 
-              onClick={() => navigate('/books/create')} 
-              className="space-x-2 mt-2"
-              variant={"highlight"}
-            >
-              <BookPlus className="h-6 w-6" />
-              <span>Create a Book (new)</span>
-            </Button>
-            
-          </div>
-        </div>
+
+          <div className="space-y-6 py-4">
+        <p className="text-muted-foreground -mt-2">
+          Manage and organize your book projects
+        </p>
 
         {/* Books Grid */}
-        {books.length === 0 ? (
+        {filteredBooks.length === 0 ? (
           <Card className="border shadow-sm">
             <CardContent className="text-center py-12">
               <Book className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No books yet</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {books.length === 0 ? 'No books yet' : 'No books match your filters'}
+              </h3>
               <p className="text-muted-foreground mb-6">
-                Create your first book to get started with your projects.
+                {books.length === 0
+                  ? 'Create your first book to get started with your projects.'
+                  : 'Try adjusting or resetting your filter criteria.'}
               </p>
-              <Button onClick={() => navigate('/books/create')} className="space-x-2">
-                <Plus className="h-4 w-4" />
-                <span>Create Your First Book</span>
-              </Button>
+              {books.length === 0 ? (
+                <Button onClick={() => navigate('/books/create')} className="space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Create Your First Book</span>
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={resetFilters} className="space-x-2">
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Reset Filter</span>
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
-          <BooksGrid books={books} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
+          <BooksGrid books={filteredBooks} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
         )}
 
 
@@ -220,11 +395,11 @@ export default function BooksList() {
           </DialogContent>
         </Dialog>
           </div>
-          
-          <FloatingActionButton />
         </div>
       </div>
     </div>
+    <FloatingActionButton />
+    </>
   );
 }
 

@@ -88,7 +88,7 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Cannot send invitation' });
     }
     const existingFriendship = await pool.query(
-      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
+      'SELECT 1 FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
       [userId, receiverId]
     );
     if (existingFriendship.rows.length > 0) {
@@ -131,8 +131,8 @@ router.post('/', authenticateToken, async (req, res) => {
 router.delete('/:friendId', authenticateToken, async (req, res) => {
   try {
     const friendId = parseInt(req.params.friendId, 10);
-    const userId = typeof req.user.id === 'number' ? req.user.id : parseInt(req.user.id, 10);
-    if (isNaN(friendId) || friendId <= 0 || isNaN(userId) || userId <= 0) {
+    const userId = req.user.id;
+    if (isNaN(friendId) || friendId <= 0) {
       return res.status(400).json({ error: 'Invalid friendId' });
     }
     
@@ -165,7 +165,7 @@ router.get('/search', authenticateToken, async (req, res) => {
         AND u.id != $2
         AND NOT EXISTS (
           SELECT 1 FROM public.friendships f 
-          WHERE f.user_id = LEAST($2, u.id) AND f.friend_id = GREATEST($2, u.id) AND f.ended_at IS NULL
+          WHERE f.user_id = LEAST($2::int, u.id) AND f.friend_id = GREATEST($2::int, u.id) AND f.ended_at IS NULL
         )
       LIMIT 10
     `, [`%${query}%`, userId]);

@@ -1614,7 +1614,7 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
 
     // User must already be a friend to add to book - no automatic friendship creation
     const friendship = await pool.query(
-      'SELECT * FROM public.friendships WHERE user_id = LEAST($1, $2) AND friend_id = GREATEST($1, $2) AND ended_at IS NULL',
+      'SELECT * FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
       [userId, userToAdd]
     );
 

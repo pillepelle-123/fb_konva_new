@@ -12,7 +12,11 @@ const authenticateToken = (req, res, next) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    req.user = user;
+    // Sicherstellen, dass id immer Integer ist (verhindert integer=text Fehler in DB-Abfragen)
+    req.user = {
+      ...user,
+      id: typeof user.id === 'number' ? user.id : parseInt(user.id, 10)
+    };
     next();
   });
 };
