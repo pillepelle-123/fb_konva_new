@@ -19,6 +19,7 @@ import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
+import { Tooltip } from '../../../ui';
 
 const getCurrentFontName = (fontFamily: string) => {
   for (const group of FONT_GROUPS) {
@@ -180,46 +181,58 @@ export function FreeTextSettingsForm({
       <div className="flex-1 overflow-y-auto space-y-2 p-2">
         <div>
           <div className="flex gap-2">
-            <Button variant={computedCurrentStyle.fontBold ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('fontBold', !computedCurrentStyle.fontBold)} className="px-3">
-              <strong>B</strong>
-            </Button>
-            <Button variant={computedCurrentStyle.fontItalic ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('fontItalic', !computedCurrentStyle.fontItalic)} className="px-3">
-              <em>I</em>
-            </Button>
-            <Button variant="outline" size="xs" onClick={() => setShowFontSelector(true)} className="flex-1 justify-start" style={{ fontFamily: computedCurrentStyle.fontFamily }}>
-              <Type className="h-4 w-4 mr-2" />
-              <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <ALargeSmall className='w-5 h-5'/>
-              <Slider label="Font Size" value={actualToCommon(computedCurrentStyle.fontSize || 50)} displayValue={actualToCommon(computedCurrentStyle.fontSize || 50)} onChange={(value) => updateTextSetting('fontSize', commonToActual(value))} min={COMMON_FONT_SIZE_RANGE.min} max={COMMON_FONT_SIZE_RANGE.max} step={1} className='w-full' />
+            <Tooltip content="Bold" side="left">
+              <Button variant={computedCurrentStyle.fontBold ? 'default' : 'outline'} size="xxs" onClick={() => updateTextSetting('fontBold', !computedCurrentStyle.fontBold)} className="px-3 flex-shrink-0">
+                <strong>B</strong>
+              </Button>
+            </Tooltip>
+            <Tooltip content="Italic" side="left">
+              <Button variant={computedCurrentStyle.fontItalic ? 'default' : 'outline'} size="xxs" onClick={() => updateTextSetting('fontItalic', !computedCurrentStyle.fontItalic)} className="px-3 flex-shrink-0">
+                <em>I</em>
+              </Button>
+            </Tooltip>
+            <div className="flex-1">
+              <Tooltip content={`Font: ${getCurrentFontName(computedCurrentStyle.fontFamily)}`} side="left">
+                <Button variant="outline" size="xxs" onClick={() => setShowFontSelector(true)} className="w-full justify-start" style={{ fontFamily: computedCurrentStyle.fontFamily }}>
+                  <Type className="h-4 w-4 mr-2" />
+                  <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
+                </Button>
+              </Tooltip>
             </div>
           </div>
         </div>
 
-        <div>
-          <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
-            <Palette className="w-4 mr-2" />
-             <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
-             Font Color
-          </Button>
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <Tooltip content="Font Size" side="left">
+            <ALargeSmall className="w-5 h-5 flex-shrink-0" />
+          </Tooltip>
+          <div className="flex-1 min-w-0">
+            <Slider label="Font Size" value={actualToCommon(computedCurrentStyle.fontSize || 50)} displayValue={actualToCommon(computedCurrentStyle.fontSize || 50)} onChange={(value) => updateTextSetting('fontSize', commonToActual(value))} min={COMMON_FONT_SIZE_RANGE.min} max={COMMON_FONT_SIZE_RANGE.max} step={1} className="w-full" />
+          </div>
         </div>
 
         <div>
-          <Slider label="Font Opacity" value={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('fontOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
+          <Tooltip content="Font Color" side="left">
+            <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
+              <Palette className="w-4 mr-2" />
+              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
+              Font Color
+            </Button>
+          </Tooltip>
+        </div>
+
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <Tooltip content="Font Opacity" side="left" fullWidth={true}>
+            <Slider label="Font Opacity" value={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.fontOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('fontOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
+          </Tooltip>
         </div>
 
         <Separator/>
 
         <div className='flex flex-row gap-3'>
-          <div className="flex-1 py-2">
-            <Label variant="xs">Paragraph Spacing</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
+          <div className="flex-[3_1_0%] min-w-0 py-2">
+            <Tooltip content="Paragraph Spacing" side="left" fullWidth={true}>
+              <ButtonGroup className="flex w-full flex-row">
               <Button variant={computedCurrentStyle.paragraphSpacing === 'small' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('paragraphSpacing', 'small')} className="px-1 h-6 flex-1">
                 <Rows4 className="h-3 w-3" />
               </Button>
@@ -230,122 +243,11 @@ export function FreeTextSettingsForm({
                 <Rows2 className="h-3 w-3" />
               </Button>
             </ButtonGroup>
+            </Tooltip>
           </div>
-        </div>
-
-        <Separator/>
-
-        <div className='py-2'>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox checked={computedCurrentStyle.ruledLines} onCheckedChange={(checked) => updateTextSetting('ruledLines', checked)} />
-            Ruled Lines
-          </Label>
-        </div>
-
-        {computedCurrentStyle.ruledLines && (
-          <IndentedSection>
-            <Slider label="Line Width" value={computedCurrentStyle.ruledLinesWidth ?? 0.8} onChange={(value) => updateTextSetting('ruledLinesWidth', value)} min={0} max={30} step={0.1} />
-            <div>
-              <Label variant="xs">Ruled Lines Theme</Label>
-              <ThemeSelect value={computedCurrentStyle.ruledLinesTheme} onChange={(value) => updateTextSetting('ruledLinesTheme', value)} />
-            </div>
-            <ThemeSettingsRenderer
-              element={element}
-              theme={computedCurrentStyle.ruledLinesTheme}
-              updateSetting={(key, value) => updateTextSetting(key, value)}
-            />
-            <div>
-              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
-                Line Color
-              </Button>
-            </div>
-            <div>
-              <Slider label="Line Opacity" value={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('ruledLinesOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
-            </div>
-          </IndentedSection>
-        )}
-
-        <Separator/>
-
-        <div className='py-2'>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox checked={computedCurrentStyle.borderEnabled} onCheckedChange={(checked) => updateTextSetting('borderEnabled', checked)} />
-            Border
-          </Label>
-        </div>
-
-        {computedCurrentStyle.borderEnabled && (
-          <IndentedSection>
-            <Slider label="Border Width" value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)} onChange={(value) => {
-              const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderTheme);
-              updateTextSetting('borderWidth', actualWidth);
-            }} min={0} max={getMaxCommonWidth()} step={1} />
-            <div>
-              <Label variant="xs">Border Theme</Label>
-              <ThemeSelect value={computedCurrentStyle.borderTheme} onChange={(value) => updateTextSetting('borderTheme', value)} />
-            </div>
-            <ThemeSettingsRenderer
-              element={element}
-              theme={computedCurrentStyle.borderTheme}
-              updateSetting={(key, value) => updateTextSetting(key, value)}
-            />
-            <div>
-              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
-                Border Color
-              </Button>
-            </div>
-            <Slider label="Border Opacity" value={computedCurrentStyle.borderOpacity * 100} onChange={(value) => updateTextSetting('borderOpacity', value / 100)} min={0} max={100} step={5} />
-          </IndentedSection>
-        )}
-
-        <div>
-          <Label className="flex items-center gap-1" variant="xs">
-            <Checkbox checked={computedCurrentStyle.backgroundEnabled} onCheckedChange={(checked) => updateTextSetting('backgroundEnabled', checked)} />
-            Background
-          </Label>
-        </div>
-
-        {computedCurrentStyle.backgroundEnabled && (
-          <IndentedSection>
-            <div>
-              <Button variant="outline" size="xs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
-                Background Color
-              </Button>
-            </div>
-            <div>
-              <Slider label="Background Opacity" value={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('backgroundOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} />
-            </div>
-          </IndentedSection>
-        )}
-
-        <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <SquareRoundCorner className='w-5 h-5'/>
-              <Slider label="Corner Radius" value={actualToCommonRadius(computedCurrentStyle.cornerRadius)} onChange={(value) => updateTextSetting('cornerRadius', commonToActualRadius(value))} min={COMMON_CORNER_RADIUS_RANGE.min} max={COMMON_CORNER_RADIUS_RANGE.max} step={1} className='w-full' />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-row gap-2 py-2 w-full">
-          <div className='flex-1'>
-            <div className='flex flex-row gap-2'>
-              <PanelTopBottomDashed className='w-5 h-5'/>
-              <Slider label="Padding" value={computedCurrentStyle.padding} onChange={(value) => updateTextSetting('padding', value)} min={0} max={100} step={1} className='w-full' />
-            </div>
-          </div>
-        </div>
-
-        <div className='flex flex-row gap-3'>
-          <div className="flex-1 py-2">
-            <Label variant="xs">Text Align</Label>
-            <ButtonGroup className="mt-1 flex flex-row">
+          <div className="flex-[4_1_0%] min-w-0 py-2">
+            <Tooltip content="Text Align" side="left" fullWidth={true}>
+              <ButtonGroup className="flex w-full flex-row">
               <Button variant={computedCurrentStyle.align === 'left' ? 'default' : 'outline'} size="xs" onClick={() => updateTextSetting('align', 'left')} className="px-1 h-6 flex-1">
                 <AlignLeft className="h-3 w-3" />
               </Button>
@@ -359,6 +261,146 @@ export function FreeTextSettingsForm({
                 <AlignJustify className="h-3 w-3" />
               </Button>
             </ButtonGroup>
+            </Tooltip>
+          </div>
+        </div>
+
+        <Separator/>
+
+        <div className='py-2'>
+          <Tooltip content="Ruled Lines" side="left">
+            <Label className="flex items-center gap-1" variant="xs">
+              <Checkbox checked={computedCurrentStyle.ruledLines} onCheckedChange={(checked) => updateTextSetting('ruledLines', checked)} />
+              Ruled Lines
+            </Label>
+          </Tooltip>
+        </div>
+
+        {computedCurrentStyle.ruledLines && (
+          <IndentedSection>
+            <div className="min-w-0">
+              <Tooltip content="Line Width" side="left" fullWidth={true}>
+                <Slider label="Line Width" value={computedCurrentStyle.ruledLinesWidth ?? 0.8} onChange={(value) => updateTextSetting('ruledLinesWidth', value)} min={1} max={30} step={0.3} className="w-full" />
+              </Tooltip>
+            </div>
+            <div>
+              <Tooltip content="Ruled Lines Theme" side="left">
+                <ThemeSelect value={computedCurrentStyle.ruledLinesTheme} onChange={(value) => updateTextSetting('ruledLinesTheme', value)} />
+              </Tooltip>
+            </div>
+            <ThemeSettingsRenderer
+              element={element}
+              theme={computedCurrentStyle.ruledLinesTheme}
+              updateSetting={(key, value) => updateTextSetting(key, value)}
+            />
+            <div>
+              <Tooltip content="Line Color" side="left">
+                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
+                  Line Color
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="min-w-0">
+              <Tooltip content="Line Opacity" side="left" fullWidth={true}>
+                <Slider label="Line Opacity" value={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.ruledLinesOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('ruledLinesOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} className="w-full" />
+              </Tooltip>
+            </div>
+          </IndentedSection>
+        )}
+
+        <Separator/>
+
+        <div className='py-2'>
+          <Tooltip content="Border" side="left">
+            <Label className="flex items-center gap-1" variant="xs">
+              <Checkbox checked={computedCurrentStyle.borderEnabled} onCheckedChange={(checked) => updateTextSetting('borderEnabled', checked)} />
+              Border
+            </Label>
+          </Tooltip>
+        </div>
+
+        {computedCurrentStyle.borderEnabled && (
+          <IndentedSection>
+            <div className="min-w-0">
+              <Tooltip content="Border Width" side="left" fullWidth={true}>
+                <Slider label="Border Width" value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)} onChange={(value) => {
+                  const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderTheme);
+                  updateTextSetting('borderWidth', actualWidth);
+                }} min={1} max={getMaxCommonWidth()} step={1} className="w-full" />
+              </Tooltip>
+            </div>
+            <div>
+              <Tooltip content="Border Theme" side="left">
+                <ThemeSelect value={computedCurrentStyle.borderTheme} onChange={(value) => updateTextSetting('borderTheme', value)} />
+              </Tooltip>
+            </div>
+            <ThemeSettingsRenderer
+              element={element}
+              theme={computedCurrentStyle.borderTheme}
+              updateSetting={(key, value) => updateTextSetting(key, value)}
+            />
+            <div>
+              <Tooltip content="Border Color" side="left">
+                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
+                  Border Color
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="min-w-0">
+              <Tooltip content="Border Opacity" side="left" fullWidth={true}>
+                <Slider label="Border Opacity" value={Math.round((computedCurrentStyle.borderOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.borderOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('borderOpacity', value / 100)} min={0} max={100} step={5} unit="%" hasLabel={false} className="w-full" />
+              </Tooltip>
+            </div>
+          </IndentedSection>
+        )}
+
+        <div>
+          <Tooltip content="Background" side="left">
+            <Label className="flex items-center gap-1" variant="xs">
+              <Checkbox checked={computedCurrentStyle.backgroundEnabled} onCheckedChange={(checked) => updateTextSetting('backgroundEnabled', checked)} />
+              Background
+            </Label>
+          </Tooltip>
+        </div>
+
+        {computedCurrentStyle.backgroundEnabled && (
+          <IndentedSection>
+            <div>
+              <Tooltip content="Background Color" side="left">
+                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
+                  Background Color
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="min-w-0">
+              <Tooltip content="Background Opacity" side="left" fullWidth={true}>
+                <Slider label="Background Opacity" value={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} displayValue={Math.round((computedCurrentStyle.backgroundOpacity ?? 1) * 100)} onChange={(value) => updateTextSetting('backgroundOpacity', value / 100)} min={5} max={100} step={5} unit="%" hasLabel={false} className="w-full" />
+              </Tooltip>
+            </div>
+          </IndentedSection>
+        )}
+
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <Tooltip content="Corner Radius" side="left">
+            <SquareRoundCorner className="w-5 h-5 flex-shrink-0" />
+          </Tooltip>
+          <div className="flex-1 min-w-0">
+            <Slider label="Corner Radius" value={actualToCommonRadius(computedCurrentStyle.cornerRadius)} onChange={(value) => updateTextSetting('cornerRadius', commonToActualRadius(value))} min={COMMON_CORNER_RADIUS_RANGE.min} max={COMMON_CORNER_RADIUS_RANGE.max} step={1} className="w-full" />
+          </div>
+        </div>
+
+        <div className="flex flex-row gap-2 py-2 w-full">
+          <Tooltip content="Padding" side="left">
+            <PanelTopBottomDashed className="w-5 h-5 flex-shrink-0" />
+          </Tooltip>
+          <div className="flex-1 min-w-0">
+            <Slider label="Padding" value={computedCurrentStyle.padding} onChange={(value) => updateTextSetting('padding', value)} min={0} max={100} step={1} className="w-full" />
           </div>
         </div>
       </div>

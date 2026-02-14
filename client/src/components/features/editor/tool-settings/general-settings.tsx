@@ -28,10 +28,6 @@ interface GeneralSettingsProps {
   setShowPatternSettings: (value: boolean) => void;
   showEditorSettings?: boolean;
   setShowEditorSettings?: (value: boolean) => void;
-  showPageTheme: boolean;
-  setShowPageTheme: (value: boolean) => void;
-  showBookTheme: boolean;
-  setShowBookTheme: (value: boolean) => void;
   setShowBackgroundImageModal: (value: boolean) => void;
   showBackgroundImageTemplateSelector: boolean;
   setShowBackgroundImageTemplateSelector: (value: boolean) => void;
@@ -45,18 +41,12 @@ interface GeneralSettingsProps {
   isBackgroundApplyDisabled?: boolean;
   isBookChatAvailable?: boolean;
   onOpenBookChat?: () => void;
-  showPagePalette?: boolean;
-  setShowPagePalette?: (value: boolean) => void;
-  showBookPalette?: boolean;
-  setShowBookPalette?: (value: boolean) => void;
-  showPageLayout?: boolean;
-  setShowPageLayout?: (value: boolean) => void;
-  showBookLayout?: boolean;
-  setShowBookLayout?: (value: boolean) => void;
-  showPageThemeSelector?: boolean;
-  setShowPageThemeSelector?: (value: boolean) => void;
-  showBookThemeSelector?: boolean;
-  setShowBookThemeSelector?: (value: boolean) => void;
+  showPalette?: boolean;
+  setShowPalette?: (value: boolean) => void;
+  showLayout?: boolean;
+  setShowLayout?: (value: boolean) => void;
+  showThemeSelector?: boolean;
+  setShowThemeSelector?: (value: boolean) => void;
 }
 
 export interface GeneralSettingsRef {
@@ -72,10 +62,6 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   setShowBackgroundSettings,
   showPatternSettings,
   setShowPatternSettings,
-  showPageTheme,
-  setShowPageTheme,
-  showBookTheme,
-  setShowBookTheme,
   setShowBackgroundImageModal,
   showBackgroundImageTemplateSelector,
   setShowBackgroundImageTemplateSelector,
@@ -89,33 +75,27 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   isBackgroundApplyDisabled,
   isBookChatAvailable = false,
   onOpenBookChat,
-  showPagePalette: externalShowPagePalette = false,
-  setShowPagePalette: externalSetShowPagePalette,
-  showBookPalette: externalShowBookPalette = false,
-  setShowBookPalette: externalSetShowBookPalette,
-  showPageLayout: externalShowPageLayout = false,
-  setShowPageLayout: externalSetShowPageLayout,
-  showBookLayout: externalShowBookLayout = false,
-  setShowBookLayout: externalSetShowBookLayout,
-  showPageThemeSelector: externalShowPageThemeSelector = false,
-  setShowPageThemeSelector: externalSetShowPageThemeSelector,
-  showBookThemeSelector: externalShowBookThemeSelector = false,
-  setShowBookThemeSelector: externalSetShowBookThemeSelector,
+  showPalette: externalShowPalette = false,
+  setShowPalette: externalSetShowPalette,
+  showLayout: externalShowLayout = false,
+  setShowLayout: externalSetShowLayout,
+  showThemeSelector: externalShowThemeSelector = false,
+  setShowThemeSelector: externalSetShowThemeSelector,
   showEditorSettings: externalShowEditorSettings = false,
   setShowEditorSettings: externalSetShowEditorSettings
   } = props;
   const { state, dispatch, canViewPageSettings } = useEditor();
   // Use external state management if provided, otherwise fall back to local state
-  const [localShowPagePalette, setLocalShowPagePalette] = useState(false);
-  const [localShowPageLayout, setLocalShowPageLayout] = useState(false);
-  const [localShowPageThemeSelector, setLocalShowPageThemeSelector] = useState(false);
+  const [localShowPalette, setLocalShowPalette] = useState(false);
+  const [localShowLayout, setLocalShowLayout] = useState(false);
+  const [localShowThemeSelector, setLocalShowThemeSelector] = useState(false);
 
-  const showPagePalette = externalSetShowPagePalette ? externalShowPagePalette : localShowPagePalette;
-  const setShowPagePalette = externalSetShowPagePalette || setLocalShowPagePalette;
-  const showPageLayout = externalSetShowPageLayout ? externalShowPageLayout : localShowPageLayout;
-  const setShowPageLayout = externalSetShowPageLayout || setLocalShowPageLayout;
-  const showPageThemeSelector = externalSetShowPageThemeSelector ? externalShowPageThemeSelector : localShowPageThemeSelector;
-  const setShowPageThemeSelector = externalSetShowPageThemeSelector || setLocalShowPageThemeSelector;
+  const showPalette = externalSetShowPalette ? externalShowPalette : localShowPalette;
+  const setShowPalette = externalSetShowPalette || setLocalShowPalette;
+  const showLayout = externalSetShowLayout ? externalShowLayout : localShowLayout;
+  const setShowLayout = externalSetShowLayout || setLocalShowLayout;
+  const showThemeSelector = externalSetShowThemeSelector ? externalShowThemeSelector : localShowThemeSelector;
+  const setShowThemeSelector = externalSetShowThemeSelector || setLocalShowThemeSelector;
   const [localShowEditorSettings, setLocalShowEditorSettings] = useState(false);
   const showEditorSettings = externalSetShowEditorSettings ? (externalShowEditorSettings ?? false) : localShowEditorSettings;
   const setShowEditorSettings = externalSetShowEditorSettings || setLocalShowEditorSettings;
@@ -123,9 +103,9 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const [showPageNumberingSettings, setShowPageNumberingSettings] = useState(false);
   
   // Keys to force remount when dialogs are opened
-  const [pageLayoutKey, setPageLayoutKey] = useState(0);
-  const [pageThemeKey, setPageThemeKey] = useState(0);
-  const [pagePaletteKey, setPagePaletteKey] = useState(0);
+  const [layoutKey, setLayoutKey] = useState(0);
+  const [themeKey, setThemeKey] = useState(0);
+  const [paletteKey, setPaletteKey] = useState(0);
 
   const discardSelectorRef = useRef<{ discard: () => void } | null>(null);
 
@@ -204,48 +184,45 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     );
   }
   
-  if (showPagePalette) {
+  if (showPalette) {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
     return (
       <PaletteSelector
         ref={discardSelectorRef}
-        key={`page-palette-${pagePaletteKey}`}
+        key={`palette-${paletteKey}`}
         onBack={() => {
-          setShowPagePalette(false);
-          setPagePaletteKey(prev => prev + 1);
+          setShowPalette(false);
+          setPaletteKey(prev => prev + 1);
         }}
-        title="Page Color Palette"
-        isBookLevel={false}
+        title="Color Palette"
         themeId={pageActiveTemplates.themeId}
       />
     );
   }
   
-  if (showPageLayout) {
+  if (showLayout) {
     return (
       <SelectorLayout
         ref={discardSelectorRef}
-        key={`page-layout-${pageLayoutKey}`}
+        key={`layout-${layoutKey}`}
         onBack={() => {
-          setShowPageLayout(false);
-          setPageLayoutKey(prev => prev + 1);
+          setShowLayout(false);
+          setLayoutKey(prev => prev + 1);
         }}
-        isBookLevel={false}
       />
     );
   }
   
-  if (showPageThemeSelector) {
+  if (showThemeSelector) {
     return (
       <SelectorTheme
         ref={discardSelectorRef}
-        key={`page-theme-${pageThemeKey}`}
+        key={`theme-${themeKey}`}
         onBack={() => {
-          setShowPageThemeSelector(false);
-          setPageThemeKey(prev => prev + 1);
+          setShowThemeSelector(false);
+          setThemeKey(prev => prev + 1);
         }}
-        isBookLevel={false}
       />
     );
   }
@@ -366,8 +343,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                     size="sm"
                     onClick={() => {
                       if (canAccessPageSettings) {
-                        setPageLayoutKey(prev => prev + 1); // Force remount
-                        setShowPageLayout(true);
+                        setLayoutKey(prev => prev + 1); // Force remount
+                        setShowLayout(true);
                       }
                     }}
                     className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -390,8 +367,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                     size="sm"
                     onClick={() => {
                       if (canAccessPageSettings) {
-                        setPageThemeKey(prev => prev + 1); // Force remount
-                        setShowPageThemeSelector(true);
+                        setThemeKey(prev => prev + 1); // Force remount
+                        setShowThemeSelector(true);
                       }
                     }}
                     className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -408,8 +385,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                     size="sm"
                     onClick={() => {
                       if (canAccessPageSettings) {
-                        setPagePaletteKey(prev => prev + 1); // Force remount
-                        setShowPagePalette(true);
+                        setPaletteKey(prev => prev + 1); // Force remount
+                        setShowPalette(true);
                       }
                     }}
                     className={`w-full justify-start ${!canAccessPageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}

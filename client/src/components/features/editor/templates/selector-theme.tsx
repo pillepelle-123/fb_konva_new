@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { Eye, Paintbrush2 } from 'lucide-react';
+import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 import { GLOBAL_THEMES, getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../../utils/global-themes';
 import { SelectorBase } from './selector-base';
 import { Card } from '../../../ui/composites/card';
@@ -9,23 +10,22 @@ import { Separator } from '../../../ui';
 import { useEditor } from '../../../../context/editor-context';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import type { PageBackground } from '../../../../context/editor-context';
+import type { PageBackground, Page } from '../../../../context/editor-context';
 import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 
 interface SelectorThemeProps {
   onBack: () => void;
-  isBookLevel?: boolean;
 }
 
 export interface SelectorThemeRef {
   discard: () => void;
 }
 
-export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(function SelectorTheme({ onBack, isBookLevel = false }, ref) {
+export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(function SelectorTheme({ onBack }, ref) {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const canApplyToEntireBook = canEditBookSettings();
   
-  const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentTheme = activeTemplateIds.themeId;
   
@@ -36,7 +36,6 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
     : false;
 
   const deriveSelectedTheme = () => {
-    if (isBookLevel) return currentTheme || 'default';
     return pageHasCustomTheme ? (currentTheme || 'default') : '__BOOK_THEME__';
   };
 
@@ -44,16 +43,17 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
   const [selectedTheme, setSelectedTheme] = useState<string>(initialThemeRef.current);
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageStateRef = useRef<Page | null>(null);
+  const hasAppliedRef = useRef(false);
 
   // Capture complete page state on mount (deep clone)
   useEffect(() => {
-    if (!originalPageStateRef.current && currentPage && !isBookLevel) {
+    if (!originalPageStateRef.current && currentPage) {
       originalPageStateRef.current = structuredClone(currentPage);
     }
   }, []);
 
   const themes = GLOBAL_THEMES.map(theme => ({ id: theme.id, ...getGlobalTheme(theme.id)! }));
-  const allThemes = isBookLevel ? themes : [{ id: '__BOOK_THEME__', name: 'Book Theme', description: 'Inherit from book' }, ...themes];
+  const allThemes = [{ id: '__BOOK_THEME__', name: 'Book Theme', description: 'Inherit from book' }, ...themes];
   const selectedThemeObj = allThemes.find(t => t.id === selectedTheme) || null;
   const activeThemeObj = getGlobalTheme(selectedTheme === '__BOOK_THEME__' ? (state.currentBook?.bookTheme || 'default') : selectedTheme);
 
@@ -143,9 +143,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
     }
   };
 
-  const handleCancel = () => {
-    if (originalPageStateRef.current && !isBookLevel) {
-      // Restore complete page state
+  const handleCancel = useCallback(() => {
+    if (!hasAppliedRef.current && originalPageStateRef.current) {
       dispatch({
         type: 'RESTORE_PAGE_STATE',
         payload: {
@@ -155,44 +154,18 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
       });
     }
     onBack();
-  };
+  }, [dispatch, state.activePageIndex, onBack]);
 
   useImperativeHandle(ref, () => ({ discard: handleCancel }), [handleCancel]);
+  const { panelRef } = useSettingsPanel(handleCancel);
 
   const handleApply = () => {
     if (!selectedTheme) return;
 
-    if (isBookLevel) {
-      const currentBookPaletteId = state.currentBook?.colorPaletteId;
-      const currentBookThemeId = state.currentBook?.bookTheme || 'default';
-      const currentThemeDefaultPaletteId = getThemePaletteId(currentBookThemeId);
-      const isBookUsingThemeDefaultPalette = currentBookPaletteId === currentThemeDefaultPaletteId;
+    const isBookThemeSelection = selectedTheme === '__BOOK_THEME__';
+    const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
 
-      dispatch({ type: 'SET_BOOK_THEME', payload: selectedTheme });
-
-      if (isBookUsingThemeDefaultPalette) {
-        const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
-        dispatch({ type: 'SET_BOOK_COLOR_PALETTE', payload: { colorPaletteId: newThemeDefaultPaletteId || null } });
-      }
-
-      if (state.currentBook) {
-        state.currentBook.pages.forEach((page, pageIndex) => {
-          const pageHasCustom = Object.prototype.hasOwnProperty.call(page, 'themeId') && 
-                                 page.themeId !== undefined && 
-                                 page.themeId !== null;
-          const themeForElements = pageHasCustom ? page.themeId! : selectedTheme;
-
-          dispatch({
-            type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: { pageIndex, themeId: themeForElements, skipHistory: true, preserveColors: true }
-          });
-        });
-      }
-    } else {
-      const isBookThemeSelection = selectedTheme === '__BOOK_THEME__';
-      const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
-
-      if (applyToEntireBook && state.currentBook) {
+    if (applyToEntireBook && state.currentBook) {
         state.currentBook.pages.forEach((page, pageIndex) => {
           dispatch({
             type: 'SET_PAGE_THEME',
@@ -226,61 +199,63 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
 
         const historyLabel = selectedTheme === '__BOOK_THEME__' ? 'Book Theme' : getGlobalTheme(selectedTheme)?.name || selectedTheme;
         dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}" to all pages` });
+        hasAppliedRef.current = true;
         onBack();
         return;
+    }
+
+    dispatch({
+      type: 'SET_PAGE_THEME',
+      payload: { pageIndex: state.activePageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme }
+    });
+
+    dispatch({
+      type: 'APPLY_THEME_TO_ELEMENTS',
+      payload: { pageIndex: state.activePageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
+    });
+
+    const theme = getGlobalTheme(resolvedThemeId);
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    if (theme && currentPage) {
+      const activePaletteId = currentPage.colorPaletteId || state.currentBook?.colorPaletteId || null;
+      const currentThemeId = currentPage.themeId || state.currentBook?.bookTheme || 'default';
+      const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
+      const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+
+      if (isUsingThemeDefaultPalette) {
+        const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
+        dispatch({
+          type: 'SET_PAGE_COLOR_PALETTE',
+          payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
+        });
       }
 
-      dispatch({
-        type: 'SET_PAGE_THEME',
-        payload: { pageIndex: state.activePageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme }
-      });
-
-      dispatch({
-        type: 'APPLY_THEME_TO_ELEMENTS',
-        payload: { pageIndex: state.activePageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
-      });
-
-      const theme = getGlobalTheme(resolvedThemeId);
-      const currentPage = state.currentBook?.pages[state.activePageIndex];
-      if (theme && currentPage) {
-        const activePaletteId = currentPage.colorPaletteId || state.currentBook?.colorPaletteId || null;
-        const currentThemeId = currentPage.themeId || state.currentBook?.bookTheme || 'default';
-        const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-        const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
-
-        if (isUsingThemeDefaultPalette) {
-          const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
-          dispatch({
-            type: 'SET_PAGE_COLOR_PALETTE',
-            payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
-          });
-        }
-
-        const newBackground = buildBackground(resolvedThemeId, state.activePageIndex);
-        dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex: state.activePageIndex, background: newBackground } });
-      }
+      const newBackground = buildBackground(resolvedThemeId, state.activePageIndex);
+      dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex: state.activePageIndex, background: newBackground } });
     }
 
     const historyLabel = selectedTheme === '__BOOK_THEME__' ? 'Book Theme' : getGlobalTheme(selectedTheme)?.name || selectedTheme;
-    dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}" to ${isBookLevel ? 'Book' : 'Page'}` });
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}"` });
+    hasAppliedRef.current = true;
     onBack();
   };
 
   return (
+    <div ref={panelRef} className="h-full">
     <SelectorBase
-      title={<><Paintbrush2 className="h-4 w-4" />{isBookLevel ? 'Book Theme' : 'Page Theme'}</>}
+      title={<><Paintbrush2 className="h-4 w-4" />Theme</>}
       items={allThemes}
       selectedItem={selectedThemeObj}
       onItemSelect={(theme) => {
         setSelectedTheme(theme.id);
-        if (!isBookLevel) handlePreview(theme.id);
+        handlePreview(theme.id);
       }}
       getItemKey={(theme) => theme.id}
       onCancel={handleCancel}
       onApply={handleApply}
       canApply={selectedTheme !== initialThemeRef.current}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
+      onApplyToEntireBookChange={canApplyToEntireBook ? setApplyToEntireBook : undefined}
       renderItem={(theme, isActive) => (
         <Card
           className={`w-full p-3 transition-colors flex items-center justify-between gap-2 cursor-pointer ${
@@ -308,5 +283,6 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
         </div>
       )}
     />
+    </div>
   );
 });

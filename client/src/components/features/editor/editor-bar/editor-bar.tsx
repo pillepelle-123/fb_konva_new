@@ -41,7 +41,7 @@ function getPairPages(pages: Page[], index: number): Page[] {
 }
 
 interface EditorBarProps {
-  toolSettingsPanelRef: React.RefObject<{ openBookTheme: () => void }>;
+  toolSettingsPanelRef: React.RefObject<{ openThemeSelector: () => void }>;
   initialPreviewOpen?: boolean;
 }
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useMemo, useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { Layout, Filter } from 'lucide-react';
 import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
 import type { PageTemplate, TemplateCategory } from '../../../../types/template-types';
@@ -8,23 +8,23 @@ import { LayoutTemplatePreview } from './layout-template-preview';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Card } from '../../../ui/composites/card';
 import { Separator } from '../../../ui';
-import { useEditor } from '../../../../context/editor-context';
+import { useEditor, type Page } from '../../../../context/editor-context';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
+import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 
 interface SelectorLayoutProps {
   onBack: () => void;
-  isBookLevel?: boolean;
 }
 
 export interface SelectorLayoutRef {
   discard: () => void;
 }
 
-export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>(function SelectorLayout({ onBack, isBookLevel = false }, ref) {
+export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>(function SelectorLayout({ onBack }, ref) {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const canApplyToEntireBook = canEditBookSettings();
   
-  const currentPage = isBookLevel ? undefined : state.currentBook?.pages[state.activePageIndex];
+  const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentLayoutId = activeTemplateIds.layoutTemplateId;
   
@@ -43,10 +43,11 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
   const mirroredCache = useRef<Record<string, PageTemplate>>({});
   const [mirroredFlags, setMirroredFlags] = useState<Record<string, boolean>>({});
   const originalPageStateRef = useRef<Page | null>(null);
+  const hasAppliedRef = useRef(false);
 
   // Capture complete page state on mount (deep clone)
   useEffect(() => {
-    if (!originalPageStateRef.current && currentPage && !isBookLevel) {
+    if (!originalPageStateRef.current && currentPage) {
       originalPageStateRef.current = structuredClone(currentPage);
     }
   }, []);
@@ -132,9 +133,8 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
     });
   };
 
-  const handleCancel = () => {
-    if (originalPageStateRef.current && !isBookLevel) {
-      // Restore complete page state
+  const handleCancel = useCallback(() => {
+    if (!hasAppliedRef.current && originalPageStateRef.current) {
       dispatch({
         type: 'RESTORE_PAGE_STATE',
         payload: {
@@ -144,30 +144,13 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
       });
     }
     onBack();
-  };
+  }, [dispatch, state.activePageIndex, onBack]);
 
   useImperativeHandle(ref, () => ({ discard: handleCancel }), [handleCancel]);
+  const { panelRef } = useSettingsPanel(handleCancel);
 
   const handleApply = () => {
     if (!selectedLayout) return;
-
-    if (isBookLevel) {
-      const inheritingPages = state.currentBook?.pages
-        .map((page, index) => ({ page, index }))
-        .filter(({ page }) => !page.layoutTemplateId) || [];
-      
-      inheritingPages.forEach(({ index }) => {
-        dispatch({
-          type: 'APPLY_LAYOUT_TEMPLATE',
-          payload: { template: selectedLayout, pageIndex: index, applyToAllPages: false, skipHistory: true }
-        });
-      });
-      
-      dispatch({ type: 'SET_BOOK_LAYOUT_TEMPLATE', payload: selectedLayout.id });
-      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Book Layout: ${selectedLayout.name}` });
-      onBack();
-      return;
-    }
 
     if (applyToEntireBook && state.currentBook) {
       state.currentBook.pages.forEach((_, pageIndex) => {
@@ -182,6 +165,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
       });
       
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Layout to all pages: ${selectedLayout.name}` });
+      hasAppliedRef.current = true;
       onBack();
       return;
     }
@@ -196,27 +180,29 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
       payload: { pageIndex: state.activePageIndex, layoutTemplateId: selectedLayout.id }
     });
     
-    dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Page Layout: ${selectedLayout.name}` });
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Layout: ${selectedLayout.name}` });
+    hasAppliedRef.current = true;
     onBack();
   };
 
   return (
+    <div ref={panelRef} className="h-full">
     <SelectorBase
-      title={<><Layout className="h-4 w-4" />{isBookLevel ? 'Book Layout' : 'Page Layout'}</>}
+      title={<><Layout className="h-4 w-4" />Layout</>}
       items={filteredTemplates}
       selectedItem={selectedLayout}
       onItemSelect={(template) => {
         const isMirrored = mirroredFlags[template.id] ?? false;
         const displayTemplate = getDisplayTemplate(template, isMirrored);
         setSelectedLayout(displayTemplate);
-        if (!isBookLevel) handlePreview(displayTemplate);
+        handlePreview(displayTemplate);
       }}
       getItemKey={(template) => template.id}
       onCancel={handleCancel}
       onApply={handleApply}
       canApply={selectedLayout !== currentLayout}
       applyToEntireBook={applyToEntireBook}
-      onApplyToEntireBookChange={!isBookLevel && canApplyToEntireBook ? setApplyToEntireBook : undefined}
+      onApplyToEntireBookChange={canApplyToEntireBook ? setApplyToEntireBook : undefined}
       filterComponent={(
         <div className="w-full p-3 mb-3 border border-gray-200 rounded-lg bg-white/70">
           <div className="flex items-center gap-2 mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
@@ -360,5 +346,6 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
         </div>
       )}
     />
+    </div>
   );
 });

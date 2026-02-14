@@ -545,21 +545,8 @@ export default function Canvas() {
   // Memoize panel offset calculation functions
   const panelOffsetFunctions = useMemo(() => {
     const findPanelElement = () => {
-      // Find the tool settings panel - it's a Card with specific classes
-      // Look for the panel in the editor layout (right side)
-      const editorLayout = document.querySelector('.flex-1.flex.min-h-0');
-      if (!editorLayout) return null;
-
-      // The panel is the last child in the flex layout
-      const children = Array.from(editorLayout.children);
-      const panel = children[children.length - 1] as HTMLElement | null;
-
-      // Verify it's the tool settings panel by checking for the Card classes
-      if (panel && panel.classList.contains('border-t-0') && panel.classList.contains('border-b-0')) {
-        return panel;
-      }
-
-      return null;
+      // Find the tool settings panel Card via data attribute
+      return document.querySelector<HTMLElement>('[data-tool-settings-panel="true"]');
     };
 
     const updatePanelOffset = () => {
@@ -567,19 +554,14 @@ export default function Canvas() {
       const container = containerRef.current;
 
       if (panel && container) {
-        const panelRect = panel.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        // Calculate distance from right edge of container to right edge of panel
-        // Then add panel width + spacing
-        const distanceFromContainerRight = containerRect.right - panelRect.right;
-        const spacing = 8; // 0.5rem spacing
-        setPanelOffset(panelRect.width + distanceFromContainerRight + spacing);
+        // Canvas and panel are siblings: container right edge = panel left edge.
+        // Button should sit directly left of panel with a small buffer.
+        // right: buffer positions the button buffer px from the canvas right edge.
+        const buffer = 8;
+        setPanelOffset(buffer);
       } else {
-        // Fallback: use default panel widths
-        // Expanded: 280px, Collapsed: 48px (w-12)
-        // Use expanded width as default to ensure icon is always visible
-        setPanelOffset(288); // 280px + 8px spacing
+        // Fallback when panel not found: use small buffer at edge
+        setPanelOffset(8);
       }
     };
 
@@ -1021,7 +1003,7 @@ export default function Canvas() {
     const dimensions = BOOK_PAGE_DIMENSIONS[pageSize as keyof typeof BOOK_PAGE_DIMENSIONS];
     const canvasWidth = orientation === 'landscape' ? dimensions.height : dimensions.width;
     const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
-    const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.05 : 0;
+    const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.025 : 0;
     const spreadWidthCanvas = hasPartnerPage ? canvasWidth * 2 + spreadGapCanvas : canvasWidth;
     const isActiveLeft = partnerInfo ? state.activePageIndex <= partnerInfo.index : true;
     const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
@@ -1264,8 +1246,11 @@ export default function Canvas() {
       };
     }
 
-    const marginX = Math.min(400, stageConstraints.containerSize.width);
-    const marginY = Math.min(300, stageConstraints.containerSize.height);
+    // Scale margin with zoom so at higher zoom levels you can pan further into the gray area
+    const baseMarginX = 900;
+    const baseMarginY = 600;
+    const marginX = Math.min(baseMarginX * appliedZoom, stageConstraints.containerSize.width);
+    const marginY = Math.min(baseMarginY * appliedZoom, stageConstraints.containerSize.height);
 
     let clampedX = pos.x;
     let clampedY = pos.y;
@@ -1800,9 +1785,6 @@ export default function Canvas() {
   }, [state.selectedElementIds.length]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (state.pageNumberingPreview) {
-      dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
-    }
     // Deactivate style painter on any click
     if (state.stylePainterActive && e.evt.button === 0) {
       dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
@@ -3357,9 +3339,6 @@ export default function Canvas() {
   };
 
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (state.pageNumberingPreview) {
-      dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
-    }
     // Nach einem ungültigen Platzierungsversuch (Outside-Page-Tooltip)
     // soll der aktuelle Modus erhalten bleiben und keine Selektion
     // / Werkzeug-Umschaltung stattfinden.
@@ -3506,7 +3485,7 @@ export default function Canvas() {
         dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       }
     }
-  }, [state.activeTool, state.stylePainterActive, state.pageNumberingPreview, dispatch]);
+  }, [state.activeTool, state.stylePainterActive, dispatch]);
 
 
   
@@ -4425,12 +4404,12 @@ export default function Canvas() {
         safetyMargin = 0.90; // 10% reduction
       }
     } else {
-      minPadding = 10;
+      minPadding = 5;
       safetyMargin = 1.0;
     }
     
     // Calculate spread dimensions (two pages side by side with gap)
-    const spreadWidth = canvasWidth * (hasPartnerPage ? 2 : 1) + (hasPartnerPage ? canvasWidth * 0.05 : 0);
+    const spreadWidth = canvasWidth * (hasPartnerPage ? 2 : 1) + (hasPartnerPage ? canvasWidth * 0.025 : 0);
     
     // Calculate scale factors to fit required dimensions into container
     const scaleX = (containerWidth - minPadding * 2) / spreadWidth;
@@ -6553,6 +6532,7 @@ export default function Canvas() {
           </Layer>
           </CanvasStage>
         </CanvasErrorBoundary>
+        {/* Page badges (Seitennummer + Profile Picture) - vorübergehend ausgeblendet
         {!state.isMiniPreview && activePageBadgeMeta && activePageBadgePosition && (
           <CanvasOverlayPortal>
             <div
@@ -6578,6 +6558,7 @@ export default function Canvas() {
             </div>
           </CanvasOverlayPortal>
         )}
+        */}
 
         {safetyMarginTooltip && (
           <Tooltip

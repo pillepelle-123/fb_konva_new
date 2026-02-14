@@ -42,12 +42,9 @@ export interface SettingsNavigationState {
   showBackgroundSettings: boolean;
   showPatternSettings: boolean;
   showEditorSettings: boolean;
-  showPagePalette: boolean;
-  showBookPalette: boolean;
-  showPageLayout: boolean;
-  showBookLayout: boolean;
-  showPageThemeSelector: boolean;
-  showBookThemeSelector: boolean;
+  showPalette: boolean;
+  showLayout: boolean;
+  showThemeSelector: boolean;
   selectedElementIds: string[];
   currentBook: any;
   activePageIndex: number;
@@ -60,9 +57,9 @@ export function getCurrentMenu(state: SettingsNavigationState): SettingsMenuType
   if (state.showEditorSettings) return 'editor-settings';
   if (state.showPatternSettings) return 'pattern';
   if (state.showBackgroundSettings) return 'background';
-  if (state.showPagePalette || state.showBookPalette) return 'palette-selector';
-  if (state.showPageLayout || state.showBookLayout) return 'layout-selector';
-  if (state.showPageThemeSelector || state.showBookThemeSelector) return 'theme-selector';
+  if (state.showPalette) return 'palette-selector';
+  if (state.showLayout) return 'layout-selector';
+  if (state.showThemeSelector) return 'theme-selector';
   if (state.showColorSelector) return 'color-selector';
   if (state.showFontSelector) return 'font-selector';
   

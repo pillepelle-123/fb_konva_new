@@ -10,16 +10,11 @@ interface ToolSettingsHeaderProps {
   setActiveLinkedElement: (id: string | null) => void;
   showColorSelector: string | null;
   showBackgroundSettings: boolean;
-  showPageTheme: boolean;
-  showBookTheme: boolean;
   showFontSelector?: boolean;
   showBookChatPanel?: boolean;
-  showPagePalette?: boolean;
-  showBookPalette?: boolean;
-  showPageLayout?: boolean;
-  showBookLayout?: boolean;
-  showPageThemeSelector?: boolean;
-  showBookThemeSelector?: boolean;
+  showPalette?: boolean;
+  showLayout?: boolean;
+  showThemeSelector?: boolean;
   showEditorSettings?: boolean;
   showPatternSettings?: boolean;
   selectorTitle?: string | null;
@@ -36,16 +31,11 @@ export function ToolSettingsHeader({
   setActiveLinkedElement,
   showColorSelector,
   showBackgroundSettings,
-  showPageTheme,
-  showBookTheme,
   showFontSelector = false,
   showBookChatPanel = false,
-  showPagePalette = false,
-  showBookPalette = false,
-  showPageLayout = false,
-  showBookLayout = false,
-  showPageThemeSelector = false,
-  showBookThemeSelector = false,
+  showPalette = false,
+  showLayout = false,
+  showThemeSelector = false,
   showEditorSettings = false,
   showPatternSettings = false,
   selectorTitle = null,
@@ -60,10 +50,10 @@ export function ToolSettingsHeader({
   // Check if any dialog is open
   // Include element-specific color selectors (those starting with 'element-')
   // This includes: element-text-color, element-ruled-lines-color, element-border-color, element-background-color
-  const hasOpenDialog = Boolean(showColorSelector) || showBackgroundSettings || showPageTheme || showBookTheme || showFontSelector || showBookChatPanel || state.selectedGroupedElement;
+  const hasOpenDialog = Boolean(showColorSelector) || showBackgroundSettings || showFontSelector || showBookChatPanel || state.selectedGroupedElement;
 
   // Check if any selector is open
-  const hasOpenSelector = showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector;
+  const hasOpenSelector = showPalette || showLayout || showThemeSelector;
 
   // Determine if we have a linked question-answer pair
   let isLinkedQuestionAnswerPair = false;
@@ -105,16 +95,11 @@ export function ToolSettingsHeader({
     textType: selectedElement?.textType,
     showColorSelector,
     showBackgroundSettings,
-    showPageTheme,
-    showBookTheme,
     showFontSelector,
     showBookChatPanel,
-    showPagePalette,
-    showBookPalette,
-    showPageLayout,
-    showBookLayout,
-    showPageThemeSelector,
-    showBookThemeSelector,
+    showPalette,
+    showLayout,
+    showThemeSelector,
     showEditorSettings,
     showPatternSettings,
     selectorTitle,

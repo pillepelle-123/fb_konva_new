@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor } from '../../../../context/editor-context';
+import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { Button } from '../../../ui/primitives/button';
 import { Type, Palette, ALargeSmall } from 'lucide-react';
@@ -39,7 +40,9 @@ export function PageNumberingSettings({ onBack }: PageNumberingSettingsProps) {
   const [showColorSelector, setShowColorSelector] = useState(false);
   const [draft, setDraft] = useState<PageNumberingSettings>(DEFAULT_PAGE_NUMBERING_SETTINGS);
   const [initialDraft, setInitialDraft] = useState<PageNumberingSettings | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+
+  const clearPreview = () => dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
+  const { panelRef } = useSettingsPanel(clearPreview);
 
   // Derive initial state from first page number element found in the book
   useEffect(() => {
@@ -98,35 +101,17 @@ export function PageNumberingSettings({ onBack }: PageNumberingSettingsProps) {
     dispatch({ type: 'SET_PAGE_NUMBERING_PREVIEW', payload: draft });
   }, [draft, initialDraft, dispatch]);
 
-  // Clear preview on unmount (e.g. when navigating away)
-  useEffect(() => {
-    return () => {
-      dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
-    };
-  }, [dispatch]);
-
-  // Clear preview when user clicks outside the settings panel (canvas, toolbar, etc.)
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!panelRef.current?.contains(e.target as Node)) {
-        dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dispatch]);
-
   const handleApply = () => {
     dispatch({
       type: 'UPDATE_PAGE_NUMBERING',
       payload: { enabled: draft.enabled, settings: draft },
     });
-    dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
+    clearPreview();
     onBack();
   };
 
   const handleCancel = () => {
-    dispatch({ type: 'CLEAR_PAGE_NUMBERING_PREVIEW' });
+    clearPreview();
     onBack();
   };
 

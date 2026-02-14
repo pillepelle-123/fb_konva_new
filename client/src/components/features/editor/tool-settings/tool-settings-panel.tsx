@@ -3,8 +3,9 @@ import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { ToolSettingsContainer } from './tool-settings-container';
 import { ToolSettingsHeader } from './tool-settings-header';
-import { ToolSettingsContent } from './tool-settings-content';
+import { ToolSettingsContent, type ToolSettingsContentRef } from './tool-settings-content';
 import { GeneralSettings, type GeneralSettingsRef } from './general-settings';
+import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 import { Modal } from '../../../ui/overlays/modal';
 import { QuestionSelectorModal } from '../question-selector-modal';
 import ImagesContent from '../../images/images-content';
@@ -15,7 +16,7 @@ import { getHeaderTitleAndIcon } from './tool-settings-utils';
 import type { CanvasElement } from '../../../../context/editor-context';
 
 export interface ToolSettingsPanelRef {
-  openBookTheme: () => void;
+  openThemeSelector: () => void;
 }
 
 interface ToolSettingsPanelProps {}
@@ -36,19 +37,24 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const [showEditorSettings, setShowEditorSettings] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [showColorSelector, setShowColorSelector] = useState<string | null>(null);
-  const [showPageTheme, setShowPageTheme] = useState(false);
-  const [showBookTheme, setShowBookTheme] = useState(false);
   const [showFontSelector, setShowFontSelector] = useState(false);
-  const [showBookPaletteOverlay, setShowBookPaletteOverlay] = useState(false);
   const [showBookChatPanel, setShowBookChatPanel] = useState(false);
-  const [showPagePalette, setShowPagePalette] = useState(false);
-  const [showBookPalette, setShowBookPalette] = useState(false);
-  const [showPageLayout, setShowPageLayout] = useState(false);
-  const [showBookLayout, setShowBookLayout] = useState(false);
-  const [showPageThemeSelector, setShowPageThemeSelector] = useState(false);
-  const [showBookThemeSelector, setShowBookThemeSelector] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
+  const [showLayout, setShowLayout] = useState(false);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [bookChatConversation, setBookChatConversation] = useState<Conversation | null>(null);
   const generalSettingsRef = useRef<GeneralSettingsRef>(null);
+  const contentRef = useRef<ToolSettingsContentRef>(null);
+
+  const handleClearPreview = useCallback(() => {
+    generalSettingsRef.current?.discardCurrentSelector?.();
+    contentRef.current?.discard?.();
+    setShowBackgroundSettings(false);
+    setShowPalette(false);
+    setShowLayout(false);
+    setShowThemeSelector(false);
+  }, []);
+  const { panelRef } = useSettingsPanel(handleClearPreview);
   const [bookChatLoading, setBookChatLoading] = useState(false);
   const [bookChatError, setBookChatError] = useState<string | null>(null);
   const [bookChatShouldFocusInput, setBookChatShouldFocusInput] = useState(false);
@@ -108,11 +114,11 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   const activeTool = state.activeTool;
 
   useImperativeHandle(ref, () => ({
-    openBookTheme: () => {
+    openThemeSelector: () => {
       dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
       dispatch({ type: 'SET_SELECTED_ELEMENTS', payload: [] });
       setIsCollapsed(false);
-      setShowBookTheme(true);
+      setShowThemeSelector(true);
     }
   }), [dispatch]);
 
@@ -168,25 +174,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     setShowColorSelector(null);
   }, [state.selectedElementIds]);
 
-  // When user clicks on canvas while a selector is open: discard changes and close (like "Discard Changes")
-  useEffect(() => {
-    const handleCanvasClicked = () => {
-      const hasOpenSelector = showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector;
-      if (hasOpenSelector) {
-        generalSettingsRef.current?.discardCurrentSelector?.();
-        // Also close book-level selectors (they may not be in GeneralSettings)
-        setShowPagePalette(false);
-        setShowBookPalette(false);
-        setShowPageLayout(false);
-        setShowBookLayout(false);
-        setShowPageThemeSelector(false);
-        setShowBookThemeSelector(false);
-      }
-    };
-    window.addEventListener('editor:canvasClicked', handleCanvasClicked);
-    return () => window.removeEventListener('editor:canvasClicked', handleCanvasClicked);
-  }, [showPagePalette, showBookPalette, showPageLayout, showBookLayout, showPageThemeSelector, showBookThemeSelector]);
-  
   // Initialize background image state when selector opens
   useEffect(() => {
     if (showBackgroundImageTemplateSelector) {
@@ -264,6 +251,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
 
   return (
     <>
+      <div ref={panelRef} className="h-full" onMouseDown={(e) => e.stopPropagation()}>
       <ToolSettingsContainer 
         isExpanded={!isCollapsed} 
         isVisible={state.settingsPanelVisible}
@@ -277,16 +265,11 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           setActiveLinkedElement={setActiveLinkedElement}
           showColorSelector={showColorSelector}
           showBackgroundSettings={showBackgroundSettings}
-          showPageTheme={showPageTheme}
-          showBookTheme={showBookTheme}
           showFontSelector={showFontSelector}
           showBookChatPanel={showBookChatPanel}
-          showPagePalette={showPagePalette}
-          showBookPalette={showBookPalette}
-          showPageLayout={showPageLayout}
-          showBookLayout={showBookLayout}
-          showPageThemeSelector={showPageThemeSelector}
-          showBookThemeSelector={showBookThemeSelector}
+          showPalette={showPalette}
+          showLayout={showLayout}
+          showThemeSelector={showThemeSelector}
           showEditorSettings={showEditorSettings}
           showPatternSettings={showPatternSettings}
           selectorTitle={null}
@@ -294,8 +277,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             // If only an element-specific color selector is open, just close it
             // This allows returning to the element settings form instead of the main panel
             if (showColorSelector && showColorSelector.startsWith('element-') &&
-                !showBackgroundSettings && !showPageTheme && !showBookTheme &&
-                !showFontSelector && !showBookChatPanel && !state.selectedGroupedElement) {
+                !showBackgroundSettings && !showFontSelector && !showBookChatPanel && !state.selectedGroupedElement) {
               setShowColorSelector(null);
               return;
             }
@@ -304,8 +286,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowColorSelector(null);
             setShowBackgroundSettings(false);
             setShowPatternSettings(false);
-            setShowPageTheme(false);
-            setShowBookTheme(false);
             setShowFontSelector(false);
             setShowBookChatPanel(false);
             // Clear selected elements (this also clears selectedGroupedElement automatically)
@@ -314,30 +294,19 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             }
           }}
           onCancel={() => {
-            // Close all selector dialogs
-            setShowPagePalette(false);
-            setShowBookPalette(false);
-            setShowPageLayout(false);
-            setShowBookLayout(false);
-            setShowPageThemeSelector(false);
-            setShowBookThemeSelector(false);
+            setShowPalette(false);
+            setShowLayout(false);
+            setShowThemeSelector(false);
           }}
           onApply={() => {
-            // Trigger apply actions for the active selector
-            if (showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector) {
-              // Call applyCurrentSelector on the GeneralSettings component
+            if (showPalette || showLayout || showThemeSelector) {
               generalSettingsRef.current?.applyCurrentSelector();
-
-              // Close the dialogs
-              setShowPagePalette(false);
-              setShowBookPalette(false);
-              setShowPageLayout(false);
-              setShowBookLayout(false);
-              setShowPageThemeSelector(false);
-              setShowBookThemeSelector(false);
+              setShowPalette(false);
+              setShowLayout(false);
+              setShowThemeSelector(false);
             }
           }}
-          canApply={showPagePalette || showBookPalette || showPageLayout || showBookLayout || showPageThemeSelector || showBookThemeSelector}
+          canApply={showPalette || showLayout || showThemeSelector}
         />
         
         {/* Selected Tool Icon Preview (when collapsed) */}
@@ -376,16 +345,11 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
                   textType: selectedElement?.textType,
                   showColorSelector,
                   showBackgroundSettings,
-                  showPageTheme,
-                  showBookTheme,
                   showFontSelector,
                   showBookChatPanel,
-                  showPagePalette,
-                  showBookPalette,
-                  showPageLayout,
-                  showBookLayout,
-                  showPageThemeSelector,
-                  showBookThemeSelector,
+                  showPalette,
+                  showLayout,
+                  showThemeSelector,
                   showEditorSettings,
                   showPatternSettings,
                   selectorTitle: null,
@@ -412,10 +376,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowBackgroundSettings={setShowBackgroundSettings}
             showPatternSettings={showPatternSettings}
             setShowPatternSettings={setShowPatternSettings}
-            showPageTheme={showPageTheme}
-            setShowPageTheme={setShowPageTheme}
-            showBookTheme={showBookTheme}
-            setShowBookTheme={setShowBookTheme}
             showImageModal={showImageModal}
             setShowImageModal={setShowImageModal}
             showBackgroundImageModal={showBackgroundImageModal}
@@ -445,24 +405,20 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           onRetryBookChat={fetchBookChatConversation}
           bookChatShouldFocusInput={bookChatShouldFocusInput}
           onChatInputFocused={() => setBookChatShouldFocusInput(false)}
-          showPagePalette={showPagePalette}
-          setShowPagePalette={setShowPagePalette}
-          showBookPalette={showBookPalette}
-          setShowBookPalette={setShowBookPalette}
-          showPageLayout={showPageLayout}
-          setShowPageLayout={setShowPageLayout}
-          showBookLayout={showBookLayout}
-          setShowBookLayout={setShowBookLayout}
-          showPageThemeSelector={showPageThemeSelector}
-          setShowPageThemeSelector={setShowPageThemeSelector}
-          showBookThemeSelector={showBookThemeSelector}
-          setShowBookThemeSelector={setShowBookThemeSelector}
+          showPalette={showPalette}
+          setShowPalette={setShowPalette}
+          showLayout={showLayout}
+          setShowLayout={setShowLayout}
+          showThemeSelector={showThemeSelector}
+          setShowThemeSelector={setShowThemeSelector}
           showEditorSettings={showEditorSettings}
           setShowEditorSettings={setShowEditorSettings}
           generalSettingsRef={generalSettingsRef}
+          ref={contentRef}
           />
         )}
       </ToolSettingsContainer>
+      </div>
       
       {showQuestionDialog && state.currentBook && token && (
         <QuestionSelectorModal

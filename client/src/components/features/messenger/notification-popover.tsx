@@ -211,13 +211,6 @@ export default function NotificationPopover({ onUpdate, onClose, onEntryClick }:
                     isPdfUnread(entry.item) ? 'bg-highlight/15' : ''
                   } hover:bg-muted`}
                 >
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); handleMarkPdfAsRead(entry.item.id); }}
-                    className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                    style={{ backgroundColor: isPdfUnread(entry.item) ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
-                    aria-label="Mark as read"
-                  />
                   <Link
                     to={`/books/${entry.item.bookId}/export`}
                     onClick={() => { handleMarkPdfAsRead(entry.item.id); onClose(); onEntryClick?.(); }}
@@ -232,6 +225,13 @@ export default function NotificationPopover({ onUpdate, onClose, onEntryClick }:
                       </p>
                     </div>
                   </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); handleMarkPdfAsRead(entry.item.id); }}
+                    className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                    style={{ backgroundColor: isPdfUnread(entry.item) ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
+                    aria-label="Mark as read"
+                  />
                 </div>
               ) : (() => {
                 const conversation = entry.item;
@@ -265,16 +265,6 @@ export default function NotificationPopover({ onUpdate, onClose, onEntryClick }:
                       isConvUnread ? 'bg-highlight/15' : ''
                     } hover:bg-muted`}
                   >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (isConvUnread) markConversationAsReadInPopover(conversation.id);
-                      }}
-                      className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                      style={{ backgroundColor: isConvUnread ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
-                      aria-label="Mark as read"
-                    />
                     <Link
                       to={conversationLink}
                       onClick={() => { markConversationAsReadInPopover(conversation.id); onClose(); onEntryClick?.(); }}
@@ -304,6 +294,16 @@ export default function NotificationPopover({ onUpdate, onClose, onEntryClick }:
                         </p>
                       </div>
                     </Link>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isConvUnread) markConversationAsReadInPopover(conversation.id);
+                      }}
+                      className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full border-0 p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                      style={{ backgroundColor: isConvUnread ? 'hsl(var(--highlight))' : 'hsl(var(--muted-foreground))' }}
+                      aria-label="Mark as read"
+                    />
                   </div>
                 );
               })()

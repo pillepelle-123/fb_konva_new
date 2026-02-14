@@ -89,16 +89,11 @@ export interface GetHeaderTitleAndIconParams {
   // Dialog-States
   showColorSelector?: string | null;
   showBackgroundSettings?: boolean;
-  showPageTheme?: boolean;
-  showBookTheme?: boolean;
   showFontSelector?: boolean;
   showBookChatPanel?: boolean;
-  showPagePalette?: boolean;
-  showBookPalette?: boolean;
-  showPageLayout?: boolean;
-  showBookLayout?: boolean;
-  showPageThemeSelector?: boolean;
-  showBookThemeSelector?: boolean;
+  showPalette?: boolean;
+  showLayout?: boolean;
+  showThemeSelector?: boolean;
   showEditorSettings?: boolean;
   showPatternSettings?: boolean;
   selectorTitle?: string | null;
@@ -234,16 +229,11 @@ export function getHeaderTitleAndIcon(params: GetHeaderTitleAndIconParams): Head
     textType,
     showColorSelector,
     showBackgroundSettings,
-    showPageTheme,
-    showBookTheme,
     showFontSelector,
     showBookChatPanel,
-    showPagePalette,
-    showBookPalette,
-    showPageLayout,
-    showBookLayout,
-    showPageThemeSelector,
-    showBookThemeSelector,
+    showPalette,
+    showLayout,
+    showThemeSelector,
     showEditorSettings,
     showPatternSettings,
     selectorTitle,
@@ -260,40 +250,22 @@ export function getHeaderTitleAndIcon(params: GetHeaderTitleAndIconParams): Head
   }
 
   // 2. Selector-Dialoge (höchste Priorität für Dialoge)
-  if (showPagePalette) {
+  if (showPalette) {
     return {
       title: selectorTitle || 'Color Palette',
       icon: DIALOG_ICONS.pagePalette
     };
   }
-  if (showBookPalette) {
-    return {
-      title: selectorTitle || 'Book Color Palette',
-      icon: DIALOG_ICONS.bookPalette
-    };
-  }
-  if (showPageLayout) {
+  if (showLayout) {
     return {
       title: selectorTitle || 'Layout',
       icon: DIALOG_ICONS.pageLayout
     };
   }
-  if (showBookLayout) {
-    return {
-      title: selectorTitle || 'Book Layout',
-      icon: DIALOG_ICONS.bookLayout
-    };
-  }
-  if (showPageThemeSelector) {
+  if (showThemeSelector) {
     return {
       title: selectorTitle || 'Theme',
       icon: DIALOG_ICONS.pageThemeSelector
-    };
-  }
-  if (showBookThemeSelector) {
-    return {
-      title: selectorTitle || 'Book Theme',
-      icon: DIALOG_ICONS.bookThemeSelector
     };
   }
 
@@ -334,18 +306,6 @@ export function getHeaderTitleAndIcon(params: GetHeaderTitleAndIconParams): Head
     return {
       title: 'Background',
       icon: DIALOG_ICONS.backgroundSettings
-    };
-  }
-  if (showPageTheme) {
-    return {
-      title: 'Page Theme',
-      icon: DIALOG_ICONS.pageTheme
-    };
-  }
-  if (showBookTheme) {
-    return {
-      title: 'Book Theme',
-      icon: DIALOG_ICONS.bookTheme
     };
   }
 

@@ -1,5 +1,5 @@
 // React
-import { useMemo, useState } from 'react';
+import { useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 
 // Context & Hooks
 import { useEditor } from '../../../../context/editor-context';
@@ -57,10 +57,6 @@ interface ToolSettingsContentProps {
   setShowBackgroundSettings: (value: boolean) => void;
   showPatternSettings: boolean;
   setShowPatternSettings: (value: boolean) => void;
-  showPageTheme: boolean;
-  setShowPageTheme: (value: boolean) => void;
-  showBookTheme: boolean;
-  setShowBookTheme: (value: boolean) => void;
   showImageModal: boolean;
   setShowImageModal: (value: boolean) => void;
   showBackgroundImageModal: boolean;
@@ -88,24 +84,22 @@ interface ToolSettingsContentProps {
   onRetryBookChat?: () => void;
   bookChatShouldFocusInput?: boolean;
   onChatInputFocused?: () => void;
-  showPagePalette?: boolean;
-  setShowPagePalette?: (value: boolean) => void;
-  showBookPalette?: boolean;
-  setShowBookPalette?: (value: boolean) => void;
-  showPageLayout?: boolean;
-  setShowPageLayout?: (value: boolean) => void;
-  showBookLayout?: boolean;
-  setShowBookLayout?: (value: boolean) => void;
-  showPageThemeSelector?: boolean;
-  setShowPageThemeSelector?: (value: boolean) => void;
-  showBookThemeSelector?: boolean;
-  setShowBookThemeSelector?: (value: boolean) => void;
+  showPalette?: boolean;
+  setShowPalette?: (value: boolean) => void;
+  showLayout?: boolean;
+  setShowLayout?: (value: boolean) => void;
+  showThemeSelector?: boolean;
+  setShowThemeSelector?: (value: boolean) => void;
   showEditorSettings?: boolean;
   setShowEditorSettings?: (value: boolean) => void;
   generalSettingsRef?: React.RefObject<GeneralSettingsRef>;
 }
 
-export function ToolSettingsContent({
+export interface ToolSettingsContentRef {
+  discard: () => void;
+}
+
+export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettingsContentProps>(function ToolSettingsContent({
   showColorSelector,
   setShowColorSelector,
   showFontSelector,
@@ -114,10 +108,6 @@ export function ToolSettingsContent({
   setShowBackgroundSettings,
   showPatternSettings,
   setShowPatternSettings,
-  showPageTheme,
-  setShowPageTheme,
-  showBookTheme,
-  setShowBookTheme,
   showImageModal,
   setShowImageModal,
   showBackgroundImageModal,
@@ -145,22 +135,16 @@ export function ToolSettingsContent({
   onRetryBookChat,
   bookChatShouldFocusInput = false,
   onChatInputFocused,
-  showPagePalette = false,
-  setShowPagePalette,
-  showBookPalette = false,
-  setShowBookPalette,
-  showPageLayout = false,
-  setShowPageLayout,
-  showBookLayout = false,
-  setShowBookLayout,
-  showPageThemeSelector = false,
-  setShowPageThemeSelector,
-  showBookThemeSelector = false,
-  setShowBookThemeSelector,
+  showPalette = false,
+  setShowPalette,
+  showLayout = false,
+  setShowLayout,
+  showThemeSelector = false,
+  setShowThemeSelector,
   showEditorSettings = false,
   setShowEditorSettings,
   generalSettingsRef
-}: ToolSettingsContentProps) {
+}, ref) {
   const { state, dispatch, canViewPageSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
 
@@ -199,6 +183,13 @@ export function ToolSettingsContent({
     activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null,
     activeSelectedElement?.textType === 'free_text' ? freeTextSettingsOptions : positionPreserveOptions
   );
+
+  useImperativeHandle(ref, () => ({
+    discard: () => {
+      qnaFormState.handleDiscard();
+      genericFormState.handleDiscard();
+    }
+  }), [qnaFormState.handleDiscard, genericFormState.handleDiscard]);
   
   const toolSettings = state.toolSettings || {};
   const activeTool = state.activeTool;
@@ -672,7 +663,14 @@ export function ToolSettingsContent({
 
   const renderToolSettings = () => {
     if (showColorSelector && !showColorSelector.startsWith('element-')) {
-      return renderColorSelectorForTool(showColorSelector);
+      // When background-color or pattern-background is opened from PageBackgroundSettings,
+      // let GeneralSettings > PageBackgroundSettings render it so Back returns to PageBackgroundSettings
+      const isBackgroundColorFromPageSettings =
+        (showColorSelector === 'background-color' || showColorSelector === 'pattern-background') &&
+        showBackgroundSettings;
+      if (!isBackgroundColorFromPageSettings) {
+        return renderColorSelectorForTool(showColorSelector);
+      }
     }
     
     // Handle element-specific color selectors
@@ -1139,10 +1137,6 @@ export function ToolSettingsContent({
           setShowBackgroundSettings={setShowBackgroundSettings}
           showPatternSettings={showPatternSettings}
           setShowPatternSettings={setShowPatternSettings}
-          showPageTheme={showPageTheme}
-          setShowPageTheme={setShowPageTheme}
-          showBookTheme={showBookTheme}
-          setShowBookTheme={setShowBookTheme}
           setShowBackgroundImageModal={setShowBackgroundImageModal}
           showBackgroundImageTemplateSelector={showBackgroundImageTemplateSelector}
           setShowBackgroundImageTemplateSelector={setShowBackgroundImageTemplateSelector}
@@ -1152,18 +1146,12 @@ export function ToolSettingsContent({
           isBackgroundApplyDisabled={isBackgroundApplyDisabled}
           isBookChatAvailable={isBookChatAvailable}
           onOpenBookChat={onOpenBookChat}
-          showPagePalette={showPagePalette}
-          setShowPagePalette={setShowPagePalette}
-          showBookPalette={showBookPalette}
-          setShowBookPalette={setShowBookPalette}
-          showPageLayout={showPageLayout}
-          setShowPageLayout={setShowPageLayout}
-          showBookLayout={showBookLayout}
-          setShowBookLayout={setShowBookLayout}
-          showPageThemeSelector={showPageThemeSelector}
-          setShowPageThemeSelector={setShowPageThemeSelector}
-          showBookThemeSelector={showBookThemeSelector}
-          setShowBookThemeSelector={setShowBookThemeSelector}
+          showPalette={showPalette}
+          setShowPalette={setShowPalette}
+          showLayout={showLayout}
+          setShowLayout={setShowLayout}
+          showThemeSelector={showThemeSelector}
+          setShowThemeSelector={setShowThemeSelector}
           showEditorSettings={showEditorSettings}
           setShowEditorSettings={setShowEditorSettings}
           onOpenTemplates={() => {}}
@@ -1324,4 +1312,4 @@ export function ToolSettingsContent({
       )}
     </div>
   );
-}
+});

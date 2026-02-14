@@ -86,7 +86,7 @@ export function SelectorBase<T>({
                 </Button>
               )}
               {onApply && (
-                <Button variant="default" size="xs" onClick={onApply} disabled={!canApply} className="gap-1 px-2 flex-1">
+                <Button variant="default" size="xs" onClick={onApply} disabled={!canApply && !applyToEntireBook} className="gap-1 px-2 flex-1">
                   <Check className="h-4 w-4" />
                   <span className="text-xs">{applyToEntireBook ? "Apply to all Pages" : "Apply"}</span>
                 </Button>

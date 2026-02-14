@@ -730,7 +730,7 @@ export function QnASettingsForm({
         <div className='flex flex-row gap-3'>
           <div className="flex-1 py-2">
             <Tooltip content="Text Align" side="left" fullWidth={true}>
-              <ButtonGroup className="flex flex-row">
+              <ButtonGroup className="flex w-full flex-row">
               <Button
                 variant={currentAlign === 'left' ? 'default' : 'outline'}
                 size="xxs"
@@ -1164,68 +1164,11 @@ export function QnASettingsForm({
       
       <Separator/>
       
-      {/* Text Align - combined for inline layout OR block layout without individual settings */}
-      {((element.layoutVariant || 'inline') === 'inline' || ((element.layoutVariant || 'inline') === 'block' && !individualSettings)) && (
-        <div className='flex flex-row gap-3'>
-          <div className="flex-1 py-2">
-            <Tooltip content="Text Align" side="left" fullWidth={true}>
-              <ButtonGroup className="flex flex-row">
-              {(() => {
-                // Use the same priority order as textbox-qna.tsx: element.align || element.format?.textAlign || questionSettings.align || answerSettings.align
-                const qSettings = element.questionSettings || {};
-                const aSettings = element.answerSettings || {};
-                const currentAlign = element.align || element.format?.textAlign || qSettings.align || aSettings.align || 'left';
-                
-                return [
-                    <Button
-                    key="left"
-                      variant={currentAlign === 'left' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'left')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignLeft className="h-3 w-3" />
-                  </Button>,
-                    <Button
-                    key="center"
-                      variant={currentAlign === 'center' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'center')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignCenter className="h-3 w-3" />
-                  </Button>,
-                    <Button
-                    key="right"
-                      variant={currentAlign === 'right' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'right')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignRight className="h-3 w-3" />
-                  </Button>,
-                    <Button
-                    key="justify"
-                      variant={currentAlign === 'justify' ? 'default' : 'outline'}
-                      size="xxs"
-                      onClick={() => updateSharedSetting('align', 'justify')}
-                      className="px-1 h-6 flex-1"
-                    >
-                      <AlignJustify className="h-3 w-3" />
-                    </Button>
-                ];
-              })()}
-            </ButtonGroup>
-            </Tooltip>
-          </div>
-        </div>
-      )}
-      
-      {/* Paragraph Spacing - always universal */}
+      {/* Paragraph Spacing (3/7) and Text Align (4/7) - side by side at Paragraph Spacing position */}
       <div className='flex flex-row gap-3'>
-        <div className="flex-1 py-2">
+        <div className="flex-[3_1_0%] min-w-0 py-2">
           <Tooltip content="Paragraph Spacing" side="left" fullWidth={true}>
-            <ButtonGroup className="flex flex-row">
+            <ButtonGroup className="flex w-full flex-row">
             <Button
               variant={(() => {
                 const qSettings = element.questionSettings || {};
@@ -1268,6 +1211,34 @@ export function QnASettingsForm({
           </ButtonGroup>
           </Tooltip>
         </div>
+        {/* Text Align - for inline layout OR block layout without individual settings */}
+        {((element.layoutVariant || 'inline') === 'inline' || ((element.layoutVariant || 'inline') === 'block' && !individualSettings)) && (
+          <div className="flex-[4_1_0%] min-w-0 py-2">
+            <Tooltip content="Text Align" side="left" fullWidth={true}>
+              <ButtonGroup className="flex w-full flex-row">
+              {(() => {
+                const qSettings = element.questionSettings || {};
+                const aSettings = element.answerSettings || {};
+                const currentAlign = element.align || element.format?.textAlign || qSettings.align || aSettings.align || 'left';
+                return [
+                  <Button key="left" variant={currentAlign === 'left' ? 'default' : 'outline'} size="xxs" onClick={() => updateSharedSetting('align', 'left')} className="px-1 h-6 flex-1">
+                    <AlignLeft className="h-3 w-3" />
+                  </Button>,
+                  <Button key="center" variant={currentAlign === 'center' ? 'default' : 'outline'} size="xxs" onClick={() => updateSharedSetting('align', 'center')} className="px-1 h-6 flex-1">
+                    <AlignCenter className="h-3 w-3" />
+                  </Button>,
+                  <Button key="right" variant={currentAlign === 'right' ? 'default' : 'outline'} size="xxs" onClick={() => updateSharedSetting('align', 'right')} className="px-1 h-6 flex-1">
+                    <AlignRight className="h-3 w-3" />
+                  </Button>,
+                  <Button key="justify" variant={currentAlign === 'justify' ? 'default' : 'outline'} size="xxs" onClick={() => updateSharedSetting('align', 'justify')} className="px-1 h-6 flex-1">
+                    <AlignJustify className="h-3 w-3" />
+                  </Button>
+                ];
+              })()}
+            </ButtonGroup>
+            </Tooltip>
+          </div>
+        )}
       </div>
       
       <Separator/>

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEditor } from '../../../../context/editor-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
+import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, Image, Palette, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from 'lucide-react';
 import { RadioGroup } from '../../../ui/primitives/radio-group';
@@ -16,6 +17,7 @@ import { applyBackgroundImageTemplate, getBackgroundImageWithUrl } from '../../.
 import { Modal } from '../../../ui/overlays/modal';
 import { BackgroundImageSelector } from './background-image-selector';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
+import { SettingsFormFooter } from './settings-form-footer';
 
 interface PageBackgroundSettingsProps {
   showColorSelector: string | null;
@@ -53,35 +55,79 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const { state, dispatch, canEditBookSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [forceImageMode, setForceImageMode] = useState(false);
+  const [applyToEntireBook, setApplyToEntireBook] = useState(false);
+  const originalPageStateRef = useRef<{ background?: PageBackground } | null>(null);
+  const isApplyingRef = useRef(false);
 
-  const updateBackground = (updates: Partial<PageBackground>) => {
+  useEffect(() => {
+    const currentPage = state.currentBook?.pages[state.activePageIndex];
+    if (currentPage && !originalPageStateRef.current) {
+      originalPageStateRef.current = {
+        background: currentPage.background
+          ? (typeof structuredClone === 'function'
+            ? structuredClone(currentPage.background)
+            : JSON.parse(JSON.stringify(currentPage.background)))
+          : undefined
+      };
+    }
+  }, [state.currentBook?.id, state.activePageIndex]);
+
+  const updateBackground = (updates: Partial<PageBackground>, skipHistory = true) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
     const newBackground = { ...background, ...updates };
     dispatch({
       type: 'UPDATE_PAGE_BACKGROUND',
-      payload: { pageIndex: state.activePageIndex, background: newBackground }
+      payload: { pageIndex: state.activePageIndex, background: newBackground, skipHistory }
     });
   };
 
-  const applyBackgroundToBook = () => {
-    if (!state.currentBook || !background) return;
-
-    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Apply Background to Book' });
-
-    state.currentBook.pages.forEach((_page, pageIndex) => {
-      const backgroundCopy = typeof structuredClone === 'function'
-        ? structuredClone(background)
-        : JSON.parse(JSON.stringify(background));
+  const handleCancel = useCallback(() => {
+    if (isApplyingRef.current) {
+      isApplyingRef.current = false;
+      setShowBackgroundSettings(false);
+      return;
+    }
+    const orig = originalPageStateRef.current?.background;
+    if (state.currentBook && orig !== undefined) {
       dispatch({
         type: 'UPDATE_PAGE_BACKGROUND',
-        payload: { pageIndex, background: backgroundCopy, skipHistory: true }
+        payload: {
+          pageIndex: state.activePageIndex,
+          background: orig,
+          skipHistory: true
+        }
       });
-    });
-  };
+    }
+    setShowBackgroundSettings(false);
+  }, [dispatch, state.activePageIndex, state.currentBook, setShowBackgroundSettings]);
+
+  const { panelRef } = useSettingsPanel(
+    handleCancel,
+    () => showBackgroundImageTemplateSelector
+  );
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   let background = currentPage?.background;
+
+  const handleApply = () => {
+    isApplyingRef.current = true;
+    if (applyToEntireBook && state.currentBook && background) {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Apply Background to Book' });
+      state.currentBook.pages.forEach((_page, pageIndex) => {
+        const backgroundCopy = typeof structuredClone === 'function'
+          ? structuredClone(background)
+          : JSON.parse(JSON.stringify(background));
+        dispatch({
+          type: 'UPDATE_PAGE_BACKGROUND',
+          payload: { pageIndex, background: backgroundCopy, skipHistory: true }
+        });
+      });
+    } else {
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update Page Background' });
+    }
+    setShowBackgroundSettings(false);
+  };
   
   // Get default background color from current palette or existing background
   const getDefaultBackgroundColor = (): string => {
@@ -119,6 +165,14 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   // backgroundMode is primarily based on background.type, but use forceImageMode if user just selected "image" 
   // and background hasn't been updated yet
   const backgroundMode = isImage ? 'image' : (isPattern ? 'pattern' : (forceImageMode ? 'image' : 'color'));
+
+  const hasChanges = (() => {
+    const orig = originalPageStateRef.current?.background;
+    const curr = currentPage?.background;
+    if (!orig && !curr) return false;
+    if (!orig || !curr) return true;
+    return JSON.stringify(orig) !== JSON.stringify(curr);
+  })();
   const modalApplyDisabled =
     isBackgroundApplyDisabled ??
     (!selectedBackgroundImageId ||
@@ -158,12 +212,15 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     
     if (mode === 'color') {
       setForceImageMode(false);
-      const defaultColor = getDefaultBackgroundColor();
+      // Use pattern's Color (patternForegroundColor) when switching from pattern, otherwise default
+      const colorValue = background?.type === 'pattern' && background?.patternForegroundColor
+        ? background.patternForegroundColor
+        : getDefaultBackgroundColor();
       // Preserve backgroundImageTemplateId and image settings when switching to color (for restoration later)
       // Also preserve image value in a hidden property if it's a direct upload (no template ID)
       const updateData: any = {
         type: 'color',
-        value: defaultColor,
+        value: colorValue,
         opacity: currentOpacity,
         backgroundImageTemplateId: savedImageTemplateId,
         imageSize: savedImageSize,
@@ -182,17 +239,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       setShowBackgroundImageTemplateSelector(false);
     } else if (mode === 'pattern') {
       setForceImageMode(false);
-      const backgroundColor = getDefaultBackgroundColor();
+      // Use Color mode's value when switching from color, otherwise default
+      const foregroundColor = background?.type === 'color' && typeof background?.value === 'string'
+        ? background.value
+        : getDefaultBackgroundColor();
       const secondaryColor = getSecondaryColor();
       // Preserve backgroundImageTemplateId and image settings when switching to pattern (for restoration later)
-      // patternForegroundColor is the space between patterns (background color)
-      // patternBackgroundColor is the color of the pattern itself (secondary color)
+      // patternForegroundColor = Color (main color), patternBackgroundColor = Pattern Color (secondary)
       const updateData: any = {
         type: 'pattern',
         value: 'dots',
         patternSize: 6,
         patternStrokeWidth: 10,
-        patternForegroundColor: backgroundColor, // Space between patterns uses background color
+        patternForegroundColor: foregroundColor, // Color uses the selected color from Color mode
         patternBackgroundColor: secondaryColor, // Pattern itself uses secondary color
         patternBackgroundOpacity: background?.patternBackgroundOpacity ?? 1, // Preserve existing opacity or default to 1
         opacity: currentOpacity,
@@ -262,38 +321,31 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     }
   };
 
-  if (showColorSelector) {
+  const colorSelectorContent = showColorSelector && (() => {
     const getColorValue = () => {
       switch (showColorSelector) {
         case 'background-color':
-          // For pattern: this is the space between patterns (patternForegroundColor)
-          // For color: this is the background color
           return background.type === 'pattern' ? (background.patternForegroundColor || 'transparent') : background.value;
         case 'pattern-background':
-          // This is the color of the pattern itself (dots, lines)
           return background.patternBackgroundColor || '#666666';
         default:
           return '#ffffff';
       }
     };
-    
     const handleColorChange = (color: string) => {
       switch (showColorSelector) {
         case 'background-color':
           if (background.type === 'pattern') {
-            // Update space color between patterns
             updateBackground({ patternForegroundColor: color });
           } else {
             updateBackground({ value: color });
           }
           break;
         case 'pattern-background':
-          // Update pattern color (dots, lines)
           updateBackground({ patternBackgroundColor: color });
           break;
       }
     };
-    
     return (
       <ColorSelector
         value={getColorValue()}
@@ -307,9 +359,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         showOpacitySlider={false}
       />
     );
-  }
+  })();
 
-  if (showPatternSettings && isPattern) {
+  const patternSettingsContent = showPatternSettings && isPattern && (() => {
     const currentPatternId = background.value || 'dots';
     
     // Pattern Size configuration
@@ -442,6 +494,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
             className="w-full"
           >
             <Palette className="h-4 w-4 mr-2" />
+            <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: background.patternBackgroundColor || '#666666' }} />
             Pattern Color
           </Button>
         </div>
@@ -465,7 +518,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         </div>
       </div>
     );
-  }
+  })();
 
   const handleCloseBackgroundImageSelector = () => {
     setShowBackgroundImageTemplateSelector(false);
@@ -474,21 +527,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     }
   };
 
-  return (
+  const mainContent = (
     <>
-      <div className="space-y-4 p-2">
-        <div className="flex gap-2 mb-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowBackgroundSettings(false)}
-            className="px-2 h-8"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        </div>
-
+      <div className="flex-1 overflow-y-auto space-y-4 p-2">
         {/* Radio Group for Color/Pattern/Image */}
         <RadioGroup
           value={backgroundMode}
@@ -511,6 +552,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               className="w-full"
             >
               <Palette className="h-4 w-4 mr-2" />
+              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: background?.type === 'pattern' ? (background.patternForegroundColor || '#ffffff') : (background?.value || '#ffffff') }} />
               Color
             </Button>
           </div>
@@ -596,19 +638,6 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
             hasLabel={false}
           />
         </div>
-
-        {canEditBookSettings() && (
-          <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={applyBackgroundToBook}
-              className="w-full"
-            >
-              Apply to Book
-            </Button>
-          </div>
-        )}
 
         {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
         {backgroundMode === 'image' && background && background.type === 'image' && (
@@ -735,6 +764,24 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         )}
 
       </div>
+      <SettingsFormFooter
+        hasChanges={hasChanges}
+        onSave={handleApply}
+        onDiscard={handleCancel}
+        showApplyToEntireBook={canEditBookSettings()}
+        applyToEntireBook={applyToEntireBook}
+        onApplyToEntireBookChange={setApplyToEntireBook}
+      />
+    </>
+  );
+
+  return (
+    <div
+      ref={panelRef}
+      className="flex flex-col h-full"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {colorSelectorContent || patternSettingsContent || mainContent}
       <Modal
         isOpen={showBackgroundImageTemplateSelector}
         onClose={handleCloseBackgroundImageSelector}
@@ -760,6 +807,6 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           onImageSelect={(imageId) => onBackgroundImageSelect?.(imageId)}
         />
       </Modal>
-    </>
+    </div>
   );
 };
