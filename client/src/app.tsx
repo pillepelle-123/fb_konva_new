@@ -59,8 +59,16 @@ function AppContent() {
   const location = useLocation()
   const isEditorRoute = location.pathname.startsWith('/editor/')
   const isBookCreateRoute = location.pathname === '/books/create'
-  // Routes that manage their own scrolling should use overflow-hidden
-  const shouldHideOverflow = isEditorRoute || isBookCreateRoute
+  // Delay overflow-hidden when navigating to /books/create to avoid layout jump after entrance animation
+  const [deferredHideOverflow, setDeferredHideOverflow] = useState(false)
+  useEffect(() => {
+    if (isBookCreateRoute) {
+      const t = setTimeout(() => setDeferredHideOverflow(true), 150)
+      return () => clearTimeout(t)
+    }
+    setDeferredHideOverflow(false)
+  }, [isBookCreateRoute])
+  const shouldHideOverflow = isEditorRoute || (isBookCreateRoute && deferredHideOverflow)
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'

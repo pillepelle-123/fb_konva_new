@@ -3,6 +3,13 @@
 ## Problem
 "Too Many Requests" (429) errors occur when the API exceeds 150 requests per 15 minutes per IP.
 
+## Dev: Rate Limit deaktivieren
+In `server/.env` setzen:
+```
+DISABLE_RATE_LIMIT=1
+```
+Damit wird das Rate-Limit komplett ausgeschaltet (empfohlen für lokale Entwicklung).
+
 ## Debug Tools
 
 ### 1. Automatic Console Summary

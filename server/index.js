@@ -62,7 +62,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Global API rate limiting: 150 requests per 15 minutes per IP
+// Global API rate limiting (disable in dev with DISABLE_RATE_LIMIT=1 in .env)
+const RATE_LIMIT_DISABLED = process.env.DISABLE_RATE_LIMIT === '1' || process.env.DISABLE_RATE_LIMIT === 'true';
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.API_RATE_LIMIT_MAX || '150', 10),
@@ -78,21 +80,21 @@ const apiLimiter = rateLimit({
   },
   // Skip endpoints that are polled, loaded frequently, or essential for UI
   skip: (req) => {
-    const p = req.path;
-    return /\/users\/\d+\/profile-picture\/\d+/.test(p) ||
+    if (RATE_LIMIT_DISABLED) return true;
+    const p = req.path || req.originalUrl || '';
+    return p.includes('profile-picture') ||
       /\/users\/\d+$/.test(p) ||
-      /\/messenger\/unread-count/.test(p) ||
-      /\/pdf-exports\/recent/.test(p) ||
-      /\/debug\/request-stats/.test(p) ||
-      /\/background-images/.test(p) ||
-      /\/stickers/.test(p) ||
-      /\/messenger\/conversations\/\d+\/messages/.test(p) ||
-      /\/messenger\/conversations\/\d+\/read/.test(p) ||
-      /\/messenger\/conversations\/\d+\/unread/.test(p) ||
-      /\/messenger\/conversations/.test(p);
+      p.includes('unread-count') ||
+      p.includes('pdf-exports/recent') ||
+      p.includes('debug/request-stats') ||
+      p.includes('background-images') ||
+      p.includes('stickers') ||
+      p.includes('messenger/conversations');
   }
 });
-app.use('/api', apiLimiter);
+if (!RATE_LIMIT_DISABLED) {
+  app.use('/api', apiLimiter);
+}
 
 // Debug endpoint: GET /api/debug/request-stats (excluded from rate limit)
 app.get('/api/debug/request-stats', (_req, res) => {
