@@ -80,7 +80,7 @@ export default function FriendsCard({
               className="w-full space-x-2"
               onClick={() => navigate(`/messenger?friendId=${friend.id}`)}
             >
-              <MessageCircle className="h-4 w-4" />
+              <MessageCircle className="h-5 w-5" />
               {/* <span>Send Message</span> */}
             </Button>
             
@@ -92,7 +92,7 @@ export default function FriendsCard({
                   className="w-full space-x-2 text-destructive hover:text-destructive"
                   onClick={() => onRemove?.(friend)}
                 >
-                  <UserMinus className="h-4 w-4" />
+                  <UserMinus className="h-5 w-5" />
                   {/* <span>Remove from Friends List</span> */}
                 </Button>
                 <Button 
@@ -101,7 +101,7 @@ export default function FriendsCard({
                   className="w-full space-x-2 text-destructive hover:text-destructive"
                   onClick={() => onBlock?.(friend)}
                 >
-                  <Ban className="h-4 w-4" />
+                  <Ban className="h-5 w-5" />
                   {/* <span>Block User</span> */}
                 </Button>
               </>
@@ -113,7 +113,7 @@ export default function FriendsCard({
                   className="w-full space-x-2"
                   onClick={() => onRoleChange?.(friend)}
                 >
-                  <UserCog className="h-4 w-4" />
+                  <UserCog className="h-5 w-5" />
                   <span>Change Role</span>
                 </Button>
                 

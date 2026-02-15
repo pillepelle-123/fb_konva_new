@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
-import { Archive, ChevronLeft, ChevronRight, Book } from 'lucide-react';
+import { Archive, ChevronLeft, Book } from 'lucide-react';
 import BookCard from '../../components/features/books/book-card';
 import { useNavigate } from 'react-router-dom';
-import Grid from '../../components/shared/grid';
+import { Grid, PageLoadingState, EmptyStateCard, ResourcePageLayout } from '../../components/shared';
 
 interface ArchivedBook {
   id: number;
@@ -98,60 +97,33 @@ export default function BookArchive() {
 
 
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="text-muted-foreground">Loading archived books...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoadingState message="Loading archived books..." />;
   }
 
   return (
-    <div className="w-full min-h-full">
-      <div className="w-full">
-        <div className="container mx-auto px-4">
-          {/* Fixierte Leiste */}
-          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b flex justify-between items-center gap-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <Archive className="h-6 w-6 shrink-0 text-foreground" />
-              <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
-                Book Archive
-              </h1>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                onClick={handleNavigateToBooks}
-                className="space-x-2"
-              >
-                <Book className="h-4 w-4" />
-                <span>View My Books</span>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-6 py-4">
-        <p className="text-muted-foreground -mt-2">
-          View and manage your archived book projects
-        </p>
-
-        {/* Archived Books */}
-        {books.length === 0 ? (
-          <Card className="border shadow-sm">
-            <CardContent className="text-center py-12">
-              <Archive className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No archived books</h3>
-              <p className="text-muted-foreground">
-                Books you archive will appear here for safekeeping.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
+    <ResourcePageLayout
+      title="Book Archive"
+      icon={<Archive className="h-6 w-6 text-foreground" />}
+      actions={
+        <Button
+          variant="outline"
+          onClick={handleNavigateToBooks}
+          className="space-x-2"
+        >
+          <Book className="h-4 w-4" />
+          <span>View My Books</span>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      }
+      // description="View and manage your archived book projects"
+    >
+      {books.length === 0 ? (
+        <EmptyStateCard
+          icon={<Archive className="h-12 w-12" />}
+          title="No archived books"
+          description="Books you archive will appear here for safekeeping."
+        />
+      ) : (
           <Grid
             items={books}
             itemsPerPage={itemsPerPage}
@@ -215,9 +187,6 @@ export default function BookArchive() {
             </div>
           </DialogContent>
         </Dialog>
-          </div>
-        </div>
-      </div>
-    </div>
+    </ResourcePageLayout>
   );
 }

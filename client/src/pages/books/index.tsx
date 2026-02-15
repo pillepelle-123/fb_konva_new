@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
-import { Card, CardContent } from '../../components/ui/composites/card';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import BooksGrid from '../../components/features/books/book-grid';
@@ -10,6 +9,7 @@ import { Slider } from '../../components/ui/primitives/slider';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
 import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
+import { PageLoadingState, EmptyStateCard, ResourcePageLayout } from '../../components/shared';
 
 interface Book {
   id: number;
@@ -159,174 +159,165 @@ export default function BooksList() {
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="text-muted-foreground">Loading books...</p>
-          </div>
+    return <PageLoadingState message="Loading books..." />;
+  }
+
+  const filterBarContent = filterBarOpen ? (
+    <div className="mt-4 flex flex-row items-start gap-4">
+      <div className="flex flex-row flex-wrap items-start gap-4 flex-1 min-w-0">
+        <div className="flex flex-col shrink-0">
+          <span className="text-xs text-muted-foreground mb-1">Name</span>
+          <Input
+            placeholder="Contains..."
+            value={filterName}
+            onChange={(e) => setFilterName(e.target.value)}
+            className="h-8 text-sm w-[140px]"
+          />
+        </div>
+        <div className="flex flex-col shrink-0 w-[140px]">
+          <span className="text-xs text-muted-foreground mb-1">Page Size</span>
+          <MultipleSelector
+            value={filterPageSizes}
+            onChange={setFilterPageSizes}
+            options={PAGE_SIZE_OPTIONS}
+            placeholder="All"
+            hidePlaceholderWhenSelected
+            className="min-h-8"
+          />
+        </div>
+        <div className="flex flex-col shrink-0 w-[140px]">
+          <span className="text-xs text-muted-foreground mb-1">Orientation</span>
+          <MultipleSelector
+            value={filterOrientations}
+            onChange={setFilterOrientations}
+            options={ORIENTATION_OPTIONS}
+            placeholder="All"
+            hidePlaceholderWhenSelected
+            className="min-h-8"
+          />
+        </div>
+        <div className="flex flex-col shrink-0 w-[140px]">
+          <span className="text-xs text-muted-foreground mb-1">Page Count ≥</span>
+          <Slider
+            label="Page Count ≥"
+            value={filterPageCountMin}
+            onChange={setFilterPageCountMin}
+            min={0}
+            max={maxPageCount}
+            step={1}
+            unit=""
+            hasLabel={false}
+            className="w-full min-w-0"
+          />
+        </div>
+        <div className="flex flex-col shrink-0 w-[140px]">
+          <span className="text-xs text-muted-foreground mb-1">My Role</span>
+          <MultipleSelector
+            value={filterUserRoles}
+            onChange={setFilterUserRoles}
+            options={USER_ROLE_OPTIONS}
+            placeholder="All"
+            hidePlaceholderWhenSelected
+            className="min-h-8"
+          />
         </div>
       </div>
-    );
-  }
+      <div className="flex items-center gap-2 shrink-0 self-end">
+        <Button variant="ghost" size="sm" onClick={resetFilters} className="space-x-1.5">
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span>Reset Filter</span>
+        </Button>
+        <Button variant="primary" size="sm" onClick={applyFilters}>
+          Apply Filter
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
-    <div className="w-full min-h-full">
-      <div className="w-full">
-        <div className="container mx-auto px-4">
-          {/* Fixierte Leiste */}
-          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
-            <div className="flex justify-between items-center gap-4">
-              <div className="flex items-center gap-2 min-w-0">
-                <Book className="h-6 w-6 shrink-0 text-foreground" />
-                <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
-                  My Books
-                </h1>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant={filterBarOpen ? 'default' : 'ghost'}
-                  onClick={() => setFilterBarOpen((v) => !v)}
-                  className="space-x-2"
-                >
-                  <Funnel className="h-4 w-4" />
-                  <span>Filter Books</span>
-                  {hasActiveFilters && (
-                    <span className="ml-1 h-2 w-2 rounded-full bg-primary-foreground/80" aria-hidden />
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleNavigateToArchive}
-                  className="space-x-2"
-                >
-                  <Archive className="h-4 w-4" />
-                  <span>View Archive</span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={() => navigate('/books/create')}
-                  className="space-x-2"
-                  variant="highlight"
-                >
-                  <BookPlus className="h-5 w-5" />
-                  <span>Create a Book</span>
-                </Button>
-              </div>
-            </div>
-
-            {filterBarOpen && (
-              <div className="mt-4 flex flex-row items-start gap-4">
-                <div className="flex flex-row flex-wrap items-start gap-4 flex-1 min-w-0">
-                  <div className="flex flex-col shrink-0">
-                    <span className="text-xs text-muted-foreground mb-1">Name</span>
-                    <Input
-                      placeholder="Contains..."
-                      value={filterName}
-                      onChange={(e) => setFilterName(e.target.value)}
-                      className="h-8 text-sm w-[140px]"
-                    />
-                  </div>
-                  <div className="flex flex-col shrink-0 w-[140px]">
-                    <span className="text-xs text-muted-foreground mb-1">Page Size</span>
-                    <MultipleSelector
-                      value={filterPageSizes}
-                      onChange={setFilterPageSizes}
-                      options={PAGE_SIZE_OPTIONS}
-                      placeholder="All"
-                      hidePlaceholderWhenSelected
-                      className="min-h-8"
-                    />
-                  </div>
-                  <div className="flex flex-col shrink-0 w-[140px]">
-                    <span className="text-xs text-muted-foreground mb-1">Orientation</span>
-                    <MultipleSelector
-                      value={filterOrientations}
-                      onChange={setFilterOrientations}
-                      options={ORIENTATION_OPTIONS}
-                      placeholder="All"
-                      hidePlaceholderWhenSelected
-                      className="min-h-8"
-                    />
-                  </div>
-                  <div className="flex flex-col shrink-0 w-[140px]">
-                    <span className="text-xs text-muted-foreground mb-1">Page Count ≥</span>
-                    <Slider
-                      label="Page Count ≥"
-                      value={filterPageCountMin}
-                      onChange={setFilterPageCountMin}
-                      min={0}
-                      max={maxPageCount}
-                      step={1}
-                      unit=""
-                      hasLabel={false}
-                      className="w-full min-w-0"
-                    />
-                  </div>
-                  <div className="flex flex-col shrink-0 w-[140px]">
-                    <span className="text-xs text-muted-foreground mb-1">My Role</span>
-                    <MultipleSelector
-                      value={filterUserRoles}
-                      onChange={setFilterUserRoles}
-                      options={USER_ROLE_OPTIONS}
-                      placeholder="All"
-                      hidePlaceholderWhenSelected
-                      className="min-h-8"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 self-end">
-                  <Button variant="ghost" size="sm" onClick={resetFilters} className="space-x-1.5">
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span>Reset Filter</span>
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={applyFilters}>
-                    Apply Filter
-                  </Button>
-                </div>
-              </div>
+    <ResourcePageLayout
+      title="My Books"
+      icon={<Book className="h-6 w-6 text-foreground" />}
+      actions={
+        <>
+          <Button
+            variant={filterBarOpen ? 'default' : 'ghost'}
+            onClick={() => setFilterBarOpen((v) => !v)}
+            className="space-x-2"
+          >
+            <Funnel className="h-4 w-4" />
+            <span>Filter Books</span>
+            {hasActiveFilters && (
+              <span className="ml-1 h-2 w-2 rounded-full bg-primary-foreground/80" aria-hidden />
             )}
-          </div>
+          </Button>
+          {/* <Button
+            onClick={() => navigate('/books/create')}
+            className="space-x-2"
+            variant="highlight"
+          >
+            <BookPlus className="h-5 w-5" />
+            <span>Create a Book</span>
+          </Button> */}
+          <Button
+            variant="outline"
+            onClick={handleNavigateToArchive}
+            className="space-x-2"
+          >
+            <Archive className="h-4 w-4" />
+            <span>View Archive</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
 
-          <div className="space-y-6 py-4">
-        <p className="text-muted-foreground -mt-2">
-          Manage and organize your book projects
-        </p>
+        </>
+      }
+      headerAdditionalContent={filterBarContent}
+      description="Manage and organize your book projects"
+    >
+      {filteredBooks.length === 0 ? (
+        <EmptyStateCard
+          icon={<Book className="h-12 w-12" />}
+          title={books.length === 0 ? 'No books yet' : 'No books match your filters'}
+          description={
+            books.length === 0
+              ? 'Create your first book to get started with your projects.'
+              : 'Try adjusting or resetting your filter criteria.'
+          }
+          primaryAction={
+            books.length === 0
+              ? {
+                  label: (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      <span>Create Your First Book</span>
+                    </>
+                  ),
+                  onClick: () => navigate('/books/create'),
+                  variant: 'default',
+                }
+              : undefined
+          }
+          secondaryAction={
+            books.length > 0
+              ? {
+                  label: (
+                    <>
+                      <RotateCcw className="h-4 w-4" />
+                      <span>Reset Filter</span>
+                    </>
+                  ),
+                  onClick: resetFilters,
+                  variant: 'outline',
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <BooksGrid books={filteredBooks} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
+      )}
 
-        {/* Books Grid */}
-        {filteredBooks.length === 0 ? (
-          <Card className="border shadow-sm">
-            <CardContent className="text-center py-12">
-              <Book className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                {books.length === 0 ? 'No books yet' : 'No books match your filters'}
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                {books.length === 0
-                  ? 'Create your first book to get started with your projects.'
-                  : 'Try adjusting or resetting your filter criteria.'}
-              </p>
-              {books.length === 0 ? (
-                <Button onClick={() => navigate('/books/create')} className="space-x-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Create Your First Book</span>
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={resetFilters} className="space-x-2">
-                  <RotateCcw className="h-4 w-4" />
-                  <span>Reset Filter</span>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <BooksGrid books={filteredBooks} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
-        )}
-
-
-        {/* Collaborator Dialog */}
+      {/* Collaborator Dialog */}
         <Dialog open={!!showCollaboratorModal} onOpenChange={() => setShowCollaboratorModal(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -378,10 +369,7 @@ export default function BooksList() {
             </div>
           </DialogContent>
         </Dialog>
-          </div>
-        </div>
-      </div>
-    </div>
+    </ResourcePageLayout>
     <FloatingActionButton />
     </>
   );

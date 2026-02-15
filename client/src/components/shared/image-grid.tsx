@@ -1,4 +1,5 @@
 import { Badge } from '../ui/composites/badge';
+import Grid from './grid';
 
 export interface ImageGridItem {
   id: string;
@@ -12,9 +13,12 @@ interface ImageGridProps {
   items: ImageGridItem[];
   selectedItemId?: string | null;
   activeItemId?: string | null;
-  onItemSelect: (item: ImageGridItem) => void;
+  onItemSelect?: (item: ImageGridItem) => void;
   renderItemContent?: (item: ImageGridItem) => React.ReactNode;
+  /** Optional: Custom renderer for each item. When provided, renders this instead of the default card. */
+  renderItem?: (item: ImageGridItem) => React.ReactNode;
   emptyStateMessage?: string;
+  itemsPerPage?: number;
 }
 
 export function ImageGrid({
@@ -23,7 +27,9 @@ export function ImageGrid({
   activeItemId,
   onItemSelect,
   renderItemContent,
+  renderItem: customRenderItem,
   emptyStateMessage = 'No items found',
+  itemsPerPage = 12,
 }: ImageGridProps) {
   if (items.length === 0) {
     return (
@@ -34,15 +40,22 @@ export function ImageGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-      {items.map((item) => {
+    <Grid
+      items={items}
+      itemsPerPage={itemsPerPage}
+      keyExtractor={(item) => item.id}
+      gridClassName="grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+      renderItem={(item) => {
+        if (customRenderItem) {
+          return customRenderItem(item);
+        }
+
         const isSelected = selectedItemId === item.id;
         const isActive = activeItemId === item.id;
 
         return (
           <div
-            key={item.id}
-            onClick={() => onItemSelect(item)}
+            onClick={() => onItemSelect?.(item)}
             className={`
               relative group cursor-pointer rounded-lg border-2 transition-all overflow-hidden
               ${isSelected ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-gray-200 hover:border-gray-300'}
@@ -60,11 +73,10 @@ export function ImageGrid({
                   ${item.format === 'vector' ? 'object-contain p-2' : 'object-cover'}
                 `}
                 onError={(e) => {
-                  // Fallback to a placeholder if image fails to load
                   (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23e5e7eb" width="100" height="100"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%239ca3af" font-family="sans-serif" font-size="12">No Image</text></svg>';
                 }}
               />
-              
+
               {/* Active Badge */}
               {isActive && (
                 <div className="absolute top-2 right-2">
@@ -93,8 +105,8 @@ export function ImageGrid({
             )}
           </div>
         );
-      })}
-    </div>
+      }}
+    />
   );
 }
 

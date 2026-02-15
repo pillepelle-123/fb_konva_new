@@ -80,8 +80,10 @@ export default function ImageCard({
             variant="destructive"
             size="sm"
             onClick={() => onDelete?.(image.id)}
+            className="space-x-2"
           >
             <Trash2 className="h-5 w-5" />
+            <span>Delete</span>
           </Button>
         )}
 

@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../../ui/primitives/button';
 import { ButtonGroup } from '../../ui/composites/button-group';
-import { Card, CardContent } from '../../ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
-import { Alert, AlertDescription } from '../../ui/composites/alert';
+import { Alert } from '../../ui/composites/alert';
 import { Image, Plus, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
 import ImageCard from './image-card';
+import { PageLoadingState, EmptyStateCard, ResourcePageLayout, ImageGrid, type ImageGridItem } from '../../shared';
 
 interface ImageData {
   id: number;
   filename: string;
   original_name: string;
-  book_name: string;
+  book_name?: string;
   book_id: number;
   created_at: string;
   file_path: string;
@@ -270,212 +270,202 @@ export default function ImagesContent({
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading images...</p>
-        </div>
-      </div>
-    );
+    return <PageLoadingState message="Loading images..." withContainer={false} />;
   }
 
-  return (
+  const imagesHeaderActions = showAsContent ? (
     <>
-      {showAsContent && (
-        <>
-          {/* Fixierte Leiste mit integrierter Drop-Zone */}
-          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
-            <div className="flex justify-between items-center gap-4">
-              <div className="flex items-center gap-2 min-w-0">
-                <Image className="h-6 w-6 shrink-0 text-foreground" />
-                <h1 className="text-xl font-bold tracking-tight text-foreground truncate">
-                  My Images
-                </h1>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {onClose && (
-                  <Button variant="outline" onClick={onClose}>
-                    Back
-                  </Button>
-                )}
-                {multiSelectMode ? (
-                  <ButtonGroup>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        setMultiSelectMode(false);
-                        deselectAllImages();
-                      }}
-                    >
-                      <SquareX className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={selectAllImages}
-                      disabled={selectedImages.size === images.length}
-                    >
-                      <CopyCheck className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={deselectAllImages}
-                      disabled={selectedImages.size === 0}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
-                      disabled={selectedImages.size === 0}
-                      className="space-x-2"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span> ({selectedImages.size})</span>
-                    </Button>
-                  </ButtonGroup>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setMultiSelectMode(true)}
-                  >
-                    <SquareCheckBig className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button
-                  variant="default"
-                  onClick={() => setUploadZoneExpanded((v) => !v)}
-                  className="space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Images</span>
-                  {uploadZoneExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
+      {onClose && (
+        <Button variant="outline" onClick={onClose}>
+          Back
+        </Button>
+      )}
+      {multiSelectMode ? (
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setMultiSelectMode(false);
+              deselectAllImages();
+            }}
+          >
+            <SquareX className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={selectAllImages}
+            disabled={selectedImages.size === images.length}
+          >
+            <CopyCheck className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={deselectAllImages}
+            disabled={selectedImages.size === 0}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
+            disabled={selectedImages.size === 0}
+            className="space-x-2"
+          >
+            <Trash2 className="h-3 w-3" />
+            <span> ({selectedImages.size})</span>
+          </Button>
+        </ButtonGroup>
+      ) : (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setMultiSelectMode(true)}
+        >
+          <SquareCheckBig className="h-4 w-4" />
+        </Button>
+      )}
+      <Button
+        variant="default"
+        onClick={() => setUploadZoneExpanded((v) => !v)}
+        className="space-x-2"
+      >
+        <Plus className="h-4 w-4" />
+        <span>Add Images</span>
+        {uploadZoneExpanded ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+      </Button>
+    </>
+  ) : null;
 
-            {uploadZoneExpanded && (
-              <div
-                className={`mt-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                  isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-              >
-                <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-base font-medium mb-2">
-                  {isUploading ? 'Uploading images...' : 'Drop images here or click "Upload" to add images'}
-                </p>
-                <p className="text-muted-foreground text-sm mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
-                <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Upload</span>
-                </Button>
-              </div>
-            )}
-          </div>
-        </>
+  const uploadZoneContent = uploadZoneExpanded && showAsContent ? (
+    <div
+      className={`mt-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+        isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+      } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+    >
+      <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+      <p className="text-base font-medium mb-2">
+        {isUploading ? 'Uploading images...' : 'Drop images here or click "Upload" to add images'}
+      </p>
+      <p className="text-muted-foreground text-sm mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+      <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+        <Plus className="h-4 w-4" />
+        <span>Upload</span>
+      </Button>
+    </div>
+  ) : null;
+
+  const mainContent = (
+    <>
+      {uploadError && (
+        <Alert variant="destructive">
+          {uploadError}
+        </Alert>
       )}
 
-      <div className={`space-y-6 ${showAsContent ? 'py-4' : ''}`}>
-        {showAsContent && (
-          <p className="text-muted-foreground -mt-2">
-            Manage your uploaded images
+      {!showAsContent && (
+        <div
+          className={`border-2 border-dashed rounded-lg p-8 mt-6 text-center transition-colors ${
+            isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+          } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+        >
+          <Image className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-lg font-medium mb-2">
+            {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
           </p>
-        )}
-        {uploadError && (
-          <Alert variant="destructive">
-            {uploadError}
-          </Alert>
-        )}
+          <p className="text-muted-foreground mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+          <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Add Images</span>
+          </Button>
+        </div>
+      )}
 
-        {!showAsContent && (
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 mt-6 text-center transition-colors ${
-              isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-            } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
           >
-            <Image className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg font-medium mb-2">
-              {isUploading ? 'Uploading images...' : 'Drop images here or click "Add Images" to upload'}
-            </p>
-            <p className="text-muted-foreground mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
-            <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Add Images</span>
-            </Button>
-          </div>
-        )}
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {images.length === 0 ? (
-          <Card className="border shadow-sm">
-            <CardContent className="text-center py-12">
-              <Image className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No images yet</h3>
-              <p className="text-muted-foreground mb-6">Upload your first images to get started.</p>
-              <Button onClick={() => fileInputRef.current?.click()} className="space-x-2">
+      {images.length === 0 ? (
+        <EmptyStateCard
+          icon={<Image className="h-12 w-12" />}
+          title="No images yet"
+          description="Upload your first images to get started."
+          primaryAction={{
+            label: (
+              <>
                 <Plus className="h-4 w-4" />
                 <span>Upload Images</span>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {images.map(image => (
-              <ImageCard
-                key={image.id}
-                image={image}
-                multiSelectMode={multiSelectMode}
-                isSelected={selectedImages.has(image.id)}
-                mode={mode}
-                onImageClick={() => setLightboxImage(image)}
-                onImageSelect={onImageSelect}
-                onToggleSelection={toggleImageSelection}
-                onDelete={(imageId) => setShowDeleteConfirm([imageId])}
-                getThumbUrl={getThumbUrl}
-                getImageUrl={getImageUrl}
-                getFileUrlForCanvas={getFileUrlForCanvas}
-              />
-            ))}
-          </div>
+              </>
+            ),
+            onClick: () => fileInputRef.current?.click(),
+          }}
+        />
+      ) : (
+          <ImageGrid
+            items={images.map((image): ImageGridItem & { imageData: ImageData } => ({
+              id: String(image.id),
+              thumbnailUrl: getThumbUrl(image),
+              name: image.original_name,
+              category: image.book_name || 'image',
+              format: 'pixel',
+              imageData: image,
+            }))}
+            itemsPerPage={15}
+            emptyStateMessage=""
+            renderItem={(item) => {
+              const imageData = (item as ImageGridItem & { imageData: ImageData }).imageData;
+              if (!imageData) return null;
+              return (
+                <ImageCard
+                  image={imageData}
+                  multiSelectMode={multiSelectMode}
+                  isSelected={selectedImages.has(imageData.id)}
+                  mode={mode === 'select' ? 'select' : 'view'}
+                  onImageClick={() => setLightboxImage(imageData)}
+                  onImageSelect={onImageSelect}
+                  onToggleSelection={toggleImageSelection}
+                  onDelete={(imageId) => setShowDeleteConfirm([imageId])}
+                  getThumbUrl={getThumbUrl}
+                  getImageUrl={getImageUrl}
+                  getFileUrlForCanvas={getFileUrlForCanvas}
+                />
+              );
+            }}
+          />
         )}
 
         <input
@@ -538,7 +528,28 @@ export default function ImagesContent({
             </div>
           </DialogContent>
         </Dialog>
-      </div>
     </>
+  );
+
+  if (showAsContent) {
+    return (
+      <ResourcePageLayout
+        title="My Images"
+        icon={<Image className="h-6 w-6 text-foreground" />}
+        actions={imagesHeaderActions}
+        headerAdditionalContent={uploadZoneContent}
+        description="Manage your uploaded images"
+      >
+        <div className="space-y-6">
+          {mainContent}
+        </div>
+      </ResourcePageLayout>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {mainContent}
+    </div>
   );
 }

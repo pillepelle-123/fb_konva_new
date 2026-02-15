@@ -7,13 +7,16 @@ interface GridProps<T> {
   itemsPerPage?: number;
   renderItem: (item: T) => ReactNode;
   keyExtractor: (item: T) => string | number;
+  /** Optional: Custom grid layout classes (e.g. "grid-cols-2 md:grid-cols-4") */
+  gridClassName?: string;
 }
 
 export default function Grid<T>({ 
   items, 
   itemsPerPage = 12, 
   renderItem, 
-  keyExtractor 
+  keyExtractor,
+  gridClassName = 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
 }: GridProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -49,7 +52,7 @@ export default function Grid<T>({
       )}
 
       {/* Items Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className={`grid ${gridClassName}`}>
         {currentItems.map(item => (
           <div key={keyExtractor(item)}>
             {renderItem(item)}

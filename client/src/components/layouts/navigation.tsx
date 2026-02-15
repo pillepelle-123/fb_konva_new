@@ -205,13 +205,13 @@ export default function Navigation() {
                 </Button>
 
                 <Button
-                  variant={isActive('/books/create') ? "highlight" : "secondary"}
+                  variant={isActive('/books/create') ? "secondary" : "ghost"}
                   size="sm"
                   onClick={(e) => handleNavigation('/books/create', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/books/create')
-                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary'
-                      : 'text-primary bg-white hover:bg-white/90'
+                      ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
+                      : 'text-white hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <Plus className="h-5 w-5" />

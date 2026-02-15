@@ -5,7 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Get friends list
+// Get friends list (includes email and bookIds for filtering)
 router.get('/friends', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -13,13 +13,13 @@ router.get('/friends', authenticateToken, async (req, res) => {
     let result;
     try {
       result = await pool.query(`
-        SELECT u.id, u.name, 'friend' as role
+        SELECT u.id, u.name, u.email, 'friend' as role
         FROM public.friendships f
         INNER JOIN public.users u ON f.friend_id = u.id
         WHERE f.user_id = $1 AND f.ended_at IS NULL
           AND NOT EXISTS (SELECT 1 FROM public.user_blocks ub WHERE ub.blocker_id = $1 AND ub.blocked_id = u.id)
         UNION
-        SELECT u.id, u.name, 'friend' as role
+        SELECT u.id, u.name, u.email, 'friend' as role
         FROM public.friendships f
         INNER JOIN public.users u ON f.user_id = u.id
         WHERE f.friend_id = $1 AND f.ended_at IS NULL
@@ -28,12 +28,12 @@ router.get('/friends', authenticateToken, async (req, res) => {
     } catch (err) {
       if (err.code === '42P01') {
         result = await pool.query(`
-          SELECT u.id, u.name, 'friend' as role
+          SELECT u.id, u.name, u.email, 'friend' as role
           FROM public.friendships f
           INNER JOIN public.users u ON f.friend_id = u.id
           WHERE f.user_id = $1 AND f.ended_at IS NULL
           UNION
-          SELECT u.id, u.name, 'friend' as role
+          SELECT u.id, u.name, u.email, 'friend' as role
           FROM public.friendships f
           INNER JOIN public.users u ON f.user_id = u.id
           WHERE f.friend_id = $1 AND f.ended_at IS NULL
@@ -43,7 +43,34 @@ router.get('/friends', authenticateToken, async (req, res) => {
       }
     }
     
-    res.json(result.rows);
+    const friends = result.rows;
+    if (friends.length === 0) {
+      return res.json([]);
+    }
+    
+    const friendIds = friends.map(f => f.id);
+    const bookAssocs = await pool.query(`
+      SELECT bf.user_id, bf.book_id
+      FROM public.book_friends bf
+      JOIN public.books b ON b.id = bf.book_id
+      WHERE bf.user_id = ANY($1::int[])
+        AND (b.owner_id = $2 OR EXISTS (SELECT 1 FROM public.book_friends bf2 WHERE bf2.book_id = b.id AND bf2.user_id = $2))
+        AND b.archived = FALSE
+    `, [friendIds, userId]);
+    
+    const bookIdsByFriend = {};
+    friendIds.forEach(id => { bookIdsByFriend[id] = []; });
+    bookAssocs.rows.forEach(row => {
+      if (!bookIdsByFriend[row.user_id]) bookIdsByFriend[row.user_id] = [];
+      bookIdsByFriend[row.user_id].push(row.book_id);
+    });
+    
+    const friendsWithBooks = friends.map(f => ({
+      ...f,
+      bookIds: bookIdsByFriend[f.id] || []
+    }));
+    
+    res.json(friendsWithBooks);
   } catch (error) {
     console.error('Error fetching friends:', error);
     res.status(500).json({ error: 'Server error' });

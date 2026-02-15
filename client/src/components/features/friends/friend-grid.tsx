@@ -28,6 +28,7 @@ export default function FriendGrid({
       items={friends}
       itemsPerPage={itemsPerPage}
       keyExtractor={(friend) => friend.id}
+      gridClassName="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
       renderItem={(friend) => (
         <FriendsCard
           friend={friend}

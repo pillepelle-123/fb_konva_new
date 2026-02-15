@@ -72,7 +72,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
+      {/* <div className="flex items-center gap-2 mb-4">
         <Button
           variant="ghost"
           size="sm"
@@ -83,7 +83,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
           Back
         </Button>
         <h2 className="text-lg font-semibold">Background Images</h2>
-      </div>
+      </div> */}
 
       {/* Upload Button */}
       {onUpload && (
