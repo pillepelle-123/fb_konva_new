@@ -15,6 +15,6 @@ export * from './overlays';
 
 // Legacy exports
 export { BookActions } from '../features/editor/editor-bar/book-actions';
-export { FloatingActionButtons } from '../features/editor/floating-action-buttons';
+export { FloatingEditorToggleButton } from '../features/editor/floating-editor-toggle-button';
 export { PageActions } from '../features/editor/editor-bar/page-actions';
 export { QuillEditorContainer } from '../features/editor/quill-editor-container';

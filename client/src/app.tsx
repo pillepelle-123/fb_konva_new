@@ -5,6 +5,7 @@ import { EditorProvider } from './context/editor-context'
 import { SocketProvider } from './context/socket-context'
 import PageContainer from './components/layouts/page-container'
 import Navigation from './components/layouts/navigation'
+import BottomNavigation from './components/layouts/bottom-navigation'
 import { AdminRoute } from './admin'
 import { Toaster } from './components/ui/sonner'
 
@@ -85,7 +86,7 @@ function AppContent() {
   return (
     <PageContainer>
       <Navigation />
-      <main className={`flex-1 min-h-0 ${shouldHideOverflow ? 'overflow-hidden' : 'overflow-auto'} w-full`}>
+      <main className={`flex-1 min-h-0 ${shouldHideOverflow ? 'overflow-hidden' : 'overflow-auto'} w-full pb-16 sm:pb-0`}>
         <Routes>
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Home serverMessage={serverMessage} />} />
           <Route path="/login" element={user ? <LoginRedirect /> : <Login />} />
@@ -111,6 +112,7 @@ function AppContent() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      <BottomNavigation />
       <Toaster />
     </PageContainer>
   )

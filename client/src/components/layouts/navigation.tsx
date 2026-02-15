@@ -1,29 +1,28 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../ui/primitives/button';
-import { Book, Home, Archive, LogOut, User, Menu, Image, IdCard, Settings, ChevronDown, Bell, MessagesSquare, Users, LayoutDashboard, LibraryBig, Plus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Book, Home, User, Image, Bell, Users, LayoutDashboard, LibraryBig, Plus } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
 import ProfilePicture from '../features/users/profile-picture';
-import { Popover, PopoverTrigger, PopoverContent } from '../ui/overlays/popover';
-import NotificationPopover from '../features/messenger/notification-popover';
 import { useSocket } from '../../context/socket-context';
 import NavigationSubMenu from './navigation-sub-menu';
+import MobileNotificationPanel from './mobile-notification-panel';
 import UnsavedChangesDialog from '../ui/overlays/unsaved-changes-dialog';
 import { toast } from 'sonner';
 
 export default function Navigation() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { socket } = useSocket();
   const location = useLocation();
   const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [booksMenuOpen, setBooksMenuOpen] = useState(false);
-  const [mobileBooksMenuOpen, setMobileBooksMenuOpen] = useState(false);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileNotificationButtonRef = useRef<HTMLButtonElement>(null);
+  const desktopNotificationButtonRef = useRef<HTMLButtonElement>(null);
+  const desktopProfileButtonRef = useRef<HTMLButtonElement>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [mobileNotificationOpen, setMobileNotificationOpen] = useState(false);
   const [profileUpdateKey, setProfileUpdateKey] = useState(0);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
@@ -45,7 +44,6 @@ export default function Navigation() {
     }
     
     navigate(path);
-    setIsMobileMenuOpen(false);
   };
   
   const handleSaveAndNavigate = async () => {
@@ -162,17 +160,8 @@ export default function Navigation() {
     }
   };
 
-  const navItems = user ? [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/images', label: 'Images', icon: Image },
-  ] : [
-    { path: '/', label: 'Home', icon: Home },
-    { path: '/login', label: 'Login', icon: User },
-    { path: '/register', label: 'Register', icon: User },
-  ];
-
   return (
-    <nav className="relative bg-primary sticky top-0 z-50 pb-4 shadow-lg" style={{ clipPath: 'ellipse(1200px 100% at 50% 0%)' }}>
+    <nav className="relative bg-primary sticky top-0 z-50 pb-2 sm:pb-4 shadow-lg" style={{ clipPath: 'ellipse(1200px 100% at 50% 12%)' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex pt-2 items-center">
           {/* Logo */}
@@ -180,7 +169,7 @@ export default function Navigation() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background md:mr-2">
               <LibraryBig className="h-7 w-7 text-primary"/>
             </div>
-            <span className=" sm:inline md:hidden lg:inline text-2xl text-primary-foreground pt-2" style={{ fontFamily: '"Gochi Hand", cursive' }}>dein-freundebuch.de</span>
+            <span className=" sm:inline md:hidden lg:inline text-2xl text-primary-foreground sm:pt-2" style={{ fontFamily: '"Gochi Hand", cursive' }}>dein-freundebuch.de</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -310,307 +299,127 @@ export default function Navigation() {
             {user && (
               <>
                 {/* Notification Bell */}
-                <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="relative text-white hover:bg-white/10 p-2 shrink-0"
-                    >
-                      <Bell className="h-5 w-5" />
-                      {unreadCount > 0 && (
-                        <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </div>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 sm:w-[calc(100vw-2rem)] sm:max-w-md">
-                    <NotificationPopover onUpdate={fetchUnreadCount} onClose={() => setNotificationOpen(false)} />
-                  </PopoverContent>
-                </Popover>
+                <div className="relative shrink-0">
+                  <Button
+                    ref={desktopNotificationButtonRef}
+                    variant="ghost"
+                    size="sm"
+                    className={`relative p-2 shrink-0 text-white hover:text-white ${
+                      notificationOpen ? 'bg-white/10 hover:bg-white/10' : 'hover:bg-transparent'
+                    }`}
+                    onClick={() => setNotificationOpen(!notificationOpen)}
+                  >
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </div>
+                    )}
+                  </Button>
+                  {isDesktop && (
+                    <MobileNotificationPanel
+                      open={notificationOpen}
+                      onClose={() => setNotificationOpen(false)}
+                      onUpdate={fetchUnreadCount}
+                      triggerRef={desktopNotificationButtonRef}
+                    />
+                  )}
+                </div>
                 
                 <div className="relative shrink-0">
                 <Button
+                  ref={desktopProfileButtonRef}
                   variant="ghost"
                   size="sm"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center justify-center text-sm text-white/80 hover:bg-white/10 hover:text-white p-1 shrink-0"
+                  className="group flex items-center justify-center p-1 shrink-0 hover:bg-transparent"
                 >
-                  <ProfilePicture name={user.name} size="sm" userId={user.id} key={`desktop-${profileUpdateKey}`} className="shrink-0" />
+                  <ProfilePicture
+                    name={user.name}
+                    size="sm"
+                    userId={user.id}
+                    key={`desktop-${profileUpdateKey}`}
+                    className={`shrink-0 rounded-full transition-all duration-200 group-hover:ring-2 group-hover:ring-white/60 group-hover:ring-offset-2 group-hover:ring-offset-primary ${
+                      userMenuOpen ? 'ring-2 ring-white/60 ring-offset-2 ring-offset-primary' : ''
+                    }`}
+                  />
                   {/* <User className="h-4 w-4" />
                   <span>{user.name}</span>
                   <ChevronDown className={`h-3 w-3 transition-transform ${
                     userMenuOpen ? 'rotate-180' : ''
                   }`} /> */}
                 </Button>
-                {userMenuOpen && isDesktop && (
-                  <NavigationSubMenu onClose={() => setUserMenuOpen(false)} />
+                {isDesktop && (
+                  <NavigationSubMenu
+                    open={userMenuOpen}
+                    onClose={() => setUserMenuOpen(false)}
+                    triggerRef={desktopProfileButtonRef}
+                  />
                 )}
                 </div>
               </>
             )}
           </div>
 
-          {/* Mobile Menu Button - Badge nur wenn Menü geschlossen */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden relative text-white hover:bg-white/10 ml-auto"
-            onClick={() => {
-              setIsMobileMenuOpen(!isMobileMenuOpen);
-              setUserMenuOpen(false);
-              setBooksMenuOpen(false);
-              setMobileBooksMenuOpen(false);
-            }}
-          >
-            <Menu className="h-5 w-5" />
-            {user && unreadCount > 0 && !isMobileMenuOpen && (
-              <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </div>
-            )}
-          </Button>
-        </div>
-
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-white/20 space-y-2">
-            {user ? (
-              <>
-                <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/dashboard') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/dashboard') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    <span>Dashboard</span>
-                  </Button>
-                </Link>
-                
-                {/* Books Dropdown - Mobile */}
+          {/* Mobile: Menu Button (SubMenu) + Notifications */}
+          {user && (
+            <div className="flex items-center gap-1 ml-auto md:hidden">
+              <div className="relative shrink-0">
                 <Button
+                  ref={mobileNotificationButtonRef}
                   variant="ghost"
-                  onClick={() => setMobileBooksMenuOpen(!mobileBooksMenuOpen)}
-                  className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
+                  size="icon"
+                  className={`relative shrink-0 text-white hover:text-white ${
+                    notificationOpen ? 'bg-white/10 hover:bg-white/10' : 'hover:bg-transparent'
+                  }`}
+                  aria-label="Notifications"
+                  onClick={() => setNotificationOpen(!notificationOpen)}
                 >
-                  <Book className="h-4 w-4" />
-                  <span>Books</span>
-                  <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${
-                    mobileBooksMenuOpen ? 'rotate-180' : ''
-                  }`} />
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </div>
+                  )}
                 </Button>
-                {mobileBooksMenuOpen && (
-                  <div className="pl-4 space-y-1">
-                    <Link to="/books" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setMobileBooksMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <Book className="h-4 w-4" />
-                        <span>My Books</span>
-                      </Button>
-                    </Link>
-                    <Link to="/books/create" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setMobileBooksMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="highlight"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>New Book</span>
-                      </Button>
-                    </Link>
-                    <Link to="/books/archive" onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setMobileBooksMenuOpen(false);
-                    }}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                      >
-                        <Archive className="h-4 w-4" />
-                        <span>Archive</span>
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-                
-                <Link to="/images" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/images') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/images') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Image className="h-4 w-4" />
-                    <span>Images</span>
-                  </Button>
-                </Link>
-                
-                <Link to="/friends" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/friends') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/friends') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Users className="h-4 w-4" />
-                    <span>Friends</span>
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Home className="h-4 w-4" />
-                    <span>Home</span>
-                  </Button>
-                </Link>
-                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/login') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/login') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <User className="h-4 w-4" />
-                    <span>Login</span>
-                  </Button>
-                </Link>
-                <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive('/register') ? "default" : "ghost"}
-                    className={`w-full justify-start space-x-2 ${
-                      isActive('/register') 
-                        ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
-                        : 'text-white hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <User className="h-4 w-4" />
-                    <span>Register</span>
-                  </Button>
-                </Link>
-              </>
-            )}
-            {user && (
-              <div className="pt-4 border-t border-white/20 space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex-1 justify-start space-x-2 text-white hover:bg-white/10 hover:text-white min-w-0"
-                  >
-                    <ProfilePicture name={user.name} size="sm" userId={user.id} key={`mobile-${profileUpdateKey}`} className="shrink-0" />
-                    <span className="truncate">{user.name}</span>
-                    <ChevronDown className={`h-3 w-3 ml-auto shrink-0 transition-transform ${
-                      userMenuOpen ? 'rotate-180' : ''
-                    }`} />
-                  </Button>
-                  <Popover open={mobileNotificationOpen} onOpenChange={setMobileNotificationOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="relative shrink-0 text-white hover:bg-white/10 p-2"
-                        aria-label="Notifications"
-                      >
-                        <Bell className="h-5 w-5" />
-                        {unreadCount > 0 && (
-                          <div className="absolute -top-1 -right-1 bg-highlight text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </div>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80 sm:w-[calc(100vw-2rem)] sm:max-w-md" align="end">
-                      <NotificationPopover
-                        onUpdate={fetchUnreadCount}
-                        onClose={() => setMobileNotificationOpen(false)}
-                        onEntryClick={() => setIsMobileMenuOpen(false)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                {userMenuOpen && (
-                  <div className="pl-4 space-y-1">
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        navigate('/messenger');
-                        setIsMobileMenuOpen(false);
-                        setUserMenuOpen(false);
-                      }}
-                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                    >
-                      <MessagesSquare className="h-4 w-4" />
-                      <span>Messenger</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        navigate('/my-profile');
-                        setIsMobileMenuOpen(false);
-                        setUserMenuOpen(false);
-                      }}
-                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                    >
-                      <IdCard className="h-4 w-4" />
-                      <span>Profile</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        navigate('/settings');
-                        setIsMobileMenuOpen(false);
-                        setUserMenuOpen(false);
-                      }}
-                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                    >
-                      <Settings className="h-4 w-4" />
-                      <span>Settings</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        logout();
-                        setIsMobileMenuOpen(false);
-                        setUserMenuOpen(false);
-                      }}
-                      className="w-full justify-start space-x-2 text-white hover:bg-white/10 hover:text-white"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>Logout</span>
-                    </Button>
-                  </div>
+                {!isDesktop && (
+                  <MobileNotificationPanel
+                    open={notificationOpen}
+                    onClose={() => setNotificationOpen(false)}
+                    onUpdate={fetchUnreadCount}
+                    triggerRef={mobileNotificationButtonRef}
+                  />
                 )}
               </div>
-            )}
-          </div>
-        )}
+              <div className="relative shrink-0">
+                <Button
+                  ref={mobileMenuButtonRef}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="group flex items-center justify-center p-1 shrink-0 hover:bg-transparent"
+                >
+                  <ProfilePicture
+                    name={user.name}
+                    size="sm"
+                    userId={user.id}
+                    key={`mobile-${profileUpdateKey}`}
+                    className={`shrink-0 rounded-full transition-all duration-200 ${
+                      userMenuOpen ? 'ring-2 ring-white/60 ring-offset-2 ring-offset-primary' : ''
+                    }`}
+                  />
+                </Button>
+                {!isDesktop && (
+                  <NavigationSubMenu
+                    open={userMenuOpen}
+                    onClose={() => setUserMenuOpen(false)}
+                    triggerRef={mobileMenuButtonRef}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       
       <UnsavedChangesDialog

@@ -2,31 +2,37 @@ import { Link } from 'react-router-dom';
 import { Button } from '../ui/primitives/button';
 import { MessagesSquare, IdCard, Settings, UserStar, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
-import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import DropdownPanel from '../ui/overlays/dropdown-panel';
 
 interface NavigationSubMenuProps {
+  open: boolean;
   onClose: () => void;
+  /** Ref zum Trigger-Button – Klicks darauf werden nicht als "außerhalb" gewertet (für Toggle-Verhalten) */
+  triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
-export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
+export default function NavigationSubMenu({ open, onClose, triggerRef }: NavigationSubMenuProps) {
   const { logout, user } = useAuth();
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
-
-  return createPortal(
-    <div ref={menuRef} className="hidden md:block fixed top-16 right-4 bg-white border rounded-md shadow-lg py-1 min-w-[160px] z-[9999]">
+  return (
+    <DropdownPanel
+      open={open}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      className="rounded-lg bg-white border-b sm:border shadow-lg py-1 sm:min-w-[160px]"
+    >
+            <Link to="/my-profile" onClick={onClose}>
+            <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
+        >
+          <IdCard className="h-5 w-5" />
+          <span>Profile</span>
+        </Button>  
+</Link>
       <Link to="/messenger" onClick={onClose}>
+          
         <Button
           variant="ghost"
           size="sm"
@@ -36,16 +42,7 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
           <span>Messenger</span>
         </Button>
       </Link>
-      <Link to="/my-profile" onClick={onClose}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start space-x-2 py-6 rounded-none text-foreground hover:bg-muted"
-        >
-          <IdCard className="h-5 w-5" />
-          <span>Profile</span>
-        </Button>
-      </Link>
+
       <Link to="/settings" onClick={onClose}>
         <Button
           variant="ghost"
@@ -80,7 +77,6 @@ export default function NavigationSubMenu({ onClose }: NavigationSubMenuProps) {
         <LogOut className="h-5 w-5" />
         <span>Logout</span>
       </Button>
-    </div>,
-    document.body
+    </DropdownPanel>
   );
 }

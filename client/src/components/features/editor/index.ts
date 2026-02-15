@@ -8,7 +8,7 @@ export * from './editor-bar';
 export * from './toolbar';
 
 // Main editor components
-export { default as FloatingActionButtons } from './floating-action-buttons';
+export { FloatingEditorToggleButton } from './floating-editor-toggle-button';
 export { default as PDFExportModal } from './pdf-export-modal';
 export { default as QuillEditorContainer } from './quill-editor-container';
 export { ExportProgress } from './export-progress';

@@ -9,7 +9,7 @@ import BookManagerModal from '../../books/book-manager-modal';
 import { Button } from '../../../ui/primitives/button';
 import { toast } from 'sonner';
 
-import { FloatingActionButtons } from '../floating-action-buttons';
+import { FloatingEditorToggleButton } from '../floating-editor-toggle-button';
 import { PageNavigation } from './page-navigation';
 import { PageActions } from './page-actions';
 import { BookTitle } from './book-title';
@@ -308,7 +308,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
 
   return (
     <>
-      <FloatingActionButtons
+      <FloatingEditorToggleButton
         editorBarVisible={state.editorBarVisible}
         toolbarVisible={state.toolbarVisible}
         settingsPanelVisible={state.settingsPanelVisible}

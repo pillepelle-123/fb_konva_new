@@ -166,10 +166,17 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
     return actionButtons.length;
   };
 
-  const visibleCount = Math.min(getVisibleCount(containerWidth), actionButtons.length);
-  const hasOverflow = visibleCount < actionButtons.length;
+  let visibleCount = Math.min(getVisibleCount(containerWidth), actionButtons.length);
+  let overflowButtons = actionButtons.slice(visibleCount);
+
+  // Ellipsis only makes sense when it hides 2+ buttons. With 1 overflow button, show it directly.
+  if (overflowButtons.length === 1) {
+    visibleCount += 1;
+    overflowButtons = [];
+  }
+
+  const hasOverflow = overflowButtons.length >= 2;
   const visibleButtons = actionButtons.slice(0, visibleCount);
-  const overflowButtons = actionButtons.slice(visibleCount);
 
   const handleRename = async () => {
     if (editName.trim() && editName !== book.name) {
