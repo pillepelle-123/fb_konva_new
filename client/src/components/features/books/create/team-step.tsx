@@ -776,7 +776,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 items-stretch mb-6">
+        <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 items-stretch">
           <div className="flex flex-col min-h-0 h-full w-full lg:w-1/3">
             <StepContainer variant="default" padding="md" className="shadow-sm space-y-4 flex flex-col overflow-y-auto flex-1 min-h-0">
               <div>

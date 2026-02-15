@@ -1,11 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../context/auth-context';
 import { LayoutDashboard, Book, Plus, Image, Users, Home, User } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import UnsavedChangesDialog from '../ui/overlays/unsaved-changes-dialog';
 import { useState, useRef, useEffect } from 'react';
 
-const NEW_BOOK_ANIMATION_DURATION_MS = 700;
 const NEW_BOOK_ANIMATION_HOLD_MS = 350;
 
 export default function BottomNavigation() {
@@ -15,16 +15,12 @@ export default function BottomNavigation() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isNewBookAnimating, setIsNewBookAnimating] = useState(false);
-  const newBookAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newBookAnimationHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isInEditor = location.pathname.startsWith('/editor/');
 
   useEffect(() => {
     return () => {
-      if (newBookAnimationTimeoutRef.current) {
-        clearTimeout(newBookAnimationTimeoutRef.current);
-      }
       if (newBookAnimationHoldRef.current) {
         clearTimeout(newBookAnimationHoldRef.current);
       }
@@ -67,14 +63,6 @@ export default function BottomNavigation() {
       return;
     }
     setIsNewBookAnimating(true);
-    newBookAnimationTimeoutRef.current = setTimeout(() => {
-      navigate('/books/create');
-      newBookAnimationTimeoutRef.current = null;
-      newBookAnimationHoldRef.current = setTimeout(() => {
-        setIsNewBookAnimating(false);
-        newBookAnimationHoldRef.current = null;
-      }, NEW_BOOK_ANIMATION_HOLD_MS);
-    }, NEW_BOOK_ANIMATION_DURATION_MS);
   };
 
   const handleSaveAndNavigate = async () => {
@@ -139,7 +127,7 @@ export default function BottomNavigation() {
                 onClick={isNewBook ? handleNewBookClick : (e) => handleNavigation(item.path, e)}
                 className={cn(
                   'flex flex-col items-center justify-center flex-1 min-w-0 transition-colors text-foreground',
-                  active && !isNewBook && 'border-t-4 border-primary',
+                  active && !isNewBook && !isNewBookAnimating && 'border-t-4 border-primary',
                   active && isNewBook && 'border-t-1.5',
                   !active && 'hover:bg-muted/50',
                   isNewBook && 'overflow-hidden'
@@ -156,15 +144,25 @@ export default function BottomNavigation() {
               >
                 {isNewBook ? (
                   <div className="relative flex items-center justify-center h-8 w-8 shrink-0">
-                    <span
-                      className={cn(
-                        'absolute inset-0 rounded-full origin-center z-0 transition-transform',
-                        (active || showAnimation)
-                          ? 'scale-[5] duration-500 ease-out'
-                          : 'scale-100 duration-700 ease-in'
-                      )}
+                    <motion.span
+                      className="absolute inset-0 rounded-full origin-center z-0"
                       style={{
                         backgroundColor: 'hsl(var(--highlight))',
+                      }}
+                      animate={{ scale: (active || showAnimation) ? 5 : 1 }}
+                      transition={
+                        (active || showAnimation)
+                          ? { duration: 0.7, ease: 'easeIn' }
+                          : { duration: 0.5, ease: 'easeOut' }
+                      }
+                      onAnimationComplete={() => {
+                        if (showAnimation) {
+                          navigate('/books/create');
+                          newBookAnimationHoldRef.current = setTimeout(() => {
+                            setIsNewBookAnimating(false);
+                            newBookAnimationHoldRef.current = null;
+                          }, NEW_BOOK_ANIMATION_HOLD_MS);
+                        }
                       }}
                     />
                     <Plus
@@ -175,21 +173,22 @@ export default function BottomNavigation() {
                 ) : (
                   <item.icon className="h-5 w-5 shrink-0" />
                 )}
-                <span
-                  className={cn(
-                    'relative z-10 text-xs truncate max-w-full mt-0.5',
-                    (active || showAnimation) && isNewBook
-                      ? 'text-primary-foreground'
-                      : 'text-foreground'
-                  )}
-                  style={{
-                    transition: (active || showAnimation) && isNewBook
-                      ? 'color 300ms'
-                      : 'color 300ms 250ms',
+                <motion.span
+                  className="relative z-10 text-xs truncate max-w-full mt-0.5"
+                  animate={{
+                    color:
+                      (active || showAnimation) && isNewBook
+                        ? 'hsl(var(--primary-foreground))'
+                        : 'hsl(var(--foreground))',
                   }}
+                  transition={
+                    (active || showAnimation) && isNewBook
+                      ? { duration: 0.3 }
+                      : { duration: 0.3, delay: 0.25 }
+                  }
                 >
                   {item.label}
-                </span>
+                </motion.span>
               </Link>
             );
           })}

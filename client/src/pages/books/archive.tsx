@@ -5,8 +5,7 @@ import { Card, CardContent } from '../../components/ui/composites/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { Archive, ChevronLeft, ChevronRight, Book } from 'lucide-react';
 import BookCard from '../../components/features/books/book-card';
-import { useNavigate, useLocation } from 'react-router-dom';
-import '../../styles/page-transitions.css';
+import { useNavigate } from 'react-router-dom';
 import Grid from '../../components/shared/grid';
 
 interface ArchivedBook {
@@ -21,32 +20,18 @@ interface ArchivedBook {
 export default function BookArchive() {
   const { token } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [books, setBooks] = useState<ArchivedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const itemsPerPage = 12;
   const [showRestoreConfirm, setShowRestoreConfirm] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [animationClass, setAnimationClass] = useState('');
 
   useEffect(() => {
     fetchArchivedBooks();
-    
-    // Handle page transition animation
-    const from = location.state?.from;
-    if (from === 'index') {
-      setAnimationClass('slide-from-right-enter');
-      setTimeout(() => setAnimationClass('slide-from-right-enter-active'), 50);
-    }
-  }, [location.state]);
+  }, []);
 
   const handleNavigateToBooks = () => {
-    setIsTransitioning(true);
-    setAnimationClass('slide-to-right-exit-active');
-    setTimeout(() => {
-      navigate('/books', { state: { from: 'archive' } });
-    }, 50);
+    navigate('/books', { state: { from: 'archive' } });
   };
 
   const fetchArchivedBooks = async () => {
@@ -126,8 +111,8 @@ export default function BookArchive() {
   }
 
   return (
-    <div className={`page-transition-container ${isTransitioning ? 'slide-to-right-exit-active' : animationClass}`}>
-      <div className="page-transition-wrapper">
+    <div className="w-full min-h-full">
+      <div className="w-full">
         <div className="container mx-auto px-4">
           {/* Fixierte Leiste */}
           <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b flex justify-between items-center gap-4">

@@ -67,7 +67,7 @@ export function TeamInviteMessageStep({
     .replace('[friend name]', FRIEND_NAME_PLACEHOLDER);
 
   return (
-    <StepContainer variant="default" padding="lg" className="flex flex-col gap-4 rounded-2xl shadow-sm">
+    <StepContainer variant="default" padding="lg" className="flex flex-col gap-4 rounded-2xl shadow-sm flex-1 min-h-0 h-full">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <UserPlus className="h-5 w-5 text-primary" />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Card, CardContent } from '../../components/ui/composites/card';
@@ -10,7 +10,6 @@ import { Slider } from '../../components/ui/primitives/slider';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
 import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
-import '../../styles/page-transitions.css';
 
 interface Book {
   id: number;
@@ -43,15 +42,12 @@ const USER_ROLE_OPTIONS: Option[] = [
 export default function BooksList() {
   const { token } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [books, setBooks] = useState<Book[]>([]);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [animationClass, setAnimationClass] = useState('');
 
   const [filterBarOpen, setFilterBarOpen] = useState(false);
   const [filterName, setFilterName] = useState('');
@@ -119,15 +115,6 @@ export default function BooksList() {
     fetchBooks();
   }, []);
 
-  useEffect(() => {
-    // Handle page transition animation
-    const from = location.state?.from;
-    if (from === 'archive') {
-      setAnimationClass('slide-from-left-enter');
-      setTimeout(() => setAnimationClass('slide-from-left-enter-active'), 50);
-    }
-  }, [location.state]);
-
   const fetchBooks = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -168,10 +155,7 @@ export default function BooksList() {
   };
 
   const handleNavigateToArchive = () => {
-    setIsTransitioning(true);
-    setTimeout(() => {
-      navigate('/books/archive', { state: { from: 'index' } });
-    }, 50);
+    navigate('/books/archive', { state: { from: 'index' } });
   };
 
   if (loading) {
@@ -189,8 +173,8 @@ export default function BooksList() {
 
   return (
     <>
-    <div className={`page-transition-container ${isTransitioning ? 'slide-to-left-exit-active' : animationClass}`}>
-      <div className="page-transition-wrapper">
+    <div className="w-full min-h-full">
+      <div className="w-full">
         <div className="container mx-auto px-4">
           {/* Fixierte Leiste */}
           <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">

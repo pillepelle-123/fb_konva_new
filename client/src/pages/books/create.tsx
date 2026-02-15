@@ -76,8 +76,8 @@ const initialState: WizardState = {
     },
 };
 
-// Animation variants for step transitions
-const stepVariants = {
+// Vertikale Schiebefolien-Übergänge zwischen Steps (Framer Motion)
+const stepSlideVariants = {
   enter: (direction: number) => ({
     y: direction > 0 ? '100%' : '-100%',
     opacity: 0,
@@ -85,23 +85,16 @@ const stepVariants = {
   center: {
     y: 0,
     opacity: 1,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 300,
-      damping: 30,
-      mass: 0.8,
-    },
   },
   exit: (direction: number) => ({
     y: direction > 0 ? '-100%' : '100%',
     opacity: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 300,
-      damping: 30,
-      mass: 0.8,
-    },
   }),
+};
+
+const stepSlideTransition = {
+  duration: 0.35,
+  ease: [0.25, 0.46, 0.45, 0.94] as const,
 };
 
 export default function BookCreatePage() {
@@ -1096,23 +1089,24 @@ ${user?.name || '[user name]'}`;
         </div>
       </div>
 
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto scrollbar relative min-h-0">
-        <div className="mx-auto max-w-7xl px-4 py-8 pt-0 lg:px-8 flex flex-col relative h-full">
+      {/* Content Area - füllt Viewport ohne Scroll-Leiste */}
+      <div className="flex-1 overflow-hidden relative min-h-0 flex flex-col">
+        <div className="mx-auto max-w-7xl px-4 py-4 lg:px-8 flex flex-col flex-1 min-h-0 w-full">
           {/* Hauptbereich: Layout abhängig vom aktuellen Schritt */}
-          <div className="mt-6 relative overflow-hidden h-full">
+          <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col mt-2">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
               <motion.div
                 key={`${activeStepIndex}-${activeHalfStep || 'main'}`}
                 custom={direction}
-                variants={stepVariants}
+                variants={stepSlideVariants}
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className="relative h-full"
+                transition={stepSlideTransition}
+                className="absolute inset-0 w-full h-full overflow-hidden flex flex-col"
               >
                 {currentStepId === 'design' || currentStepId === 'review' ? (
-                  <div className="mb-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch h-full">
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch flex-1 min-h-0">
                     {/* Left: Controls (60%) */}
                     <div className="lg:col-span-3 flex flex-col min-h-0 h-full">
                       {getStepComponent(activeStepIndex)}
@@ -1156,7 +1150,7 @@ ${user?.name || '[user name]'}`;
                     </div>
                   </div>
                 ) : (
-                  <div className="mb-6 h-full">
+                  <div className="flex-1 min-h-0 flex flex-col">
                     {getStepComponent(activeStepIndex)}
                   </div>
                 )}

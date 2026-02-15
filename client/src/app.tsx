@@ -6,6 +6,7 @@ import { SocketProvider } from './context/socket-context'
 import PageContainer from './components/layouts/page-container'
 import Navigation from './components/layouts/navigation'
 import BottomNavigation from './components/layouts/bottom-navigation'
+import BooksLayout from './components/layouts/books-slide-transition'
 import { AdminRoute } from './admin'
 import { Toaster } from './components/ui/sonner'
 
@@ -101,19 +102,21 @@ function AppContent() {
           <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
           <Route path="/invitations/respond" element={<InvitationResponse />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/books" element={<ProtectedRoute><BooksList /></ProtectedRoute>} />
-          <Route path="/books/create" element={<ProtectedRoute><BookCreatePage /></ProtectedRoute>} />
-          <Route path="/books/archive" element={<ProtectedRoute><BookArchive /></ProtectedRoute>} />
+          <Route path="/books" element={<ProtectedRoute><BooksLayout /></ProtectedRoute>}>
+            <Route index element={<BooksList />} />
+            <Route path="archive" element={<BookArchive />} />
+            <Route path="create" element={<BookCreatePage />} />
+            <Route path=":bookId/manager" element={<BookAccessGuard><BookManagerPage /></BookAccessGuard>} />
+            <Route path=":bookId/export" element={<BookAccessGuard><BookExportPage /></BookAccessGuard>} />
+            <Route path=":bookId/answers" element={<BookAccessGuard><AnswerForm /></BookAccessGuard>} />
+          </Route>
           <Route path="/images" element={<ProtectedRoute><ImagesList /></ProtectedRoute>} />
           <Route path="/questions/:bookId" element={<ProtectedRoute><BookAccessGuard><QuestionsList /></BookAccessGuard></ProtectedRoute>} />
-          <Route path="/books/:bookId/manager" element={<ProtectedRoute><BookAccessGuard><BookManagerPage /></BookAccessGuard></ProtectedRoute>} />
-          <Route path="/books/:bookId/export" element={<ProtectedRoute><BookAccessGuard><BookExportPage /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsList /></ProtectedRoute>} />
           <Route path="/messenger" element={<ProtectedRoute><MessengerPage /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/my-profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/books/:bookId/answers" element={<ProtectedRoute><BookAccessGuard><AnswerForm /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/editor/:bookId" element={<ProtectedRoute><BookAccessGuard><EditorWithBar /></BookAccessGuard></ProtectedRoute>} />
           <Route path="/404" element={<NotFound />} />
           <Route path="/admin/*" element={<AdminRoute />} />

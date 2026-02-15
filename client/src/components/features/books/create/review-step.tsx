@@ -55,7 +55,7 @@ export function ReviewStep({
   isSubmitting,
 }: ReviewStepProps) {
   return (
-    <StepContainer variant="default" padding="lg" className="rounded-2xl shadow-sm space-y-3 flex flex-col h-[600px]">
+    <StepContainer variant="default" padding="lg" className="rounded-2xl shadow-sm space-y-3 flex flex-col flex-1 min-h-0 h-full">
       <div className="flex items-center gap-2">
         <Star className="h-5 w-5 text-primary" />
         <div>

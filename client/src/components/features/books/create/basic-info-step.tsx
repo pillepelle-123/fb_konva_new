@@ -221,7 +221,7 @@ export function BasicInfoStep({
           <ArrowBigRight className="h-6 w-6" />
         </button>
       </div>
-      <div className="flex w-1/3 flex-col gap-3 min-w-0 h-[400px] pr-2 pt-2">
+      <div className="flex w-1/3 flex-col gap-3 min-w-0 flex-1 max-h-[400px] pr-2 pt-2">
         <Button
             onClick={onBookWizard}
             disabled={!hasBookName || isSubmitting}
@@ -252,7 +252,7 @@ export function BasicInfoStep({
           <Button
             onClick={onBlankCanvas}
             disabled={!hasBookName || isSubmitting}
-            variant="ghost_hover"
+            variant="outline"
             className="h-16 p-4 flex flex-col items-start text-left"
             onMouseEnter={() => setHoveredButton('blank')}
             onMouseLeave={() => setHoveredButton(null)}
