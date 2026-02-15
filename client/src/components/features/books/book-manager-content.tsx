@@ -304,12 +304,12 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
                   checked={isPublisher}
                   onCheckedChange={(checked) => handlePermissionChange(friend.id, 'book_role', checked ? 'publisher' : 'author')}
                 />
-                <Tooltip content="Remove friend from book">
+                <Tooltip side="bottom" content="Remove friend from book">
                   <Button
-                    variant="outline"
+                    variant="destructive_outline"
                     size="sm"
                     onClick={() => setRemoveConfirm({ show: true, user: friend })}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    className="h-8 w-8 p-0"
                   >
                     <UserRoundX className="h-5 w-5" />
                   </Button>
@@ -1459,7 +1459,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
             <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteQuestion}>
+            <Button variant="destructive_outline" onClick={handleDeleteQuestion}>
               Delete Question
             </Button>
           </DialogFooter>

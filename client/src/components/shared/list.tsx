@@ -12,6 +12,8 @@ interface ListProps<T> {
   size?: 'sm' | 'md' | 'lg';
   /** 'notifications' = scrollable list without pagination, for notification popover */
   variant?: 'default' | 'notifications';
+  /** Zeigt einen horizontalen Trennstrich zwischen den Einträgen (Farbe: --border) */
+  separator?: boolean;
 }
 
 export default function List<T>({ 
@@ -21,7 +23,8 @@ export default function List<T>({
   keyExtractor,
   interactive = false,
   size = 'md',
-  variant = 'default'
+  variant = 'default',
+  separator = false
 }: ListProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -36,11 +39,19 @@ export default function List<T>({
   };
 
   const listContent = (
-    <div className={variant === 'notifications' ? 'space-y-1' : 'space-y-4'}>
+    <div
+      className={
+        separator
+          ? 'divide-y divide-[hsl(var(--border))]'
+          : variant === 'notifications'
+            ? 'space-y-1'
+            : 'space-y-4'
+      }
+    >
       {currentItems.map(item => (
-        <div 
+        <div
           key={keyExtractor(item)}
-          className={`${variant === 'notifications' ? '' : sizeClasses[size]} ${interactive ? 'hover:bg-[hsl(var(--secondary))] cursor-pointer transition-colors' : ''}`}
+          className={`${variant === 'notifications' ? '' : sizeClasses[size]} ${interactive ? 'hover:bg-[hsl(var(--secondary))] cursor-pointer transition-colors' : ''} ${separator ? 'py-2 first:pt-0 last:pb-0' : ''}`}
         >
           {renderItem(item)}
         </div>

@@ -6,6 +6,7 @@ interface Friend {
   name: string;
   email?: string;
   role: string;
+  sharedBooks?: { bookId: number; bookName: string; myRole: string; friendRole: string }[];
 }
 
 interface FriendGridProps {

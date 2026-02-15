@@ -5,6 +5,7 @@ interface ResourcePageLayoutProps {
   headerAdditionalContent?: React.ReactNode;
   description?: string;
   children: React.ReactNode;
+  actionsAlignRightOnMobile?: boolean;
 }
 
 export default function ResourcePageLayout({
@@ -14,6 +15,7 @@ export default function ResourcePageLayout({
   headerAdditionalContent,
   description,
   children,
+  actionsAlignRightOnMobile = false,
 }: ResourcePageLayoutProps) {
   return (
     <div className="w-full min-h-full">
@@ -21,11 +23,17 @@ export default function ResourcePageLayout({
         <div className="container mx-auto px-4">
           <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
             <div className="flex justify-between items-center gap-4">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="hidden sm:flex items-center gap-2 min-w-0">
                 <span className="shrink-0 text-foreground [&>svg]:h-6 [&>svg]:w-6">{icon}</span>
                 <h1 className="text-xl font-bold tracking-tight text-foreground truncate">{title}</h1>
               </div>
-              {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+              {actions && (
+                <div
+                  className={`flex flex-1 sm:flex-initial items-center gap-2 min-w-0 ${actionsAlignRightOnMobile ? 'justify-end sm:justify-start' : ''}`}
+                >
+                  {actions}
+                </div>
+              )}
             </div>
             {headerAdditionalContent}
           </div>

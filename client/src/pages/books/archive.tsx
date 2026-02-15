@@ -181,7 +181,7 @@ export default function BookArchive() {
               <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="flex-1">
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={handleConfirmDelete} className="flex-1">
+              <Button variant="destructive_outline" onClick={handleConfirmDelete} className="flex-1">
                 Delete Forever
               </Button>
             </div>

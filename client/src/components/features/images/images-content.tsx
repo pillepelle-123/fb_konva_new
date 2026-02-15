@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert } from '../../ui/composites/alert';
 import { Image, Plus, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
 import ImageCard from './image-card';
+import { Tooltip } from '../../ui/composites/tooltip';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout, ImageGrid, type ImageGridItem } from '../../shared';
 
 interface ImageData {
@@ -282,57 +283,73 @@ export default function ImagesContent({
       )}
       {multiSelectMode ? (
         <ButtonGroup>
+          <Tooltip content="Exit multi-select" side="bottom">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                setMultiSelectMode(false);
+                deselectAllImages();
+              }}
+            >
+              <SquareX className="h-5 w-5" />
+            </Button>
+          </Tooltip>
+          <Tooltip content="Select all" side="bottom">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={selectAllImages}
+              disabled={selectedImages.size === images.length}
+            >
+              <CopyCheck className="h-5 w-5" />
+            </Button>
+          </Tooltip>
+          <Tooltip content="Deselect all" side="bottom">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={deselectAllImages}
+              disabled={selectedImages.size === 0}
+            >
+              <Copy className="h-5 w-5" />
+            </Button>
+          </Tooltip>
           <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              setMultiSelectMode(false);
-              deselectAllImages();
-            }}
-          >
-            <SquareX className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={selectAllImages}
-            disabled={selectedImages.size === images.length}
-          >
-            <CopyCheck className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={deselectAllImages}
-            disabled={selectedImages.size === 0}
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="destructive"
+            variant="destructive_outline"
             onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
             disabled={selectedImages.size === 0}
             className="space-x-2"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-5 w-5" />
             <span> ({selectedImages.size})</span>
           </Button>
         </ButtonGroup>
       ) : (
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setMultiSelectMode(true)}
-        >
-          <SquareCheckBig className="h-4 w-4" />
-        </Button>
+        <Tooltip content="Multi-select" side="bottom">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setMultiSelectMode(true)}
+          >
+            <SquareCheckBig className="h-5 w-5" />
+          </Button>
+        </Tooltip>
       )}
       <Button
         variant="default"
-        onClick={() => setUploadZoneExpanded((v) => !v)}
-        className="space-x-2"
+        onClick={() => fileInputRef.current?.click()}
+        className="sm:hidden space-x-2"
       >
         <Plus className="h-4 w-4" />
+        <span>Upload</span>
+      </Button>
+      <Button
+        variant="default"
+        onClick={() => setUploadZoneExpanded((v) => !v)}
+        className="hidden sm:inline-flex space-x-2"
+      >
+        <Plus className="h-5 w-5" />
         <span>Add Images</span>
         {uploadZoneExpanded ? (
           <ChevronUp className="h-4 w-4" />
@@ -397,25 +414,29 @@ export default function ImagesContent({
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+          <Tooltip content="Previous page" side="top">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <span className="text-sm text-muted-foreground">
             Page {currentPage} of {totalPages}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <Tooltip content="Next page" side="top">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Tooltip>
         </div>
       )}
 
@@ -509,14 +530,16 @@ export default function ImagesContent({
         <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] p-0">
             <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 z-10 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white"
-                onClick={() => setLightboxImage(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <Tooltip content="Close" side="left">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute top-2 right-2 z-10 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white"
+                  onClick={() => setLightboxImage(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </Tooltip>
               {lightboxImage && (
                 <img
                   src={getImageUrl(lightboxImage)}
@@ -539,6 +562,7 @@ export default function ImagesContent({
         actions={imagesHeaderActions}
         headerAdditionalContent={uploadZoneContent}
         description="Manage your uploaded images"
+        actionsAlignRightOnMobile
       >
         <div className="space-y-6">
           {mainContent}

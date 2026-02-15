@@ -258,7 +258,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
               </Button>
               {book.isOwner && (
                 <Button 
-                  variant="destructive" 
+                  variant="destructive_outline" 
                   size="sm"
                   onClick={() => onDelete?.(book.id)}
                   className="space-x-2"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Input } from '../../components/ui/primitives/input';
@@ -7,6 +7,7 @@ import ConfirmationDialog from '../../components/ui/overlays/confirmation-dialog
 import FriendGrid from '../../components/features/friends/friend-grid';
 import FindFriendsDialog from '../../components/features/friends/find-friends-dialog';
 import InviteUserDialog from '../../components/features/books/invite-user-dialog';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Contact, UserSearch, UserPlus, Users, Funnel, RotateCcw } from 'lucide-react';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout } from '../../components/shared';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
@@ -17,6 +18,7 @@ interface Friend {
   email?: string;
   role: string;
   bookIds?: number[];
+  sharedBooks?: { bookId: number; bookName: string; myRole: string; friendRole: string }[];
 }
 
 interface BookOption {
@@ -37,6 +39,7 @@ export default function FriendsList() {
   const [inviteError, setInviteError] = useState<string | undefined>();
 
   const [filterBarOpen, setFilterBarOpen] = useState(false);
+  const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterName, setFilterName] = useState('');
   const [filterEmail, setFilterEmail] = useState('');
   const [filterBooks, setFilterBooks] = useState<Option[]>([]);
@@ -75,6 +78,12 @@ export default function FriendsList() {
     appliedFilterName.trim() !== '' ||
     appliedFilterEmail.trim() !== '' ||
     appliedFilterBooks.length > 0;
+
+  const activeFilterCount = [
+    appliedFilterName.trim() !== '',
+    appliedFilterEmail.trim() !== '',
+    appliedFilterBooks.length > 0,
+  ].filter(Boolean).length;
 
   const bookOptions: Option[] = useMemo(
     () => books.map((b) => ({ value: String(b.id), label: b.name })),
@@ -209,28 +218,44 @@ export default function FriendsList() {
     return <PageLoadingState message="Loading friends..." />;
   }
 
-  const filterBarContent = filterBarOpen ? (
-    <div className="mt-4 flex flex-row items-start gap-4">
-      <div className="flex flex-row flex-wrap items-start gap-4 flex-1 min-w-0">
-        <div className="flex flex-col shrink-0">
+  const filterBarContent = (
+    <AnimatePresence>
+      {filterBarOpen && (
+        <motion.div
+          ref={filterBarRef}
+          key="filter-bar"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className="overflow-hidden"
+          onAnimationComplete={(definition) => {
+            if (typeof definition === 'object' && definition?.height === 'auto') {
+              filterBarRef.current?.style.setProperty('overflow', 'visible');
+            }
+          }}
+        >
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:flex-1 sm:min-w-0 sm:gap-x-6 sm:gap-y-0 gap-4 w-full">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[140px] sm:max-w-[220px]">
           <span className="text-xs text-muted-foreground mb-1">Name</span>
           <Input
             placeholder="Contains..."
             value={filterName}
             onChange={(e) => setFilterName(e.target.value)}
-            className="h-8 text-sm w-[140px]"
+            className="h-8 text-sm w-full"
           />
         </div>
-        <div className="flex flex-col shrink-0">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[140px] sm:max-w-[220px]">
           <span className="text-xs text-muted-foreground mb-1">Email</span>
           <Input
             placeholder="Contains..."
             value={filterEmail}
             onChange={(e) => setFilterEmail(e.target.value)}
-            className="h-8 text-sm w-[180px]"
+            className="h-8 text-sm w-full"
           />
         </div>
-        <div className="flex flex-col shrink-0 w-[200px]">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[160px] sm:max-w-[280px]">
           <span className="text-xs text-muted-foreground mb-1">Books (collaboration)</span>
           <MultipleSelector
             value={filterBooks}
@@ -242,34 +267,55 @@ export default function FriendsList() {
           />
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0 self-end">
-        <Button variant="ghost" size="sm" onClick={resetFilters} className="space-x-1.5">
+      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto sm:self-end [&>button]:flex-1 sm:[&>button]:flex-initial">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            resetFilters();
+            if (window.innerWidth < 640) setFilterBarOpen(false);
+          }}
+          className="space-x-1.5"
+        >
           <RotateCcw className="h-3.5 w-3.5" />
           <span>Reset Filter</span>
         </Button>
-        <Button variant="primary" size="sm" onClick={applyFilters}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            applyFilters();
+            if (window.innerWidth < 640) setFilterBarOpen(false);
+          }}
+        >
           Apply Filter
         </Button>
       </div>
     </div>
-  ) : null;
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <ResourcePageLayout
       title="My Friends"
       icon={<Users className="h-6 w-6 text-foreground" />}
       actions={
-        <>
+        <div className="flex flex-1 min-w-0 gap-2 [&>button]:flex-1 sm:[&>button]:flex-initial">
           <Button
-            variant={filterBarOpen ? 'default' : 'ghost'}
-            onClick={() => setFilterBarOpen((v) => !v)}
+            variant={filterBarOpen ? 'secondary' : 'outline'}
+            onClick={() => {
+              if (filterBarOpen) {
+                filterBarRef.current?.style.setProperty('overflow', 'hidden');
+              }
+              setFilterBarOpen((v) => !v);
+            }}
             className="space-x-2"
           >
             <Funnel className="h-4 w-4" />
-            <span>Filter Friends</span>
-            {hasActiveFilters && (
-              <span className="ml-1 h-2 w-2 rounded-full bg-primary-foreground/80" aria-hidden />
-            )}
+            {hasActiveFilters && <span>({activeFilterCount})</span>}
+            <span className="hidden sm:inline">Filter Friends</span>
           </Button>
           <Button
             variant="outline"
@@ -277,7 +323,7 @@ export default function FriendsList() {
             className="space-x-2"
           >
             <UserSearch className="h-4 w-4" />
-            <span>Find Friends</span>
+            <span className="hidden sm:inline">Find Friends</span>
           </Button>
           <Button
             variant="highlight"
@@ -285,9 +331,9 @@ export default function FriendsList() {
             className="space-x-2"
           >
             <UserPlus className="h-4 w-4" />
-            <span>Invite new Friends</span>
+            <span className="hidden sm:inline">Invite new Friends</span>
           </Button>
-        </>
+        </div>
       }
       headerAdditionalContent={filterBarContent}
       description="Manage your friends and collaborators"

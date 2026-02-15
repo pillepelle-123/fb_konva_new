@@ -50,24 +50,39 @@ router.get('/friends', authenticateToken, async (req, res) => {
     
     const friendIds = friends.map(f => f.id);
     const bookAssocs = await pool.query(`
-      SELECT bf.user_id, bf.book_id
-      FROM public.book_friends bf
-      JOIN public.books b ON b.id = bf.book_id
-      WHERE bf.user_id = ANY($1::int[])
-        AND (b.owner_id = $2 OR EXISTS (SELECT 1 FROM public.book_friends bf2 WHERE bf2.book_id = b.id AND bf2.user_id = $2))
+      SELECT bf_friend.user_id as friend_id, b.id as book_id, b.name as book_name,
+        bf_friend.book_role as friend_role,
+        CASE WHEN b.owner_id = $2 THEN 'owner' ELSE bf_me.book_role END as my_role
+      FROM public.book_friends bf_friend
+      JOIN public.books b ON b.id = bf_friend.book_id
+      LEFT JOIN public.book_friends bf_me ON b.id = bf_me.book_id AND bf_me.user_id = $2
+      WHERE bf_friend.user_id = ANY($1::int[])
+        AND (b.owner_id = $2 OR bf_me.book_id IS NOT NULL)
         AND b.archived = FALSE
     `, [friendIds, userId]);
-    
+
     const bookIdsByFriend = {};
-    friendIds.forEach(id => { bookIdsByFriend[id] = []; });
-    bookAssocs.rows.forEach(row => {
-      if (!bookIdsByFriend[row.user_id]) bookIdsByFriend[row.user_id] = [];
-      bookIdsByFriend[row.user_id].push(row.book_id);
+    const sharedBooksByFriend = {};
+    friendIds.forEach(id => {
+      bookIdsByFriend[id] = [];
+      sharedBooksByFriend[id] = [];
     });
-    
+    bookAssocs.rows.forEach(row => {
+      if (!bookIdsByFriend[row.friend_id]) bookIdsByFriend[row.friend_id] = [];
+      bookIdsByFriend[row.friend_id].push(row.book_id);
+      if (!sharedBooksByFriend[row.friend_id]) sharedBooksByFriend[row.friend_id] = [];
+      sharedBooksByFriend[row.friend_id].push({
+        bookId: row.book_id,
+        bookName: row.book_name,
+        myRole: row.my_role,
+        friendRole: row.friend_role
+      });
+    });
+
     const friendsWithBooks = friends.map(f => ({
       ...f,
-      bookIds: bookIdsByFriend[f.id] || []
+      bookIds: bookIdsByFriend[f.id] || [],
+      sharedBooks: sharedBooksByFriend[f.id] || []
     }));
     
     res.json(friendsWithBooks);

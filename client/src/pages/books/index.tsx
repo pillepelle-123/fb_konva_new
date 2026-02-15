@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import BooksGrid from '../../components/features/books/book-grid';
 import { Slider } from '../../components/ui/primitives/slider';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout } from '../../components/shared';
@@ -50,6 +51,7 @@ export default function BooksList() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
 
   const [filterBarOpen, setFilterBarOpen] = useState(false);
+  const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterName, setFilterName] = useState('');
   const [filterPageSizes, setFilterPageSizes] = useState<Option[]>([]);
   const [filterOrientations, setFilterOrientations] = useState<Option[]>([]);
@@ -89,6 +91,14 @@ export default function BooksList() {
     appliedFilterOrientations.length > 0 ||
     appliedFilterPageCountMin > 0 ||
     appliedFilterUserRoles.length > 0;
+
+  const activeFilterCount = [
+    appliedFilterName.trim() !== '',
+    appliedFilterPageSizes.length > 0,
+    appliedFilterOrientations.length > 0,
+    appliedFilterPageCountMin > 0,
+    appliedFilterUserRoles.length > 0,
+  ].filter(Boolean).length;
 
   const applyFilters = () => {
     setAppliedFilterName(filterName);
@@ -162,19 +172,35 @@ export default function BooksList() {
     return <PageLoadingState message="Loading books..." />;
   }
 
-  const filterBarContent = filterBarOpen ? (
-    <div className="mt-4 flex flex-row items-start gap-4">
-      <div className="flex flex-row flex-wrap items-start gap-4 flex-1 min-w-0">
-        <div className="flex flex-col shrink-0">
+  const filterBarContent = (
+    <AnimatePresence>
+      {filterBarOpen && (
+        <motion.div
+          ref={filterBarRef}
+          key="filter-bar"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className="overflow-hidden"
+          onAnimationComplete={(definition) => {
+            if (typeof definition === 'object' && definition?.height === 'auto') {
+              filterBarRef.current?.style.setProperty('overflow', 'visible');
+            }
+          }}
+        >
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:flex-1 sm:min-w-0 sm:gap-x-6 sm:gap-y-0 gap-4 w-full">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[120px] sm:max-w-[180px]">
           <span className="text-xs text-muted-foreground mb-1">Name</span>
           <Input
             placeholder="Contains..."
             value={filterName}
             onChange={(e) => setFilterName(e.target.value)}
-            className="h-8 text-sm w-[140px]"
+            className="h-8 text-sm w-full"
           />
         </div>
-        <div className="flex flex-col shrink-0 w-[140px]">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[120px] sm:max-w-[180px]">
           <span className="text-xs text-muted-foreground mb-1">Page Size</span>
           <MultipleSelector
             value={filterPageSizes}
@@ -185,7 +211,7 @@ export default function BooksList() {
             className="min-h-8"
           />
         </div>
-        <div className="flex flex-col shrink-0 w-[140px]">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[120px] sm:max-w-[180px]">
           <span className="text-xs text-muted-foreground mb-1">Orientation</span>
           <MultipleSelector
             value={filterOrientations}
@@ -196,7 +222,7 @@ export default function BooksList() {
             className="min-h-8"
           />
         </div>
-        <div className="flex flex-col shrink-0 w-[140px]">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[120px] sm:max-w-[200px]">
           <span className="text-xs text-muted-foreground mb-1">Page Count ≥</span>
           <Slider
             label="Page Count ≥"
@@ -210,7 +236,7 @@ export default function BooksList() {
             className="w-full min-w-0"
           />
         </div>
-        <div className="flex flex-col shrink-0 w-[140px]">
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[120px] sm:max-w-[180px]">
           <span className="text-xs text-muted-foreground mb-1">My Role</span>
           <MultipleSelector
             value={filterUserRoles}
@@ -222,17 +248,35 @@ export default function BooksList() {
           />
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0 self-end">
-        <Button variant="ghost" size="sm" onClick={resetFilters} className="space-x-1.5">
+      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto sm:self-end [&>button]:flex-1 sm:[&>button]:flex-initial">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            resetFilters();
+            if (window.innerWidth < 640) setFilterBarOpen(false);
+          }}
+          className="space-x-1.5"
+        >
           <RotateCcw className="h-3.5 w-3.5" />
           <span>Reset Filter</span>
         </Button>
-        <Button variant="primary" size="sm" onClick={applyFilters}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            applyFilters();
+            if (window.innerWidth < 640) setFilterBarOpen(false);
+          }}
+        >
           Apply Filter
         </Button>
       </div>
     </div>
-  ) : null;
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <>
@@ -242,15 +286,18 @@ export default function BooksList() {
       actions={
         <>
           <Button
-            variant={filterBarOpen ? 'default' : 'ghost'}
-            onClick={() => setFilterBarOpen((v) => !v)}
+            variant={filterBarOpen ? 'secondary' : 'outline'}
+            onClick={() => {
+              if (filterBarOpen) {
+                filterBarRef.current?.style.setProperty('overflow', 'hidden');
+              }
+              setFilterBarOpen((v) => !v);
+            }}
             className="space-x-2"
           >
             <Funnel className="h-4 w-4" />
+            {hasActiveFilters && <span>({activeFilterCount})</span>}
             <span>Filter Books</span>
-            {hasActiveFilters && (
-              <span className="ml-1 h-2 w-2 rounded-full bg-primary-foreground/80" aria-hidden />
-            )}
           </Button>
           {/* <Button
             onClick={() => navigate('/books/create')}
