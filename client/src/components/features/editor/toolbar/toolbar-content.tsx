@@ -2,7 +2,7 @@ import { ToolButton } from './tool-button';
 import { ToolPopover } from './tool-popover';
 import { ToolSettingsPopover } from './tool-settings-popover';
 import { ZoomPopover } from './zoom-popover';
-import { Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCirclePlus, Search, SquareMousePointer, Magnet, Paintbrush, Image, QrCode } from 'lucide-react';
+import { Info, Hand, Brush, Pipette, Square, Sticker, MessageCircle, MessageCirclePlus, Search, SquareMousePointer, Magnet, Paintbrush, Image, QrCode, Type } from 'lucide-react';
 import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -196,7 +196,7 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
           )}
         </div>
         
-        {/* Row 5: Free Text */}
+        {/* Row 5: Free Text & Rich Text */}
         <div className={`${isExpanded ? 'grid grid-cols-2 gap-1' : 'space-y-1'} mb-2`}>
           <ToolButton
             id="free_text"
@@ -205,6 +205,14 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
             isActive={activeTool === 'free_text'}
             isExpanded={false}
             onClick={() => onToolSelect('free_text')}
+          />
+          <ToolButton
+            id="qna2"
+            label="Rich Text"
+            icon={Type}
+            isActive={activeTool === 'qna2'}
+            isExpanded={false}
+            onClick={() => onToolSelect('qna2')}
           />
         </div>
         

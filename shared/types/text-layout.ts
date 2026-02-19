@@ -28,3 +28,9 @@ export interface TextRun {
   style: RichTextStyle;
 }
 
+/** Text segment with style for rich text (textbox-qna2) */
+export interface TextSegment {
+  text: string;
+  style: RichTextStyle;
+}
+

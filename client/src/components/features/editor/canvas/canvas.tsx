@@ -133,6 +133,7 @@ const CREATION_TOOLS = new Set([
   'question',
   'answer',
   'qna',
+  'qna2',
   'free_text',
   'image',
   'sticker',
@@ -1830,7 +1831,7 @@ export default function Canvas() {
     }
 
     // Block adding new elements if elements are locked
-    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'free_text', 'qr_code'].includes(state.activeTool)) {
+    if (lockElements && ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'text', 'question', 'answer', 'qna', 'qna2', 'free_text', 'qr_code'].includes(state.activeTool)) {
       // Allow selection tool to work for selecting elements
       if (state.activeTool !== 'select') {
         return;
@@ -1900,7 +1901,7 @@ export default function Canvas() {
           setPreviewShape({ x, y, width: 0, height: 0, type: state.activeTool });
         }
       }
-    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'free_text') {
+    } else if (state.activeTool === 'text' || state.activeTool === 'question' || state.activeTool === 'answer' || state.activeTool === 'qna' || state.activeTool === 'qna2' || state.activeTool === 'free_text') {
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
@@ -2652,6 +2653,24 @@ export default function Canvas() {
             textType: 'qna',
             questionSettings: qnaDefaults.questionSettings,
             answerSettings: qnaDefaults.answerSettings
+          };
+        } else if (previewTextbox.type === 'qna2') {
+          const templateIds = getTemplateIdsForDefaults();
+          const activeTheme = templateIds.pageTheme || templateIds.bookTheme || 'default';
+          const effectivePaletteId = templateIds.pageColorPaletteId || templateIds.bookColorPaletteId;
+          const qna2Defaults = getGlobalThemeDefaults(activeTheme, 'qna2', effectivePaletteId);
+          newElement = {
+            id: uuidv4(),
+            type: 'text',
+            x: previewTextbox.x,
+            y: previewTextbox.y,
+            width: previewTextbox.width,
+            height: previewTextbox.height,
+            ...qna2Defaults,
+            text: '',
+            textType: 'qna2',
+            richTextSegments: [],
+            textSettings: qna2Defaults.textSettings || {}
           };
         } else if (previewTextbox.type === 'free_text') {
           console.log('[Canvas] Creating free_text element');
@@ -5858,7 +5877,7 @@ export default function Canvas() {
                 const hasTextElements = state.selectedElementIds.some(id => {
                   const element = currentPage?.elements.find(el => el.id === id);
                   return element && element.type === 'text' &&
-                         (element.textType === 'qna' || element.textType === 'free_text');
+                         (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'free_text');
                 });
 
                 // Prevent inversion: if size would decrease, revert to original
@@ -6275,8 +6294,8 @@ export default function Canvas() {
                   const element = currentPage?.elements.find(el => el.id === elementId);
                   if (element) {
                     // Skip dimension updates for qna and free_text elements - they handle their own resize logic
-                    // The textbox-qna.tsx and textbox-free-text.tsx components manage dimensions during transform
-                    if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'free_text')) {
+                    // The textbox-qna.tsx, textbox-qna2.tsx and textbox-free-text.tsx components manage dimensions during transform
+                    if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'free_text')) {
                       // Only update position and rotation, not dimensions
                       // Dimensions are handled by textbox-qna.tsx's or textbox-free-text.tsx's handleTransformEnd
                       // Don't update position - let the component handle it

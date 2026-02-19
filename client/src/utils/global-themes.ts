@@ -333,6 +333,7 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'answer':
       return 'answer';
     case 'qna':
+    case 'qna2':
     case 'free_text':
       return 'text'; // QnA uses text defaults as base
     case 'text':
@@ -546,6 +547,30 @@ function getBaseDefaultsForType(elementType: string): any {
         border: { enabled: false, color: '#000000', width: 1, opacity: 1, theme: 'default' },
         cornerRadius: 0,
         padding: 4
+      }
+    },
+    qna2: {
+      fontSize: 50,
+      fontFamily: 'Arial, sans-serif',
+      fontColor: '#1f2937',
+      fontBold: false,
+      fontItalic: false,
+      fontOpacity: 1,
+      align: 'left',
+      paragraphSpacing: 'medium',
+      ruledLines: false,
+      padding: 8,
+      textSettings: {
+        fontSize: 50,
+        fontColor: '#1f2937',
+        fontFamily: 'Arial, sans-serif',
+        fontBold: false,
+        fontItalic: false,
+        fontOpacity: 1,
+        align: 'left',
+        paragraphSpacing: 'medium',
+        ruledLines: false,
+        padding: 8
       }
     },
     qr_code: {
@@ -806,8 +831,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     return convertedDefaults;
   }
 
-  // For free_text elements, build textSettings structure
-  if (elementType === 'free_text') {
+  // For free_text and qna2 elements, build textSettings structure
+  if (elementType === 'free_text' || elementType === 'qna2') {
     const category = getThemeCategory(elementType);
     const themeDefaults = theme.elementDefaults[category] || {};
     

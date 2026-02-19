@@ -17,6 +17,7 @@ import { FEATURE_FLAGS } from '../../utils/feature-flags';
 import type { RichTextStyle } from '../../../../shared/types/text-layout';
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText, getBaselineOffset as sharedGetBaselineOffset } from '../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../shared/utils/qna-layout';
+import { createRichTextLayoutFromSegments } from '../../../../shared/utils/rich-text-layout';
 import { getFontFamilyByName } from '../../utils/font-families.ts';
 import { hexToRgba } from '../../../../shared/utils/color-utils';
 import QRCodeStyling from 'qr-code-styling';
@@ -2211,6 +2212,109 @@ export function PDFRenderer({
         // If needed in the future, it can be restored from git history
         // The active QnA rendering path is above (starting around line 933)
         
+        // Render qna2 (rich text) elements
+        if (element.textType === 'qna2') {
+          const richTextSegments = element.richTextSegments ?? [];
+          const fallbackText = element.formattedText || element.text || '';
+          const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
+          const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
+          const bookTheme = bookData?.themeId || bookData?.bookTheme;
+          const activeTheme = pageTheme || bookTheme || 'default';
+          const qna2Defaults = getGlobalThemeDefaults(activeTheme, 'qna2', undefined);
+          const defaultStyle: RichTextStyle = {
+            fontSize: qna2Defaults.textSettings?.fontSize ?? qna2Defaults.fontSize ?? 50,
+            fontFamily: qna2Defaults.textSettings?.fontFamily || qna2Defaults.fontFamily || 'Arial, sans-serif',
+            fontBold: qna2Defaults.textSettings?.fontBold ?? false,
+            fontItalic: qna2Defaults.textSettings?.fontItalic ?? false,
+            fontColor: qna2Defaults.textSettings?.fontColor || qna2Defaults.fontColor || '#1f2937',
+            fontOpacity: qna2Defaults.textSettings?.fontOpacity ?? 1,
+            paragraphSpacing: qna2Defaults.textSettings?.paragraphSpacing || 'medium',
+            align: qna2Defaults.textSettings?.align || 'left'
+          };
+          const segments = richTextSegments.length > 0
+            ? richTextSegments
+            : (fallbackText ? [{ text: fallbackText, style: defaultStyle }] : []);
+          const padding = element.textSettings?.padding ?? element.padding ?? qna2Defaults.padding ?? 8;
+          const ctx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+          const layout = createRichTextLayoutFromSegments({
+            segments,
+            width: elementWidth,
+            height: elementHeight,
+            padding,
+            ctx
+          });
+          const offsetX = elementWidth / 2;
+          const offsetY = elementHeight / 2;
+          const adjustedX = elementX + offsetX;
+          const adjustedY = elementY + offsetY;
+          const qna2Group = new Konva.Group({
+            x: adjustedX,
+            y: adjustedY,
+            offsetX: offsetX,
+            offsetY: offsetY,
+            rotation: elementRotation,
+            opacity: elementOpacity,
+            listening: false
+          });
+          const showBackground = element.textSettings?.backgroundEnabled && element.textSettings?.backgroundColor;
+          if (showBackground) {
+            const bgRect = new Konva.Rect({
+              x: 0,
+              y: 0,
+              width: elementWidth,
+              height: elementHeight,
+              fill: element.textSettings?.backgroundColor,
+              opacity: element.textSettings?.backgroundOpacity ?? 1,
+              cornerRadius: element.textSettings?.cornerRadius ?? element.cornerRadius ?? 0,
+              listening: false
+            });
+            qna2Group.add(bgRect);
+          }
+          const showBorder = element.textSettings?.borderEnabled && element.textSettings?.borderColor && element.textSettings?.borderWidth;
+          if (showBorder) {
+            const borderRect = new Konva.Rect({
+              x: 0,
+              y: 0,
+              width: elementWidth,
+              height: elementHeight,
+              stroke: element.textSettings?.borderColor,
+              strokeWidth: element.textSettings?.borderWidth,
+              opacity: element.textSettings?.borderOpacity ?? 1,
+              cornerRadius: element.textSettings?.cornerRadius ?? element.cornerRadius ?? 0,
+              listening: false
+            });
+            qna2Group.add(borderRect);
+          }
+          if (layout.runs.length > 0) {
+            const textShape = new Konva.Shape({
+              x: 0,
+              y: 0,
+              width: elementWidth,
+              height: layout.contentHeight,
+              sceneFunc: (ctx) => {
+                ctx.save();
+                ctx.textBaseline = 'alphabetic';
+                layout.runs.forEach((run) => {
+                  ctx.font = sharedBuildFont(run.style);
+                  ctx.fillStyle = run.style.fontColor || '#000000';
+                  ctx.globalAlpha = run.style.fontOpacity ?? 1;
+                  ctx.fillText(run.text, run.x, run.y);
+                });
+                ctx.restore();
+              },
+              listening: false
+            });
+            qna2Group.add(textShape);
+          }
+          layer.add(qna2Group);
+          const zOrderIndex = elementIdToZOrder.get(element.id);
+          if (zOrderIndex !== undefined) {
+            qna2Group.setAttr('__zOrderIndex', zOrderIndex);
+            qna2Group.setAttr('__elementId', element.id);
+            qna2Group.setAttr('__nodeType', 'qna2-group');
+          }
+          continue;
+        }
         // Render free_text elements
         if (element.textType === 'free_text') {
           let textContent = element.formattedText || element.text || '';

@@ -121,9 +121,17 @@ function BaseCanvasItem({
   };
 
   // Calculate contrast color for selection hover rectangle
+  // Abhängigkeit von currentPage?.background nötig, damit sich die Farbe sofort anpasst,
+  // wenn der Seitenhintergrund geändert wird (ohne Buch neu zu laden)
   const contrastStrokeColor = useMemo(() => {
     return calculateContrastColor(currentPage, getPaletteForPage, 0.15);
-  }, [currentPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme]);
+  }, [
+    currentPage,
+    currentPage?.background,
+    currentPage?.colorPaletteId,
+    state.currentBook?.colorPaletteId,
+    state.currentBook?.bookTheme
+  ]);
 
   useEffect(() => {
     if (!element) return;
@@ -396,8 +404,11 @@ function BaseCanvasItem({
         stroke="transparent"
         perfectDrawEnabled={false}
       />
-      
-      {/* Dashed border on hover or within selection */}
+
+      {/* Pass isDragging to children if they are React elements */}
+      {children}
+
+      {/* Dashed border on hover or within selection – nach children, damit z-Index über dem Item liegt */}
       {interactive && (isHovered || partnerHovered || isWithinSelection || hoveredElementId === element.id) && state.activeTool === 'select' && (
         <SelectionHoverRectangle
           x={defaultHitArea.x}
@@ -408,9 +419,9 @@ function BaseCanvasItem({
           strokeColor={contrastStrokeColor}
         />
       )}
-      
+
       {/* Permanent dashed border for shapes with no border and no background */}
-      {interactive && state.activeTool === 'select' && 
+      {interactive && state.activeTool === 'select' &&
        !isInsideGroup &&
        ['rect', 'circle', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type) &&
        (!element.strokeWidth || element.strokeWidth === 0) &&
@@ -424,9 +435,6 @@ function BaseCanvasItem({
           strokeColor={contrastStrokeColor}
         />
       )}
-      
-      {/* Pass isDragging to children if they are React elements */}
-      {children}
     </Group>
   );
 }

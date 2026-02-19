@@ -6,6 +6,7 @@ import type { CanvasItemProps } from './base-canvas-item.tsx';
 import ThemedShape from './themed-shape.tsx';
 
 import TextboxQna from './textbox-qna.tsx';
+import TextboxQna2 from './textbox-qna2.tsx';
 import TextboxFreeText from './textbox-free-text.tsx';
 import { PageNumberItem } from './page-number-item.tsx';
 import Image from './image.tsx';
@@ -159,6 +160,12 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
       const qnaEl = element as any;
       const qnaKey = `${element.id}-${qnaEl.questionSettings?.fontColor}-${qnaEl.questionSettings?.fontOpacity}-${qnaEl.answerSettings?.fontColor}-${qnaEl.answerSettings?.fontOpacity}-${qnaEl.backgroundEnabled}-${element.backgroundColor}-${element.backgroundOpacity}`;
       return <TextboxQna key={qnaKey} {...props} />;
+    }
+    // Check for Rich Text (qna2) textType
+    if (element.textType === 'qna2') {
+      const qna2El = element as any;
+      const qna2Key = `${element.id}-${qna2El.textSettings?.fontColor}-${qna2El.richTextSegments?.length ?? 0}`;
+      return <TextboxQna2 key={qna2Key} {...props} />;
     }
     // Check for Free Text textType
     if (element.textType === 'free_text') {

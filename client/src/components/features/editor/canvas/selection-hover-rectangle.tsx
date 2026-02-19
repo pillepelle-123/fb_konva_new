@@ -1,4 +1,4 @@
-import { Rect } from 'react-konva';
+import { Group, Rect } from 'react-konva';
 
 interface SelectionHoverRectangleProps {
   x?: number;
@@ -22,19 +22,33 @@ export function SelectionHoverRectangle({
   const finalStroke = strokeColor || defaultStroke;
   
   return (
-    <Rect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      fill={finalStroke}
-      stroke={finalStroke}
-      strokeWidth={10}
-      dash={[10, 10]}
-      cornerRadius={8}
-      strokeScaleEnabled={false}
-      listening={false}
-      name="no-print"
-    />
+    <Group listening={false} name="no-print">
+      {/* Hintergrund: 20% transparent */}
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={finalStroke}
+        opacity={0.4}
+        cornerRadius={8}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      {/* Border: vollständig sichtbar */}
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="transparent"
+        stroke={finalStroke}
+        strokeWidth={10}
+        dash={[10, 10]}
+        cornerRadius={8}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+    </Group>
   );
 }

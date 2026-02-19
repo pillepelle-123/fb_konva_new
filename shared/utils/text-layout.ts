@@ -146,6 +146,7 @@ function measureTextForWrapping(text: string, style: RichTextStyle, ctx: CanvasR
  * Measure text width for positioning
  * Uses actualBoundingBoxRight if available to account for glyph overhangs and swashes
  * This is important for correct text positioning, especially for fonts with decorative elements
+ * For whitespace-only text (spaces), uses metrics.width because actualBoundingBoxRight is 0
  */
 export function measureText(text: string, style: RichTextStyle, ctx: CanvasRenderingContext2D | null): number {
   if (!ctx) {
@@ -156,14 +157,15 @@ export function measureText(text: string, style: RichTextStyle, ctx: CanvasRende
   ctx.textBaseline = 'alphabetic'; // Match rendering baseline
   const metrics = ctx.measureText(text);
 
-  // Use actualBoundingBoxRight for positioning (to account for overhangs/swashes)
-  // This ensures correct text positioning, especially for fonts with decorative elements
   let textWidth: number;
-  if (metrics.actualBoundingBoxRight !== undefined) {
+  const isWhitespaceOnly = /^\s+$/.test(text);
+  if (isWhitespaceOnly) {
+    // For spaces: actualBoundingBoxRight is 0 (no visible glyph), use advance width
+    textWidth = metrics.width;
+  } else if (metrics.actualBoundingBoxRight !== undefined) {
     textWidth = metrics.actualBoundingBoxRight;
   } else {
-    // Fallback: use width with safety margin
-    const safetyMargin = style.fontSize * 0.12; // 12% of font size as safety margin
+    const safetyMargin = style.fontSize * 0.12;
     textWidth = metrics.width + safetyMargin;
   }
 

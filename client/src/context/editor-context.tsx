@@ -7,6 +7,7 @@ import { subject } from '@casl/ability';
 import { useAbility } from '../abilities/ability-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../constants/book-limits';
 import { getGlobalThemeDefaults, applyThemeToElementConsistent } from '../utils/global-themes';
+import type { TextSegment } from '../../../../shared/types/text-layout';
 
 enablePatches();
 enableMapSet();
@@ -380,7 +381,7 @@ export interface CanvasElement {
   fontBold?: boolean;
   fontItalic?: boolean;
   fontOpacity?: number;
-  textType?: 'question' | 'answer' | 'text' | 'qna' | 'free_text';
+  textType?: 'question' | 'answer' | 'text' | 'qna' | 'free_text' | 'qna2';
   isPageNumber?: boolean; // Page number elements are not selectable/transformable
   questionId?: string; // UUID - for both question and answer elements
   answerId?: string; // UUID - for answer elements
@@ -452,6 +453,8 @@ export interface CanvasElement {
   };
   // Brush-multicolor specific properties
   brushStrokes?: Array<{ points: number[]; strokeColor: string; strokeWidth: number }>;
+  // Rich text segments (textbox-qna2)
+  richTextSegments?: TextSegment[];
 }
 
 export interface BackgroundTransform {
@@ -803,7 +806,7 @@ export interface WizardTemplateSelection {
 export interface EditorState {
   currentBook: Book | null;
   activePageIndex: number;
-  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette' | 'qr_code';
+  activeTool: 'select' | 'text' | 'question' | 'answer' | 'qna' | 'qna2' | 'free_text' | 'image' | 'line' | 'circle' | 'rect' | 'brush' | 'pan' | 'zoom' | 'heart' | 'star' | 'speech-bubble' | 'dog' | 'cat' | 'smiley' | 'triangle' | 'polygon' | 'pipette' | 'qr_code';
   selectedElementIds: string[];
   isMiniPreview?: boolean;
   selectedGroupedElement?: { groupId: string; elementId: string };
