@@ -542,6 +542,9 @@ export default function Canvas() {
   const [isManuallyHovering, setIsManuallyHovering] = useState<boolean>(false);
   // Track if actually transforming (not just selected)
   const isTransformingRef = useRef<boolean>(false);
+  // Refs to avoid setState when values unchanged (prevents "Maximum update depth exceeded")
+  const hoveredSafetyMarginRef = useRef(false);
+  const safetyMarginTooltipRef = useRef<{ x: number; y: number } | null>(null);
   
   // Memoize panel offset calculation functions
   const panelOffsetFunctions = useMemo(() => {
@@ -4243,14 +4246,17 @@ export default function Canvas() {
     }
   }, [stageRef.current]);
 
+  // Keep refs in sync with state (for conditional setState to prevent update loops)
+  hoveredSafetyMarginRef.current = hoveredSafetyMargin;
+  safetyMarginTooltipRef.current = safetyMarginTooltip;
+
   // Check if any selected element is outside the safety margin
   useEffect(() => {
     // Check if elements are selected
     if (!currentPage || state.selectedElementIds.length === 0) {
-      // If no elements selected, only clear if not manually hovering
       if (!isManuallyHovering) {
-        setHoveredSafetyMargin(false);
-        setSafetyMarginTooltip(null);
+        if (hoveredSafetyMarginRef.current) setHoveredSafetyMargin(false);
+        if (safetyMarginTooltipRef.current) setSafetyMarginTooltip(null);
       }
       return;
     }
@@ -4357,10 +4363,10 @@ export default function Canvas() {
 
       // Only show fill if manually hovering over safety margin area
       // Don't set hoveredSafetyMargin based on element position alone - only on mouse hover
+      // Only call setState when values actually need to change (prevents "Maximum update depth exceeded")
       if (!isManuallyHovering) {
-        // Clear if not manually hovering (mouse not over safety margin)
-        setHoveredSafetyMargin(false);
-        setSafetyMarginTooltip(null);
+        if (hoveredSafetyMarginRef.current) setHoveredSafetyMargin(false);
+        if (safetyMarginTooltipRef.current) setSafetyMarginTooltip(null);
       }
       // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
     };
@@ -4370,14 +4376,15 @@ export default function Canvas() {
 
     // Set up interval to check continuously while elements are selected
     const interval = setInterval(() => {
-      // Always check if elements are selected
       if (state.selectedElementIds.length > 0) {
         checkElementPosition();
       }
-    }, 50); // Check every 50ms while elements are selected
+    }, 50);
 
     return () => clearInterval(interval);
-  }, [snapGuidelines, isDragging, state.selectedElementIds, currentPage, activePageOffsetX, pageOffsetY, canvasWidth, canvasHeight, isManuallyHovering]);
+    // NOTE: snapGuidelines intentionally excluded - it changes every frame during transform
+    // and caused "Maximum update depth exceeded". The effect only clears hover state.
+  }, [isDragging, state.selectedElementIds, currentPage, activePageOffsetX, pageOffsetY, canvasWidth, canvasHeight, isManuallyHovering]);
 
 
   const handleSnapPosition = (node: Konva.Node, x: number, y: number, enableGridSnap: boolean = false) => {
@@ -6045,6 +6052,15 @@ export default function Canvas() {
                 const magneticSnapping = (state as any).magneticSnapping !== false;
                 if (!transformer || !currentPage || !magneticSnapping) return newBox;
                 
+                // Snapping während Resize deaktivieren, wenn mindestens ein Element rotiert ist
+                // (außer 0°), da Snapping bei Rotation zu Sprüngen führt
+                const hasRotatedElement = state.selectedElementIds.some((elementId) => {
+                  const el = currentPage?.elements.find((e) => e.id === elementId);
+                  const rotation = el && typeof (el as any).rotation === 'number' ? (el as any).rotation : 0;
+                  return Math.abs(rotation % 360) > 0.01;
+                });
+                if (hasRotatedElement) return newBox;
+                
                 // Get the active anchor to determine which edges should snap
                 const activeAnchor = transformer.getActiveAnchor();
                 
@@ -6053,6 +6069,11 @@ export default function Canvas() {
                 const isResizingBottom = activeAnchor?.includes('bottom') || false;
                 const isResizingLeft = activeAnchor?.includes('left') || false;
                 const isResizingRight = activeAnchor?.includes('right') || false;
+                
+                // Snapping bei linken/oberen Handles deaktivieren: Bei center-offset-Nodes (z.B. textbox-qna2)
+                // führt Snapping hier zu Positionssprüngen, da die Koordinaten nicht übereinstimmen
+                const skipSnapForLeftOrTop = isResizingLeft || isResizingTop;
+                if (skipSnapForLeftOrTop) return newBox;
                 
                 // The boundBoxFunc receives newBox in Stage coordinates (absolute position on the Stage)
                 // Convert to page coordinates for snapping calculation
@@ -6083,7 +6104,9 @@ export default function Canvas() {
                     allowLeftSnap: isResizingLeft,
                     allowRightSnap: isResizingRight,
                     originalY: oldPageY,
-                    originalHeight: oldPageHeight
+                    originalHeight: oldPageHeight,
+                    enableGridSnap: true,
+                    gridSize: 10
                   }
                 );
                 
@@ -6096,19 +6119,14 @@ export default function Canvas() {
                 const snappedStageWidth = snapped.width * zoom;
                 const snappedStageHeight = snapped.height * zoom;
                 
-                // Always apply snapping if guidelines are present (indicating a snap was found)
-                // This ensures magnetic snapping works the same way as when moving elements
-                if (snapped.guidelines.length > 0) {
-                  return {
-                    ...newBox,
-                    x: snappedStageX,
-                    y: snappedStageY,
-                    width: snappedStageWidth,
-                    height: snappedStageHeight
-                  };
-                }
-                
-                return newBox;
+                // Snapped-Werte immer anwenden (Element-Snap und/oder Grid-Snap)
+                return {
+                  ...newBox,
+                  x: snappedStageX,
+                  y: snappedStageY,
+                  width: snappedStageWidth,
+                  height: snappedStageHeight
+                };
               }}
               onTransformStart={() => {
                 isTransformingRef.current = true;
@@ -6234,12 +6252,10 @@ export default function Canvas() {
                     }
                   });
                   
-                  // Only update hoveredSafetyMargin if actually transforming AND manually hovering
-                  // Don't set based on element position alone - only if mouse is over safety margin
+                  // Only call setState when values need to change (prevents update loops)
                   if (isTransformingRef.current && !isManuallyHovering) {
-                    // Clear if not manually hovering (mouse not over safety margin)
-                    setHoveredSafetyMargin(false);
-                    setSafetyMarginTooltip(null);
+                    if (hoveredSafetyMarginRef.current) setHoveredSafetyMargin(false);
+                    if (safetyMarginTooltipRef.current) setSafetyMarginTooltip(null);
                   }
                   // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
                 } else {
@@ -6249,12 +6265,9 @@ export default function Canvas() {
                     }));
                   });
                   
-                  // Only update hoveredSafetyMargin if actually transforming AND manually hovering
-                  // Don't set based on element position alone - only if mouse is over safety margin
                   if (isTransformingRef.current && !isManuallyHovering) {
-                    // Clear if not manually hovering (mouse not over safety margin)
-                    setHoveredSafetyMargin(false);
-                    setSafetyMarginTooltip(null);
+                    if (hoveredSafetyMarginRef.current) setHoveredSafetyMargin(false);
+                    if (safetyMarginTooltipRef.current) setSafetyMarginTooltip(null);
                   }
                   // If isManuallyHovering is true, hoveredSafetyMargin is already set by onMouseMove handler
                 }

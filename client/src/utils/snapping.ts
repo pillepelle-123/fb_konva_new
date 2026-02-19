@@ -511,6 +511,9 @@ export const snapDimensions = (
     allowRightSnap?: boolean;
     originalY?: number;
     originalHeight?: number;
+    /** Grid-Snapping nur für die vom Resize-Handle bewegten Kanten */
+    enableGridSnap?: boolean;
+    gridSize?: number;
   }
 ): { x: number; y: number; width: number; height: number; guidelines: SnapGuideline[] } => {
   // Safety checks
@@ -947,6 +950,31 @@ export const snapDimensions = (
     // Only apply height snap if no edge snaps are active
     snappedHeight = bestHeightSnap.height;
     guidelines.push(bestHeightSnap.guideline);
+  }
+
+  // Handle-abhängiges Grid-Snapping: nur die vom Resize-Handle bewegten Kanten snappen
+  // (rechte/obere Kante und Rotationspunkt bleiben unverändert)
+  if (options?.enableGridSnap) {
+    const gridSize = options.gridSize ?? 10;
+    const rightEdge = snappedX + snappedWidth;
+    const bottomEdge = snappedY + snappedHeight;
+
+    if (allowLeftSnap && !bestLeftEdgeSnap) {
+      snappedX = snapToGrid(snappedX, gridSize);
+      snappedWidth = rightEdge - snappedX;
+    }
+    if (allowRightSnap && !bestRightEdgeSnap) {
+      const snappedRightEdge = snapToGrid(rightEdge, gridSize);
+      snappedWidth = snappedRightEdge - snappedX;
+    }
+    if (allowTopSnap && !bestTopEdgeSnap) {
+      snappedY = snapToGrid(snappedY, gridSize);
+      snappedHeight = bottomEdge - snappedY;
+    }
+    if (allowBottomSnap && !bestBottomEdgeSnap) {
+      const snappedBottomEdge = snapToGrid(bottomEdge, gridSize);
+      snappedHeight = snappedBottomEdge - snappedY;
+    }
   }
 
   return { x: snappedX, y: snappedY, width: snappedWidth, height: snappedHeight, guidelines };
