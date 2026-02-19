@@ -2240,8 +2240,11 @@ export function PDFRenderer({
               questionText = state.tempQuestions[element.questionId];
             }
           }
+          const answerInNewRow = (element as any).answerInNewRow ?? false;
+          const hasAnswer = answerSegments.length > 0;
+          const questionSeparator = answerInNewRow && hasAnswer ? '\n' : (questionText.endsWith(' ') ? '' : ' ');
           const questionSegment = questionText
-            ? [{ text: questionText.endsWith(' ') ? questionText : questionText + ' ', style: defaultStyle }]
+            ? [{ text: questionText + questionSeparator, style: defaultStyle }]
             : [];
           const segments =
             questionSegment.length > 0 || answerSegments.length > 0
@@ -2251,12 +2254,17 @@ export function PDFRenderer({
                 : [];
           const padding = element.textSettings?.padding ?? element.padding ?? qna2Defaults.padding ?? 8;
           const ctx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+          const questionAnswerGap = (element as any).questionAnswerGap ?? 0;
+          const questionAnswerGapVertical = (element as any).questionAnswerGapVertical ?? questionAnswerGap;
+          const questionAnswerGapHorizontal = (element as any).questionAnswerGapHorizontal ?? questionAnswerGap;
           const layout = createRichTextLayoutFromSegments({
             segments,
             width: elementWidth,
             height: elementHeight,
             padding,
-            ctx
+            ctx,
+            questionAnswerGapVertical: answerInNewRow ? questionAnswerGapVertical : 0,
+            questionAnswerGapHorizontal: !answerInNewRow ? questionAnswerGapHorizontal : 0
           });
           const offsetX = elementWidth / 2;
           const offsetY = elementHeight / 2;

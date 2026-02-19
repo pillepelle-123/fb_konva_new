@@ -69,7 +69,7 @@ export function getCurrentMenu(state: SettingsNavigationState): SettingsMenuType
       (el: any) => el.id === state.selectedElementIds[0]
     );
     if (selectedElement) {
-      if (selectedElement.textType === 'qna') return 'qna';
+      if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna2') return 'qna';
       if (selectedElement.type === 'text') return 'free-text';
       if (['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(selectedElement.type)) return 'shape';
       if (selectedElement.type === 'image' || selectedElement.type === 'placeholder') return 'image';
@@ -108,7 +108,7 @@ export function getParentMenu(
       const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
         (el: any) => el.id === state.selectedElementIds[0]
       );
-      if (selectedElement?.textType === 'qna') return 'qna';
+      if (selectedElement?.textType === 'qna' || selectedElement?.textType === 'qna2') return 'qna';
       if (selectedElement?.type === 'text') return 'free-text';
       if (['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(selectedElement?.type || '')) return 'shape';
       if (selectedElement?.type === 'image' || selectedElement?.type === 'placeholder') return 'image';
@@ -121,7 +121,7 @@ export function getParentMenu(
       const selectedElement = state.currentBook.pages[state.activePageIndex]?.elements.find(
         (el: any) => el.id === state.selectedElementIds[0]
       );
-      if (selectedElement?.textType === 'qna') return 'Textbox Settings';
+      if (selectedElement?.textType === 'qna' || selectedElement?.textType === 'qna2') return 'Textbox Settings';
       if (selectedElement?.type === 'text') return 'free-text';
     }
   }

@@ -36,7 +36,7 @@ export function SelectionHoverRectangle({
         listening={false}
       />
       {/* Border: vollständig sichtbar */}
-      <Rect
+      {/* <Rect
         x={x}
         y={y}
         width={width}
@@ -48,7 +48,7 @@ export function SelectionHoverRectangle({
         cornerRadius={8}
         strokeScaleEnabled={false}
         listening={false}
-      />
+      /> */}
     </Group>
   );
 }

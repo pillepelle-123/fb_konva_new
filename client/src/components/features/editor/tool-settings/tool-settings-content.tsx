@@ -163,7 +163,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
     }
     return selectedElement || null;
   })();
-  const qnaElementForForm = activeSelectedElement?.textType === 'qna' ? activeSelectedElement : null;
+  const qnaElementForForm = (activeSelectedElement?.textType === 'qna' || activeSelectedElement?.textType === 'qna2') ? activeSelectedElement : null;
   const positionPreserveOptions = useMemo(
     () => ({
       ignoreKeys: ['x', 'y', 'rotation', 'width', 'height', 'scaleX', 'scaleY', 'stickerTextOffset'],
@@ -180,7 +180,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
     []
   );
   const genericFormState = useSettingsFormState(
-    activeSelectedElement && activeSelectedElement.textType !== 'qna' ? activeSelectedElement : null,
+    activeSelectedElement && activeSelectedElement.textType !== 'qna' && activeSelectedElement.textType !== 'qna2' ? activeSelectedElement : null,
     activeSelectedElement?.textType === 'free_text' ? freeTextSettingsOptions : positionPreserveOptions
   );
 
@@ -677,24 +677,24 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
       );
       
       if (selectedElement) {
-        // Special handling for QnA elements - render ColorSelector directly
-        if (selectedElement.textType === 'qna') {
+        // Special handling for QnA and QnA2 elements - render ColorSelector directly
+        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna2') {
           
           const getColorValue = () => {
             switch (showColorSelector) {
               case 'element-text-color':
                 const activeSection = state.qnaActiveSection || 'question';
                 if (activeSection === 'question') {
-                  return selectedElement.questionSettings?.fontColor || '#666666';
+                  return selectedElement.questionSettings?.fontColor || selectedElement.textSettings?.fontColor || '#666666';
                 } else {
-                  return selectedElement.answerSettings?.fontColor || '#1f2937';
+                  return selectedElement.answerSettings?.fontColor || selectedElement.textSettings?.fontColor || '#1f2937';
                 }
               case 'element-border-color':
-                return selectedElement.borderColor || '#000000';
+                return selectedElement.borderColor || selectedElement.textSettings?.borderColor || '#000000';
               case 'element-background-color':
-                return selectedElement.backgroundColor || '#ffffff';
+                return selectedElement.backgroundColor || selectedElement.textSettings?.backgroundColor || '#ffffff';
               case 'element-ruled-lines-color':
-                return selectedElement.ruledLinesColor || '#1f2937';
+                return selectedElement.ruledLinesColor || selectedElement.textSettings?.ruledLinesColor || '#1f2937';
               default:
                 return '#1f2937';
             }
@@ -705,9 +705,9 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
               case 'element-text-color':
                 const activeSection = state.qnaActiveSection || 'question';
                 if (activeSection === 'question') {
-                  return selectedElement.questionSettings?.fontOpacity ?? 1;
+                  return selectedElement.questionSettings?.fontOpacity ?? selectedElement.textSettings?.fontOpacity ?? 1;
                 } else {
-                  return selectedElement.answerSettings?.fontOpacity ?? 1;
+                  return selectedElement.answerSettings?.fontOpacity ?? selectedElement.textSettings?.fontOpacity ?? 1;
                 }
               case 'element-border-color':
                 return selectedElement.borderOpacity ?? 1;
@@ -1038,8 +1038,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           );
         }
 
-        // Handle QnA textboxes
-        if (selectedElement.textType === 'qna') {
+        // Handle QnA and QnA2 (Rich Text) textboxes
+        if (selectedElement.textType === 'qna' || selectedElement.textType === 'qna2') {
           const activeSection = state.qnaActiveSection;
           const setActiveSection = (section: 'question' | 'answer') => {
             dispatch({ type: 'SET_QNA_ACTIVE_SECTION', payload: section });
@@ -1057,7 +1057,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           const bookColorPaletteId = state.currentBook?.colorPaletteId;
           const activeTheme = pageTheme || bookTheme || 'default';
           const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
-          const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
+          const toolDefaults = getGlobalThemeDefaults(activeTheme, selectedElement.textType === 'qna2' ? 'qna2' : 'qna', effectivePaletteId);
           
           const updateQuestionSetting = (key: string, value: any) => {
             const updates = {
@@ -1079,18 +1079,24 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             updateElementSetting(selectedElement.id, updates);
           };
           
+          const isQna2 = selectedElement.textType === 'qna2';
+          const defAnswer = isQna2 ? (toolDefaults.textSettings || toolDefaults) : (toolDefaults.answerSettings || toolDefaults);
+          const defFontSize = defAnswer.fontSize ?? toolDefaults.fontSize ?? 50;
+          const defFontColor = defAnswer.fontColor ?? toolDefaults.fontColor ?? '#1f2937';
+          
           return (
             <QnASettingsForm
               sectionType="shared"
               element={selectedElement}
               state={state}
+              textType={selectedElement.textType}
               currentStyle={{
-                fontSize: selectedElement.questionSettings?.fontSize ?? selectedElement.answerSettings?.fontSize ?? toolDefaults.answerSettings?.fontSize ?? toolDefaults.fontSize ?? 50,
-                fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || toolDefaults.answerSettings?.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif',
-                fontBold: selectedElement.questionSettings?.fontBold ?? selectedElement.answerSettings?.fontBold ?? toolDefaults.answerSettings?.fontBold ?? false,
-                fontItalic: selectedElement.questionSettings?.fontItalic ?? selectedElement.answerSettings?.fontItalic ?? toolDefaults.answerSettings?.fontItalic ?? false,
-                fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || toolDefaults.answerSettings?.fontColor || toolDefaults.fontColor || '#1f2937',
-                fontOpacity: selectedElement.questionSettings?.fontOpacity ?? selectedElement.answerSettings?.fontOpacity ?? toolDefaults.answerSettings?.fontOpacity ?? 1
+                fontSize: selectedElement.questionSettings?.fontSize ?? selectedElement.answerSettings?.fontSize ?? selectedElement.textSettings?.fontSize ?? defFontSize,
+                fontFamily: selectedElement.questionSettings?.fontFamily || selectedElement.answerSettings?.fontFamily || selectedElement.textSettings?.fontFamily || defAnswer.fontFamily || toolDefaults.fontFamily || 'Arial, sans-serif',
+                fontBold: selectedElement.questionSettings?.fontBold ?? selectedElement.answerSettings?.fontBold ?? selectedElement.textSettings?.fontBold ?? defAnswer.fontBold ?? false,
+                fontItalic: selectedElement.questionSettings?.fontItalic ?? selectedElement.answerSettings?.fontItalic ?? selectedElement.textSettings?.fontItalic ?? defAnswer.fontItalic ?? false,
+                fontColor: selectedElement.questionSettings?.fontColor || selectedElement.answerSettings?.fontColor || selectedElement.textSettings?.fontColor || defFontColor,
+                fontOpacity: selectedElement.questionSettings?.fontOpacity ?? selectedElement.answerSettings?.fontOpacity ?? selectedElement.textSettings?.fontOpacity ?? 1
               }}
               updateSetting={(key: string, value: any) => {
                 updateQuestionSetting(key, value);
@@ -1098,7 +1104,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
               }}
               setShowFontSelector={setShowFontSelector}
               setShowColorSelector={setShowColorSelector}
-              showLayoutControls={true}
+              showLayoutControls={!isQna2}
               individualSettings={individualSettings}
               onIndividualSettingsChange={(enabled: boolean) => {
                 const updates: any = { qnaIndividualSettings: enabled };

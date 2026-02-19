@@ -4,6 +4,7 @@
  * Layout inspired by inline-text-editor: centered modal with header, formatting toolbar, and footer.
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import type React from 'react';
 import type Konva from 'konva';
 import type { RichTextStyle, TextSegment } from '../../../../../../shared/types/text-layout';
@@ -110,6 +111,10 @@ export interface RichTextInlineEditorParams {
   padding: number;
   /** Optional question text shown as non-editable prefix (QnA2 mode). Only answer is saved. */
   questionPrefix?: string;
+  /** For QnA2: save to tempAnswers instead of richTextSegments */
+  user?: { id: string } | null;
+  questionId?: string;
+  answerId?: string;
 }
 
 /**
@@ -124,7 +129,10 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
     textRef,
     setIsEditing,
     dispatch,
-    questionPrefix
+    questionPrefix,
+    user,
+    questionId: paramQuestionId,
+    answerId: paramAnswerId
   } = params;
 
   const groupNode = textRef.current?.getParent();
@@ -416,14 +424,28 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
 
   const saveAndClose = () => {
     const html = editableDiv.innerHTML;
-    const newSegments = parseHtmlToSegments(html, defaultStyle);
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: { richTextSegments: newSegments }
-      }
-    });
+    const questionId = paramQuestionId ?? element.questionId;
+    if (questionId && user?.id) {
+      const answerId = paramAnswerId ?? (element as { answerId?: string }).answerId ?? uuidv4();
+      dispatch({
+        type: 'UPDATE_TEMP_ANSWER',
+        payload: {
+          questionId,
+          text: html,
+          userId: user.id,
+          answerId
+        }
+      });
+    } else {
+      const newSegments = parseHtmlToSegments(html, defaultStyle);
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: { richTextSegments: newSegments }
+        }
+      });
+    }
     dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update Rich Text' });
     removeEditor();
   };

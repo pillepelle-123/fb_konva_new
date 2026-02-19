@@ -7,28 +7,46 @@ import type { RichTextStyle, TextRun, TextSegment } from '../types/text-layout';
 import type { LayoutResult, LinePosition } from '../types/layout';
 import {
   getLineHeight,
-  measureText,
-  calculateTextX
+  measureText
 } from './text-layout';
 
-/** Token with style for word-by-word flow */
+/** Abstand der Ruled Line unter der Text-Baseline (wie textbox-qna) */
+const RULED_LINE_BASELINE_OFFSET = 12;
+
+/** Token with style and segment index for gap handling */
 interface StyledToken {
   text: string;
   style: RichTextStyle;
+  segmentIndex: number;
 }
 
-/**
- * Create layout (TextRun[]) from rich text segments.
- * Segments flow sequentially; mixed styles can appear on the same line.
- */
-export function createRichTextLayoutFromSegments(params: {
+export interface CreateRichTextLayoutParams {
   segments: TextSegment[];
   width: number;
   height: number;
   padding: number;
   ctx: CanvasRenderingContext2D | null;
-}): LayoutResult {
-  const { segments, width, height, padding, ctx } = params;
+  /** Vertikaler Abstand nach dem Frage-Block (Segment 0), wenn answerInNewRow */
+  questionAnswerGapVertical?: number;
+  /** Horizontaler Abstand zwischen Frage und Antwort auf derselben Zeile */
+  questionAnswerGapHorizontal?: number;
+}
+
+/**
+ * Create layout (TextRun[]) from rich text segments.
+ * Segments flow sequentially; mixed styles can appear on the same line.
+ * Supports paragraphSpacing (via style), align (via style), and QnA gaps.
+ */
+export function createRichTextLayoutFromSegments(params: CreateRichTextLayoutParams): LayoutResult {
+  const {
+    segments,
+    width,
+    height,
+    padding,
+    ctx,
+    questionAnswerGapVertical = 0,
+    questionAnswerGapHorizontal = 0
+  } = params;
   const runs: TextRun[] = [];
   const linePositions: LinePosition[] = [];
   const availableWidth = Math.max(10, width - padding * 2);
@@ -38,19 +56,19 @@ export function createRichTextLayoutFromSegments(params: {
     return { runs, contentHeight: height, linePositions };
   }
 
-  // Flatten segments into tokens (words, spaces, newlines - all preserved)
+  // Flatten segments into tokens (words, spaces, newlines - all preserved), with segmentIndex
   const tokens: StyledToken[] = [];
-  for (const seg of segments) {
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
     if (!seg.text) continue;
     const parts = seg.text.split(/(\n)/);
     for (const part of parts) {
       if (part === '\n') {
-        tokens.push({ text: '\n', style: seg.style });
+        tokens.push({ text: '\n', style: seg.style, segmentIndex: segIdx });
       } else {
-        // Preserve spaces: split by whitespace but keep spaces as tokens
         const wordAndSpaceParts = part.split(/(\s+)/);
         for (const p of wordAndSpaceParts) {
-          if (p.length > 0) tokens.push({ text: p, style: seg.style });
+          if (p.length > 0) tokens.push({ text: p, style: seg.style, segmentIndex: segIdx });
         }
       }
     }
@@ -60,11 +78,25 @@ export function createRichTextLayoutFromSegments(params: {
   let cursorY = padding;
   let currentLineHeight = 0;
   let lineRuns: TextRun[] = [];
+  let prevSegmentIndex = -1;
 
   for (let i = 0; i < tokens.length; i++) {
-    const { text, style } = tokens[i];
+    const { text, style, segmentIndex } = tokens[i];
     const baselineOffset = style.fontSize * 0.8;
     const tokenLineHeight = getLineHeight(style);
+
+    // Gap zwischen Frage- und Antwort-Block: vertikal nach Segment 0
+    if (segmentIndex > 0 && prevSegmentIndex === 0 && questionAnswerGapVertical > 0) {
+      flushLine();
+      cursorY += questionAnswerGapVertical;
+      currentLineHeight = 0;
+      cursorX = startX;
+    }
+    // Horizontaler Gap: beim Wechsel von Segment 0 zu 1 auf derselben Zeile
+    if (segmentIndex > 0 && prevSegmentIndex === 0 && cursorX > startX && questionAnswerGapHorizontal > 0) {
+      cursorX += questionAnswerGapHorizontal;
+    }
+    prevSegmentIndex = segmentIndex;
 
     if (text === '\n') {
       flushLine();
@@ -98,21 +130,24 @@ export function createRichTextLayoutFromSegments(params: {
     if (lineRuns.length === 0) return;
     const firstRun = lineRuns[0];
     const lineHeight = Math.max(...lineRuns.map((r) => getLineHeight(r.style)));
-    // Common baseline for all runs: align at bottom (largest font determines baseline)
     const lineBaselineY = cursorY + Math.max(...lineRuns.map((r) => r.style.fontSize * 0.8));
+    const align = firstRun.style.align || 'left';
 
-    if (lineRuns.length === 1 && (firstRun.style.align === 'center' || firstRun.style.align === 'right')) {
-      const textX = calculateTextX(firstRun.text, firstRun.style, startX, availableWidth, ctx);
-      runs.push({ ...firstRun, x: textX, y: lineBaselineY });
-    } else {
-      for (const run of lineRuns) {
-        runs.push({ ...run, y: lineBaselineY });
-      }
+    // Text Align: gesamte Zeile ausrichten (nicht nur Single-Run)
+    const totalLineWidth = lineRuns.reduce((sum, r) => sum + measureText(r.text, r.style, ctx), 0);
+    let offsetX = 0;
+    if (align === 'center') {
+      offsetX = (availableWidth - totalLineWidth) / 2;
+    } else if (align === 'right') {
+      offsetX = availableWidth - totalLineWidth;
     }
 
-    // Ruled line below the entire line (bottom of line box)
+    for (const run of lineRuns) {
+      runs.push({ ...run, x: run.x + offsetX, y: lineBaselineY });
+    }
+
     linePositions.push({
-      y: cursorY + lineHeight,
+      y: lineBaselineY + RULED_LINE_BASELINE_OFFSET,
       lineHeight,
       style: firstRun.style
     });

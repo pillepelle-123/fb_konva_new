@@ -162,9 +162,13 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
       return <TextboxQna key={qnaKey} {...props} />;
     }
     // Check for Rich Text (qna2) textType
+    // Key enthält Style- und Struktur-Props, die einen Remount erfordern.
+    // Layout-Props (answerInNewRow, questionAnswerGap, paragraphSpacing, align) sind NICHT im Key,
+    // damit bei Settings-Änderung ohne Apply kein Remount erfolgt. Sonst gehen die transformStart-
+    // Event-Listener verloren und das Skeleton wird beim Resize nicht angezeigt.
     if (element.textType === 'qna2') {
       const qna2El = element as any;
-      const qna2Key = `${element.id}-${element.questionId ?? 'no-q'}-${qna2El.textSettings?.fontColor}-${qna2El.richTextSegments?.length ?? 0}`;
+      const qna2Key = `${element.id}-${element.questionId ?? 'no-q'}-${JSON.stringify(qna2El.questionSettings ?? {})}-${JSON.stringify(qna2El.answerSettings ?? {})}-${JSON.stringify(qna2El.textSettings ?? {})}-${qna2El.backgroundEnabled}-${element.backgroundColor}-${element.backgroundOpacity}-${qna2El.borderEnabled}-${element.borderColor}-${element.borderWidth}-${qna2El.ruledLines}-${qna2El.ruledLinesWidth}-${qna2El.ruledLinesColor}-${qna2El.richTextSegments?.length ?? 0}`;
       return <TextboxQna2 key={qna2Key} {...props} />;
     }
     // Check for Free Text textType

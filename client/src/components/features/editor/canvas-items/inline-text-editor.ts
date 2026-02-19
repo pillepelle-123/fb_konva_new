@@ -1512,6 +1512,8 @@ export interface InlineTextEditorForQna2Params {
   boxHeight: number;
   padding: number;
   questionPrefix?: string;
+  user?: { id: string } | null;
+  answerId?: string;
 }
 
 /**
@@ -1527,7 +1529,9 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
     textRef,
     setIsEditing,
     dispatch,
-    questionPrefix
+    questionPrefix,
+    user,
+    answerId: paramAnswerId
   } = params;
 
   const stage = textRef.current?.getStage();
@@ -1642,15 +1646,28 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
 
   const saveChanges = () => {
     const newText = textarea.value;
-    dispatch({
-      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-      payload: {
-        id: element.id,
-        updates: {
-          richTextSegments: newText ? [{ text: newText, style: defaultStyle }] : []
+    if (element.questionId && user?.id) {
+      const answerId = paramAnswerId ?? (element as { answerId?: string }).answerId ?? uuidv4();
+      dispatch({
+        type: 'UPDATE_TEMP_ANSWER',
+        payload: {
+          questionId: element.questionId,
+          text: newText,
+          userId: user.id,
+          answerId
         }
-      }
-    });
+      });
+    } else {
+      dispatch({
+        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+        payload: {
+          id: element.id,
+          updates: {
+            richTextSegments: newText ? [{ text: newText, style: defaultStyle }] : []
+          }
+        }
+      });
+    }
     dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA2 Answer' });
     removeEditor();
   };

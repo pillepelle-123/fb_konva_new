@@ -41,6 +41,8 @@ interface QnASettingsFormProps {
   sectionType: 'question' | 'answer' | 'shared';
   element: any;
   state: any;
+  /** 'qna2' uses qna2 theme defaults and questionSettings/answerSettings with textSettings fallback */
+  textType?: 'qna' | 'qna2';
   currentStyle: any;
   updateSetting: (key: string, value: any) => void;
   setShowFontSelector: (show: boolean) => void;
@@ -65,6 +67,7 @@ export function QnASettingsForm({
   sectionType,
   element,
   state,
+  textType = 'qna',
   currentStyle,
   updateSetting,
   setShowFontSelector,
@@ -100,50 +103,46 @@ export function QnASettingsForm({
   }, [activeSection, setShowColorSelector]);
   
   const getQuestionStyle = () => {
+    const isQna2 = textType === 'qna2';
     const qStyle = element.questionSettings || {};
+    const tStyle = element.textSettings || {};
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
-    const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+    const qnaThemeDefaults = !isQna2 && activeTheme ? getQnAThemeDefaults(activeTheme, 'question') : {};
+    const toolDefaults = getGlobalThemeDefaults(activeTheme || 'default', isQna2 ? 'qna2' : 'qna', undefined);
+    const qnaDefaults = isQna2 ? (toolDefaults.textSettings || {}) : (toolDefaults.questionSettings || {});
 
-    // Get tool defaults for qna to use as fallback
-    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
-    const qnaDefaults = toolDefaults.questionSettings || {};
-    
     return {
-      fontSize: qStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? 58,
-      fontFamily: qStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
-      fontBold: qStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
-      fontItalic: qStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
-      fontColor: qStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || '#666666',
-      fontOpacity: qStyle.fontOpacity ?? 1,
-      align: qStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
-      ruledLines: qStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
+      fontSize: qStyle.fontSize ?? tStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? (isQna2 ? 50 : 58),
+      fontFamily: qStyle.fontFamily || tStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+      fontBold: qStyle.fontBold ?? tStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
+      fontItalic: qStyle.fontItalic ?? tStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
+      fontColor: qStyle.fontColor || tStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || (isQna2 ? '#1f2937' : '#666666'),
+      fontOpacity: qStyle.fontOpacity ?? tStyle.fontOpacity ?? 1,
+      align: qStyle.align || tStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
+      ruledLines: qStyle.ruledLines ?? tStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
     };
   };
   
   const getAnswerStyle = () => {
+    const isQna2 = textType === 'qna2';
     const aStyle = element.answerSettings || {};
+    const tStyle = element.textSettings || {};
     const bookTheme = state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme;
-    const qnaThemeDefaults = activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
+    const qnaThemeDefaults = !isQna2 && activeTheme ? getQnAThemeDefaults(activeTheme, 'answer') : {};
+    const toolDefaults = getGlobalThemeDefaults(activeTheme || 'default', isQna2 ? 'qna2' : 'qna', undefined);
+    const qnaDefaults = isQna2 ? (toolDefaults.textSettings || {}) : (toolDefaults.answerSettings || {});
 
-    // Get tool defaults for qna to use as fallback
-    const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-    const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
-    const toolDefaults = getGlobalThemeDefaults(activeTheme, 'qna', undefined);
-    const qnaDefaults = toolDefaults.answerSettings || {};
-    
     return {
-      fontSize: aStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? 50,
-      fontFamily: aStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
-      fontBold: aStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
-      fontItalic: aStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
-      fontColor: aStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || '#1f2937',
-      fontOpacity: aStyle.fontOpacity ?? 1,
-      align: aStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
-      ruledLines: aStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
+      fontSize: aStyle.fontSize ?? tStyle.fontSize ?? qnaThemeDefaults?.fontSize ?? qnaDefaults.fontSize ?? 50,
+      fontFamily: aStyle.fontFamily || tStyle.fontFamily || qnaThemeDefaults?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
+      fontBold: aStyle.fontBold ?? tStyle.fontBold ?? qnaThemeDefaults?.fontBold ?? qnaDefaults.fontBold ?? false,
+      fontItalic: aStyle.fontItalic ?? tStyle.fontItalic ?? qnaThemeDefaults?.fontItalic ?? qnaDefaults.fontItalic ?? false,
+      fontColor: aStyle.fontColor || tStyle.fontColor || qnaThemeDefaults?.fontColor || qnaDefaults.fontColor || '#1f2937',
+      fontOpacity: aStyle.fontOpacity ?? tStyle.fontOpacity ?? 1,
+      align: aStyle.align || tStyle.align || element.format?.textAlign || element.align || qnaThemeDefaults?.align || qnaDefaults.align || 'left',
+      ruledLines: aStyle.ruledLines ?? tStyle.ruledLines ?? qnaThemeDefaults?.ruledLines ?? qnaDefaults.ruledLines ?? false
     };
   };
   
@@ -158,7 +157,7 @@ export function QnASettingsForm({
   const getThemeDefaults = () => {
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna', undefined);
+    return getGlobalThemeDefaults(activeTheme, textType === 'qna2' ? 'qna2' : 'qna', undefined);
   };
   
   const updateSharedSetting = (key: string, value: any) => {
@@ -232,9 +231,19 @@ export function QnASettingsForm({
       updates.backgroundColor = backgroundColor;
     } else if (key === 'cornerRadius') {
       updates.cornerRadius = value;
+    } else if (key === 'padding' && textType === 'qna2') {
+      updates.padding = value;
+      updates.textSettings = { ...element.textSettings, padding: value };
+    } else if (key === 'paragraphSpacing') {
+      // Auch in questionSettings/answerSettings setzen, damit textbox-qna2 die Zeilenhöhe aktualisiert
+      updates.paragraphSpacing = value;
+      updates.questionSettings = { ...element.questionSettings, paragraphSpacing: value };
+      updates.answerSettings = { ...element.answerSettings, paragraphSpacing: value };
+      if (textType === 'qna2') {
+        updates.textSettings = { ...element.textSettings, paragraphSpacing: value };
+      }
     } else if (['fontBold', 'fontItalic', 'fontSize', 'fontFamily', 'fontColor', 'fontOpacity'].includes(key)) {
       // Font properties: when individualSettings is false, update both questionSettings and answerSettings
-      // Use answer settings as the source of truth
       updates.questionSettings = {
         ...element.questionSettings,
         [key]: value
@@ -243,6 +252,9 @@ export function QnASettingsForm({
         ...element.answerSettings,
         [key]: value
       };
+      if (textType === 'qna2') {
+        updates.textSettings = { ...element.textSettings, [key]: value };
+      }
     } else {
       // For other shared properties (padding, paragraphSpacing, align), set only on top-level
       updates[key] = value;
@@ -1072,31 +1084,32 @@ export function QnASettingsForm({
                 <Checkbox
                   checked={individualSettings}
                   onCheckedChange={(checked) => {
+                    const answerStyle = getAnswerStyle();
+                    const fontProps = {
+                      fontSize: answerStyle.fontSize,
+                      fontFamily: answerStyle.fontFamily,
+                      fontBold: answerStyle.fontBold,
+                      fontItalic: answerStyle.fontItalic,
+                      fontColor: answerStyle.fontColor,
+                      fontOpacity: answerStyle.fontOpacity
+                    };
+                    const updates: Record<string, unknown> = { qnaIndividualSettings: checked };
+
                     if (!checked) {
-                      // When disabling individual settings, align question to answer settings
-                      const answerStyle = getAnswerStyle();
-                      const questionUpdates = {
-                        fontSize: answerStyle.fontSize,
-                        fontFamily: answerStyle.fontFamily,
-                        fontBold: answerStyle.fontBold,
-                        fontItalic: answerStyle.fontItalic,
-                        fontColor: answerStyle.fontColor,
-                        fontOpacity: answerStyle.fontOpacity
-                      };
-                      
-                      dispatch({
-                        type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-                        payload: {
-                          id: element.id,
-                          updates: {
-                            questionSettings: {
-                              ...element.questionSettings,
-                              ...questionUpdates
-                            }
-                          }
-                        }
-                      });
+                      // Deaktivieren: Frage-Styling merken, dann Answer-Style für beide übernehmen
+                      updates.questionSettingsPreserved = { ...element.questionSettings };
+                      updates.questionSettings = { ...element.questionSettings, ...fontProps };
+                    } else {
+                      // Aktivieren: Gemerktes Frage-Styling wiederherstellen
+                      if (element.questionSettingsPreserved) {
+                        updates.questionSettings = { ...element.questionSettingsPreserved };
+                      }
                     }
+
+                    dispatch({
+                      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                      payload: { id: element.id, updates }
+                    });
                     onIndividualSettingsChange?.(checked);
                   }}
                 />

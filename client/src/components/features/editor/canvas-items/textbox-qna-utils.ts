@@ -1,6 +1,15 @@
 import type { CanvasElement } from '../../../context/editor-context';
 import type { RichTextStyle } from '../../../../../shared/types/text-layout';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { commonToActual } from '../../../../utils/font-size-converter';
+
+/** FontSize aus "common" (8–24) in "actual" (33+) konvertieren, falls nötig. Siehe font-size-converter. */
+function ensureActualFontSize(value: number, isQna2: boolean): number {
+  if (!isQna2) return value;
+  // Common-Werte sind typisch 8–24; actual-Werte ab ~33 (commonToActual(8)=33)
+  if (value > 0 && value <= 24) return commonToActual(value);
+  return value;
+}
 
 type QnaSettings = {
   fontSize?: number;
@@ -16,6 +25,7 @@ type QnaSettings = {
 interface QnaCanvasElement extends CanvasElement {
   questionSettings?: QnaSettings;
   answerSettings?: QnaSettings;
+  textSettings?: QnaSettings & { padding?: number };
   qnaIndividualSettings?: boolean;
   layoutVariant?: 'inline' | 'block';
 }
@@ -35,7 +45,7 @@ interface Book {
 }
 
 /**
- * Calculate question style for a QNA element
+ * Calculate question style for a QNA or QnA2 element
  * Replicates the logic from TextboxQna component's questionStyle useMemo
  */
 export function calculateQuestionStyle(
@@ -44,56 +54,60 @@ export function calculateQuestionStyle(
   currentBook: Book | undefined
 ): RichTextStyle {
   const qnaElement = element as QnaCanvasElement;
-  
+  const isQna2 = element.textType === 'qna2';
+
   // Get theme information
   const elementTheme = element.theme;
   const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = elementTheme || currentBook?.bookTheme || currentBook?.themeId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = currentBook?.colorPaletteId;
-  
-  // Get QNA defaults
+
+  // Get defaults (qna vs qna2)
   const activeTheme = pageTheme || bookTheme || 'default';
   const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
-  const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
-  
+  const toolDefaults = getGlobalThemeDefaults(activeTheme, isQna2 ? 'qna2' : 'qna', effectivePaletteId);
+  const qnaDefaults = isQna2
+    ? { questionSettings: toolDefaults.textSettings, answerSettings: toolDefaults.textSettings }
+    : toolDefaults;
+
   const layoutVariant = qnaElement.layoutVariant || 'inline';
   const individualSettings = qnaElement.qnaIndividualSettings ?? false;
-  
-  // Determine align: if inline OR (block without individual settings), use shared align
-  // Otherwise use individual question align
+
+  // For qna2: always inline, no block layout
   let align: 'left' | 'center' | 'right' | 'justify' = 'left';
-  if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
-    // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
-    align = (element.align || (element as any).format?.textAlign || qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || 'left') as 'left' | 'center' | 'right' | 'justify';
+  if (isQna2 || layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
+    const ts = qnaElement.textSettings || {};
+    align = (element.align || (element as any).format?.textAlign || qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || ts.align || 'left') as 'left' | 'center' | 'right' | 'justify';
   } else {
-    // Individual align: use questionSettings.align
     align = (qnaElement.questionSettings?.align || element.align || (element as any).format?.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
   }
-  
-  // Use spread operator to set defaults first, then override with element settings
+
+  const qSettings = qnaElement.questionSettings || {};
+  const tSettings = qnaElement.textSettings || {};
+  const defQ = qnaDefaults.questionSettings || {};
+  const rawFontSize = qSettings.fontSize ?? tSettings.fontSize ?? defQ.fontSize ?? (isQna2 ? 50 : 58);
   const style = {
-    ...qnaDefaults.questionSettings,
-    ...qnaElement.questionSettings,
-    fontSize: qnaElement.questionSettings?.fontSize ?? qnaDefaults.questionSettings?.fontSize ?? qnaDefaults.fontSize ?? 58,
-    fontFamily: qnaElement.questionSettings?.fontFamily || qnaDefaults.questionSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
-    fontBold: qnaElement.questionSettings?.fontBold ?? qnaDefaults.questionSettings?.fontBold ?? false,
-    fontItalic: qnaElement.questionSettings?.fontItalic ?? qnaDefaults.questionSettings?.fontItalic ?? false,
-    fontOpacity: qnaElement.questionSettings?.fontOpacity ?? qnaDefaults.questionSettings?.fontOpacity ?? 1,
-    paragraphSpacing: qnaElement.questionSettings?.paragraphSpacing || qnaDefaults.questionSettings?.paragraphSpacing || element.paragraphSpacing || 'small',
+    ...defQ,
+    ...qSettings,
+    fontSize: ensureActualFontSize(rawFontSize, isQna2),
+    fontFamily: qSettings.fontFamily || tSettings.fontFamily || defQ.fontFamily || 'Arial, sans-serif',
+    fontBold: qSettings.fontBold ?? tSettings.fontBold ?? defQ.fontBold ?? false,
+    fontItalic: qSettings.fontItalic ?? tSettings.fontItalic ?? defQ.fontItalic ?? false,
+    fontOpacity: qSettings.fontOpacity ?? tSettings.fontOpacity ?? defQ.fontOpacity ?? 1,
+    paragraphSpacing: qSettings.paragraphSpacing || tSettings.paragraphSpacing || element.paragraphSpacing || (isQna2 ? 'medium' : 'small'),
     align
   } as RichTextStyle;
-  
-  // Direct color override - element settings have absolute priority
-  if (qnaElement.questionSettings?.fontColor) {
-    style.fontColor = qnaElement.questionSettings.fontColor;
+
+  if (qSettings.fontColor ?? tSettings.fontColor) {
+    style.fontColor = qSettings.fontColor ?? tSettings.fontColor;
   }
-  
+
   return style;
 }
 
 /**
- * Calculate answer style for a QNA element
+ * Calculate answer style for a QNA or QnA2 element
  * Replicates the logic from TextboxQna component's answerStyle useMemo
  */
 export function calculateAnswerStyle(
@@ -102,51 +116,55 @@ export function calculateAnswerStyle(
   currentBook: Book | undefined
 ): RichTextStyle {
   const qnaElement = element as QnaCanvasElement;
-  
+  const isQna2 = element.textType === 'qna2';
+
   // Get theme information
   const elementTheme = element.theme;
   const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = elementTheme || currentBook?.bookTheme || currentBook?.themeId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = currentBook?.colorPaletteId;
-  
-  // Get QNA defaults
+
+  // Get defaults (qna vs qna2)
   const activeTheme = pageTheme || bookTheme || 'default';
   const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
-  const qnaDefaults = getGlobalThemeDefaults(activeTheme, 'qna', effectivePaletteId);
-  
+  const toolDefaults = getGlobalThemeDefaults(activeTheme, isQna2 ? 'qna2' : 'qna', effectivePaletteId);
+  const qnaDefaults = isQna2
+    ? { questionSettings: toolDefaults.textSettings, answerSettings: toolDefaults.textSettings }
+    : toolDefaults;
+
   const layoutVariant = qnaElement.layoutVariant || 'inline';
   const individualSettings = qnaElement.qnaIndividualSettings ?? false;
-  
-  // Determine align: if inline OR (block without individual settings), use shared align
-  // Otherwise use individual answer align
+
+  // For qna2: always inline
   let align: 'left' | 'center' | 'right' | 'justify' = 'left';
-  if (layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
-    // Shared align: check element.align, element.format?.textAlign, questionSettings.align, answerSettings.align
-    align = (element.align || (element as any).format?.textAlign || qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || 'left') as 'left' | 'center' | 'right' | 'justify';
+  if (isQna2 || layoutVariant === 'inline' || (layoutVariant === 'block' && !individualSettings)) {
+    const ts = qnaElement.textSettings || {};
+    align = (element.align || (element as any).format?.textAlign || qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || ts.align || 'left') as 'left' | 'center' | 'right' | 'justify';
   } else {
-    // Individual align: use answerSettings.align
     align = (qnaElement.answerSettings?.align || element.align || (element as any).format?.textAlign || 'left') as 'left' | 'center' | 'right' | 'justify';
   }
-  
-  // Use spread operator to set defaults first, then override with element settings
+
+  const aSettings = qnaElement.answerSettings || {};
+  const tSettings = qnaElement.textSettings || {};
+  const defA = qnaDefaults.answerSettings || {};
+  const rawFontSize = aSettings.fontSize ?? tSettings.fontSize ?? defA.fontSize ?? 50;
   const style = {
-    ...qnaDefaults.answerSettings,
-    ...qnaElement.answerSettings,
-    fontSize: qnaElement.answerSettings?.fontSize ?? qnaDefaults.answerSettings?.fontSize ?? qnaDefaults.fontSize ?? 50,
-    fontFamily: qnaElement.answerSettings?.fontFamily || qnaDefaults.answerSettings?.fontFamily || qnaDefaults.fontFamily || 'Arial, sans-serif',
-    fontBold: qnaElement.answerSettings?.fontBold ?? qnaDefaults.answerSettings?.fontBold ?? false,
-    fontItalic: qnaElement.answerSettings?.fontItalic ?? qnaDefaults.answerSettings?.fontItalic ?? false,
-    fontOpacity: qnaElement.answerSettings?.fontOpacity ?? qnaDefaults.answerSettings?.fontOpacity ?? 1,
-    paragraphSpacing: qnaElement.answerSettings?.paragraphSpacing || qnaDefaults.answerSettings?.paragraphSpacing || element.paragraphSpacing || 'medium',
+    ...defA,
+    ...aSettings,
+    fontSize: ensureActualFontSize(rawFontSize, isQna2),
+    fontFamily: aSettings.fontFamily || tSettings.fontFamily || defA.fontFamily || 'Arial, sans-serif',
+    fontBold: aSettings.fontBold ?? tSettings.fontBold ?? defA.fontBold ?? false,
+    fontItalic: aSettings.fontItalic ?? tSettings.fontItalic ?? defA.fontItalic ?? false,
+    fontOpacity: aSettings.fontOpacity ?? tSettings.fontOpacity ?? defA.fontOpacity ?? 1,
+    paragraphSpacing: aSettings.paragraphSpacing || tSettings.paragraphSpacing || element.paragraphSpacing || 'medium',
     align
   } as RichTextStyle;
-  
-  // Direct color override - element settings have absolute priority
-  if (qnaElement.answerSettings?.fontColor) {
-    style.fontColor = qnaElement.answerSettings.fontColor;
+
+  if (aSettings.fontColor ?? tSettings.fontColor) {
+    style.fontColor = aSettings.fontColor ?? tSettings.fontColor;
   }
-  
+
   return style;
 }
 

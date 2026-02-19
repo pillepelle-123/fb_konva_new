@@ -5031,7 +5031,7 @@ export default function Canvas() {
   const qnaElementsSerialized = useMemo(() => {
     if (!currentPage?.elements) return '';
     return currentPage.elements
-      .filter(el => el.type === 'text' && el.textType === 'qna')
+      .filter(el => el.type === 'text' && (el.textType === 'qna' || el.textType === 'qna2'))
       .map(el => {
         const qnaEl = el as any;
         return JSON.stringify({
@@ -5081,7 +5081,7 @@ export default function Canvas() {
     }>();
     
     currentPage?.elements.forEach(element => {
-      if (element.type === 'text' && element.textType === 'qna') {
+      if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
         // Berechne questionText
         let questionText = 'Double-click to add a question...';
         if (element.questionId) {
@@ -5106,6 +5106,10 @@ export default function Canvas() {
           if (assignedUser) {
             const answerEntry = state.tempAnswers[element.questionId]?.[assignedUser.id];
             answerText = answerEntry?.text || '';
+          }
+          // QnA2: Fallback auf richTextSegments für bestehende Elemente (Migration)
+          if (element.textType === 'qna2' && !answerText && (element as any).richTextSegments?.length) {
+            answerText = (element as any).richTextSegments.map((s: { text: string }) => s.text).join('');
           }
         } else {
           if (element.formattedText) {
@@ -5438,11 +5442,11 @@ export default function Canvas() {
                     pageIndex={state.activePageIndex}
                     activePageIndex={state.activePageIndex}
                     pageNumberingPreview={state.pageNumberingPreview}
-                    questionText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionText : undefined}
-                    answerText={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerText : undefined}
-                    questionStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.questionStyle : undefined}
-                    answerStyle={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.answerStyle : undefined}
-                    assignedUser={element.type === 'text' && element.textType === 'qna' ? qnaElementData.get(element.id)?.assignedUser : undefined}
+                    questionText={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.questionText : undefined}
+                    answerText={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.answerText : undefined}
+                    questionStyle={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.questionStyle : undefined}
+                    answerStyle={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.answerStyle : undefined}
+                    assignedUser={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.assignedUser : undefined}
                     onSelect={(e) => {
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {
