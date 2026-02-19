@@ -1338,7 +1338,7 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
     removeTextarea();
   };
 
-  // Create discard button (X icon, outline variant, xs size)
+  // Create discard button (X icon, outline variant, xs size) - Free Text
   const discardButton = document.createElement('button');
   discardButton.setAttribute('aria-label', 'Discard changes');
   discardButton.style.display = 'inline-flex';
@@ -1474,43 +1474,222 @@ export function createInlineTextEditorForFreeText(params: InlineTextEditorForFre
     }
   });
   
-  // Handle input events for auto-wrapping and height adjustment
-  // Use scrollHeight to accurately measure the actual content height
-  // This is more reliable than calculating based on line count
-  const minimumHeight = scaledLineHeight * 2; // Minimum height (two lines) for better usability
-  const heightBuffer = scaledLineHeight * 0.5; // Small buffer on top for better visibility
-  
-  // Set initial height
+  // Handle input events for auto-wrapping and height adjustment - Free Text
+  const minimumHeight = scaledLineHeight * 2;
+  const heightBuffer = scaledLineHeight * 0.5;
   const updateHeight = () => {
-    // Reset height to auto to get accurate scrollHeight measurement
     textarea.style.height = 'auto';
-    
-    // Get the actual scroll height (content height)
     const scrollHeight = textarea.scrollHeight;
-    
-    // Calculate new height: scrollHeight + buffer, but at least minimumHeight
     const newHeight = Math.max(minimumHeight, scrollHeight + heightBuffer);
-    
-    // Only update if height actually changed to prevent unnecessary reflows
     const currentHeight = parseFloat(textarea.style.height) || 0;
-    if (Math.abs(newHeight - currentHeight) > 1) { // 1px tolerance to avoid micro-adjustments
+    if (Math.abs(newHeight - currentHeight) > 1) {
       textarea.style.height = newHeight + 'px';
     }
   };
-  
-  // Initial height calculation
   updateHeight();
-  
-  // Update height on input
   textarea.addEventListener('input', updateHeight);
   
-  // Store this editor instance globally
   activeEditorInstance = {
     cleanup: removeTextarea,
     textarea,
     buttonContainer: buttonFooter
   };
-  
-  // Return cleanup function
   return removeTextarea;
+}
+
+/**
+ * Parameters for QnA2 plain text inline editor (Textarea, no rich formatting).
+ * Used when VITE_QNA2_RICH_TEXT_EDITOR is false.
+ */
+export interface InlineTextEditorForQna2Params {
+  element: CanvasElement;
+  answerText: string;
+  defaultStyle: RichTextStyle;
+  textRef: React.RefObject<Konva.Rect>;
+  setIsEditing: (open: boolean) => void;
+  dispatch: (action: { type: string; payload?: unknown }) => void;
+  boxWidth: number;
+  boxHeight: number;
+  padding: number;
+  questionPrefix?: string;
+}
+
+/**
+ * Creates a plain text inline editor for QnA2 elements (Textarea like qna).
+ * Saves to element.richTextSegments as single segment.
+ * Use when VITE_QNA2_RICH_TEXT_EDITOR is false.
+ */
+export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Params): () => void {
+  const {
+    element,
+    answerText,
+    defaultStyle,
+    textRef,
+    setIsEditing,
+    dispatch,
+    questionPrefix
+  } = params;
+
+  const stage = textRef.current?.getStage();
+  if (!stage) return () => {};
+
+  if (activeEditorInstance) {
+    activeEditorInstance.cleanup();
+    activeEditorInstance = null;
+  }
+
+  setIsEditing(true);
+
+  const removeExistingTooltips = () => {
+    const tooltips = document.querySelectorAll('[id^="qna-tooltip-"]');
+    tooltips.forEach((t) => t.remove());
+    const canvasOverlay = document.querySelector('[class*="canvas-overlay"]');
+    if (canvasOverlay) {
+      canvasOverlay.querySelectorAll('[class*="tooltip"]').forEach((t) => t.remove());
+    }
+  };
+  removeExistingTooltips();
+
+  const editorWidth = window.innerWidth * 0.8;
+  const editorMinHeight = window.innerHeight * 0.5;
+  const editorLeft = (window.innerWidth - editorWidth) / 2;
+  const editorTop = (window.innerHeight - editorMinHeight) / 2;
+  const fontSize = 24;
+  const lineHeight = fontSize * 1.2;
+
+  const questionHeader = document.createElement('div');
+  questionHeader.style.position = 'fixed';
+  questionHeader.style.left = editorLeft + 'px';
+  questionHeader.style.top = (editorTop - 50) + 'px';
+  questionHeader.style.width = editorWidth + 'px';
+  questionHeader.style.height = '50px';
+  questionHeader.style.backgroundColor = '#fff';
+  questionHeader.style.borderRadius = '8px 8px 0 0';
+  questionHeader.style.padding = '12px 16px';
+  questionHeader.style.fontSize = '18px';
+  questionHeader.style.fontWeight = defaultStyle.fontBold ? 'bold' : 'normal';
+  questionHeader.style.fontStyle = defaultStyle.fontItalic ? 'italic' : 'normal';
+  questionHeader.style.fontFamily = defaultStyle.fontFamily;
+  questionHeader.style.color = defaultStyle.fontColor || '#1f2937';
+  questionHeader.style.display = 'flex';
+  questionHeader.style.alignItems = 'center';
+  questionHeader.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)';
+  questionHeader.style.zIndex = '10001';
+  questionHeader.textContent = questionPrefix ? questionPrefix.trim() : 'Antwort';
+  document.body.appendChild(questionHeader);
+
+  const textarea = document.createElement('textarea');
+  textarea.value = answerText;
+  textarea.style.position = 'fixed';
+  textarea.style.left = editorLeft + 'px';
+  textarea.style.top = (editorTop + 1) + 'px';
+  textarea.style.width = editorWidth + 'px';
+  textarea.style.minHeight = (editorMinHeight - 60) + 'px';
+  textarea.style.maxHeight = (window.innerHeight - editorTop - 120) + 'px';
+  applyInlineEditorStyling(textarea, defaultStyle, fontSize, lineHeight);
+  textarea.style.backgroundColor = '#fff';
+  textarea.style.background = '#fff';
+  textarea.style.borderRadius = '0';
+  textarea.style.border = 'none';
+  textarea.style.padding = '16px';
+  textarea.style.boxShadow = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+
+  const overlayContainer = document.createElement('div');
+  overlayContainer.id = 'inline-editor-canvas-overlay-container';
+  overlayContainer.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;pointer-events:auto';
+  document.body.insertBefore(overlayContainer, textarea);
+
+  const buttonFooter = document.createElement('div');
+  buttonFooter.style.cssText = 'position:fixed;background:#fff;border-radius:0 0 8px 8px;padding:12px 16px;display:flex;align-items:center;justify-content:flex-end;gap:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);z-index:10001';
+  document.body.appendChild(buttonFooter);
+
+  const updateFooterPosition = () => {
+    const rect = textarea.getBoundingClientRect();
+    buttonFooter.style.left = rect.left + 'px';
+    buttonFooter.style.top = (rect.bottom + 1) + 'px';
+    buttonFooter.style.width = rect.width + 'px';
+  };
+  updateFooterPosition();
+
+  const removeEditor = () => {
+    window.removeEventListener('resize', updateEditorSize);
+    if (textarea.parentNode) textarea.parentNode.removeChild(textarea);
+    if (buttonFooter.parentNode) buttonFooter.parentNode.removeChild(buttonFooter);
+    if (questionHeader.parentNode) questionHeader.parentNode.removeChild(questionHeader);
+    if (overlayContainer.parentNode) overlayContainer.parentNode.removeChild(overlayContainer);
+    setIsEditing(false);
+    stage.draw();
+    if (activeEditorInstance?.textarea === textarea) activeEditorInstance = null;
+  };
+
+  const updateEditorSize = () => {
+    const w = window.innerWidth * 0.8;
+    const h = window.innerHeight * 0.5;
+    const l = (window.innerWidth - w) / 2;
+    const t = (window.innerHeight - h) / 2;
+    questionHeader.style.left = l + 'px';
+    questionHeader.style.top = (t - 50) + 'px';
+    questionHeader.style.width = w + 'px';
+    textarea.style.left = l + 'px';
+    textarea.style.top = (t + 1) + 'px';
+    textarea.style.width = w + 'px';
+    textarea.style.minHeight = (h - 60) + 'px';
+    updateFooterPosition();
+  };
+  window.addEventListener('resize', updateEditorSize);
+
+  const saveChanges = () => {
+    const newText = textarea.value;
+    dispatch({
+      type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+      payload: {
+        id: element.id,
+        updates: {
+          richTextSegments: newText ? [{ text: newText, style: defaultStyle }] : []
+        }
+      }
+    });
+    dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Update QnA2 Answer' });
+    removeEditor();
+  };
+
+  const discardButton = document.createElement('button');
+  discardButton.textContent = 'Verwerfen';
+  discardButton.style.cssText = 'padding:8px 16px;border-radius:6px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));cursor:pointer;font-size:14px';
+  discardButton.addEventListener('click', () => removeEditor());
+  buttonFooter.appendChild(discardButton);
+
+  const saveButton = document.createElement('button');
+  saveButton.textContent = 'Speichern';
+  saveButton.style.cssText = 'padding:8px 16px;border-radius:6px;border:1px solid hsl(var(--primary));background:hsl(var(--primary));color:hsl(var(--primary-foreground));cursor:pointer;font-size:14px';
+  saveButton.addEventListener('click', () => saveChanges());
+  buttonFooter.appendChild(saveButton);
+
+  overlayContainer.addEventListener('click', (e) => {
+    if (e.target === overlayContainer) saveChanges();
+  });
+
+  textarea.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') removeEditor();
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveChanges();
+    }
+  });
+
+  textarea.addEventListener('blur', () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || (!textarea.contains(active) && !buttonFooter.contains(active) && !questionHeader.contains(active))) {
+        saveChanges();
+      }
+    }, 100);
+  });
+
+  new ResizeObserver(updateFooterPosition).observe(textarea);
+
+  activeEditorInstance = { cleanup: removeEditor, textarea, buttonContainer: buttonFooter };
+  return removeEditor;
 }

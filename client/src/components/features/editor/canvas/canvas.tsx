@@ -689,10 +689,10 @@ export default function Canvas() {
     if (targetElementId) {
       const element = currentPage?.elements.find(el => el.id === targetElementId);
 
-      if (element?.textType === 'qna') {
-        // Calculate question order: use provided position, or count existing qna elements
+      if (element?.textType === 'qna' || element?.textType === 'qna2') {
+        // Calculate question order: use provided position, or count existing qna elements (qna only)
         let order = questionPosition;
-        if (order === undefined && currentPage) {
+        if (element.textType === 'qna' && order === undefined && currentPage) {
           const qnaElements = currentPage.elements.filter(
             el => el.textType === 'qna' && el.questionOrder !== undefined
           );
@@ -701,18 +701,18 @@ export default function Canvas() {
             : 0;
         }
 
-        // Update element with questionId and load question text
+        const updates: Record<string, unknown> = {
+          questionId: questionId || undefined,
+          text: questionText || '',
+          formattedText: questionText || ''
+        };
+        if (element.textType === 'qna' && order !== undefined) {
+          updates.questionOrder = order;
+        }
+
         dispatch({
           type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-          payload: {
-            id: targetElementId,
-            updates: {
-              questionId: questionId || undefined,
-              text: questionText || '',
-              formattedText: questionText || '',
-              questionOrder: order
-            }
-          }
+          payload: { id: targetElementId, updates }
         });
 
         // Store question text in temp questions only if it doesn't exist yet
@@ -4172,7 +4172,7 @@ export default function Canvas() {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && element.textType === 'qna') {
+      if (element && (element.textType === 'qna' || element.textType === 'qna2')) {
         setQuestionSelectorElementId(element.id);
         setShowQuestionSelectorModal(true);
       }

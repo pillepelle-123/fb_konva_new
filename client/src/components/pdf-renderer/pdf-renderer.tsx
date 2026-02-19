@@ -2212,9 +2212,9 @@ export function PDFRenderer({
         // If needed in the future, it can be restored from git history
         // The active QnA rendering path is above (starting around line 933)
         
-        // Render qna2 (rich text) elements
+        // Render qna2 (rich text) elements - question + answer as inline flow
         if (element.textType === 'qna2') {
-          const richTextSegments = element.richTextSegments ?? [];
+          const answerSegments = element.richTextSegments ?? [];
           const fallbackText = element.formattedText || element.text || '';
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -2231,9 +2231,24 @@ export function PDFRenderer({
             paragraphSpacing: qna2Defaults.textSettings?.paragraphSpacing || 'medium',
             align: qna2Defaults.textSettings?.align || 'left'
           };
-          const segments = richTextSegments.length > 0
-            ? richTextSegments
-            : (fallbackText ? [{ text: fallbackText, style: defaultStyle }] : []);
+          let questionText = '';
+          if (element.questionId && state.tempQuestions?.[element.questionId]) {
+            try {
+              const parsed = JSON.parse(state.tempQuestions[element.questionId]);
+              questionText = parsed?.text || state.tempQuestions[element.questionId];
+            } catch {
+              questionText = state.tempQuestions[element.questionId];
+            }
+          }
+          const questionSegment = questionText
+            ? [{ text: questionText.endsWith(' ') ? questionText : questionText + ' ', style: defaultStyle }]
+            : [];
+          const segments =
+            questionSegment.length > 0 || answerSegments.length > 0
+              ? [...questionSegment, ...answerSegments]
+              : fallbackText
+                ? [{ text: fallbackText, style: defaultStyle }]
+                : [];
           const padding = element.textSettings?.padding ?? element.padding ?? qna2Defaults.padding ?? 8;
           const ctx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
           const layout = createRichTextLayoutFromSegments({

@@ -59,7 +59,7 @@ function applyFormat(command: string, value?: string) {
   document.execCommand(command, false, value ?? '');
 }
 
-function applyFontSize(editableDiv: HTMLDivElement, size: number) {
+function applyFontSize(_editableDiv: HTMLDivElement, size: number) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
   const range = sel.getRangeAt(0);
@@ -86,7 +86,7 @@ const FONT_FAMILIES = [
   'Comic Sans MS, cursive'
 ];
 
-function applyFontFamily(editableDiv: HTMLDivElement, fontFamily: string) {
+function applyFontFamily(_editableDiv: HTMLDivElement, fontFamily: string) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
   const range = sel.getRangeAt(0);
@@ -108,6 +108,8 @@ export interface RichTextInlineEditorParams {
   boxWidth: number;
   boxHeight: number;
   padding: number;
+  /** Optional question text shown as non-editable prefix (QnA2 mode). Only answer is saved. */
+  questionPrefix?: string;
 }
 
 /**
@@ -121,7 +123,8 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
     defaultStyle,
     textRef,
     setIsEditing,
-    dispatch
+    dispatch,
+    questionPrefix
   } = params;
 
   const groupNode = textRef.current?.getParent();
@@ -178,7 +181,7 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
   headerBar.style.alignItems = 'center';
   headerBar.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)';
   headerBar.style.zIndex = '10001';
-  headerBar.textContent = 'Rich Text';
+  headerBar.textContent = questionPrefix ? questionPrefix.trim() : 'Rich Text';
   document.body.appendChild(headerBar);
 
   // Formatting toolbar
@@ -358,31 +361,34 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
 
   // Contenteditable area
   const contentTop = editorTop + 44;
+  const contentWrapper = document.createElement('div');
+  contentWrapper.style.position = 'fixed';
+  contentWrapper.style.left = editorLeft + 'px';
+  contentWrapper.style.top = contentTop + 'px';
+  contentWrapper.style.width = editorWidth + 'px';
+  contentWrapper.style.minHeight = (editorMinHeight - 44 - 60) + 'px';
+  contentWrapper.style.maxHeight = (window.innerHeight - contentTop - 70) + 'px';
+  contentWrapper.style.overflow = 'auto';
+  contentWrapper.style.padding = '16px';
+  contentWrapper.style.boxSizing = 'border-box';
+  contentWrapper.style.backgroundColor = '#fff';
+  contentWrapper.style.zIndex = '10001';
+
   const editableDiv = document.createElement('div');
   editableDiv.contentEditable = 'true';
-  editableDiv.style.position = 'fixed';
-  editableDiv.style.left = editorLeft + 'px';
-  editableDiv.style.top = contentTop + 'px';
-  editableDiv.style.width = editorWidth + 'px';
-  editableDiv.style.minHeight = (editorMinHeight - 44 - 60) + 'px';
-  editableDiv.style.maxHeight = (window.innerHeight - contentTop - 70) + 'px';
-  editableDiv.style.overflow = 'auto';
   editableDiv.style.border = 'none';
   editableDiv.style.outline = 'none';
-  editableDiv.style.padding = '16px';
   editableDiv.style.whiteSpace = 'pre-wrap';
   editableDiv.style.wordWrap = 'break-word';
-  editableDiv.style.boxSizing = 'border-box';
-  editableDiv.style.backgroundColor = '#fff';
   editableDiv.style.fontSize = `${defaultStyle.fontSize}px`;
   editableDiv.style.fontFamily = defaultStyle.fontFamily;
   editableDiv.style.color = defaultStyle.fontColor || '#000000';
   editableDiv.style.fontWeight = defaultStyle.fontBold ? 'bold' : 'normal';
   editableDiv.style.fontStyle = defaultStyle.fontItalic ? 'italic' : 'normal';
-  editableDiv.style.zIndex = '10001';
 
   editableDiv.innerHTML = segmentsToHtml(richTextSegments);
-  document.body.appendChild(editableDiv);
+  contentWrapper.appendChild(editableDiv);
+  document.body.appendChild(contentWrapper);
   editableDiv.focus();
 
   // Footer with Discard / Save
@@ -402,7 +408,7 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
   buttonFooter.style.zIndex = '10001';
 
   const updateFooterPosition = () => {
-    const contentHeight = Math.max(120, editableDiv.scrollHeight + 32);
+    const contentHeight = Math.max(120, contentWrapper.scrollHeight + 32);
     buttonFooter.style.top = (contentTop + contentHeight + 1) + 'px';
     buttonFooter.style.left = editorLeft + 'px';
     buttonFooter.style.width = editorWidth + 'px';
@@ -429,14 +435,14 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
   function removeEditor() {
     resizeObserver.disconnect();
     window.removeEventListener('resize', updateEditorSize);
-    if (editableDiv.parentNode) editableDiv.parentNode.removeChild(editableDiv);
+    if (contentWrapper.parentNode) contentWrapper.parentNode.removeChild(contentWrapper);
     if (headerBar.parentNode) headerBar.parentNode.removeChild(headerBar);
     if (toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
     if (buttonFooter.parentNode) buttonFooter.parentNode.removeChild(buttonFooter);
     const container = document.getElementById('rich-text-editor-overlay-container');
     if (container?.parentNode) container.parentNode.removeChild(container);
     setIsEditing(false);
-    stage.draw();
+    stage?.draw();
     if (activeRichTextEditorInstance?.editableDiv === editableDiv) {
       activeRichTextEditorInstance = null;
     }
@@ -487,7 +493,7 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
   document.body.appendChild(buttonFooter);
 
   const resizeObserver = new ResizeObserver(updateFooterPosition);
-  resizeObserver.observe(editableDiv);
+  resizeObserver.observe(contentWrapper);
   updateFooterPosition();
 
   const updateEditorSize = () => {
@@ -504,10 +510,10 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
     toolbar.style.top = newTop + 'px';
     toolbar.style.width = newWidth + 'px';
 
-    editableDiv.style.left = newLeft + 'px';
-    editableDiv.style.top = (newTop + 44) + 'px';
-    editableDiv.style.width = newWidth + 'px';
-    editableDiv.style.minHeight = (newMinHeight - 44 - 60) + 'px';
+    contentWrapper.style.left = newLeft + 'px';
+    contentWrapper.style.top = (newTop + 44) + 'px';
+    contentWrapper.style.width = newWidth + 'px';
+    contentWrapper.style.minHeight = (newMinHeight - 44 - 60) + 'px';
 
     updateFooterPosition();
   };
@@ -518,7 +524,7 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
       const active = document.activeElement;
       const inEditor =
         active === editableDiv ||
-        editableDiv.contains(active) ||
+        contentWrapper.contains(active) ||
         toolbar.contains(active) ||
         buttonFooter.contains(active) ||
         headerBar.contains(active);

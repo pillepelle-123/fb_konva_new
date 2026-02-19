@@ -34,7 +34,7 @@ const buildRestoredElement = (
   preserveKeys?: string[]
 ) => {
   if (!preserveKeys?.length || !currentElement) return originalElement;
-  const preserveSet = new Set<string>([...preserveKeys, 'text', 'formattedText']);
+  const preserveSet = new Set<string>([...preserveKeys, 'text', 'formattedText', 'richTextSegments', 'questionId']);
   const restored = structuredClone(originalElement) as CanvasElement;
   preserveSet.forEach((key) => {
     if (key in currentElement) {
@@ -66,7 +66,13 @@ export function useSettingsFormState(
   ) => {
     const allKeys = new Set([...Object.keys(currentElement), ...Object.keys(originalElement)]);
     const updates: Record<string, any> = {};
-    const preserveSet = new Set<string>([...(savedOptions?.preserveOnRestore || []), 'text', 'formattedText']);
+    const preserveSet = new Set<string>([
+      ...(savedOptions?.preserveOnRestore || []),
+      'text',
+      'formattedText',
+      'richTextSegments', // Preserve: edited via rich-text-inline-editor Save, not tool settings
+      'questionId' // Preserve: set via question-selector-modal, not tool settings
+    ]);
 
     allKeys.forEach((key) => {
       if (preserveSet.has(key)) return;

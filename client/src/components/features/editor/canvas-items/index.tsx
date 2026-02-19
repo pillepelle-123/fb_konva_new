@@ -164,7 +164,7 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
     // Check for Rich Text (qna2) textType
     if (element.textType === 'qna2') {
       const qna2El = element as any;
-      const qna2Key = `${element.id}-${qna2El.textSettings?.fontColor}-${qna2El.richTextSegments?.length ?? 0}`;
+      const qna2Key = `${element.id}-${element.questionId ?? 'no-q'}-${qna2El.textSettings?.fontColor}-${qna2El.richTextSegments?.length ?? 0}`;
       return <TextboxQna2 key={qna2Key} {...props} />;
     }
     // Check for Free Text textType

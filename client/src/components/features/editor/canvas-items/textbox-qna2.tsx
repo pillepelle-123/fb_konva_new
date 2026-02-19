@@ -8,9 +8,11 @@ import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import type { RichTextStyle, TextRun, TextSegment } from '../../../../../../shared/types/text-layout';
 import type { LinePosition, LayoutResult } from '../../../../../../shared/types/layout';
-import { buildFont } from '../../../../../../shared/utils/text-layout';
+import { buildFont, measureText as sharedMeasureText } from '../../../../../../shared/utils/text-layout';
 import { createRichTextLayoutFromSegments } from '../../../../../../shared/utils/rich-text-layout';
 import { createRichTextInlineEditor } from './rich-text-inline-editor';
+import { createInlineTextEditorForQna2 } from './inline-text-editor';
+import { FEATURE_FLAGS } from '../../../../utils/feature-flags';
 import type { Theme } from '../../../../utils/themes-client';
 
 const RULED_LINE_BASELINE_OFFSET = 12;
@@ -77,17 +79,31 @@ const RichTextShape = React.memo(RichTextShapeComponent, (prevProps, nextProps) 
 }) as typeof RichTextShapeComponent;
 RichTextShape.displayName = 'RichTextShape';
 
-function getSegmentsFromElement(element: CanvasElement, defaultStyle: RichTextStyle): TextSegment[] {
-  const segments = element.richTextSegments;
-  if (segments && segments.length > 0) return segments;
+/** Build display segments: question (from tempQuestions) + answer (richTextSegments). Answer only in richTextSegments. */
+function getDisplaySegments(
+  element: CanvasElement,
+  defaultStyle: RichTextStyle,
+  questionText: string
+): TextSegment[] {
+  const answerSegments = element.richTextSegments ?? [];
+  if (questionText) {
+    const questionSegment: TextSegment = {
+      text: questionText.endsWith(' ') ? questionText : questionText + ' ',
+      style: defaultStyle
+    };
+    return [questionSegment, ...answerSegments];
+  }
+  if (answerSegments.length > 0) return answerSegments;
   const text = element.formattedText || element.text || '';
   if (!text) return [];
   return [{ text, style: defaultStyle }];
 }
 
+type ExtendedWindow = Window & typeof globalThis & Record<string, unknown>;
+
 function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   const { element, isDragging } = props;
-  const { state, dispatch } = useEditor();
+  const { state, dispatch, getQuestionText } = useEditor();
   const elementWidth = element.width ?? 0;
   const elementHeight = element.height ?? 0;
   const textShapeRef = useRef<Konva.Shape>(null);
@@ -142,9 +158,42 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   ]);
 
   const padding = element.textSettings?.padding ?? element.padding ?? qna2Defaults.padding ?? 8;
+  const questionText = element.questionId ? getQuestionText(element.questionId) : '';
   const richTextSegments = useMemo(
-    () => getSegmentsFromElement(element, defaultStyle),
-    [element, defaultStyle]
+    () => getDisplaySegments(element, defaultStyle, questionText),
+    [element, defaultStyle, questionText]
+  );
+  const answerSegmentsOnly = useMemo(
+    () => element.richTextSegments ?? [],
+    [element.richTextSegments]
+  );
+
+  const ctx = getGlobalCanvasContext();
+  /** Compute bounding box of question runs. Uses full first line for easier clicking. */
+  const getQuestionAreaBounds = useCallback(
+    (layoutResult: LayoutResult, qText: string) => {
+      if (!qText || !layoutResult.runs.length) return null;
+      const questionCharCount = qText.length + (qText.endsWith(' ') ? 0 : 1);
+      let acc = 0;
+      const questionRuns: typeof layoutResult.runs = [];
+      for (const run of layoutResult.runs) {
+        if (acc >= questionCharCount) break;
+        questionRuns.push(run);
+        acc += run.text.length;
+      }
+      if (questionRuns.length === 0) return null;
+      const lastRun = questionRuns[questionRuns.length - 1];
+      const lastWidth = sharedMeasureText(lastRun.text, lastRun.style, ctx);
+      const questionEndX = lastRun.x + lastWidth;
+      const firstLineHeight = layoutResult.linePositions?.[0]?.lineHeight ?? (layoutResult.runs[0]?.style.fontSize ?? 16) * 1.2;
+      return {
+        x: padding,
+        y: padding,
+        width: Math.max(questionEndX - padding, 30),
+        height: firstLineHeight
+      };
+    },
+    [ctx, padding]
   );
 
   const layout = useMemo(() => {
@@ -158,6 +207,11 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
       ctx
     });
   }, [richTextSegments, elementWidth, elementHeight, padding]);
+
+  const questionAreaBounds = useMemo(
+    () => (questionText ? getQuestionAreaBounds(layout, questionText) : null),
+    [layout, questionText, getQuestionAreaBounds]
+  );
 
   const ruledLines = element.textSettings?.ruledLines ?? qna2Defaults.textSettings?.ruledLines ?? false;
   const ruledLinesWidth =
@@ -273,24 +327,113 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     };
   }, [element.id, dispatch]);
 
+  useEffect(() => {
+    const globalWindow = window as ExtendedWindow;
+    globalWindow[`openQuestionSelector_${element.id}`] = () => {
+      globalWindow.dispatchEvent(
+        new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } })
+      );
+    };
+    return () => {
+      delete globalWindow[`openQuestionSelector_${element.id}`];
+    };
+  }, [element.id]);
+
+  const answerTextPlain = useMemo(
+    () => (answerSegmentsOnly ?? []).map((s) => s.text).join(''),
+    [answerSegmentsOnly]
+  );
+
   const enableInlineTextEditing = useCallback(() => {
-    createRichTextInlineEditor({
-      element,
-      richTextSegments,
-      defaultStyle,
-      textRef,
-      setIsEditing,
-      dispatch,
-      boxWidth: elementWidth,
-      boxHeight: elementHeight,
-      padding
-    });
-  }, [element, richTextSegments, defaultStyle, elementWidth, elementHeight, padding, dispatch]);
+    if (FEATURE_FLAGS.QNA2_RICH_TEXT_EDITOR) {
+      createRichTextInlineEditor({
+        element,
+        richTextSegments: answerSegmentsOnly,
+        defaultStyle,
+        textRef,
+        setIsEditing,
+        dispatch,
+        boxWidth: elementWidth,
+        boxHeight: elementHeight,
+        padding,
+        questionPrefix: questionText || undefined
+      });
+    } else {
+      createInlineTextEditorForQna2({
+        element,
+        answerText: answerTextPlain,
+        defaultStyle,
+        textRef,
+        setIsEditing,
+        dispatch,
+        boxWidth: elementWidth,
+        boxHeight: elementHeight,
+        padding,
+        questionPrefix: questionText || undefined
+      });
+    }
+  }, [
+    element,
+    answerSegmentsOnly,
+    answerTextPlain,
+    defaultStyle,
+    elementWidth,
+    elementHeight,
+    padding,
+    dispatch,
+    questionText
+  ]);
+
+  const getClickAreaFromEvent = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const stage = e.target.getStage();
+      if (!stage) return 'answer';
+      const pointerPos = stage.getPointerPosition();
+      if (!pointerPos) return 'answer';
+      const groupNode = textRef.current?.getParent();
+      if (!groupNode) return 'answer';
+      const transform = groupNode.getAbsoluteTransform().copy().invert();
+      const localPos = transform.point(pointerPos);
+      if (questionAreaBounds && element.questionId) {
+        const { x, y, width, height } = questionAreaBounds;
+        if (
+          localPos.x >= x &&
+          localPos.x <= x + width &&
+          localPos.y >= y &&
+          localPos.y <= y + height
+        ) {
+          return 'question';
+        }
+      }
+      return 'answer';
+    },
+    [questionAreaBounds, element.questionId]
+  );
 
   const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false || state.activeTool !== 'select' || (e?.evt && e.evt.button !== 0))
       return;
-    enableInlineTextEditing();
+    if (!e) return;
+    const clickArea = getClickAreaFromEvent(e);
+    if (clickArea === 'question') {
+      const globalWindow = window as ExtendedWindow;
+      const directFn = globalWindow[`openQuestionSelector_${element.id}`];
+      if (typeof directFn === 'function') {
+        directFn();
+      } else {
+        window.dispatchEvent(
+          new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } })
+        );
+      }
+    } else {
+      if (!element.questionId) {
+        const globalWindow = window as ExtendedWindow;
+        const directFn = globalWindow[`openQuestionSelector_${element.id}`];
+        if (typeof directFn === 'function') directFn();
+        return;
+      }
+      enableInlineTextEditing();
+    }
   };
 
   const hitArea = useMemo(
@@ -299,7 +442,12 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   );
 
   const showSkeleton = isTransforming || isDragging;
-  const hasContent = richTextSegments.some((s) => s.text.trim().length > 0);
+  const hasAnswerContent = (element.richTextSegments ?? []).some((s) => s.text.trim().length > 0);
+  const hasContent = questionText.length > 0 || hasAnswerContent;
+  const showPlaceholder = !element.questionId ? !hasContent : !hasAnswerContent;
+  const placeholderText = !element.questionId
+    ? 'Doppelklick zum Hinzufügen einer Frage...'
+    : 'Doppelklick zum Schreiben der Antwort...';
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick} hitArea={hitArea}>
@@ -403,13 +551,13 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
               height={layout.contentHeight}
             />
           )}
-          {!hasContent && !isEditing && (
+          {showPlaceholder && !isEditing && (
             <KonvaText
               x={padding}
               y={padding}
               width={elementWidth - padding * 2}
               height={elementHeight - padding * 2}
-              text="Double-click to add text..."
+              text={placeholderText}
               fontSize={Math.max(defaultStyle.fontSize * 0.8, 16)}
               fontFamily={defaultStyle.fontFamily}
               fill="#9ca3af"
@@ -457,6 +605,7 @@ const areTextboxQna2PropsEqual = (
   if (prevProps.isDragging !== nextProps.isDragging) return false;
 
   // QNA2-spezifische Text-Eigenschaften
+  if (prevEl.questionId !== nextEl.questionId) return false;
   if (prevEl.text !== nextEl.text) return false;
   if (prevEl.formattedText !== nextEl.formattedText) return false;
   
