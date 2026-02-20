@@ -36,11 +36,12 @@ export default function PageAssignmentPopover({
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [findFriendsDialogOpen, setFindFriendsDialogOpen] = useState(false);
   const currentPageData = editorState.currentBook?.pages.find((page) => page.pageNumber === currentPage);
+  const totalPages = editorState.pagePagination?.totalPages ?? editorState.currentBook?.pages.length ?? 0;
   const isCoverPage =
     currentPageData?.pageType === 'back-cover' ||
     currentPageData?.pageType === 'front-cover' ||
-    currentPage === 1 ||
-    currentPage === 2;
+    currentPage === 0 ||
+    (totalPages > 0 && currentPage === totalPages - 1);
 
   // Use bookFriends from editor state instead of fetching
   // Ensure current user is included if not already in the list

@@ -190,6 +190,54 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
+  // Special handling for Glow theme - Multi-Stroke-Layers statt shadowBlur (performanter)
+  if (theme === 'glow' && strokeProps.useGlowLayers && strokeProps.strokeWidth > 0) {
+    const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
+    const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
+    const glowStrokeWidth = strokeProps.strokeWidth * glowMultiplier;
+    return (
+      <BaseCanvasItem {...props} hitArea={hitArea}>
+        <Group listening={false}>
+          {finalFillColor && finalFillColor !== 'transparent' && (
+            <Path
+              data={pathData}
+              fill={finalFillColor}
+              stroke="transparent"
+              strokeWidth={0}
+              opacity={1}
+              listening={false}
+              perfectDrawEnabled={false}
+            />
+          )}
+          <Path
+            data={pathData}
+            stroke={finalStrokeColor}
+            strokeWidth={glowStrokeWidth}
+            fill="transparent"
+            opacity={glowOpacity * finalBorderOpacity}
+            strokeScaleEnabled={true}
+            listening={false}
+            lineCap={(strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round'}
+            lineJoin={(strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round'}
+            perfectDrawEnabled={false}
+          />
+          <Path
+            data={pathData}
+            stroke={finalStrokeColor}
+            strokeWidth={strokeProps.strokeWidth}
+            fill="transparent"
+            opacity={finalBorderOpacity}
+            strokeScaleEnabled={true}
+            listening={false}
+            lineCap={(strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round'}
+            lineJoin={(strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round'}
+            perfectDrawEnabled={false}
+          />
+        </Group>
+      </BaseCanvasItem>
+    );
+  }
+
   // Special handling for Candy and Wobbly themes - use themed border API
   if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
     // Get raw borderWidth value (not converted)

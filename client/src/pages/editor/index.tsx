@@ -81,25 +81,6 @@ function EditorContent() {
 
       if (themeId) {
         dispatch({ type: 'SET_BOOK_THEME', payload: themeId, skipHistory: true });
-        state.currentBook.pages.forEach((page, index) => {
-          const pageThemeActionId = page.themeId || '__BOOK_THEME__';
-          const effectiveThemeId = page.themeId || themeId;
-
-          dispatch({
-            type: 'SET_PAGE_THEME',
-            payload: { pageIndex: index, themeId: pageThemeActionId, skipHistory: true }
-          });
-
-          dispatch({
-            type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: {
-              pageIndex: index,
-              themeId: effectiveThemeId,
-              skipHistory: true,
-              preserveColors: true
-            }
-          });
-        });
       }
 
       if (palette) {
@@ -564,7 +545,7 @@ function EditorContent() {
     }
   }, [bookId, loadBook, dispatch]);
 
-  // Handle page parameter from URL on book load
+  // Handle page parameter from URL on book load (0-based: page=0|front, page=1..n-2, page=back)
   const pageParamRef = useRef<string | null>(null);
   useEffect(() => {
     if (!state.currentBook || !bookId) return;
@@ -575,34 +556,35 @@ function EditorContent() {
     // Only process if page parameter changed (to avoid loops)
     if (pageParam && pageParam !== pageParamRef.current) {
       pageParamRef.current = pageParam;
-      const requestedPageNumber = parseInt(pageParam, 10);
-      if (!isNaN(requestedPageNumber) && requestedPageNumber >= 1) {
-        // Get total pages count
-        const totalPages = state.pagePagination?.totalPages ?? 
-          (state.currentBook.pages.length 
-            ? Math.max(...state.currentBook.pages.map((p) => p.pageNumber ?? 0), 0)
-            : state.currentBook.pages.length);
+      const totalPages = state.pagePagination?.totalPages ?? state.currentBook.pages.length;
+      
+      let requestedPageNumber: number | null = null;
+      const lower = pageParam.toLowerCase();
+      if (lower === 'front' || pageParam === '0') {
+        requestedPageNumber = 0;
+      } else if (lower === 'back' && totalPages > 0) {
+        requestedPageNumber = totalPages - 1;
+      } else {
+        const parsed = parseInt(pageParam, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed < totalPages) {
+          requestedPageNumber = parsed;
+        }
+      }
+      
+      if (requestedPageNumber !== null) {
+        const pageIndex = state.currentBook.pages.findIndex(
+          (page) => (page.pageNumber ?? -1) === requestedPageNumber
+        );
         
-        // Validate page number
-        if (requestedPageNumber <= totalPages) {
-          // Find page index by pageNumber
-          const pageIndex = state.currentBook.pages.findIndex(
-            (page) => page.pageNumber === requestedPageNumber
-          );
-          
-          if (pageIndex !== -1) {
-            // Page found, navigate to it
-            ensurePagesLoaded(pageIndex, pageIndex + 1);
-            dispatch({ type: 'SET_ACTIVE_PAGE', payload: pageIndex });
-          } else {
-            // Page not loaded yet, try to load it
-            ensurePagesLoaded(requestedPageNumber - 1, requestedPageNumber);
-            dispatch({ type: 'SET_ACTIVE_PAGE', payload: requestedPageNumber - 1 });
-          }
+        if (pageIndex !== -1) {
+          ensurePagesLoaded(pageIndex, pageIndex + 1);
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: pageIndex });
+        } else {
+          ensurePagesLoaded(requestedPageNumber, requestedPageNumber + 1);
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: requestedPageNumber });
         }
       }
     } else if (!pageParam) {
-      // Reset ref when page param is removed
       pageParamRef.current = null;
     }
   }, [state.currentBook, bookId, location.search, dispatch, ensurePagesLoaded]);
@@ -612,7 +594,7 @@ function EditorContent() {
   useEffect(() => {
     if (!state.currentBook || !bookId) return;
     
-    const currentPageNumber = state.currentBook.pages[state.activePageIndex]?.pageNumber ?? (state.activePageIndex + 1);
+    const currentPageNumber = state.currentBook.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
     
     // Only update URL if page number actually changed
     if (lastPageNumberRef.current !== currentPageNumber) {
@@ -693,18 +675,16 @@ function EditorContent() {
     );
   }
 
-  // Filter pages based on page access level
+  // Filter pages based on page access level (assignedPages are 0-based)
   const getVisiblePages = () => {
     if (!state.currentBook) return [];
     
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
-      // Show only assigned pages
-      return state.currentBook.pages.filter((_, index) => 
-        state.assignedPages.includes(index + 1)
+      return state.currentBook.pages.filter((page) => 
+        state.assignedPages.includes(page.pageNumber ?? -1)
       );
     }
     
-    // Show all pages for 'all_pages' or when no restrictions
     return state.currentBook.pages;
   };
 
@@ -712,10 +692,10 @@ function EditorContent() {
   
   // If user has own_page access but current page is not visible, redirect to first visible page
   if (state.pageAccessLevel === 'own_page' && visiblePages.length > 0) {
-    const currentPageNumber = state.activePageIndex + 1;
+    const currentPageNumber = state.currentBook!.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
     if (!state.assignedPages.includes(currentPageNumber)) {
-      const firstVisiblePageIndex = state.currentBook!.pages.findIndex((_, index) => 
-        state.assignedPages.includes(index + 1)
+      const firstVisiblePageIndex = state.currentBook!.pages.findIndex((page) => 
+        state.assignedPages.includes(page.pageNumber ?? -1)
       );
       if (firstVisiblePageIndex !== -1 && firstVisiblePageIndex !== state.activePageIndex) {
         // Use setTimeout to avoid state update during render

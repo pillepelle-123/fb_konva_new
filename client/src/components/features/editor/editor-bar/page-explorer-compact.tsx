@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, FileText, Plus } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -7,7 +7,7 @@ import { Badge } from '../../../ui/composites/badge';
 import ProfilePicture from '../../users/profile-picture';
 // import PagePreview from '../../books/page-preview'; // Disabled but kept for future use
 import { useEditor } from '../../../../context/editor-context';
-import { computePageMetadataEntry, calculatePagePairId } from '../../../../utils/book-structure';
+import { computePageMetadataEntry, calculatePagePairId, isContentPairPage } from '../../../../utils/book-structure';
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import type { Page } from '../../../../context/editor-context';
 
@@ -60,7 +60,7 @@ export function PagesSubmenu({
   const pagesByNumber = useMemo(() => {
     const map = new Map<number, Page>();
     book?.pages.forEach((page) => {
-      if (page.pageNumber) {
+      if (page.pageNumber != null) {
         map.set(page.pageNumber, page);
       }
     });
@@ -83,7 +83,7 @@ export function PagesSubmenu({
     // Group pages by their pagePairId from database, with fallback to calculated ID
     const pairIdMap = new Map<string, number[]>();
     
-    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    for (let pageNumber = 0; pageNumber < totalPages; pageNumber++) {
       const page = pagesByNumber.get(pageNumber);
       
       // Use pagePairId from database if available, otherwise calculate it
@@ -111,18 +111,7 @@ export function PagesSubmenu({
       pairPageNumbers.sort((a, b) => a - b);
       const minPageNumber = Math.min(...pairPageNumbers);
       return { pairId, pairPageNumbers, minPageNumber };
-    }).sort((a, b) => {
-      // CRITICAL: Ensure 'pair-outro-last' ALWAYS comes last, regardless of page numbers
-      // This is the most important sorting rule
-      if (a.pairId === 'pair-outro-last' && b.pairId !== 'pair-outro-last') {
-        return 1; // a (pair-outro-last) comes after b
-      }
-      if (b.pairId === 'pair-outro-last' && a.pairId !== 'pair-outro-last') {
-        return -1; // b (pair-outro-last) comes after a
-      }
-      // For all other pairs, sort by minPageNumber
-      return a.minPageNumber - b.minPageNumber;
-    });
+    }).sort((a, b) => a.minPageNumber - b.minPageNumber);
 
     for (const { pairId, pairPageNumbers } of sortedPairs) {
       const pairPages: (Page | null)[] = pairPageNumbers.map((pn) => {
@@ -151,17 +140,16 @@ export function PagesSubmenu({
           isPlaceholder: true,
         } as Page;
       });
-      const startIndex = pairPageNumbers[0] - 1; // Convert to 0-based index
-      const isPairNonEditable = pairPages.some((p) => {
+      const startIndex = pairPageNumbers[0]; // 0-based index
+      const isPairDraggable = pairPages.every((p) => {
         if (!p) return false;
-        const metadata = computePageMetadataEntry(p.pageNumber ?? 0, totalPages, p);
-        return !(metadata?.isEditable ?? true);
+        return isContentPairPage(p.pageNumber ?? -1, totalPages);
       });
       entries.push({
         pairId,
         startIndex,
         pages: pairPages,
-        isLocked: isPairNonEditable, // Only true for pairs containing page 3 or last page
+        isLocked: !isPairDraggable, // Only content pairs (2-3, 4-5, ...) are draggable
         isSpecial: pairPages.some((p) => p?.isSpecialPage ?? false)
       });
     }
@@ -179,18 +167,10 @@ export function PagesSubmenu({
   const activePageFallback = pages[activePageIndex];
   const activePage = activePageFromBook ?? activePageFallback ?? null;
   const activePageId = activePage?.id ?? null;
-  const activePageNumber = activePage?.pageNumber ?? (activePageIndex >= 0 ? activePageIndex + 1 : null);
+  const activePageNumber = activePage?.pageNumber ?? (activePageIndex >= 0 ? activePageIndex : null);
   // Get pairId from metadata if page is not loaded yet
   const fallbackPairId = activePageNumber ? resolvePageMetadata(activePageNumber)?.pagePairId ?? null : null;
   const activePairId = activePage?.pagePairId ?? fallbackPairId;
-
-  // Only Inner Front (page 3) and Inner Back (last page) are non-editable
-  const isNonEditablePageNumber = (pageNumber: number) => {
-    const lastPageNumber =
-      state.pagePagination?.totalPages ??
-      (book?.pages.length ? Math.max(...book.pages.map((p) => p.pageNumber ?? 0)) : totalPages);
-    return pageNumber === 3 || (lastPageNumber > 0 && pageNumber === lastPageNumber);
-  };
 
   const handleDragStart = (e: React.DragEvent, index: number, isLocked: boolean) => {
     if (!canReorderPages || isLocked) {
@@ -335,23 +315,22 @@ export function PagesSubmenu({
                     );
                   }
                   const isActivePage = !page.isPlaceholder && page.id === activePageId;
-                  const isNonEditable = isNonEditablePageNumber(page.pageNumber);
-                  const assignedUser = state.pageAssignments[page.pageNumber] || null;
+                  const isFrontCover = page.pageNumber === 0;
+                  const isBackCover = totalPages > 0 && page.pageNumber === totalPages - 1;
+                  const coverButtonLabel = isFrontCover ? 'F' : isBackCover ? 'B' : null;
+                  const coverTooltip = isFrontCover ? 'Front Cover' : isBackCover ? 'Back Cover' : null;
+                  const assignedUser = state.pageAssignments[page.pageNumber ?? -1] || null;
                   const isPlaceholder = page.isPlaceholder ?? false;
                   
-                  return (
+                  const buttonContent = (
                     <button
                       key={page.id}
                       type="button"
                       className="flex flex-col items-center gap-1"
-                      disabled={isNonEditable}
-                      onClick={
-                        isNonEditable
-                          ? undefined
-                          : () => {
+                      onClick={() => {
                               if (isPlaceholder) {
                                 // Load the page if it's a placeholder
-                                const pageIndex = page.pageNumber - 1; // Convert to 0-based
+                                const pageIndex = page.pageNumber ?? 0;
                                 ensurePagesLoaded(pageIndex, pageIndex + 1);
                               } else {
                                 const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
@@ -359,7 +338,7 @@ export function PagesSubmenu({
                                   ensurePagesLoaded(indexToLoad, indexToLoad + 1);
                                 }
                               }
-                              onPageSelect(page.pageNumber);
+                              onPageSelect(page.pageNumber ?? 0);
                             }
                       }
                     >
@@ -393,13 +372,21 @@ export function PagesSubmenu({
                           variant="secondary" 
                           className={`${isCompact ? 'h-4 w-4 text-[10px] -bottom-1.5' : 'h-5 w-5 text-xs -bottom-2'} absolute left-1/2 transform -translate-x-1/2 border bg-white text-primary border-border p-1 flex items-center justify-center`}
                         >
-                          {page.pageNumber}
+                          {coverButtonLabel ?? page.pageNumber}
                         </Badge>
                       </div>
-                      {isCompact && compactLabelMode === 'default' && (
+                      {isCompact && compactLabelMode === 'default' && !coverButtonLabel && (
                         <span className="text-[10px] text-muted-foreground font-medium">Page {page.pageNumber}</span>
                       )}
                     </button>
+                  );
+
+                  return coverTooltip ? (
+                    <Tooltip key={page.id} content={coverTooltip} side="top">
+                      {buttonContent}
+                    </Tooltip>
+                  ) : (
+                    <React.Fragment key={page.id}>{buttonContent}</React.Fragment>
                   );
                 })}
               </div>
@@ -479,20 +466,21 @@ export function PagesSubmenu({
                   );
                 }
                 const isActivePage = !page.isPlaceholder && page.id === activePageId;
-                const isNonEditable = isNonEditablePageNumber(page.pageNumber);
                 const isPlaceholder = page.isPlaceholder ?? false;
-                const assignedUser = state.pageAssignments[page.pageNumber] || null;
+                const isFrontCover = page.pageNumber === 0;
+                const isBackCover = totalPages > 0 && page.pageNumber === totalPages - 1;
+                const coverButtonLabel = isFrontCover ? 'F' : isBackCover ? 'B' : null;
+                const coverTooltip = isFrontCover ? 'Front Cover' : isBackCover ? 'Back Cover' : null;
+                const assignedUser = state.pageAssignments[page.pageNumber ?? -1] || null;
                 const userColor = assignedUser ? getConsistentColor(assignedUser.name) : isActivePage ? '303a50' : 'e2e8f0';
                 const buttonElement = (
                   <Button
                     key={page.id}
-                    variant={isActivePage ? "primary" : "outline"} //"outline"
+                    variant={isActivePage ? "primary" : "outline"}
                     size="xs"
                     className="p-0 w-7 rounded-none"
-                    disabled={isNonEditable}
                     style={{ borderBottom: `5px solid #${userColor}` }}
                     onMouseEnter={() => {
-                      // Clear any pending timeout and hide immediately
                       if (hideButtonTimeoutRef.current) {
                         clearTimeout(hideButtonTimeoutRef.current);
                         hideButtonTimeoutRef.current = null;
@@ -501,29 +489,31 @@ export function PagesSubmenu({
                       setAddButtonPosition(null);
                       setPendingInsertionIndex(null);
                     }}
-                    onClick={
-                      isNonEditable
-                        ? undefined
-                        : () => {
-                            if (isPlaceholder) {
-                              // Load the page if it's a placeholder
-                              const pageIndex = page.pageNumber - 1; // Convert to 0-based
-                              ensurePagesLoaded(pageIndex, pageIndex + 1);
-                            } else {
-                              const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
-                              if (indexToLoad >= 0) {
-                                ensurePagesLoaded(indexToLoad, indexToLoad + 1);
-                              }
-                            }
-                            onPageSelect(page.pageNumber);
-                          }
-                    }
+                    onClick={() => {
+                      if (isPlaceholder) {
+                        const pageIndex = page.pageNumber ?? 0;
+                        ensurePagesLoaded(pageIndex, pageIndex + 1);
+                      } else {
+                        const indexToLoad = book.pages.findIndex((p) => p.id === page.id);
+                        if (indexToLoad >= 0) {
+                          ensurePagesLoaded(indexToLoad, indexToLoad + 1);
+                        }
+                      }
+                      onPageSelect(page.pageNumber ?? 0);
+                    }}
                   >
-                    {page.pageNumber}
+                    {coverButtonLabel ?? page.pageNumber}
                   </Button>
                 );
 
-                // Wrap with tooltip if user is assigned
+                // Wrap with tooltip for cover pages or when user is assigned
+                if (coverTooltip) {
+                  return (
+                    <Tooltip side="top" key={page.id} content={coverTooltip}>
+                      {buttonElement}
+                    </Tooltip>
+                  );
+                }
                 if (assignedUser) {
                   return (
                     <Tooltip

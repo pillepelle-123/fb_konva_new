@@ -22,6 +22,9 @@ export interface ThemeRenderer {
     opacity?: number;
     shadowColor?: string;
     shadowBlur?: number;
+    useGlowLayers?: boolean;
+    glowLayerWidthMultiplier?: number;
+    glowLayerOpacity?: number;
     shadowOpacity?: number;
     lineCap?: string;
     lineJoin?: string;

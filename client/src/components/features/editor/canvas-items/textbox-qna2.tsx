@@ -505,46 +505,23 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     ? 'Doppelklick zum Hinzufügen einer Frage...'
     : 'Doppelklick zum Schreiben der Antwort...';
 
-  // Skeleton-Zeilen: ein Rectangle pro Textzeile, Lücken dazwischen, skaliert mit der Textbox
+  // Skeleton-Zeilen: einheitlicher Abstand, ein Rectangle pro Slot, größere Lücken dazwischen
   const skeletonLinePositions = useMemo(() => {
     const answerLineHeight = getLineHeight(answerStyle);
     const bottomLimit = elementHeight - padding;
     const topLimit = padding;
-    const LINE_GAP = 8; // Lücke zwischen den Rechtecken
+    const LINE_GAP = 14; // Lücke zwischen den Rechtecken (größer für bessere Lesbarkeit)
+    const LINE_HEIGHT = answerLineHeight; // Einheitlicher Abstand für alle Rechtecke
+    const rectHeight = Math.max(4, LINE_HEIGHT - LINE_GAP);
     const positions: { rectY: number; rectHeight: number }[] = [];
-    if (layout.linePositions?.length) {
-      layout.linePositions.forEach((lp) => {
-        const slotTop = lp.y - lp.lineHeight;
-        const slotBottom = lp.y;
-        if (slotBottom >= topLimit && slotTop <= bottomLimit) {
-          const rectHeight = Math.max(4, lp.lineHeight - LINE_GAP);
-          const rectY = slotTop + (lp.lineHeight - rectHeight) / 2;
-          positions.push({ rectY, rectHeight });
-        }
-      });
-      const lastY = layout.linePositions[layout.linePositions.length - 1].y;
-      let y = lastY + answerLineHeight;
-      while (y <= bottomLimit) {
-        const slotTop = y - answerLineHeight;
-        const rectHeight = Math.max(4, answerLineHeight - LINE_GAP);
-        const rectY = slotTop + (answerLineHeight - rectHeight) / 2;
-        positions.push({ rectY, rectHeight });
-        y += answerLineHeight;
-      }
-    } else {
-      const baselineOffset = answerStyle.fontSize * 0.8;
-      const firstLineY = padding + baselineOffset + RULED_LINE_BASELINE_OFFSET;
-      let y = firstLineY;
-      while (y <= bottomLimit) {
-        const slotTop = y - answerLineHeight;
-        const rectHeight = Math.max(4, answerLineHeight - LINE_GAP);
-        const rectY = slotTop + (answerLineHeight - rectHeight) / 2;
-        positions.push({ rectY, rectHeight });
-        y += answerLineHeight;
-      }
+    let y = topLimit;
+    while (y + LINE_HEIGHT <= bottomLimit) {
+      const rectY = y + (LINE_HEIGHT - rectHeight) / 2;
+      positions.push({ rectY, rectHeight });
+      y += LINE_HEIGHT;
     }
     return positions;
-  }, [layout.linePositions, elementHeight, padding, answerStyle]);
+  }, [elementHeight, padding, answerStyle]);
 
   return (
     <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick} hitArea={hitArea}>

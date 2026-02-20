@@ -28,18 +28,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentTheme = activeTemplateIds.themeId;
-  
-  const pageHasCustomTheme = currentPage 
-    ? Object.prototype.hasOwnProperty.call(currentPage, 'themeId') && 
-      currentPage.themeId !== undefined && 
-      currentPage.themeId !== null
-    : false;
 
-  const deriveSelectedTheme = () => {
-    return pageHasCustomTheme ? (currentTheme || 'default') : '__BOOK_THEME__';
-  };
-
-  const initialThemeRef = useRef<string>(deriveSelectedTheme());
+  const initialThemeRef = useRef<string>(currentTheme || 'default');
   const [selectedTheme, setSelectedTheme] = useState<string>(initialThemeRef.current);
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageStateRef = useRef<Page | null>(null);
@@ -53,17 +43,16 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
   }, []);
 
   const themes = GLOBAL_THEMES.map(theme => ({ id: theme.id, ...getGlobalTheme(theme.id)! }));
-  const allThemes = [{ id: '__BOOK_THEME__', name: 'Book Theme', description: 'Inherit from book' }, ...themes];
-  const selectedThemeObj = allThemes.find(t => t.id === selectedTheme) || null;
-  const activeThemeObj = getGlobalTheme(selectedTheme === '__BOOK_THEME__' ? (state.currentBook?.bookTheme || 'default') : selectedTheme);
+  const selectedThemeObj = themes.find(t => t.id === selectedTheme) || null;
+  const activeThemeObj = getGlobalTheme(selectedTheme);
 
   const buildBackground = (themeId: string, pageIndex: number): PageBackground => {
     const theme = getGlobalTheme(themeId);
     if (!theme) return { type: 'color', value: '#ffffff', opacity: 1 };
 
     const page = state.currentBook?.pages[pageIndex];
-    const activePaletteId = page?.colorPaletteId || state.currentBook?.colorPaletteId || null;
-    const currentThemeId = page?.themeId || state.currentBook?.bookTheme || 'default';
+    const activePaletteId = page?.colorPaletteId ?? null;
+    const currentThemeId = page?.themeId ?? 'default';
     const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
     const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
 
@@ -109,36 +98,33 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
   };
 
   const handlePreview = (themeId: string) => {
-    const isBookThemeSelection = themeId === '__BOOK_THEME__';
-    const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : themeId;
-
     dispatch({
       type: 'SET_PAGE_THEME',
-      payload: { pageIndex: state.activePageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : themeId }
+      payload: { pageIndex: state.activePageIndex, themeId }
     });
 
     dispatch({
       type: 'APPLY_THEME_TO_ELEMENTS',
-      payload: { pageIndex: state.activePageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
+      payload: { pageIndex: state.activePageIndex, themeId, skipHistory: true, preserveColors: true }
     });
 
-    const theme = getGlobalTheme(resolvedThemeId);
+    const theme = getGlobalTheme(themeId);
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     if (theme && currentPage) {
-      const activePaletteId = currentPage.colorPaletteId || state.currentBook?.colorPaletteId || null;
-      const currentThemeId = currentPage.themeId || state.currentBook?.bookTheme || 'default';
+      const activePaletteId = currentPage.colorPaletteId ?? null;
+      const currentThemeId = currentPage.themeId ?? 'default';
       const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
       const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
 
       if (isUsingThemeDefaultPalette) {
-        const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
+        const newThemeDefaultPaletteId = getThemePaletteId(themeId);
         dispatch({
           type: 'SET_PAGE_COLOR_PALETTE',
           payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
         });
       }
 
-      const newBackground = buildBackground(resolvedThemeId, state.activePageIndex);
+      const newBackground = buildBackground(themeId, state.activePageIndex);
       dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex: state.activePageIndex, background: newBackground } });
     }
   };
@@ -162,79 +148,76 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
   const handleApply = () => {
     if (!selectedTheme) return;
 
-    const isBookThemeSelection = selectedTheme === '__BOOK_THEME__';
-    const resolvedThemeId = isBookThemeSelection ? (state.currentBook?.bookTheme || 'default') : selectedTheme;
-
     if (applyToEntireBook && state.currentBook) {
-        state.currentBook.pages.forEach((page, pageIndex) => {
-          dispatch({
-            type: 'SET_PAGE_THEME',
-            payload: { pageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme }
-          });
-
-          dispatch({
-            type: 'APPLY_THEME_TO_ELEMENTS',
-            payload: { pageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
-          });
-
-          const theme = getGlobalTheme(resolvedThemeId);
-          if (theme && page) {
-            const activePaletteId = page.colorPaletteId || state.currentBook?.colorPaletteId || null;
-            const currentThemeId = page.themeId || state.currentBook?.bookTheme || 'default';
-            const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-            const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
-
-            if (isUsingThemeDefaultPalette) {
-              const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
-              dispatch({
-                type: 'SET_PAGE_COLOR_PALETTE',
-                payload: { pageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
-              });
-            }
-
-            const newBackground = buildBackground(resolvedThemeId, pageIndex);
-            dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex, background: newBackground } });
-          }
+      state.currentBook.pages.forEach((page, pageIndex) => {
+        dispatch({
+          type: 'SET_PAGE_THEME',
+          payload: { pageIndex, themeId: selectedTheme }
         });
 
-        const historyLabel = selectedTheme === '__BOOK_THEME__' ? 'Book Theme' : getGlobalTheme(selectedTheme)?.name || selectedTheme;
-        dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}" to all pages` });
-        hasAppliedRef.current = true;
-        onBack();
-        return;
+        dispatch({
+          type: 'APPLY_THEME_TO_ELEMENTS',
+          payload: { pageIndex, themeId: selectedTheme, skipHistory: true, preserveColors: true }
+        });
+
+        const theme = getGlobalTheme(selectedTheme);
+        if (theme && page) {
+          const activePaletteId = page.colorPaletteId ?? null;
+          const currentThemeId = page.themeId ?? 'default';
+          const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
+          const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+
+          if (isUsingThemeDefaultPalette) {
+            const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
+            dispatch({
+              type: 'SET_PAGE_COLOR_PALETTE',
+              payload: { pageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
+            });
+          }
+
+          const newBackground = buildBackground(selectedTheme, pageIndex);
+          dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex, background: newBackground } });
+        }
+      });
+
+      const historyLabel = getGlobalTheme(selectedTheme)?.name || selectedTheme;
+      dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}" to all pages` });
+      hasAppliedRef.current = true;
+      onBack();
+      return;
     }
 
     dispatch({
       type: 'SET_PAGE_THEME',
-      payload: { pageIndex: state.activePageIndex, themeId: isBookThemeSelection ? '__BOOK_THEME__' : selectedTheme }
+      payload: { pageIndex: state.activePageIndex, themeId: selectedTheme }
     });
 
     dispatch({
       type: 'APPLY_THEME_TO_ELEMENTS',
-      payload: { pageIndex: state.activePageIndex, themeId: resolvedThemeId, skipHistory: true, preserveColors: true }
+      payload: { pageIndex: state.activePageIndex, themeId: selectedTheme, skipHistory: true, preserveColors: true }
     });
 
-    const theme = getGlobalTheme(resolvedThemeId);
+    const theme = getGlobalTheme(selectedTheme);
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     if (theme && currentPage) {
-      const activePaletteId = currentPage.colorPaletteId || state.currentBook?.colorPaletteId || null;
-      const currentThemeId = currentPage.themeId || state.currentBook?.bookTheme || 'default';
+      const activePaletteId = currentPage.colorPaletteId ?? null;
+      const currentThemeId = currentPage.themeId ?? 'default';
       const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
       const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
 
       if (isUsingThemeDefaultPalette) {
-        const newThemeDefaultPaletteId = getThemePaletteId(resolvedThemeId);
+        const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
         dispatch({
           type: 'SET_PAGE_COLOR_PALETTE',
           payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
         });
       }
 
-      const newBackground = buildBackground(resolvedThemeId, state.activePageIndex);
+      const newBackground = buildBackground(selectedTheme, state.activePageIndex);
       dispatch({ type: 'UPDATE_PAGE_BACKGROUND', payload: { pageIndex: state.activePageIndex, background: newBackground } });
     }
 
-    const historyLabel = selectedTheme === '__BOOK_THEME__' ? 'Book Theme' : getGlobalTheme(selectedTheme)?.name || selectedTheme;
+    const historyLabel = getGlobalTheme(selectedTheme)?.name || selectedTheme;
     dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}"` });
     hasAppliedRef.current = true;
     onBack();
@@ -244,7 +227,7 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
     <div ref={panelRef} className="h-full">
     <SelectorBase
       title={<><Paintbrush2 className="h-4 w-4" />Theme</>}
-      items={allThemes}
+      items={themes}
       selectedItem={selectedThemeObj}
       onItemSelect={(theme) => {
         setSelectedTheme(theme.id);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -8,7 +8,7 @@ import {
   pointerWithin,
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { X, CirclePlus, CircleMinus, RotateCcw, Delete, Users, Crown } from 'lucide-react';
@@ -48,10 +48,9 @@ import { getConsistentColor } from '../../../../utils/consistent-color';
 type PageType =
   | 'back-cover'
   | 'front-cover'
-  | 'inner-front-left'
-  | 'inner-front-right'
-  | 'content'
-  | 'inner-back';
+  | 'first-page'
+  | 'last-page'
+  | 'content';
 
 interface PageInfo {
   pageNumber: number;
@@ -71,7 +70,7 @@ interface TeamStepProps {
   availableFriends: Friend[];
 }
 
-const CONTENT_START_PAGE = 5;
+const CONTENT_START_PAGE = 1; // First assignable page (0-based: 0=front, 1=first content)
 
 // Helper function to ensure totalPages is always even
 function ensureEvenTotalPages(totalPages: number): number {
@@ -80,6 +79,10 @@ function ensureEvenTotalPages(totalPages: number): number {
 
 export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamStepProps) {
   const [activeDraggedFriendId, setActiveDraggedFriendId] = useState<number | null>(null);
+  const [activeDraggedPageChunk, setActiveDraggedPageChunk] = useState<{
+    startPage: number;
+    friendId: number;
+  } | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [initialEmail, setInitialEmail] = useState('');
   const [initialName, setInitialName] = useState('');
@@ -101,60 +104,24 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
 
   // Ensure totalPages is always even
   const totalPages = ensureEvenTotalPages(Math.max(assignmentState.totalPages, DEFAULT_ASSIGNMENT_PAGE_COUNT));
-  const assignablePageCount = Math.max(totalPages - CONTENT_START_PAGE, 0);
+  const assignablePageCount = Math.max(totalPages - 2, 0); // Exclude front (0) and back (totalPages-1)
   const assignableBlocksCount = Math.floor(assignablePageCount / pagesPerUser);
   const extraPages = Math.max(totalPages - DEFAULT_ASSIGNMENT_PAGE_COUNT, 0);
 
   const pageTiles = useMemo<PageTile[]>(() => {
     const tiles: PageTile[] = [];
-    // Add pages 1-3 (not assignable)
-    for (let pageNumber = 1; pageNumber <= 3; pageNumber++) {
+    // Page 0: front cover (not assignable)
+    tiles.push({
+      page: { pageNumber: 0, type: 'front-cover', canAssignUser: false },
+      assignedFriend: undefined,
+      chunkStartPage: null,
+    });
+    // Pages 1 to totalPages-2: assignable
+    for (let pageNumber = CONTENT_START_PAGE; pageNumber < totalPages - 1; pageNumber++) {
       const page: PageInfo = {
         pageNumber,
         type: getPageType(pageNumber, totalPages),
-        canAssignUser: false,
-      };
-      tiles.push({ page, assignedFriend: undefined, chunkStartPage: null });
-    }
-    // Add page 4 (assignable)
-    const page4: PageInfo = {
-      pageNumber: 4,
-      type: getPageType(4, totalPages),
-      canAssignUser: true,
-    };
-    const friendId4 = assignmentState.pageAssignments[4];
-    const assignedFriend4 = friendId4
-      ? selectedFriends.find((friend) => friend.id === friendId4)
-      : undefined;
-    let chunkStartPage4: number | null = null;
-    if (friendId4) {
-      let start = 4;
-      // Check backwards to find the start of the chunk
-      // Page 3 is not assignable, so we can't go before 4
-      // But we need to check if page 5+ is also assigned to the same friend
-      // If so, we need to find the actual start by checking backwards from those pages
-      // For now, start at 4 and check if there are consecutive pages after
-      let currentPage = 4;
-      while (currentPage < totalPages && assignmentState.pageAssignments[currentPage] === friendId4) {
-        currentPage++;
-      }
-      // Now go backwards from the last page in the chunk to find the start
-      start = currentPage - 1;
-      while (
-        start - 1 >= 4 &&
-        assignmentState.pageAssignments[start - 1] === friendId4
-      ) {
-        start--;
-      }
-      chunkStartPage4 = start;
-    }
-    tiles.push({ page: page4, assignedFriend: assignedFriend4, chunkStartPage: chunkStartPage4 });
-    // Add content pages (5 to totalPages - 1, assignable)
-    for (let pageNumber = CONTENT_START_PAGE; pageNumber < totalPages; pageNumber++) {
-      const page: PageInfo = {
-        pageNumber,
-        type: getPageType(pageNumber, totalPages),
-        canAssignUser: pageNumber < totalPages,
+        canAssignUser: true,
       };
       const friendId = assignmentState.pageAssignments[pageNumber];
       const assignedFriend = friendId
@@ -163,9 +130,8 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       let chunkStartPage: number | null = null;
       if (friendId) {
         let start = pageNumber;
-        // Check backwards to find the start of the chunk (including page 4)
         while (
-          start - 1 >= 4 &&
+          start - 1 >= CONTENT_START_PAGE &&
           assignmentState.pageAssignments[start - 1] === friendId
         ) {
           start--;
@@ -174,14 +140,13 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       }
       tiles.push({ page, assignedFriend, chunkStartPage });
     }
-    // Add last page (not assignable)
-    if (totalPages > 4) {
-      const page: PageInfo = {
-        pageNumber: totalPages,
-        type: getPageType(totalPages, totalPages),
-        canAssignUser: false,
-      };
-      tiles.push({ page, assignedFriend: undefined, chunkStartPage: null });
+    // Page totalPages-1: back cover (not assignable)
+    if (totalPages > 1) {
+      tiles.push({
+        page: { pageNumber: totalPages - 1, type: 'back-cover', canAssignUser: false },
+        assignedFriend: undefined,
+        chunkStartPage: null,
+      });
     }
     return tiles;
   }, [assignmentState.pageAssignments, selectedFriends, totalPages]);
@@ -327,16 +292,24 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       toast.error('No collaborators selected. Please add collaborators first.');
       return;
     }
-    const startPage = wizardState.team.friendFacingPages ? CONTENT_START_PAGE : 4;
+    // Bei Facing Pages: mit Seite 2 (gerade Zahl) beginnen, damit Assignments auf Doppelseiten ausgerichtet sind
+    const startPage =
+      wizardState.team.friendFacingPages && pagesPerUser % 2 === 0 ? 2 : CONTENT_START_PAGE;
     const nextState = buildAutoAssignmentState(assignmentState, selectedFriends, pagesPerUser, startPage);
     onTeamChange({ assignmentState: nextState });
     toast.success(`Assigned ${selectedFriends.length} collaborator${selectedFriends.length > 1 ? 's' : ''} to pages.`);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const friendId = event.active.data.current?.friendId as number | undefined;
-    if (friendId !== undefined) {
-      setActiveDraggedFriendId(friendId);
+    const activeType = event.active.data.current?.type;
+    if (activeType === 'collaborator') {
+      const friendId = event.active.data.current?.friendId as number | undefined;
+      if (friendId !== undefined) setActiveDraggedFriendId(friendId);
+    } else if (activeType === 'page') {
+      const chunk = event.active.data.current?.chunk as
+        | { startPage: number; friendId: number }
+        | undefined;
+      if (chunk) setActiveDraggedPageChunk(chunk);
     }
   };
 
@@ -344,11 +317,123 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
     const { active, over } = event;
     if (!over) {
       setActiveDraggedFriendId(null);
+      setActiveDraggedPageChunk(null);
       return;
     }
 
     const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
+
+    if (activeType === 'page' && overType === 'page') {
+      const sourcePageNumber = active.data.current?.pageNumber as number;
+      const targetPageNumber = over.data.current?.pageNumber as number;
+      const sourceChunk = active.data.current?.chunk as {
+        startPage: number;
+        friendId: number;
+      };
+      if (
+        sourcePageNumber !== undefined &&
+        targetPageNumber !== undefined &&
+        sourceChunk &&
+        sourcePageNumber !== targetPageNumber
+      ) {
+        const targetFriendId = assignmentState.pageAssignments[targetPageNumber];
+        if (targetFriendId === undefined) {
+          // Move: target is unassigned – die Drop-Seite ist immer die erste Seite des Assignment-Bereichs
+          const targetStart = targetPageNumber;
+          const targetEnd = targetStart + pagesPerUser - 1;
+          if (targetEnd >= totalPages - 1) {
+            setActiveDraggedFriendId(null);
+            setActiveDraggedPageChunk(null);
+            return;
+          }
+          // Erlaubt: Zielbereich überlappt mit Quellbereich (z.B. 1 Seite nach vorne)
+          // Keine Seite im Zielbereich darf einem anderen User zugewiesen sein
+          let canMove = true;
+          for (let i = 0; i < pagesPerUser; i++) {
+            const pageNum = targetStart + i;
+            const assignedTo = assignmentState.pageAssignments[pageNum];
+            if (assignedTo !== undefined && assignedTo !== sourceChunk.friendId) {
+              canMove = false;
+              break;
+            }
+          }
+          if (canMove && sourceChunk.startPage !== targetStart) {
+            const nextState = clearAssignmentChunk(
+              assignmentState,
+              sourceChunk.startPage,
+              pagesPerUser,
+            );
+            const nextState2 = assignPagesToFriend(
+              nextState,
+              targetStart,
+              sourceChunk.friendId,
+              pagesPerUser,
+            );
+            onTeamChange({ assignmentState: nextState2 });
+          }
+        } else if (targetFriendId === sourceChunk.friendId) {
+          // Shift nach hinten: Drop auf eigene Seite – diese wird neue erste Seite
+          const targetStart = targetPageNumber;
+          const targetEnd = targetStart + pagesPerUser - 1;
+          if (targetEnd >= totalPages - 1 || targetStart === sourceChunk.startPage) {
+            setActiveDraggedFriendId(null);
+            setActiveDraggedPageChunk(null);
+            return;
+          }
+          let canShift = true;
+          for (let i = 0; i < pagesPerUser; i++) {
+            const pageNum = targetStart + i;
+            const assignedTo = assignmentState.pageAssignments[pageNum];
+            if (assignedTo !== undefined && assignedTo !== sourceChunk.friendId) {
+              canShift = false;
+              break;
+            }
+          }
+          if (canShift) {
+            const nextState = clearAssignmentChunk(
+              assignmentState,
+              sourceChunk.startPage,
+              pagesPerUser,
+            );
+            const nextState2 = assignPagesToFriend(
+              nextState,
+              targetStart,
+              sourceChunk.friendId,
+              pagesPerUser,
+            );
+            onTeamChange({ assignmentState: nextState2 });
+          }
+        } else {
+          // Swap: target is in different assignment area
+          let targetStart = targetPageNumber;
+          while (
+            targetStart - 1 >= CONTENT_START_PAGE &&
+            assignmentState.pageAssignments[targetStart - 1] === targetFriendId
+          ) {
+            targetStart--;
+          }
+          const newAssignments = { ...assignmentState.pageAssignments };
+          for (let i = 0; i < pagesPerUser; i++) {
+            delete newAssignments[sourceChunk.startPage + i];
+            delete newAssignments[targetStart + i];
+          }
+          for (let i = 0; i < pagesPerUser; i++) {
+            newAssignments[targetStart + i] = sourceChunk.friendId;
+            newAssignments[sourceChunk.startPage + i] = targetFriendId;
+          }
+          onTeamChange({
+            assignmentState: {
+              ...assignmentState,
+              pageAssignments: newAssignments,
+            },
+          });
+        }
+      }
+      setActiveDraggedFriendId(null);
+      setActiveDraggedPageChunk(null);
+      return;
+    }
 
     if (activeType === 'collaborator' && overType === 'collaborator') {
       const activeId = active.data.current?.friendId;
@@ -369,6 +454,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       if (isFriendAssigned(friendId)) {
         toast.error('This collaborator is already assigned to pages. Each collaborator can only be assigned once.');
         setActiveDraggedFriendId(null);
+        setActiveDraggedPageChunk(null);
         return;
       }
 
@@ -379,7 +465,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
           wizardState.team.friendFacingPages &&
           pagesPerUser === 4 &&
           startPage % 2 === 0 &&
-          startPage !== 4 // Don't adjust page 4
+          startPage !== CONTENT_START_PAGE
         ) {
           // For even pages, assign the 4 pages surrounding it: one preceding and two succeeding
           // e.g., if dropped on page 6, assign pages 5, 6, 7, 8
@@ -389,7 +475,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
           pagesPerUser % 2 === 0 &&
           pagesPerUser !== 4 &&
           startPage % 2 === 0 &&
-          startPage !== 4 // Don't adjust page 4
+          startPage !== CONTENT_START_PAGE
         ) {
           // For other even page settings (e.g., pagesPerUser === 2), adjust to previous odd page
           startPage = Math.max(startPage - 1, CONTENT_START_PAGE);
@@ -431,6 +517,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
               // Now assign the pages
               handleAssignPages(friendId, startPage);
               setActiveDraggedFriendId(null);
+              setActiveDraggedPageChunk(null);
               return;
             }
           } else {
@@ -441,6 +528,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
               `Cannot assign ${friendName} to page ${startPage}. Not enough consecutive pages available. ${pagesPerUser} pages are required, but some of the required pages are already assigned to other collaborators.`
             );
             setActiveDraggedFriendId(null);
+            setActiveDraggedPageChunk(null);
             return;
           }
         }
@@ -450,16 +538,17 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
     }
 
     setActiveDraggedFriendId(null);
+    setActiveDraggedPageChunk(null);
   };
 
   const handleDragCancel = () => {
     setActiveDraggedFriendId(null);
+    setActiveDraggedPageChunk(null);
   };
 
   // Check if there's enough consecutive space for assignment
   const checkAssignmentSpace = (startPage: number, friendId: number, pagesPerUser: number): boolean => {
-    // Allow page 4, otherwise normalize to CONTENT_START_PAGE
-    const normalizedStart = startPage === 4 ? 4 : Math.max(startPage, CONTENT_START_PAGE);
+    const normalizedStart = Math.max(startPage, CONTENT_START_PAGE);
     for (let offset = 0; offset < pagesPerUser; offset++) {
       const pageNumber = normalizedStart + offset;
       if (pageNumber >= totalPages) {
@@ -943,6 +1032,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
               <BookTimeline
                 pageTiles={pageTiles}
                 activeFriendId={activeDraggedFriendId}
+                activeDraggedPageChunk={activeDraggedPageChunk}
                 onClear={handleClearAssignment}
                 onAddPages={handleAddPages}
                 onRemovePages={handleRemovePages}
@@ -967,6 +1057,10 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
           {activeDraggedFriend && (
             <CollaboratorDragPreview friend={activeDraggedFriend} />
           )}
+          {activeDraggedPageChunk && (() => {
+            const friend = selectedFriends.find((f) => f.id === activeDraggedPageChunk.friendId);
+            return friend ? <PageAssignmentDragPreview friend={friend} /> : null;
+          })()}
         </DragOverlay>
       </DndContext>
 
@@ -1089,13 +1183,13 @@ function CollaboratorDraggableCard({
   const isPublisher = friend.book_role === 'publisher';
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-0">
       <Tooltip content={friend.name} side="bottom">
         <div
           ref={setNodeRef}
           style={style}
           className={cn(
-            'rounded-lg border-transparent bg-card flex items-center justify-center transition-colors min-h-[80px] w-full',
+            'rounded-lg border bg-card flex items-center justify-center transition-colors min-h-[80px] w-full relative px-3 overflow-visible mt-2',
             disableDrag 
               ? ' cursor-not-allowed' 
               : 'hover:bg-muted/50 cursor-grab active:cursor-grabbing',
@@ -1104,7 +1198,32 @@ function CollaboratorDraggableCard({
           {...attributes}
           {...(disableDrag ? {} : listeners)}
         >
-          <div className="relative">
+          {!hideRemove && (
+            <Tooltip
+              content={disableDrag ? `Remove page assignment first before removing ${friend.name} from collaborator list` : `Remove ${friend.name}`}
+              side="top"
+            >
+              <button
+                type="button"
+                onClick={disableDrag ? undefined : (e) => {
+                  e.stopPropagation();
+                  onRemove(friend.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={disableDrag}
+                className={cn(
+                  "absolute -top-12 right-0 z-10 transition-colors p-1 rounded-full bg-background border border-border shadow-sm",
+                  disableDrag
+                    ? "text-muted-foreground/50 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                )}
+                aria-label={disableDrag ? `Cannot remove ${friend.name} - unassign first` : `Remove ${friend.name}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+          )}
+          <div>
             <ProfilePicture
               name={friend.name}
               size="sm"
@@ -1112,32 +1231,9 @@ function CollaboratorDraggableCard({
               editable={false}
               variant='withColoredBorder'
             />
-            {!hideRemove && (
-              <Tooltip 
-                content={disableDrag ? `Remove page assignment first before removing ${friend.name} from collaborator list` : `Remove ${friend.name}`}
-                side="right"
-              >
-                <button
-                  onClick={disableDrag ? undefined : (e) => {
-                    e.stopPropagation();
-                    onRemove(friend.id);
-                  }}
-                  disabled={disableDrag}
-                  className={cn(
-                    "absolute -top-1 -right-1 transition-colors p-0.5 rounded-full bg-background/70 border border-border",
-                    disableDrag
-                      ? "text-muted-foreground/50 cursor-not-allowed"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background"
-                  )}
-                  aria-label={disableDrag ? `Cannot remove ${friend.name} - unassign first` : `Remove ${friend.name}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Tooltip>
-            )}
           </div>
           {onToggleRole && (
-        <div className="relative top-4 right-5 w-full flex justify-end pr-1">
+        <div className="absolute bottom-2 right-1 flex shrink-0">
           <TogglePill
             variant="outline"
             label={isPublisher ? 'Set as Author' : 'Set as Publisher'}
@@ -1172,9 +1268,32 @@ function CollaboratorDragPreview({ friend }: { friend: Friend }) {
   );
 }
 
+function PageAssignmentDragPreview({ friend }: { friend: Friend }) {
+  const color = getConsistentColor(friend.name);
+  return (
+    <div
+      className="rounded-xl border-4 bg-white shadow-lg flex flex-col items-center justify-center p-3 pointer-events-none min-w-[80px]"
+      style={{
+        borderColor: `#${color}`,
+        aspectRatio: '210 / 297',
+      }}
+    >
+      <ProfilePicture
+        name={friend.name}
+        size="sm"
+        userId={friend.id > 0 ? friend.id : undefined}
+        editable={false}
+        variant="withColoredBorder"
+      />
+      <p className="text-xs font-medium truncate mt-1 max-w-full">{friend.name}</p>
+    </div>
+  );
+}
+
 interface BookTimelineProps {
   pageTiles: PageTile[];
   activeFriendId: number | null;
+  activeDraggedPageChunk: { startPage: number; friendId: number } | null;
   onClear: (startPage: number) => void;
   onAddPages: () => void;
   onRemovePages: (pageNumber: number) => void;
@@ -1196,6 +1315,7 @@ interface BookTimelineProps {
 function BookTimeline({
   pageTiles,
   activeFriendId,
+  activeDraggedPageChunk,
   onClear,
   onAddPages,
   onRemovePages,
@@ -1321,43 +1441,49 @@ function BookTimeline({
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin p-1" style={{ height: 0 }}>
         <div className="flex flex-wrap gap-4">
-          {pagePairs.map((pair, index) => (
-            <div key={`pair-${index}`} className="flex gap-1">
-              {pair.map(({ page, assignedFriend, chunkStartPage }) => (
-                <PageAssignmentTile
-                  key={page.pageNumber}
-                  page={page}
-                  assignedFriend={assignedFriend}
-                  chunkStartPage={chunkStartPage}
-                  onClear={onClear}
-                  onRemovePages={onRemovePages}
+          {pagePairs.map((pair, index) => {
+            const isFirstPair = pair[0]?.page.pageNumber === 0;
+            const isLastPair = pair[1]?.page.pageNumber === totalPages - 1;
+            const showGapBetweenTiles = isFirstPair || isLastPair;
+            return (
+              <div key={`pair-${index}`} className="flex gap-1 items-start">
+                {pair.map(({ page, assignedFriend, chunkStartPage }, tileIndex) => (
+                  <React.Fragment key={page.pageNumber}>
+                    {tileIndex === 1 && showGapBetweenTiles && (
+                      isLastPair && totalPages < maxPages ? (
+                        <Tooltip content="Add 2 pages" side="bottom">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onAddPages}
+                            className="w-10 h-full min-h-[70px] flex-shrink-0 text-muted-foreground hover:text-foreground"
+                            aria-label="Add 2 pages"
+                          >
+                            <CirclePlus className="h-6 w-6 text-muted-foreground/70" />
+                          </Button>
+                        </Tooltip>
+                      ) : (
+                        <div className="w-4 flex-shrink-0" aria-hidden />
+                      )
+                    )}
+                    <PageAssignmentTile
+                      page={page}
+                      assignedFriend={assignedFriend}
+                      chunkStartPage={chunkStartPage}
+                      onClear={onClear}
+                      onRemovePages={onRemovePages}
                       activeFriendId={activeFriendId}
+                      activeDraggedPageChunk={activeDraggedPageChunk}
                       pagesPerUser={pagesPerUser}
                       friendFacingPages={friendFacingPages}
                       totalPages={totalPages}
                       pageAssignments={pageAssignments}
-                />
-              ))}
-            </div>
-          ))}
-          {/* Add Pages Button Tile */}
-          {totalPages < maxPages && (
-            <div className="flex gap-1">
-              <div className="flex flex-col text-xs" style={{ width: '50px' }}>
-                <button
-                  onClick={onAddPages}
-                  className="rounded-xl border-4 border-dashed border-muted-foreground/10 bg-white flex flex-col items-center justify-center transition-all p-0.5 relative hover:bg-muted/50"
-                  style={{
-                    aspectRatio: '210 / 297',
-                    width: '50px',
-                  }}
-                  title="Add 2 pages"
-                >
-                  <CirclePlus className="h-6 w-6 text-muted-foreground" />
-                </button>
+                    />
+                  </React.Fragment>
+                ))}
               </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1371,6 +1497,7 @@ interface PageAssignmentTileProps {
   onClear: (startPage: number) => void;
   onRemovePages: (pageNumber: number) => void;
   activeFriendId: number | null;
+  activeDraggedPageChunk: { startPage: number; friendId: number } | null;
   pagesPerUser: 1 | 2 | 3 | 4;
   friendFacingPages: boolean;
   totalPages: number;
@@ -1384,6 +1511,7 @@ function PageAssignmentTile({
   onClear,
   onRemovePages,
   activeFriendId,
+  activeDraggedPageChunk,
   pagesPerUser,
   friendFacingPages,
   totalPages,
@@ -1397,7 +1525,7 @@ function PageAssignmentTile({
     Boolean(
       page.canAssignUser &&
         (
-          page.pageNumber === 4 || // Page 4 is always assignable
+          page.pageNumber === CONTENT_START_PAGE || // First content page is always assignable
           pagesPerUser <= 2 ||
           !friendFacingPages ||
           !isEvenPagesSetting ||
@@ -1405,7 +1533,7 @@ function PageAssignmentTile({
           (pagesPerUser === 4 && friendFacingPages) // All pages assignable when pagesPerUser is 4 and facing pages is enabled
         ),
     );
-  const isAddedPage = page.pageNumber > DEFAULT_ASSIGNMENT_PAGE_COUNT;
+  const isAddedPage = page.pageNumber >= DEFAULT_ASSIGNMENT_PAGE_COUNT;
   const isFirstPageOfPair = page.pageNumber % 2 === 1; // Odd page numbers are first in a pair
   
   // Check if there are any assignments on the page pair that would be removed
@@ -1420,7 +1548,7 @@ function PageAssignmentTile({
     if (pairEnd >= totalPages) {
       // This is the last page pair, check if the page that would become the new last page is assigned
       const newLastPage = totalPages - 2;
-      return newLastPage >= 4 && pageAssignments[newLastPage] !== undefined;
+      return newLastPage >= CONTENT_START_PAGE && pageAssignments[newLastPage] !== undefined;
     }
     // For non-last pairs, check if any assigned page after this pair would shift to become the last page
     // After removal, totalPages becomes totalPages - 2
@@ -1440,36 +1568,77 @@ function PageAssignmentTile({
     return false;
   })();
 
-  const { isOver, setNodeRef } = useDroppable({
+  const isInAssignmentArea = chunkStartPage !== null && assignedFriend !== undefined;
+  const chunk = isInAssignmentArea
+    ? { startPage: chunkStartPage!, friendId: assignedFriend!.id }
+    : undefined;
+
+  const { isOver, setNodeRef: setDroppableRef } = useDroppable({
     id: `page-${page.pageNumber}`,
-    data: { type: 'page', pageNumber: page.pageNumber },
+    data: {
+      type: 'page',
+      pageNumber: page.pageNumber,
+      ...(chunk && { chunk }),
+    },
     disabled: !isAssignable,
   });
 
-  const showDropTarget = isOver && isAssignable && activeFriendId !== null;
+  const {
+    setNodeRef: setDraggableRef,
+    attributes,
+    listeners,
+    isDragging,
+  } = useDraggable({
+    id: `page-${page.pageNumber}`,
+    data: {
+      type: 'page',
+      pageNumber: page.pageNumber,
+      ...(chunk && { chunk }),
+    },
+    disabled: !isLeadPage,
+  });
+
+  const setNodeRef = React.useCallback(
+    (node: HTMLElement | null) => {
+      setDroppableRef(node);
+      setDraggableRef(node);
+    },
+    [setDroppableRef, setDraggableRef],
+  );
+
+  const showDropTarget =
+    isOver &&
+    isAssignable &&
+    (activeFriendId !== null || activeDraggedPageChunk !== null);
 
   const title = assignedFriend
     ? `Assigned to ${assignedFriend.name}`
     : isAssignable
       ? `Drag to assign page ${page.pageNumber}`
-      : 'Not assignable';
+      : page.pageNumber === 0
+        ? 'Front Cover (not assignable)'
+        : page.pageNumber === totalPages - 1
+          ? 'Back Cover (not assignable)'
+          : 'Not assignable';
 
   return (
     <div className="flex flex-col text-xs" style={{ width: '50px' }}>
-        {/* <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Page {page.pageNumber}</p> */}
       <div
         ref={setNodeRef}
+        {...(isLeadPage ? { ...attributes, ...listeners } : {})}
         className={cn(
           'rounded-xl border-4 bg-white flex flex-col items-center justify-top transition-all p-0.5 relative',
           assignedFriend ? 'shadow-sm' : 'border-muted-foreground/20',
           !isAssignable && 'opacity-60',
           showDropTarget && 'ring-2 ring-primary',
+          isLeadPage && 'cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-70',
         )}
         style={{
           borderColor: assignedFriend ? `#${color}` : undefined,
           aspectRatio: '210 / 297',
           width: '50px',
-          ...((page.pageNumber <= 3 || page.pageNumber === totalPages) && {
+          ...((page.pageNumber === 0 || page.pageNumber === totalPages - 1) && {
             backgroundImage: `repeating-linear-gradient(
               45deg,
               transparent,
@@ -1482,7 +1651,7 @@ function PageAssignmentTile({
         title={title}
       >
           {/* Remove Pages Button for added pages (only on first page of pair) */}
-          {isAddedPage && isFirstPageOfPair && (
+          {isAddedPage && isFirstPageOfPair && page.pageNumber !== 0 && page.pageNumber !== totalPages - 1 && (
             <Tooltip
               content={
                 hasAssignmentsOnPair
@@ -1500,6 +1669,7 @@ function PageAssignmentTile({
                     onRemovePages(page.pageNumber);
                   }
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
                 disabled={hasAssignmentsOnPair || wouldCauseAssignedPageToBecomeLast}
                 className={cn(
                   "absolute -top-3 -right-9 h-5 w-5 rounded-full bg-white border border-muted-foreground/20 shadow-sm flex items-center justify-center transition-colors z-10",
@@ -1519,9 +1689,9 @@ function PageAssignmentTile({
               </button>
             </Tooltip>
           )}
-          {/* Page number in bottom left corner */}
+          {/* Page label: Front/Back for covers, else page number */}
           <span className="absolute bottom-0.5 left-0.5 text-xs font-medium text-muted-foreground">
-            {page.pageNumber}
+            {page.pageNumber === 0 ? 'Front' : page.pageNumber === totalPages - 1 ? 'Back' : page.pageNumber}
           </span>
           {assignedFriend ? (
             isLeadPage ? (
@@ -1542,6 +1712,7 @@ function PageAssignmentTile({
                           size="icon"
                           className="h-10 w-10 opacity-0 group-hover:opacity-100 transition-opacity bg-white/60 hover:bg-white/50 text-foreground rounded-full"
                           onClick={() => onClear(chunkStartPage)}
+                          onPointerDown={(e) => e.stopPropagation()}
                           aria-label="Remove assignment"
                         >
                           <X className="h-4 w-4" />
@@ -1650,17 +1821,23 @@ function buildAutoAssignmentState(
   pagesPerUser: number,
   startPage: number = CONTENT_START_PAGE,
 ): TeamAssignmentState {
-  // Ensure starting totalPages is even
-  const initialTotalPages = ensureEvenTotalPages(Math.max(baseState.totalPages, DEFAULT_ASSIGNMENT_PAGE_COUNT));
+  // Berechne benötigte Seiten: Alle Collaborators × Pages per collaborator
+  const requiredAssignablePages = friends.length * pagesPerUser;
+  // Letzte zugewiesene Seite = startPage + requiredAssignablePages - 1; muss vor Back Cover (totalPages-1) liegen
+  const minTotalPages = startPage + requiredAssignablePages + 1; // +1 weil Back Cover (totalPages-1) nicht zuweisbar
+  const requiredTotalPages = ensureEvenTotalPages(Math.max(
+    baseState.totalPages,
+    DEFAULT_ASSIGNMENT_PAGE_COUNT,
+    minTotalPages,
+  ));
   let nextState: TeamAssignmentState = {
-    totalPages: initialTotalPages,
+    totalPages: requiredTotalPages,
     pageAssignments: {},
   };
   friends.forEach((friend, index) => {
     const friendStartPage = startPage + index * pagesPerUser;
     nextState = assignPagesToFriend(nextState, friendStartPage, friend.id, pagesPerUser);
   });
-  // Ensure final totalPages is even
   nextState.totalPages = ensureEvenTotalPages(nextState.totalPages);
   return nextState;
 }
@@ -1681,7 +1858,7 @@ function adjustAssignmentsForPageCountChange(
   const assignments = state.pageAssignments;
   const sortedPages = Object.keys(assignments)
     .map(Number)
-    .filter(page => page >= 4) // Only consider assignable pages (page 4 and content pages)
+    .filter(page => page >= CONTENT_START_PAGE && page < currentTotalPages - 1) // Only assignable pages (1 to n-2)
     .sort((a, b) => a - b);
 
   if (sortedPages.length === 0) {
@@ -1741,7 +1918,7 @@ function adjustAssignmentsForPageCountChange(
       // Assign new pages for this chunk
       for (let offset = 0; offset < newPagesPerUser; offset++) {
         const pageNumber = currentPage + offset;
-        if (pageNumber >= 4) {
+        if (pageNumber >= CONTENT_START_PAGE) {
           newAssignments[pageNumber] = chunk.friendId;
           // Ensure totalPages is sufficient and always even
           if (pageNumber >= totalPages) {
@@ -1779,7 +1956,7 @@ function adjustAssignmentsForPageCountChange(
       // Assign new pages for this chunk
       for (let offset = 0; offset < newPagesPerUser; offset++) {
         const pageNumber = currentPage + offset;
-        if (pageNumber >= 4) {
+        if (pageNumber >= CONTENT_START_PAGE) {
           newAssignments[pageNumber] = chunk.friendId;
         }
       }
@@ -1817,7 +1994,7 @@ function adjustAssignmentsForFacingPages(
   const assignments = state.pageAssignments;
   const sortedPages = Object.keys(assignments)
     .map(Number)
-    .filter(page => page >= 4) // Only consider assignable pages (page 4 and content pages)
+    .filter(page => page >= CONTENT_START_PAGE && page < currentTotalPages - 1) // Only assignable pages (1 to n-2)
     .sort((a, b) => a - b);
 
   if (sortedPages.length === 0) {
@@ -1891,14 +2068,14 @@ function adjustAssignmentsForFacingPages(
       // There's a gap, find the next valid pair-aligned start
       currentPage = getNextPairAlignedStart(chunk.startPage, pagesPerUser);
       // Ensure it's at least 4 (page 4 is assignable, but for facing pages we might want to start at 5)
-      if (currentPage < 4) {
+      if (currentPage < CONTENT_START_PAGE) {
         currentPage = 4;
       }
       // For facing pages, if starting at 4, we might want to move to 5 to have a proper pair
       // But page 4 is special - let's check if the chunk originally started at 4
-      if (currentPage === 4 && chunk.startPage === 4) {
+      if (currentPage === CONTENT_START_PAGE && chunk.startPage === CONTENT_START_PAGE) {
         // If it's page 4 and we need facing pages, move to 5 (start of pair 5,6)
-        currentPage = 5;
+        currentPage = CONTENT_START_PAGE + 1;
       }
     } else if (i > 0) {
       // No gap - place after previous chunk, but align to page pair
@@ -1910,14 +2087,14 @@ function adjustAssignmentsForFacingPages(
       // First chunk - align to page pair
       currentPage = getNextPairAlignedStart(chunk.startPage, pagesPerUser);
       // Special handling for page 4
-      if (currentPage === 4 && chunk.startPage === 4) {
+      if (currentPage === CONTENT_START_PAGE && chunk.startPage === CONTENT_START_PAGE) {
         // If it's page 4 and we need facing pages, move to 5 (start of pair 5,6)
-        currentPage = 5;
+        currentPage = CONTENT_START_PAGE + 1;
       }
     }
     
     // Ensure currentPage is at least 4 (page 4 is assignable)
-    if (currentPage < 4) {
+    if (currentPage < CONTENT_START_PAGE) {
       currentPage = 4;
     }
     
@@ -1930,7 +2107,7 @@ function adjustAssignmentsForFacingPages(
     // Assign new pages for this chunk
     for (let offset = 0; offset < pagesPerUser; offset++) {
       const pageNumber = currentPage + offset;
-      if (pageNumber >= 4) {
+      if (pageNumber >= CONTENT_START_PAGE) {
         newAssignments[pageNumber] = chunk.friendId;
         // Ensure totalPages is sufficient
         if (pageNumber >= totalPages) {
@@ -1951,11 +2128,10 @@ function adjustAssignmentsForFacingPages(
 }
 
 function getPageType(pageNumber: number, totalPages: number): PageType {
-  if (pageNumber === 1) return 'back-cover';
-  if (pageNumber === 2) return 'front-cover';
-  if (pageNumber === 3) return 'inner-front-left';
-  if (pageNumber === 4) return 'inner-front-right';
-  if (pageNumber === totalPages) return 'inner-back';
+  if (pageNumber === 0) return 'front-cover';
+  if (totalPages > 0 && pageNumber === totalPages - 1) return 'back-cover';
+  if (pageNumber === 1) return 'first-page';
+  if (totalPages > 2 && pageNumber === totalPages - 2) return 'last-page';
   return 'content';
 }
 

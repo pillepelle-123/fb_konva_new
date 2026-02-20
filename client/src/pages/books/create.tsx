@@ -262,36 +262,31 @@ export default function BookCreatePage() {
 
       const newBook = await response.json();
 
-      // Build full set of pages: 24 pages total
-      // 1: Back Cover, 2: Front Cover, 3: Inner Front, 4-23: Content, 24: Inner Back
+      // Build full set of pages (0-based): 0=front, 1=first content, 2-3, 4-5... pairs, n-1=last content, n=back
       const totalPages = initialPageCount;
       const background = buildBackground('default');
       const pages: Array<Record<string, unknown>> = [];
       
-      for (let i = 1; i <= totalPages; i++) {
-        const isBackCover = i === 1;
-        const isFrontCover = i === 2;
-        const isInnerFront = i === 3;
-        const isInnerBack = i === totalPages;
+      for (let i = 0; i < totalPages; i++) {
+        const isFrontCover = i === 0;
+        const isBackCover = i === totalPages - 1;
+        const isFirstPage = i === 1;
+        const isLastPage = i === totalPages - 2;
 
-        const pageType = isBackCover
-          ? 'back-cover'
-          : isFrontCover
-            ? 'front-cover'
-            : isInnerFront
-              ? 'inner-front'
-              : isInnerBack
-                ? 'inner-back'
+        const pageType = isFrontCover
+          ? 'front-cover'
+          : isBackCover
+            ? 'back-cover'
+            : isFirstPage
+              ? 'first-page'
+              : isLastPage
+                ? 'last-page'
                 : 'content';
 
-        const isInnerPage = isInnerFront || isInnerBack;
-        const isPrintedPage = !isInnerPage;
+        const isCoverPage = isFrontCover || isBackCover;
+        const isPrintedPage = !isCoverPage;
 
-        // Blank Canvas: NO layout template for ANY page (all pages are blank)
-        // Back Cover and Front Cover: can have theme/background
-        // Inner Front and Inner Back: NO theme, NO background (plain white)
-        // Content pages: can have theme/background, but NO layout template
-        const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
+        const shouldHaveThemeAndBackground = !isCoverPage;
 
         pages.push({
           pageNumber: i,
@@ -303,8 +298,8 @@ export default function BookCreatePage() {
           pageType,
           pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
-          isLocked: isInnerPage,
-          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
+          isLocked: false,
+          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'first-page' || pageType === 'last-page',
           layoutVariation: 'normal',
           // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
           background: shouldHaveThemeAndBackground ? background : null,

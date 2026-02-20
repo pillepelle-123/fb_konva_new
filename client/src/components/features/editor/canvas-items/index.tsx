@@ -149,10 +149,9 @@ function CanvasItemComponent(props: CanvasItemComponentProps) {
 
   if (element.type === 'text') {
     // Page number elements - simple non-interactive text
+    // Pass pageNumberingPreview for all pages so styling (font, color, etc.) applies on both active and partner page
     if (element.isPageNumber) {
-      const isActivePage = pageIndex !== undefined && activePageIndex !== undefined && pageIndex === activePageIndex;
-      const preview = isActivePage ? pageNumberingPreview : null;
-      return <PageNumberItem key={element.id} element={element} pageNumberingPreview={preview ?? undefined} />;
+      return <PageNumberItem key={element.id} element={element} pageNumberingPreview={pageNumberingPreview ?? undefined} />;
     }
     // Check for QnA textType
     if (element.textType === 'qna') {

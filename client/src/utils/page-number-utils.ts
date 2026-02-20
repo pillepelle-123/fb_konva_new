@@ -26,8 +26,8 @@ export const DEFAULT_PAGE_NUMBERING_SETTINGS: PageNumberingSettings = {
 
 /**
  * Creates a page number element for a content page.
- * Page numbers: 1 starts on page 4 (first content page), no numbers on pages 1, 2, 3, and last page.
- * Position: Page 4 = right bottom, then alternating left/right.
+ * Page numbers: 1 starts on page 1 (first content page), no numbers on page 0 (front) and last page (back).
+ * Position: Page 1 = right bottom, then alternating left/right.
  */
 export function createPageNumberElement(
   pageNumber: number, // 1-based display number (1, 2, 3, ... for content pages)
@@ -39,7 +39,7 @@ export function createPageNumberElement(
   const margin = DEFAULT_PAGE_NUMBER_MARGIN;
   const text = String(pageNumber);
 
-  // Page 4 (pageNumber 1) = right, page 5 (pageNumber 2) = left, page 6 (pageNumber 3) = right, ...
+  // Page 1 (pageNumber 1) = right, page 2 (pageNumber 2) = left, page 3 (pageNumber 3) = right, ...
   const isRight = pageNumber % 2 === 1;
 
   // Approximate text dimensions for positioning (Konva will measure properly)
@@ -71,9 +71,74 @@ export function createPageNumberElement(
 }
 
 /**
+ * Renumbers page number elements across all pages after add/duplicate/delete/reorder.
+ * Content pages (1 to totalPages-2) get numbers 1, 2, 3, ...
+ * Special pages (0=front, totalPages-1=back) have no page numbers.
+ */
+export function renumberPageNumberElementsInPages<T extends { pageNumber?: number; elements?: unknown[] }>(
+  pages: T[],
+  canvasSize: { width: number; height: number }
+): T[] {
+  const totalPages = pages.length;
+  if (totalPages < 4) return pages;
+
+  const firstPageNumberEl = pages
+    .flatMap((p) => ((p.elements || []) as CanvasElement[]))
+    .find((el) => el.isPageNumber) as CanvasElement | undefined;
+  const hasPageNumbering = !!firstPageNumberEl;
+  if (!hasPageNumbering) return pages;
+
+  const settings: Partial<PageNumberingSettings> = firstPageNumberEl
+    ? {
+        fontFamily: firstPageNumberEl.fontFamily,
+        fontSize: firstPageNumberEl.fontSize,
+        fontBold: firstPageNumberEl.fontBold,
+        fontItalic: firstPageNumberEl.fontItalic,
+        fontColor: firstPageNumberEl.fontColor,
+        fontOpacity: firstPageNumberEl.fontOpacity,
+      }
+    : undefined;
+
+  let contentPageNumber = 0;
+  return pages.map((page, index) => {
+    const pageNumber = page.pageNumber ?? index;
+    const isSpecial = pageNumber === 0 || (totalPages > 0 && pageNumber === totalPages - 1);
+    const elements = (page.elements || []) as CanvasElement[];
+
+    if (isSpecial) {
+      const filtered = elements.filter((el) => !el.isPageNumber);
+      if (filtered.length === elements.length) return page;
+      return { ...page, elements: filtered };
+    }
+
+    contentPageNumber += 1;
+    const existingEl = elements.find((el) => el.isPageNumber);
+
+    if (existingEl) {
+      const updates = {
+        text: String(contentPageNumber),
+        ...(settings && {
+          fontFamily: settings.fontFamily ?? existingEl.fontFamily,
+          fontSize: settings.fontSize ?? existingEl.fontSize,
+          fontBold: settings.fontBold ?? existingEl.fontBold,
+          fontItalic: settings.fontItalic ?? existingEl.fontItalic,
+          fontColor: settings.fontColor ?? existingEl.fontColor,
+          fontOpacity: settings.fontOpacity ?? existingEl.fontOpacity,
+        }),
+      };
+      const updated = elements.map((el) => (el.isPageNumber ? { ...el, ...updates } : el));
+      return { ...page, elements: updated };
+    }
+
+    const newEl = createPageNumberElement(contentPageNumber, canvasSize.width, canvasSize.height, settings);
+    return { ...page, elements: [...elements, newEl] };
+  });
+}
+
+/**
  * Adds page number elements to pages that should have them.
- * Excludes: pages 1, 2, 3 (special) and last page.
- * Page number 1 starts on page 4.
+ * Excludes: page 0 (front) and last page (back).
+ * Page number 1 starts on page 1 (first content page).
  */
 export function addPageNumbersToPages(
   pages: Array<{ pageNumber: number; elements: unknown[]; [key: string]: unknown }>,
@@ -85,8 +150,8 @@ export function addPageNumbersToPages(
 
   let contentPageNumber = 0;
   for (let i = 0; i < pages.length; i++) {
-    const pageNumber = i + 1; // 1-based
-    const isSpecial = pageNumber === 1 || pageNumber === 2 || pageNumber === 3 || pageNumber === totalPages;
+    const pageNumber = pages[i].pageNumber ?? i;
+    const isSpecial = pageNumber === 0 || (totalPages > 0 && pageNumber === totalPages - 1);
     if (isSpecial) continue;
 
     contentPageNumber += 1;

@@ -18,14 +18,14 @@ export const AbilityProvider = ({ children }: AbilityProviderProps) => {
   const currentPage = useMemo(() => {
     const page = state.currentBook?.pages[state.activePageIndex];
     if (!page) return null;
-    const assignedUser = state.pageAssignments?.[page.pageNumber] ?? null;
+    const assignedUser = state.pageAssignments?.[page.pageNumber ?? -1] ?? null;
     let assignedUserId = typeof assignedUser?.id === 'number' ? assignedUser.id : null;
     if (!assignedUserId && state.userRole === 'author' && state.user?.id) {
-      if (state.assignedPages?.includes(page.pageNumber)) {
+      if (state.assignedPages?.includes(page.pageNumber ?? -1)) {
         assignedUserId = state.user.id;
       }
     }
-    return { assignedUserId };
+    return { assignedUserId, pageType: page.pageType };
   }, [state.currentBook, state.activePageIndex, state.pageAssignments, state.userRole, state.user?.id, state.assignedPages]);
 
   const abilityUser = useMemo(

@@ -10,9 +10,10 @@ export type AbilityUser = {
 
 export type AbilityPage = {
   assignedUserId?: number | null;
+  pageType?: string | null;
 } | null;
 
-export const defineAbilitiesFor = (user: AbilityUser | null, _currentPage?: AbilityPage): AppAbility =>
+export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: AbilityPage): AppAbility =>
   defineAbility((can, cannot) => {
     const userRole = user?.role ?? null;
     const pageAccessLevel = user?.pageAccessLevel;
@@ -93,5 +94,16 @@ export const defineAbilitiesFor = (user: AbilityUser | null, _currentPage?: Abil
       cannot('create', 'Element', { textType: 'qna' });
       cannot('edit', 'Element', { textType: 'qna' });
       cannot('delete', 'Element', { textType: 'qna' });
+    }
+
+    // Front/back cover: no qna or qna2 elements
+    const isCoverPage = currentPage?.pageType === 'front-cover' || currentPage?.pageType === 'back-cover';
+    if (isCoverPage) {
+      cannot('create', 'Element', { textType: 'qna' });
+      cannot('create', 'Element', { textType: 'qna2' });
+      cannot('edit', 'Element', { textType: 'qna' });
+      cannot('edit', 'Element', { textType: 'qna2' });
+      cannot('delete', 'Element', { textType: 'qna' });
+      cannot('delete', 'Element', { textType: 'qna2' });
     }
   });

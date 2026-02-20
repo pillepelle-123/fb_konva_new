@@ -31,12 +31,6 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
   const currentLayout = currentLayoutId 
     ? builtinPageTemplates.find((t: PageTemplate) => t.id === currentLayoutId) || null 
     : null;
-  
-  const pageHasCustomLayout = currentPage 
-    ? Object.prototype.hasOwnProperty.call(currentPage, 'layoutTemplateId') && 
-      currentPage.layoutTemplateId !== undefined && 
-      currentPage.layoutTemplateId !== null
-    : false;
 
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(currentLayout);
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);

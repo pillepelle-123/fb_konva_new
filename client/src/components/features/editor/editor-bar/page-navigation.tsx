@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { Input } from '../../../ui/primitives/input';
-import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tooltip } from '../../../ui/composites/tooltip';
-import { useEditor } from '../../../../context/editor-context';
 
 interface PageNavigationProps {
   currentPage: number;
@@ -22,11 +21,10 @@ export function PageNavigation({
   onGoToPage,
   canGoPrev,
   canGoNext,
-  onOpenPagesSubmenu
+  onOpenPagesSubmenu: _onOpenPagesSubmenu,
 }: PageNavigationProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(currentPage.toString());
-  const { state } = useEditor();
 
   const handlePageClick = () => {
     setIsEditing(true);
@@ -45,7 +43,7 @@ export function PageNavigation({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       const pageNum = parseInt(inputValue);
-      if (pageNum >= 1 && pageNum <= totalPages && !isRestrictedPage(pageNum)) {
+      if (pageNum >= 0 && pageNum < totalPages) {
         onGoToPage(pageNum);
       } else {
         handleForbiddenInput();
@@ -59,7 +57,7 @@ export function PageNavigation({
 
   const handleBlur = () => {
     const pageNum = parseInt(inputValue);
-    if (pageNum >= 1 && pageNum <= totalPages && !isRestrictedPage(pageNum)) {
+    if (pageNum >= 0 && pageNum < totalPages) {
       onGoToPage(pageNum);
     } else {
       handleForbiddenInput();
@@ -68,64 +66,29 @@ export function PageNavigation({
     setInputValue(currentPage.toString());
   };
 
-  const isRestrictedPage = (page: number) => {
-    const lastPageNumber =
-      state.pagePagination?.totalPages ??
-      (state.currentBook?.pages.length
-        ? Math.max(...state.currentBook.pages.map((p) => p.pageNumber ?? 0))
-        : totalPages);
-    return page === 3 || (lastPageNumber > 0 && page === lastPageNumber);
-  };
-
   const getNextEditablePage = (start: number, direction: 'prev' | 'next'): number => {
-    const normalizePairStart = (value: number) => {
-      if (value < 1) return 1;
-      return value % 2 === 0 ? value - 1 : value;
-    };
-
     if (direction === 'prev') {
-      for (let pairStart = normalizePairStart(start); pairStart >= 1; pairStart -= 2) {
-        const leftPage = pairStart;
-        const rightPage = pairStart + 1;
-
-        if (leftPage >= 1 && !isRestrictedPage(leftPage)) {
-          return leftPage;
-        }
-
-        if (rightPage <= totalPages && !isRestrictedPage(rightPage)) {
-          return rightPage;
-        }
+      for (let p = start - 1; p >= 0; p--) {
+        if (p < totalPages) return p;
       }
-      return 1;
+      return 0;
     } else {
-      for (let pairStart = normalizePairStart(start); pairStart <= totalPages; pairStart += 2) {
-        const leftPage = pairStart;
-        const rightPage = pairStart + 1;
-
-        if (leftPage <= totalPages && !isRestrictedPage(leftPage)) {
-          return leftPage;
-        }
-
-        if (rightPage <= totalPages && !isRestrictedPage(rightPage)) {
-          return rightPage;
-        }
+      for (let p = start + 1; p < totalPages; p++) {
+        return p;
       }
-      return totalPages;
+      return totalPages - 1;
     }
   };
 
   const handlePrevPair = () => {
     if (!canGoPrev) return;
-    const nextPage = getNextEditablePage(currentPage - 2, 'prev');
+    const nextPage = getNextEditablePage(currentPage, 'prev');
     onGoToPage(nextPage);
   };
 
   const handleNextPair = () => {
     if (!canGoNext) return;
-    let nextPage = getNextEditablePage(currentPage + 2, 'next');
-    if (isRestrictedPage(nextPage)) {
-      nextPage = getNextEditablePage(nextPage - 1, 'prev');
-    }
+    const nextPage = getNextEditablePage(currentPage, 'next');
     onGoToPage(nextPage);
   };
   return (
@@ -179,7 +142,7 @@ export function PageNavigation({
           variant="outline"
           size="xs"
           onClick={handleNextPair}
-          disabled={!canGoNext || currentPage >= totalPages - 1}
+          disabled={!canGoNext}
           className='rounded-l-none'
         >
           <ChevronRight className="h-5 w-5" />

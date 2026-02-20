@@ -232,44 +232,18 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const canAccessPageSettings = canViewPageSettings();
   const canShowBookChatButton = Boolean(isBookChatAvailable && onOpenBookChat && canAccessAnySettings);
 
-  // Get active templates for Book Settings (no page = book level)
-  const bookActiveTemplates = getActiveTemplateIds(undefined, state.currentBook);
-  const bookLayout = bookActiveTemplates.layoutTemplateId 
-    ? pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null
-    : null;
-  const bookTheme = getGlobalTheme(bookActiveTemplates.themeId);
-  // If book.colorPaletteId is null, check if theme has a default palette
-  const bookPaletteId = bookActiveTemplates.colorPaletteId || (bookActiveTemplates.themeId ? getThemePaletteId(bookActiveTemplates.themeId) : null);
-  const bookPalette = bookPaletteId
-    ? colorPalettes.find(p => p.id === bookPaletteId) || null
-    : null;
-
-  // Get active templates for Page Settings (with inheritance)
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const pageActiveTemplates = getActiveTemplateIds(currentPage, state.currentBook);
-  
-  
-  // Get page layout - always use the active layout (page layout or book layout as fallback)
-  // Get page layout - use page layout if available, otherwise fall back to book layout
-  const pageLayout = pageActiveTemplates.layoutTemplateId
-    ? (pageTemplates.find(t => t.id === pageActiveTemplates.layoutTemplateId) || null)
-    : (bookActiveTemplates.layoutTemplateId
-        ? (pageTemplates.find(t => t.id === bookActiveTemplates.layoutTemplateId) || null)
-        : null);
-  const pageTheme = getGlobalTheme(pageActiveTemplates.themeId);
-  // Get page palette - distinguish between Theme's Default Palette and explicit palette
-  const pagePaletteOverrideId = currentPage?.colorPaletteId || null;
-  let effectivePaletteId: string | null = null;
+  const activeTemplates = getActiveTemplateIds(currentPage, state.currentBook);
 
-  if (pagePaletteOverrideId === null) {
-    // Theme's Default Palette - use theme's default palette
-    effectivePaletteId = pageActiveTemplates.themeId ? (getThemePaletteId(pageActiveTemplates.themeId) ?? null) : null;
-  } else {
-    // Explicit palette - use the stored palette ID
-    effectivePaletteId = pagePaletteOverrideId;
-  }
-
-  const pagePalette = effectivePaletteId
+  const layout = activeTemplates.layoutTemplateId
+    ? (pageTemplates.find(t => t.id === activeTemplates.layoutTemplateId) || null)
+    : null;
+  const theme = getGlobalTheme(activeTemplates.themeId);
+  const paletteOverrideId = currentPage?.colorPaletteId ?? null;
+  const effectivePaletteId = paletteOverrideId !== null
+    ? paletteOverrideId
+    : (activeTemplates.themeId ? (getThemePaletteId(activeTemplates.themeId) ?? null) : null);
+  const palette = effectivePaletteId
     ? (colorPalettes.find(p => p.id === effectivePaletteId) || null)
     : null;
 
@@ -352,10 +326,10 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   >
                     <LayoutPanelLeft className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Layout</span>
-                    {pageLayout && (
+                    {layout && (
                       <div className="ml-2 h-6 w-12 bg-gray-100 rounded border relative overflow-hidden shrink-0">
                         <div className="absolute inset-1 grid grid-cols-2 gap-1">
-                          {pageLayout.textboxes.slice(0, 4).map((_, i) => (
+                          {layout.textboxes.slice(0, 4).map((_, i) => (
                             <div key={i} className="bg-blue-200 rounded-sm opacity-60" />
                           ))}
                         </div>
@@ -377,7 +351,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                     <Paintbrush2 className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Theme</span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      {pageTheme?.name}
+                      {theme?.name}
                     </span>
                   </Button>
                   <Button
@@ -394,9 +368,9 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   >
                     <Palette className="h-4 w-4 mr-2" />
                     <span className="flex-1 text-left">Color Palette</span>
-                    {pagePalette && (
+                    {palette && (
                       <div className="ml-2 flex h-4 w-16 rounded overflow-hidden shrink-0 border border-gray-200">
-                        {Object.values(pagePalette.colors).map((color, index) => (
+                        {Object.values(palette.colors).map((color, index) => (
                           <div
                             key={index}
                             className="flex-1"

@@ -20,7 +20,7 @@ export interface MenuHierarchy {
 }
 
 export const MENU_HIERARCHY: Record<SettingsMenuType, MenuHierarchy> = {
-  'general': { parent: null, title: 'Book Settings' },
+  'general': { parent: null, title: 'Settings' },
   'background': { parent: 'general', title: 'Background Settings' },
   'pattern': { parent: 'background', title: 'Pattern Settings' },
   'color-selector': { parent: null, title: 'Color' }, // Parent wird dynamisch bestimmt

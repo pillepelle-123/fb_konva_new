@@ -809,6 +809,7 @@ function getStrokeProps(element, theme, options = {}) {
   // Otherwise keep as-is (already converted or 0)
 
   // Theme-specific stroke props
+  // Glow: Multi-Stroke-Layers statt shadowBlur (performanter – kein teurer Blur-Filter)
   if (theme === 'glow') {
     const fill = element.type === 'line' || element.type === 'brush'
       ? (element.stroke || '#1f2937')
@@ -819,11 +820,12 @@ function getStrokeProps(element, theme, options = {}) {
       strokeWidth: strokeWidth * 2,
       fill: fill,
       opacity: 1,
-      shadowColor: element.stroke || '#1f2937',
-      shadowBlur: strokeWidth * 2,
-      shadowOpacity: 0.6,
       lineCap: 'round',
-      lineJoin: 'round'
+      lineJoin: 'round',
+      // Performante Glow-Alternative: überlagerte Striche statt shadowBlur
+      useGlowLayers: true,
+      glowLayerWidthMultiplier: 2.5,
+      glowLayerOpacity: 0.25
     };
   } else if (theme === 'candy') {
     // Check if candyHoled is enabled - if so, use transparent fill

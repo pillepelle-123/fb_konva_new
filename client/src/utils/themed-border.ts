@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path } from 'react-konva';
+import { Path, Group } from 'react-konva';
 import Konva from 'konva';
 import { getThemeRenderer, type Theme } from './themes-client';
 import type { CanvasElement } from '../context/editor-context';
@@ -93,26 +93,56 @@ export function renderThemedBorder(config: ThemedBorderConfig): React.ReactEleme
   
   const { pathData, strokeProps, pathOffsetX, pathOffsetY } = borderConfig;
   
-  return React.createElement(Path, {
-    key,
+  // Glow-Theme: Multi-Stroke-Layers statt shadowBlur (performanter)
+  const useGlowLayers = strokeProps.useGlowLayers === true;
+  const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
+  const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
+  
+  const basePathProps = {
     data: pathData,
-    // Für Linien Offset berücksichtigen, damit die Theme-Pfade an der korrekten Position landen
     x: pathOffsetX,
     y: pathOffsetY,
     stroke: strokeProps.stroke || color,
-    strokeWidth: strokeProps.strokeWidth || width,
     fill: strokeProps.fill || 'transparent',
+    dash: strokeProps.dash || strokeProps.strokeDasharray,
+    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
+    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
+    strokeScaleEnabled: strokeScaleEnabled,
+    listening: listening
+  };
+  
+  if (useGlowLayers) {
+    const coreStrokeWidth = strokeProps.strokeWidth || width;
+    const glowStrokeWidth = coreStrokeWidth * glowMultiplier;
+    return React.createElement(Group, { key, listening: false }, [
+      React.createElement(Path, {
+        key: 'glow',
+        ...basePathProps,
+        strokeWidth: glowStrokeWidth,
+        opacity: opacity * glowOpacity,
+        perfectDrawEnabled: false
+      }),
+      React.createElement(Path, {
+        key: 'core',
+        ...basePathProps,
+        strokeWidth: coreStrokeWidth,
+        opacity: opacity * (strokeProps.opacity || 1),
+        perfectDrawEnabled: false
+      })
+    ]);
+  }
+  
+  return React.createElement(Path, {
+    key,
+    ...basePathProps,
+    strokeWidth: strokeProps.strokeWidth || width,
     opacity: opacity * (strokeProps.opacity || 1),
     shadowColor: strokeProps.shadowColor,
     shadowBlur: strokeProps.shadowBlur,
     shadowOpacity: strokeProps.shadowOpacity,
     shadowOffsetX: strokeProps.shadowOffsetX,
     shadowOffsetY: strokeProps.shadowOffsetY,
-    dash: strokeProps.dash || strokeProps.strokeDasharray,
-    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
-    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
-    strokeScaleEnabled: strokeScaleEnabled,
-    listening: listening
+    perfectDrawEnabled: false
   });
 }
 
@@ -176,9 +206,9 @@ export function createLinePath(
  * Wird im PDF-Renderer verwendet (läuft im Browser via Puppeteer)
  * 
  * @param config - ThemedBorderConfig (ohne key, da nicht für React)
- * @returns Konva.Path | Konva.Line | null
+ * @returns Konva.Path | Konva.Line | Konva.Group | null (Group bei Glow-Theme mit Multi-Stroke)
  */
-export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>): Konva.Path | Konva.Line | null {
+export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>): Konva.Path | Konva.Line | Konva.Group | null {
   const {
     width,
     color,
@@ -208,25 +238,50 @@ export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>)
   
   const { pathData, strokeProps, pathOffsetX, pathOffsetY } = borderConfig;
   
-  // Create Konva.Path with all properties
-  const konvaPath = new Konva.Path({
+  const basePathAttrs = {
     data: pathData,
-    // Für Linien Offset berücksichtigen, damit die Theme-Pfade an der korrekten Position landen
     x: pathOffsetX,
     y: pathOffsetY,
     stroke: strokeProps.stroke || color,
-    strokeWidth: strokeProps.strokeWidth || width,
     fill: strokeProps.fill || 'transparent',
+    dash: strokeProps.dash || strokeProps.strokeDasharray,
+    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
+    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
+    strokeScaleEnabled: strokeScaleEnabled,
+    listening: listening
+  };
+  
+  // Glow-Theme: Multi-Stroke-Layers statt shadowBlur (performanter)
+  const useGlowLayers = strokeProps.useGlowLayers === true;
+  const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
+  const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
+  
+  if (useGlowLayers) {
+    const coreStrokeWidth = strokeProps.strokeWidth || width;
+    const glowStrokeWidth = coreStrokeWidth * glowMultiplier;
+    const group = new Konva.Group({ listening: false });
+    group.add(new Konva.Path({
+      ...basePathAttrs,
+      strokeWidth: glowStrokeWidth,
+      opacity: opacity * glowOpacity
+    }));
+    group.add(new Konva.Path({
+      ...basePathAttrs,
+      strokeWidth: coreStrokeWidth,
+      opacity: opacity * (strokeProps.opacity || 1)
+    }));
+    return group;
+  }
+  
+  const konvaPath = new Konva.Path({
+    ...basePathAttrs,
+    strokeWidth: strokeProps.strokeWidth || width,
     opacity: opacity * (strokeProps.opacity || 1),
     shadowColor: strokeProps.shadowColor,
     shadowBlur: strokeProps.shadowBlur,
     shadowOpacity: strokeProps.shadowOpacity,
     shadowOffsetX: strokeProps.shadowOffsetX,
     shadowOffsetY: strokeProps.shadowOffsetY,
-    dash: strokeProps.dash || strokeProps.strokeDasharray,
-    lineCap: (strokeProps.lineCap as 'butt' | 'round' | 'square' | undefined) || 'round',
-    lineJoin: (strokeProps.lineJoin as 'miter' | 'round' | 'bevel' | undefined) || 'round',
-    strokeScaleEnabled: strokeScaleEnabled,
     listening: listening
   });
 
@@ -239,12 +294,12 @@ export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>)
  * 
  * @param config - ThemedBorderConfig (ohne key)
  * @param fallbackFn - Optional fallback function if feature flag is off or error occurs
- * @returns Konva.Path | Konva.Line | null
+ * @returns Konva.Path | Konva.Line | Konva.Group | null
  */
 export function renderThemedBorderKonvaWithFallback(
   config: Omit<ThemedBorderConfig, 'key'>,
-  fallbackFn?: () => Konva.Path | Konva.Line | null
-): Konva.Path | Konva.Line | null {
+  fallbackFn?: () => Konva.Path | Konva.Line | Konva.Group | null
+): Konva.Path | Konva.Line | Konva.Group | null {
   // Check feature flag
   if (!FEATURE_FLAGS.USE_CENTRALIZED_BORDER_RENDERING) {
     // Use fallback if provided

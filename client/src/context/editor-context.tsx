@@ -129,7 +129,7 @@ import { getBorderTheme } from '../utils/theme-utils';
 import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { calculatePageDimensions } from '../utils/template-utils';
-import { createPageNumberElement, type PageNumberingSettings } from '../utils/page-number-utils';
+import { createPageNumberElement, renumberPageNumberElementsInPages, type PageNumberingSettings } from '../utils/page-number-utils';
 import { pageTemplates } from '../data/templates/page-templates';
 import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
@@ -146,7 +146,8 @@ import {
   ensureSpecialPages,
   getPairBounds,
   calculatePagePairId,
-  recalculatePagePairIds
+  recalculatePagePairIds,
+  isContentPairPage
 } from '../utils/book-structure';
 import { applyMirroredLayout, applyRandomLayout, createSeededRNG } from '../utils/layout-variations';
 import { deriveLayoutStrategyFlags, derivePageLayoutVariation } from '../utils/layout-strategy';
@@ -1192,9 +1193,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
       parseJsonField<Page['backgroundTransform']>(page.background_transform) ??
       undefined;
 
-    const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
-    const pageThemeId = page.themeId;
-    const pageInheritsTheme = !hasThemeIdOwnProperty || pageThemeId === undefined || pageThemeId === null;
+    const activeThemeId = page.themeId ?? 'default';
 
     const isInnerFrontOrBack = resolvedPageType === 'inner-front' || resolvedPageType === 'inner-back';
 
@@ -1203,32 +1202,26 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
       page.background?.type === 'image' &&
       !page.background?.backgroundImageTemplateId &&
       page.background?.value;
-    
-    // Check if background was explicitly set by user (not inherited from theme)
-    // If page has explicit themeId, it means user set it, so preserve the background
-    // Also check if background type is pattern or color (user might have changed from image to pattern)
-    const hasExplicitBackground = !pageInheritsTheme || 
-      (page.background && (
-        page.background.type === 'pattern' ||
-        (page.background.type === 'color' && page.background.value !== undefined) ||
-        isCustomImageBackground
-      ));
+
+    const hasExplicitBackground = page.background && (
+      page.background.type === 'pattern' ||
+      (page.background.type === 'color' && page.background.value !== undefined) ||
+      isCustomImageBackground
+    );
 
     if (isInnerFrontOrBack) {
       resolvedBackground = null;
-    } else if (pageInheritsTheme && bookThemeId && !hasExplicitBackground) {
-      const theme = getGlobalTheme(bookThemeId);
+    } else if (!hasExplicitBackground && activeThemeId) {
+      const theme = getGlobalTheme(activeThemeId);
       if (theme) {
         let effectivePaletteId: string | null = null;
         if (page.colorPaletteId === null) {
-          // Page uses Theme's Default Palette - use theme's palette
-          effectivePaletteId = getThemePaletteId(bookThemeId);
+          effectivePaletteId = getThemePaletteId(activeThemeId);
         } else {
-          // Page has explicit palette - use it
           effectivePaletteId = page.colorPaletteId;
         }
         const pagePalette = effectivePaletteId ? colorPalettes.find((p) => p.id === effectivePaletteId) : null;
-        const pageColors = getThemePageBackgroundColors(bookThemeId, pagePalette || bookPalette || undefined);
+        const pageColors = getThemePageBackgroundColors(activeThemeId, pagePalette || bookPalette || undefined);
         const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? page.background?.opacity ?? 1;
 
         const backgroundImageConfig = theme.pageSettings.backgroundImage;
@@ -1245,7 +1238,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           if (imageBackground) {
             resolvedBackground = {
               ...imageBackground,
-              pageTheme: bookThemeId
+              pageTheme: activeThemeId
             };
           }
         } else if (theme.pageSettings.backgroundPattern?.enabled) {
@@ -1253,7 +1246,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             type: 'pattern',
             value: theme.pageSettings.backgroundPattern.style,
             opacity: backgroundOpacity,
-            pageTheme: bookThemeId,
+            pageTheme: activeThemeId,
             patternSize: theme.pageSettings.backgroundPattern.size,
             patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
             patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
@@ -1265,38 +1258,33 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             type: 'color',
             value: pageColors.backgroundColor,
             opacity: backgroundOpacity,
-            pageTheme: bookThemeId
+            pageTheme: activeThemeId
           };
         }
       }
-    } else if (isCustomImageBackground && pageInheritsTheme) {
+    } else if (isCustomImageBackground) {
       resolvedBackground = {
         ...page.background,
-        pageTheme: bookThemeId || page.background?.pageTheme
+        pageTheme: activeThemeId || page.background?.pageTheme
       };
     }
 
     let resolvedElements = page.elements || [];
-    if (pageInheritsTheme && bookThemeId && resolvedElements.length > 0) {
-      const theme = getGlobalTheme(bookThemeId);
+    if (activeThemeId && resolvedElements.length > 0) {
+      const theme = getGlobalTheme(activeThemeId);
       if (theme) {
         let pageEffectivePaletteId: string | null = null;
         if (page.colorPaletteId === null) {
-          // Page uses Theme's Default Palette - use theme's palette
-          pageEffectivePaletteId = getThemePaletteId(bookThemeId);
+          pageEffectivePaletteId = getThemePaletteId(activeThemeId);
         } else {
-          // Page has explicit palette - use it
           pageEffectivePaletteId = page.colorPaletteId;
         }
 
-        const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
-        const bookLayoutTemplateId = book.layoutTemplateId || null;
+        const pageLayoutTemplateId = page.layoutTemplateId ?? book.layoutTemplateId ?? null;
 
         resolvedElements = resolvedElements.map((element: any) => {
           const toolType = element.textType || element.type;
-          const activeTheme = bookThemeId || 'default';
-          const effectivePaletteId = pageEffectivePaletteId;
-          const themeDefaults = getGlobalThemeDefaults(activeTheme, toolType as any, effectivePaletteId);
+          const themeDefaults = getGlobalThemeDefaults(activeThemeId, toolType as any, pageEffectivePaletteId);
 
           const preservedRotation = typeof element.rotation === 'number' ? element.rotation : 0;
           const isShape = element.type !== 'text' && element.type !== 'image' && !element.textType;
@@ -1314,7 +1302,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           
           const updatedElement = {
             ...mergedElement,
-            theme: bookThemeId,
+            theme: activeThemeId,
             rotation: preservedRotation,
             ...(preservedWidth !== undefined ? { width: preservedWidth } : {}),
             ...(preservedHeight !== undefined ? { height: preservedHeight } : {}),
@@ -1345,8 +1333,8 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
       layoutVariation: resolvedLayoutVariation,
       backgroundVariation: resolvedBackgroundVariation,
       ...(resolvedBackgroundTransform ? { backgroundTransform: resolvedBackgroundTransform } : {}),
-      ...(hasThemeIdOwnProperty && pageThemeId !== undefined && pageThemeId !== null
-        ? { themeId: pageThemeId }
+      ...(page.themeId !== undefined && page.themeId !== null
+        ? { themeId: page.themeId }
         : {})
     };
   });
@@ -2214,24 +2202,24 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
       const leftPage = createPageFromPlan(spreadPlan.left, leftPageId);
       const rightPage = createPageFromPlan(spreadPlan.right, rightPageId);
-      const insertBeforeLastPage = book.pages.findIndex((page) => page.pageType === 'last-page');
-      const insertIndex = insertBeforeLastPage >= 0 ? insertBeforeLastPage : book.pages.length;
+      const backCoverIndex = book.pages.findIndex((page) => page.pageType === 'back-cover');
+      const insertIndex = backCoverIndex >= 0 ? backCoverIndex : book.pages.length;
       const updatedPages = [...book.pages];
       updatedPages.splice(insertIndex, 0, leftPage, rightPage);
-      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index }));
       
       const updatedPageAssignments: Record<number, any> = {};
       Object.entries(savedAddPageState.pageAssignments).forEach(([pageNumStr, assignment]) => {
         const pageNum = parseInt(pageNumStr, 10);
         if (Number.isNaN(pageNum)) return;
-        if (pageNum >= insertIndex + 1) {
+        if (pageNum >= insertIndex) {
           updatedPageAssignments[pageNum + 2] = assignment;
         } else {
           updatedPageAssignments[pageNum] = assignment;
         }
       });
+      updatedPageAssignments[insertIndex] = null;
       updatedPageAssignments[insertIndex + 1] = null;
-      updatedPageAssignments[insertIndex + 2] = null;
       
       const addPageState = {
         ...savedAddPageState,
@@ -2440,28 +2428,30 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
       const updatedPages = [...book.pages];
       updatedPages.splice(insertIndex, 0, leftPage, rightPage);
-      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index }));
       // Recalculate all pagePairIds after renumbering
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      // Renumber page number elements (content pages 1..n-2 get numbers 1, 2, 3, ...)
+      const pagesWithPageNumbers = renumberPageNumberElementsInPages(pagesWithCorrectPairIds, canvasSize);
 
       const updatedPageAssignments: Record<number, any> = {};
       Object.entries(savedAddPageState.pageAssignments).forEach(([pageNumStr, assignment]) => {
         const pageNum = parseInt(pageNumStr, 10);
         if (Number.isNaN(pageNum)) return;
-        if (pageNum >= insertIndex + 1) {
+        if (pageNum >= insertIndex) {
           updatedPageAssignments[pageNum + 2] = assignment;
         } else {
           updatedPageAssignments[pageNum] = assignment;
         }
       });
+      updatedPageAssignments[insertIndex] = null;
       updatedPageAssignments[insertIndex + 1] = null;
-      updatedPageAssignments[insertIndex + 2] = null;
 
       // Update pagination state to reflect the new total pages
       const updatedPagination = savedAddPageState.pagePagination
         ? {
             ...savedAddPageState.pagePagination,
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbers.length,
             loadedPages: {
               ...savedAddPageState.pagePagination.loadedPages,
               // Mark the new pages as loaded
@@ -2470,7 +2460,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             },
           }
         : {
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbers.length,
             pageSize: PAGE_CHUNK_SIZE,
             loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
           };
@@ -2480,7 +2470,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         toolSettings: toolSettingsForNewPage,
         currentBook: {
           ...book,
-          pages: renumberedPages
+          pages: pagesWithPageNumbers
         },
         pageAssignments: updatedPageAssignments,
         pagePagination: updatedPagination,
@@ -2665,10 +2655,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedPages = [...book.pages];
       updatedPages.splice(insertIndex, 0, themedLeftPage, themedRightPage);
 
-      // Renumber pages
-      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      // Renumber pages (0-based)
+      const renumberedPages = updatedPages.map((page, index) => ({ ...page, pageNumber: index }));
       // Recalculate all pagePairIds after renumbering
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      const canvasSize = calculatePageDimensions(book.pageSize || 'A4', book.orientation || 'portrait');
+      const pagesWithPageNumbers = renumberPageNumberElementsInPages(pagesWithCorrectPairIds, canvasSize);
       const updatedPageAssignments = { ...savedAddPageState.pageAssignments };
       Object.entries(updatedPageAssignments).forEach(([pageNum, assignment]) => {
         const pageNumber = parseInt(pageNum);
@@ -2684,7 +2676,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedPagination = savedAddPageState.pagePagination
         ? {
             ...savedAddPageState.pagePagination,
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbers.length,
             loadedPages: {
               ...savedAddPageState.pagePagination.loadedPages,
               // Mark the new pages as loaded
@@ -2693,7 +2685,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             },
           }
         : {
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbers.length,
             pageSize: PAGE_CHUNK_SIZE,
             loadedPages: { [insertIndex]: true, [insertIndex + 1]: true },
           };
@@ -2703,7 +2695,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         toolSettings: toolSettingsForNewPage,
         currentBook: {
           ...book,
-          pages: pagesWithCorrectPairIds
+          pages: pagesWithPageNumbers
         },
         pageAssignments: updatedPageAssignments,
         pagePagination: updatedPagination,
@@ -2732,10 +2724,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
     case 'DELETE_PAGE': {
       if (!state.currentBook || state.userRole === 'author') return state;
-      if (state.currentBook.pages.length <= 2) return state;
+      const totalPages = state.currentBook.pages.length;
       const bounds = getPairBounds(state.currentBook.pages, action.payload);
       const pairPages = state.currentBook.pages.slice(bounds.start, bounds.end + 1);
-      if (!pairPages.length || pairPages.some((page) => page.isSpecialPage || page.isLocked || page.isPrintable === false)) {
+      const remainingAfterDelete = totalPages - pairPages.length;
+      if (remainingAfterDelete < MIN_TOTAL_PAGES) return state;
+      const isContentPair =
+        pairPages.length === 2 &&
+        pairPages.every((p) => isContentPairPage(p.pageNumber ?? -1, totalPages));
+      if (!pairPages.length || !isContentPair || pairPages.some((page) => page.isPrintable === false)) {
         return state;
       }
       const savedDeletePageState = saveToHistory(state, 'Delete Spread', {
@@ -2753,13 +2750,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const pagesAfterDelete = savedDeletePageState.currentBook!.pages.filter(
         (_, index) => index < bounds.start || index > bounds.end
       );
-      const renumberedPages = pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const renumberedPages = pagesAfterDelete.map((page, index) => ({ ...page, pageNumber: index }));
       // Recalculate all pagePairIds after renumbering
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      const canvasSizeDelete = calculatePageDimensions(
+        savedDeletePageState.currentBook!.pageSize || 'A4',
+        savedDeletePageState.currentBook!.orientation || 'portrait'
+      );
+      const pagesWithPageNumbersDelete = renumberPageNumberElementsInPages(pagesWithCorrectPairIds, canvasSizeDelete);
       const updatedPagination = savedDeletePageState.pagePagination
         ? {
             ...savedDeletePageState.pagePagination,
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbersDelete.length,
             loadedPages: Object.fromEntries(
               Object.entries(savedDeletePageState.pagePagination.loadedPages)
                 .map(([indexStr, loaded]) => {
@@ -2779,7 +2781,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             )
           }
         : {
-            totalPages: pagesWithCorrectPairIds.length,
+            totalPages: pagesWithPageNumbersDelete.length,
             pageSize: PAGE_CHUNK_SIZE,
             loadedPages: {}
           };
@@ -2787,18 +2789,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       Object.entries(savedDeletePageState.pageAssignments).forEach(([pageNumStr, user]) => {
         const pageNum = parseInt(pageNumStr, 10);
         if (Number.isNaN(pageNum)) return;
-        if (pageNum > bounds.end + 1) {
+        if (pageNum > bounds.end) {
           updatedPageAssignmentsAfterDelete[pageNum - pairPages.length] = user;
-        } else if (pageNum < bounds.start + 1) {
+        } else if (pageNum < bounds.start) {
           updatedPageAssignmentsAfterDelete[pageNum] = user;
         }
       });
-      const newActiveIndex = Math.max(0, Math.min(bounds.start - 1, renumberedPages.length - 1));
+      const newActiveIndex = Math.max(0, Math.min(bounds.start - 1, pagesWithPageNumbersDelete.length - 1));
       const deletePageState = {
         ...savedDeletePageState,
         currentBook: {
           ...savedDeletePageState.currentBook!,
-          pages: pagesWithCorrectPairIds
+          pages: pagesWithPageNumbersDelete
         },
         activePageIndex: newActiveIndex,
         selectedElementIds: [],
@@ -2809,7 +2811,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         pagePagination: updatedPagination
       };
       let finalDeleteState = deletePageState;
-      for (let i = bounds.start; i < pagesWithCorrectPairIds.length; i++) {
+      for (let i = bounds.start; i < pagesWithPageNumbersDelete.length; i++) {
         finalDeleteState = markPageIndexAsModified(finalDeleteState, i);
       }
       return saveToHistory(finalDeleteState, 'Delete Spread', {
@@ -2820,15 +2822,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'DUPLICATE_PAGE': {
       if (!state.currentBook || state.userRole === 'author') return state;
+      const totalPages = state.currentBook.pages.length;
       const bounds = getPairBounds(state.currentBook.pages, action.payload);
       const pairPages = state.currentBook.pages.slice(bounds.start, bounds.end + 1);
-      if (!pairPages.length || pairPages.some((page) => page.isSpecialPage || page.isLocked)) {
+      const isContentPair =
+        pairPages.length === 2 &&
+        pairPages.every((p) => isContentPairPage(p.pageNumber ?? -1, totalPages));
+      if (!pairPages.length || !isContentPair || pairPages.some((page) => page.isSpecialPage || page.isLocked)) {
         return state;
       }
-      const savedDuplicateState = saveToHistory(state, 'Duplicate Spread', {
-        cloneEntireBook: true,
-        command: 'DUPLICATE_PAGE'
-      });
       const insertIndex = bounds.end + 1;
       // Temporary pairId - will be recalculated by recalculatePagePairIds after insertion
       const pairId = 'temp';
@@ -2843,15 +2845,20 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         isLocked: false,
         pagePairId: pairId
       }));
-      const pagesWithDuplicate = [...savedDuplicateState.currentBook!.pages];
+      const pagesWithDuplicate = [...state.currentBook!.pages];
       pagesWithDuplicate.splice(insertIndex, 0, ...duplicatedPages);
-      const renumberedPages = pagesWithDuplicate.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const renumberedPages = pagesWithDuplicate.map((page, index) => ({ ...page, pageNumber: index }));
       // Recalculate all pagePairIds after renumbering
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
-      
-      const updatedPageAssignments = { ...savedDuplicateState.pageAssignments };
+      const canvasSizeDup = calculatePageDimensions(
+        state.currentBook!.pageSize || 'A4',
+        state.currentBook!.orientation || 'portrait'
+      );
+      const pagesWithPageNumbersDup = renumberPageNumberElementsInPages(pagesWithCorrectPairIds, canvasSizeDup);
+
+      const updatedPageAssignments = { ...state.pageAssignments };
       const shiftAmount = duplicatedPages.length;
-      const insertPosition = insertIndex + 1;
+      const insertPosition = insertIndex;
       const pageNumbers = Object.keys(updatedPageAssignments)
         .map((n) => parseInt(n, 10))
         .filter((n) => !Number.isNaN(n))
@@ -2866,21 +2873,21 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       for (let i = 0; i < shiftAmount; i++) {
         updatedPageAssignments[insertPosition + i] = null;
       }
-      const updatedPagination = savedDuplicateState.pagePagination
+      const updatedPagination = state.pagePagination
         ? {
-            ...savedDuplicateState.pagePagination,
-            totalPages: pagesWithCorrectPairIds.length,
+            ...state.pagePagination,
+            totalPages: pagesWithPageNumbersDup.length,
             loadedPages: {
-              ...savedDuplicateState.pagePagination.loadedPages
+              ...state.pagePagination.loadedPages
             }
           }
-        : savedDuplicateState.pagePagination;
-      
+        : state.pagePagination;
+
       const stateAfterDuplicate = {
-        ...savedDuplicateState,
+        ...state,
         currentBook: {
-          ...savedDuplicateState.currentBook!,
-          pages: pagesWithCorrectPairIds
+          ...state.currentBook!,
+          pages: pagesWithPageNumbersDup
         },
         pageAssignments: updatedPageAssignments,
         pagePagination: updatedPagination,
@@ -2892,10 +2899,17 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         duplicatedPages.map((page) => page.id)
       );
       let finalDuplicateState = duplicateStateWithInvalidation;
+      // Mark new duplicated pages as modified
       for (let i = insertIndex; i < insertIndex + duplicatedPages.length; i++) {
         finalDuplicateState = markPageIndexAsModified(finalDuplicateState, i);
       }
+      // Mark all shifted pages as modified (pages after the inserted pair)
+      // These pages have new pageNumber values and need to be saved - same as ADD_PAGE_PAIR_AT_INDEX
+      for (let i = insertIndex + duplicatedPages.length; i < finalDuplicateState.currentBook!.pages.length; i++) {
+        finalDuplicateState = markPageIndexAsModified(finalDuplicateState, i);
+      }
       return saveToHistory(finalDuplicateState, 'Duplicate Spread', {
+        cloneEntireBook: true,
         affectedPageIndexes: Array.from({ length: duplicatedPages.length }, (_, i) => insertIndex + i),
         command: 'DUPLICATE_PAGE'
       });
@@ -3254,37 +3268,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
     let bookUpdatedPages: Page[] = [];
       if (theme) {
+        const newThemeId = action.payload;
         bookUpdatedPages = originalBook.pages.map((page, pageIndex) => {
-          // Check if page has themeId property (not just if it's truthy)
-          const hasThemeIdProperty = 'themeId' in page;
-          const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
-          const themeIdValue = page.themeId;
-          const bookThemeId = action.payload;
-          
-          // CRITICAL: Determine if page has a custom theme that should be preserved
-          // A page has a custom theme if:
-          // 1. themeId exists as an own property
-          // 2. themeId has a value (not undefined/null)
-          // 3. themeId is DIFFERENT from the new book theme
-          // 
-          // IMPORTANT: If page.themeId matches the new bookThemeId, we remove it (inheritance)
-          // This ensures that when book theme changes to match a page's explicit theme,
-          // the page switches to inheritance (shows "Book Theme")
-          const pageHasCustomTheme = hasThemeIdOwnProperty && 
-                                     themeIdValue !== undefined && 
-                                     themeIdValue !== null &&
-                                     themeIdValue !== bookThemeId; // Only preserve if different from new book theme
-          
-          // If page has custom theme (different from new book theme), don't change it
-          if (pageHasCustomTheme) {
-            return page;
-          }
-          
-          // Page either has no themeId or themeId matches new book theme
-          // In both cases, ensure page inherits book theme (remove themeId if it exists)
-          // Create a new page object WITHOUT themeId by destructuring it out
-          // This ensures themeId is completely removed from the object, not just set to undefined
-          const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
           
           // Get effective palette for page background
           let effectivePaletteId: string | null = null;
@@ -3568,77 +3553,25 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             });
           }
           
-          // Return updated page without themeId, with new background and elements
-          // CRITICAL: Create final page object with ONLY the properties we want
-          // Do NOT use spread operator on pageWithoutThemeId - explicitly construct the object
-          // This ensures themeId is never included, even if it somehow exists in pageWithoutThemeId
-          // CRITICAL: Always use newBackground if it's set (which it should be, unless custom image is preserved)
-          // This ensures theme background images are removed when switching to themes without images
           const backgroundToUse = newBackground || {
             type: 'color',
             value: pageColors.backgroundColor,
             opacity: backgroundOpacity,
-            pageTheme: action.payload
+            pageTheme: newThemeId
           };
-          
-          // Create final page object by explicitly listing all properties (except themeId)
-          // This is the safest way to ensure themeId is never included
-          const finalPage: Page = {
-            id: pageWithoutThemeId.id,
-            pageNumber: pageWithoutThemeId.pageNumber,
+
+          return {
+            ...page,
+            themeId: newThemeId,
             elements: updatedElements,
-            background: backgroundToUse,
-            database_id: pageWithoutThemeId.database_id,
-            layoutTemplateId: pageWithoutThemeId.layoutTemplateId,
-            // Explicitly DO NOT include themeId - it should not exist
-            colorPaletteId: pageWithoutThemeId.colorPaletteId,
-            isPreview: pageWithoutThemeId.isPreview,
-            isPlaceholder: pageWithoutThemeId.isPlaceholder
-          };
-          
-          // Verify themeId is not in the final page
-          const finalPageHasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(finalPage, 'themeId');
-          
-          if (finalPageHasThemeIdOwnProperty) {
-            // This should never happen, but if it does, force remove it
-            const { themeId: _forceRemove, ...trulyFinalPage } = finalPage as any;
-            return trulyFinalPage as Page;
-          }
-          
-          return finalPage;
+            background: backgroundToUse
+          } as Page;
         });
       } else {
-        // No theme - just create a copy of pages without themeId for inheriting pages
-        bookUpdatedPages = originalBook.pages.map((page) => {
-          // Check if page has themeId as own property
-          const hasThemeIdOwnProperty = Object.prototype.hasOwnProperty.call(page, 'themeId');
-          const themeIdValue = page.themeId;
-          const bookThemeId = action.payload;
-          
-          // CRITICAL: Determine if page has a custom theme that should be preserved
-          // A page has a custom theme if:
-          // 1. themeId exists as an own property
-          // 2. themeId has a value (not undefined/null)
-          // 3. themeId is DIFFERENT from the new book theme
-          // 
-          // IMPORTANT: If page.themeId matches the new bookThemeId, we remove it (inheritance)
-          // This ensures that when book theme changes to match a page's explicit theme,
-          // the page switches to inheritance (shows "Book Theme")
-          const pageHasCustomTheme = hasThemeIdOwnProperty && 
-                                     themeIdValue !== undefined && 
-                                     themeIdValue !== null &&
-                                     themeIdValue !== bookThemeId; // Only preserve if different from new book theme
-          
-          if (pageHasCustomTheme) {
-            // Page has custom theme (different from new book theme) - keep it as is
-            return page;
-          }
-          
-          // Page either has no themeId or themeId matches new book theme
-          // In both cases, ensure page inherits book theme (remove themeId if it exists)
-          const { themeId: _removedThemeId, ...pageWithoutThemeId } = page;
-          return pageWithoutThemeId as Page;
-        });
+        bookUpdatedPages = originalBook.pages.map((page) => ({
+          ...page,
+          themeId: action.payload || 'default'
+        }));
       }
       
       // Create the final book object with updated pages
@@ -3696,24 +3629,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const bookForPalette = savedBookPaletteState.currentBook!;
       const newBookColorPaletteId = action.payload;
       
-      // CRITICAL: Update pages that have colorPaletteId matching the new book palette
-      // If a page has an explicit colorPaletteId that matches the new book colorPaletteId,
-      // remove it (set to null) so the page inherits the book palette (shows "Book Color Palette")
-      // This ensures that when book palette changes to match a page's explicit palette,
-      // the page switches to inheritance
-      const updatedPagesForPalette = bookForPalette.pages.map((page) => {
-        const pageColorPaletteId = page.colorPaletteId;
-        const pageHasColorPaletteId = pageColorPaletteId !== undefined && pageColorPaletteId !== null;
-        
-        // If page has explicit colorPaletteId that matches new book palette, remove it (inheritance)
-        if (pageHasColorPaletteId && pageColorPaletteId === newBookColorPaletteId) {
-          const { colorPaletteId: _removed, ...pageWithoutColorPaletteId } = page;
-          return { ...pageWithoutColorPaletteId, colorPaletteId: null } as typeof page;
-        }
-        
-        // Otherwise, keep page as is (either no colorPaletteId or different from new book palette)
-        return page;
-      });
+      const updatedPagesForPalette = bookForPalette.pages.map((page) => ({
+        ...page,
+        colorPaletteId: newBookColorPaletteId
+      }));
       
       const updatedBookPaletteState = {
         ...savedBookPaletteState,
@@ -3744,93 +3663,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         return withPreviewInvalidation(overrideState, pageId != null ? [pageId] : undefined);
       };
       if (targetPageTheme) {
-        if (!action.payload.themeId || action.payload.themeId === '__BOOK_THEME__') {
-          const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
-          const theme = getGlobalTheme(bookThemeId);
-
-          if (theme) {
-            // Get page color palette (page.colorPaletteId) or book color palette (book.colorPaletteId)
-            // If book.colorPaletteId is null, use theme's default palette
-            const pageColorPaletteId = targetPageTheme.colorPaletteId || null;
-            const bookColorPaletteId = updatedBookPageTheme.colorPaletteId || null;
-
-            let effectivePaletteId: string | null = null;
-            if (pageColorPaletteId === null) {
-              // Page uses Theme's Default Palette - use theme's palette
-              effectivePaletteId = getThemePaletteId(bookThemeId);
-            } else {
-              // Page has explicit palette - use it
-              effectivePaletteId = pageColorPaletteId;
-            }
-            const paletteOverride = effectivePaletteId ? colorPalettes.find(p => p.id === effectivePaletteId) : null;
-            const pageColors = getThemePageBackgroundColors(bookThemeId, paletteOverride || undefined);
-            const backgroundOpacity = theme.pageSettings.backgroundOpacity ?? targetPageTheme.background?.opacity ?? 1;
-
-            const backgroundImageConfig = theme.pageSettings.backgroundImage;
-            let appliedBackgroundImage = false;
-
-            if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
-              const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
-                imageSize: backgroundImageConfig.size,
-                imageRepeat: backgroundImageConfig.repeat,
-                imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
-                imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
-                opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-                backgroundColor: pageColors.backgroundColor
-              });
-
-              if (imageBackground) {
-                targetPageTheme.background = {
-                  ...imageBackground,
-                  pageTheme: bookThemeId
-                };
-                appliedBackgroundImage = true;
-              }
-            }
-
-            if (!appliedBackgroundImage) {
-              if (theme.pageSettings.backgroundPattern?.enabled) {
-                targetPageTheme.background = {
-                  type: 'pattern',
-                  value: theme.pageSettings.backgroundPattern.style,
-                  opacity: backgroundOpacity,
-                  pageTheme: bookThemeId,
-                  patternSize: theme.pageSettings.backgroundPattern.size,
-                  patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth,
-                  patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity,
-                  patternForegroundColor: pageColors.backgroundColor,
-                  patternBackgroundColor: pageColors.patternBackgroundColor
-                };
-              } else {
-                targetPageTheme.background = {
-                  type: 'color',
-                  value: pageColors.backgroundColor,
-                  opacity: backgroundOpacity,
-                  pageTheme: bookThemeId
-                };
-              }
-            }
-          } else {
-            if (targetPageTheme.background) {
-              targetPageTheme.background = {
-                ...targetPageTheme.background,
-                pageTheme: bookThemeId || null
-              };
-            }
-          }
-
-          delete targetPageTheme.themeId;
-          return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
-        }
-        if (!action.payload.themeId) {
-          delete targetPageTheme.themeId;
-          return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
-        }
-        const paletteOverrideId = targetPageTheme.colorPaletteId || updatedBookPageTheme.colorPaletteId || null;
+        const themeId = action.payload.themeId || 'default';
+        const pageThemeResolved = getGlobalTheme(themeId);
+        const paletteOverrideId = targetPageTheme.colorPaletteId ?? null;
         const paletteOverride = paletteOverrideId ? colorPalettes.find(p => p.id === paletteOverrideId) : null;
         const existingBackground = targetPageTheme.background;
-        const themeBackgroundPattern = pageTheme?.pageSettings?.backgroundPattern;
-        const themeBackgroundOpacity = pageTheme?.pageSettings?.backgroundOpacity ?? existingBackground?.opacity ?? 1;
+        const themeBackgroundPattern = pageThemeResolved?.pageSettings?.backgroundPattern;
+        const themeBackgroundOpacity = pageThemeResolved?.pageSettings?.backgroundOpacity ?? existingBackground?.opacity ?? 1;
 
         const resolvedBaseColor = existingBackground
           ? existingBackground.type === 'pattern'
@@ -3846,7 +3685,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           || paletteOverride?.colors.accent
           || resolvedPatternForeground;
 
-        const backgroundImageConfig = pageTheme?.pageSettings?.backgroundImage;
+        const backgroundImageConfig = pageThemeResolved?.pageSettings?.backgroundImage;
         let appliedBackgroundImage = false;
         if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
           const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
@@ -3861,24 +3700,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           if (imageBackground) {
             targetPageTheme.background = {
               ...imageBackground,
-              pageTheme: action.payload.themeId
+              pageTheme: themeId
             };
             appliedBackgroundImage = true;
           }
         }
 
-        // CRITICAL: Determine if page should have themeId set
-        // - If themeId === '__BOOK_THEME__': Remove themeId (inheritance)
-        // - If themeId is any other value: Always set it (explicit theme selection, even if it matches bookThemeId)
-        //   This ensures that when a user explicitly selects a theme (even if same as book), it shows as selected
-        //   rather than showing as "Book Theme" (inherited)
-        const bookThemeId = updatedBookPageTheme.bookTheme || updatedBookPageTheme.themeId || 'default';
-        const shouldSetThemeId = action.payload.themeId !== '__BOOK_THEME__';
-        
         if (appliedBackgroundImage) {
           // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
           const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
-          const newThemePaletteId = getThemePaletteId(action.payload.themeId);
+          const newThemePaletteId = getThemePaletteId(themeId);
           const wasUsingThemePalette = targetPageTheme.colorPaletteId === oldThemePaletteId;
 
           if (wasUsingThemePalette && newThemePaletteId) {
@@ -3948,11 +3779,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             }
           }
 
-          if (shouldSetThemeId) {
-            targetPageTheme.themeId = action.payload.themeId;
-          } else {
-            delete targetPageTheme.themeId;
-          }
+          targetPageTheme.themeId = themeId;
           return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
         }
 
@@ -3960,14 +3787,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           targetPageTheme.background = {
             ...existingBackground,
             opacity: themeBackgroundOpacity,
-            pageTheme: action.payload.themeId
+            pageTheme: themeId
           };
         } else if (themeBackgroundPattern?.enabled) {
           targetPageTheme.background = {
             type: 'pattern',
             value: themeBackgroundPattern.style,
             opacity: themeBackgroundOpacity,
-            pageTheme: action.payload.themeId,
+            pageTheme: themeId,
             patternSize: themeBackgroundPattern.size,
             patternStrokeWidth: themeBackgroundPattern.strokeWidth,
             patternBackgroundOpacity: themeBackgroundPattern.patternBackgroundOpacity,
@@ -3979,13 +3806,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             type: 'color',
             value: resolvedBaseColor,
             opacity: themeBackgroundOpacity,
-            pageTheme: action.payload.themeId
+            pageTheme: themeId
           };
         }
 
         // Wenn die Seite die alte Theme-Palette verwendet hat, auf neue aktualisieren
         const oldThemePaletteId = targetPageTheme.themeId ? getThemePaletteId(targetPageTheme.themeId) : null;
-        const newThemePaletteId = getThemePaletteId(action.payload.themeId);
+        const newThemePaletteId = getThemePaletteId(themeId);
         const wasUsingThemePalette = targetPageTheme.colorPaletteId === oldThemePaletteId;
 
         if (wasUsingThemePalette && newThemePaletteId) {
@@ -4055,12 +3882,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           }
         }
 
-        // Set or remove themeId based on whether page should inherit or have explicit theme
-        if (shouldSetThemeId) {
-          targetPageTheme.themeId = action.payload.themeId;
-        } else {
-          delete targetPageTheme.themeId;
-        }
+        targetPageTheme.themeId = themeId;
       }
       return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
     
@@ -4373,29 +4195,35 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         (_, index) => index < fromStart || index > fromEnd
       );
       remainingPages.splice(targetIndex, 0, ...movingPages);
-      const reorderedPagesWithNumbers = remainingPages.map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      const reorderedPagesWithNumbers = remainingPages.map((page, index) => ({ ...page, pageNumber: index }));
       // Recalculate all pagePairIds after reordering
       const pagesWithCorrectPairIds = recalculatePagePairIds(reorderedPagesWithNumbers);
-      
+      const canvasSizeReorder = calculatePageDimensions(
+        savedReorderState.currentBook!.pageSize || 'A4',
+        savedReorderState.currentBook!.orientation || 'portrait'
+      );
+      const pagesWithPageNumbersReorder = renumberPageNumberElementsInPages(pagesWithCorrectPairIds, canvasSizeReorder);
+
       const newPageAssignments: Record<number, any> = {};
-      pagesWithCorrectPairIds.forEach((page, newIndex) => {
+      pagesWithPageNumbersReorder.forEach((page, newIndex) => {
         const originalIndex = savedReorderState.currentBook!.pages.findIndex((p) => p.id === page.id);
-        const oldAssignment = savedReorderState.pageAssignments[originalIndex + 1];
+        const oldPageNumber = savedReorderState.currentBook!.pages[originalIndex]?.pageNumber ?? originalIndex;
+        const oldAssignment = savedReorderState.pageAssignments[oldPageNumber];
         if (oldAssignment !== undefined) {
-          newPageAssignments[newIndex + 1] = oldAssignment;
+          newPageAssignments[newIndex] = oldAssignment;
         }
       });
       const activePageId = savedReorderState.currentBook!.pages[savedReorderState.activePageIndex]?.id;
       const newActiveIndex = activePageId
-        ? pagesWithCorrectPairIds.findIndex((page) => page.id === activePageId)
+        ? pagesWithPageNumbersReorder.findIndex((page) => page.id === activePageId)
         : savedReorderState.activePageIndex;
-      
+
       const reorderState = withPreviewInvalidation(
         {
           ...savedReorderState,
           currentBook: {
             ...savedReorderState.currentBook!,
-            pages: pagesWithCorrectPairIds
+            pages: pagesWithPageNumbersReorder
           },
           pageAssignments: newPageAssignments,
           activePageIndex: newActiveIndex,
@@ -4426,24 +4254,32 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         .map((pnum) => pageByNumber.get(pnum))
         .filter((p): p is NonNullable<typeof p> => p != null);
       if (reorderedPages.length !== pages.length) return state;
-      const renumberedPages = reorderedPages.map((p, index) => ({ ...p, pageNumber: index + 1 }));
+      const renumberedPages = reorderedPages.map((p, index) => ({ ...p, pageNumber: index }));
       const pagesWithCorrectPairIds = recalculatePagePairIds(renumberedPages);
+      const canvasSizeReorderOrder = calculatePageDimensions(
+        savedState.currentBook!.pageSize || 'A4',
+        savedState.currentBook!.orientation || 'portrait'
+      );
+      const pagesWithPageNumbersReorderOrder = renumberPageNumberElementsInPages(
+        pagesWithCorrectPairIds,
+        canvasSizeReorderOrder
+      );
       const newPageAssignments: Record<number, unknown> = {};
       pageOrder.forEach((oldPageNumber, newIndex) => {
         const oldAssignment = savedState.pageAssignments?.[oldPageNumber];
         if (oldAssignment !== undefined) {
-          newPageAssignments[newIndex + 1] = oldAssignment;
+          newPageAssignments[newIndex] = oldAssignment;
         }
       });
       const activePageId = pages[savedState.activePageIndex ?? 0]?.id;
       const newActiveIndex = activePageId
-        ? pagesWithCorrectPairIds.findIndex((p) => p.id === activePageId)
+        ? pagesWithPageNumbersReorderOrder.findIndex((p) => p.id === activePageId)
         : savedState.activePageIndex;
       const reorderState = withPreviewInvalidation({
         ...savedState,
         currentBook: {
           ...savedState.currentBook!,
-          pages: pagesWithCorrectPairIds
+          pages: pagesWithPageNumbersReorderOrder
         },
         pageAssignments: newPageAssignments,
         activePageIndex: newActiveIndex >= 0 ? newActiveIndex : savedState.activePageIndex,
@@ -6621,10 +6457,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     const nonPreviewPages = state.currentBook.pages.filter(p => !p.isPreview);
     
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
-      // Show only assigned pages in correct order
+      // Show only assigned pages in correct order (assignedPages are 0-based page numbers)
       return nonPreviewPages
-        .filter((_, index) => state.assignedPages.includes(index + 1))
-        .sort((a, b) => a.pageNumber - b.pageNumber);
+        .filter((p) => state.assignedPages.includes(p.pageNumber ?? -1))
+        .sort((a, b) => (a.pageNumber ?? 0) - (b.pageNumber ?? 0));
     }
     
     // Show all pages for 'all_pages' or when no restrictions
@@ -6642,8 +6478,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       return [...state.assignedPages].sort((a, b) => a - b);
     }
     
-    // Return all page numbers (excluding preview pages)
-    return nonPreviewPages.map((_, index) => index + 1);
+    // Return all page numbers (excluding preview pages, 0-based)
+    return nonPreviewPages.map((p, index) => p.pageNumber ?? index);
   };
   
   const applyTemplateToPage = (template: PageTemplate, pageIndex?: number) => {
@@ -6887,23 +6723,22 @@ function applyThemeAndPaletteToPage(
   book: Book,
   toolSettings: Record<string, any>
 ): Page {
-  const pageThemeId = page.themeId || page.background?.pageTheme || book.themeId || book.bookTheme || undefined;
-  const bookThemeId = book.themeId || book.bookTheme || undefined;
+  const activeThemeId = page.themeId ?? page.background?.pageTheme ?? 'default';
   const bookColorPaletteId = book.colorPaletteId || null;
-  const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId || 'default') : null;
+  const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(activeThemeId) : null;
   const bookPaletteId = bookColorPaletteId || bookThemePaletteId || undefined;
 
   let effectivePaletteId: string | undefined = undefined;
   if (page.colorPaletteId === null) {
     // Page uses Theme's Default Palette - use theme's palette
-    effectivePaletteId = getThemePaletteId(pageThemeId || bookThemeId || 'default');
+    effectivePaletteId = getThemePaletteId(activeThemeId);
   } else {
     // Page has explicit palette - use it
     effectivePaletteId = page.colorPaletteId || undefined;
   }
   const pagePaletteId = effectivePaletteId;
-  const pageLayoutTemplateId = page.layoutTemplateId || book.layoutTemplateId || null;
-  const bookLayoutTemplateId = book.layoutTemplateId || null;
+  const pageLayoutTemplateId = page.layoutTemplateId ?? null;
+  const bookLayoutTemplateId = book.layoutTemplateId ?? null;
 
   const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : undefined;
   let updatedBackground = page.background;
@@ -6927,8 +6762,8 @@ function applyThemeAndPaletteToPage(
 
   const updatedElements = page.elements.map(element =>
     applyThemeAndPaletteToElement(element, {
-      pageThemeId,
-      bookThemeId,
+      pageThemeId: activeThemeId,
+      bookThemeId: activeThemeId,
       pageLayoutTemplateId,
       bookLayoutTemplateId,
       pagePaletteId,

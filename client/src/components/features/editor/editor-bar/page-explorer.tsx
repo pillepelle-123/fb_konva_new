@@ -14,6 +14,7 @@ import ProfilePicture from '../../users/profile-picture';
 import { getConsistentColor } from '../../../../utils/consistent-color';
 import { cn } from '../../../../lib/utils';
 import { Tooltip } from '../../../ui/composites/tooltip';
+import { isContentPairPage, isStandaloneCoverPage } from '../../../../utils/book-structure';
 
 export interface PageItem {
   pageNumber: number;
@@ -35,7 +36,7 @@ export interface PageExplorerProps {
 }
 
 function isPairDraggable(pair: PageItem[], totalPages: number): boolean {
-  return !pair.some((p) => p.pageNumber <= 3 || p.pageNumber === totalPages);
+  return pair.every((p) => isContentPairPage(p.pageNumber, totalPages));
 }
 
 function PairDisplay({
@@ -56,45 +57,49 @@ function PairDisplay({
       {pair.map((page) => {
         const assigned = pageAssignments[page.pageNumber];
         const color = assigned ? getConsistentColor(assigned.name) : undefined;
-        const isCoverOrLast = page.pageNumber <= 3 || page.pageNumber === totalPages;
+        const isCoverOrLast = isStandaloneCoverPage(page.pageNumber, totalPages);
         const isPageActive = activePageNumber != null && page.pageNumber === activePageNumber;
 
-        return (
-          <div key={page.pageNumber} className="flex flex-col text-xs" style={{ width: '50px' }}>
-            <div
-              role={onPageSelect ? 'button' : undefined}
-              tabIndex={onPageSelect ? 0 : undefined}
-              onClick={onPageSelect ? (e) => { e.stopPropagation(); onPageSelect(page.pageNumber); } : undefined}
-              onKeyDown={onPageSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPageSelect(page.pageNumber); } } : undefined}
-              className={cn(
-                'rounded-xl border-4 flex flex-col items-center justify-center transition-all p-0.5 relative',
-                assigned ? 'shadow-sm' : 'border-muted-foreground/20',
-                isPageActive ? 'bg-primary' : 'bg-white',
-                onPageSelect && 'cursor-pointer hover:opacity-90'
-              )}
-              style={{
-                borderColor: assigned ? `#${color}` : undefined,
-                aspectRatio: '210 / 297',
-                width: '50px',
-                ...(isCoverOrLast && !isPageActive && {
-                  backgroundImage: `repeating-linear-gradient(
-                    45deg,
-                    transparent,
-                    transparent 2px,
-                    rgba(0, 0, 0, 0.1) 2px,
-                    rgba(0, 0, 0, 0.1) 4px
-                  )`,
-                }),
-              }}
-              title={
-                assigned
-                  ? `Seite ${page.pageNumber}: ${assigned.name}`
-                  : `Seite ${page.pageNumber}: Nicht zugewiesen`
-              }
-            >
-              <span className={cn('absolute bottom-0.5 left-0.5 text-xs font-medium', isPageActive ? 'text-primary-foreground' : 'text-muted-foreground')}>
-                {page.pageNumber}
-              </span>
+        const isFrontCover = page.pageNumber === 0;
+        const isBackCover = totalPages > 0 && page.pageNumber === totalPages - 1;
+        const coverLabel = isFrontCover ? 'Front' : isBackCover ? 'Back' : null;
+        const coverTooltip = isFrontCover ? 'Front Cover' : isBackCover ? 'Back Cover' : null;
+
+        const pageContent = (
+          <div
+            role={onPageSelect ? 'button' : undefined}
+            tabIndex={onPageSelect ? 0 : undefined}
+            onClick={onPageSelect ? (e) => { e.stopPropagation(); onPageSelect(page.pageNumber); } : undefined}
+            onKeyDown={onPageSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPageSelect(page.pageNumber); } } : undefined}
+            className={cn(
+              'rounded-xl border-4 flex flex-col items-center justify-center transition-all p-0.5 relative',
+              assigned ? 'shadow-sm' : 'border-muted-foreground/20',
+              isPageActive ? 'bg-primary' : 'bg-white',
+              onPageSelect && 'cursor-pointer hover:opacity-90'
+            )}
+            style={{
+              borderColor: assigned ? `#${color}` : undefined,
+              aspectRatio: '210 / 297',
+              width: '50px',
+              ...(isCoverOrLast && !isPageActive && {
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  transparent,
+                  transparent 2px,
+                  rgba(0, 0, 0, 0.1) 2px,
+                  rgba(0, 0, 0, 0.1) 4px
+                )`,
+              }),
+            }}
+            title={
+              assigned
+                ? `Seite ${page.pageNumber}: ${assigned.name}`
+                : coverTooltip ?? `Seite ${page.pageNumber}: Nicht zugewiesen`
+            }
+          >
+            <span className={cn('absolute bottom-0.5 left-0.5 text-xs font-medium', isPageActive ? 'text-primary-foreground' : 'text-muted-foreground')}>
+              {coverLabel ?? page.pageNumber}
+            </span>
               {assigned ? (
                 <div className="flex items-center justify-center">
                   <ProfilePicture
@@ -106,7 +111,18 @@ function PairDisplay({
                   />
                 </div>
               ) : null}
-            </div>
+          </div>
+        );
+
+        return (
+          <div key={page.pageNumber} className="flex flex-col text-xs" style={{ width: '50px' }}>
+            {coverTooltip ? (
+              <Tooltip content={coverTooltip} side="top">
+                {pageContent}
+              </Tooltip>
+            ) : (
+              pageContent
+            )}
           </div>
         );
       })}

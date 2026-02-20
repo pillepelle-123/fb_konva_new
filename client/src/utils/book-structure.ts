@@ -1,13 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { CanvasElement, Page, PageBackground } from '../context/editor-context';
 
+/** Neue Struktur: 0=front, 1=first content, 2-3 pair, ..., n-1=last content, n=back */
 export const SPECIAL_PAGE_SEQUENCE: Array<Page['pageType']> = [
-  'back-cover',
   'front-cover',
-  'inner-front',
+  'back-cover',
   'first-page',
   'last-page',
-  'inner-back'
+  'content'
 ];
 
 export const SPECIAL_PAGE_TYPES = new Set(SPECIAL_PAGE_SEQUENCE);
@@ -16,14 +16,27 @@ export const SPECIAL_PAGE_CONFIG: Record<
   NonNullable<Page['pageType']>,
   { locked: boolean; printable: boolean; spread: 'cover' | 'intro' | 'outro' | 'content'; order: number }
 > = {
-  'back-cover': { locked: true, printable: false, spread: 'cover', order: 0 },
-  'front-cover': { locked: true, printable: false, spread: 'cover', order: 1 },
-  'inner-front': { locked: true, printable: false, spread: 'intro', order: 2 },
-  'first-page': { locked: true, printable: true, spread: 'intro', order: 3 },
-  'last-page': { locked: true, printable: true, spread: 'outro', order: 4 },
-  'inner-back': { locked: true, printable: false, spread: 'outro', order: 5 },
-  'content': { locked: false, printable: true, spread: 'content', order: 99 }
+  'front-cover': { locked: false, printable: false, spread: 'cover', order: 0 },
+  'back-cover': { locked: false, printable: false, spread: 'cover', order: 1 },
+  'first-page': { locked: false, printable: true, spread: 'intro', order: 2 },
+  'last-page': { locked: false, printable: true, spread: 'outro', order: 3 },
+  'content': { locked: false, printable: true, spread: 'content', order: 99 },
+  // Deprecated (alte Struktur): als content behandeln
+  'inner-front': { locked: false, printable: true, spread: 'content', order: 99 },
+  'inner-back': { locked: false, printable: true, spread: 'content', order: 99 }
 };
+
+/** Prüft, ob die Seite Teil eines regulären Content-Paars ist (2-3, 4-5, …) – löschbar/duplizierbar */
+export function isContentPairPage(pageNumber: number, totalPages: number): boolean {
+  if (totalPages < 4) return false;
+  if (pageNumber <= 1 || pageNumber >= totalPages - 1) return false;
+  return true;
+}
+
+/** Prüft, ob die Seite Front- oder Back-Cover ist (Einzelseite, kein Partner) */
+export function isStandaloneCoverPage(pageNumber: number, totalPages: number): boolean {
+  return pageNumber === 0 || (totalPages > 0 && pageNumber === totalPages - 1);
+}
 
 export function getSpecialPageConfig(pageType?: Page['pageType']) {
   if (!pageType) return null;
@@ -40,30 +53,13 @@ export function getSpecialPagePosition(pageType?: Page['pageType']) {
   return config?.order ?? Infinity;
 }
 
+/** Sortiert Seiten: 0 (front), 1..n-1 (content), n (back) */
 export function sortPagesByBookStructure(pages: Page[]): Page[] {
-  const frontSpecials: Page[] = [];
-  const outroSpecials: Page[] = [];
-  const contentPages: Page[] = [];
-
-  pages.forEach((page) => {
-    if (!page.pageType || !isSpecialPageType(page.pageType)) {
-      contentPages.push(page);
-      return;
-    }
-    const position = getSpecialPagePosition(page.pageType);
-    if (position <= getSpecialPagePosition('first-page')) {
-      frontSpecials.push(page);
-    } else if (position >= getSpecialPagePosition('last-page')) {
-      outroSpecials.push(page);
-    } else {
-      contentPages.push(page);
-    }
+  return [...pages].sort((a, b) => {
+    const numA = a.pageNumber ?? 0;
+    const numB = b.pageNumber ?? 0;
+    return numA - numB;
   });
-
-  const sortByPosition = (collection: Page[]) =>
-    collection.sort((a, b) => getSpecialPagePosition(a.pageType) - getSpecialPagePosition(b.pageType));
-
-  return [...sortByPosition(frontSpecials), ...contentPages, ...sortByPosition(outroSpecials)];
 }
 
 export function clonePageBackground(background?: PageBackground): PageBackground | undefined {
@@ -90,11 +86,12 @@ export type PageMetadata = {
   isPlaceholder: boolean;
 };
 
+/** Neue Struktur: 0=front, 1=first content, 2..n-2=pairs, n-1=last content, n=back */
 function deriveFallbackPageType(pageNumber: number, totalPages: number): NonNullable<Page['pageType']> {
-  if (pageNumber === 1) return 'back-cover';
-  if (pageNumber === 2) return 'front-cover';
-  if (pageNumber === 3) return 'inner-front';
-  if (pageNumber === totalPages) return 'inner-back';
+  if (pageNumber === 0) return 'front-cover';
+  if (totalPages > 0 && pageNumber === totalPages - 1) return 'back-cover';
+  if (pageNumber === 1) return 'first-page';
+  if (totalPages > 2 && pageNumber === totalPages - 2) return 'last-page';
   return 'content';
 }
 
@@ -104,7 +101,7 @@ export function buildPageMetadataMap(
 ): Record<number, PageMetadata> {
   const pageMap = new Map<number, Page>();
   pages.forEach((page, index) => {
-    const number = page.pageNumber ?? index + 1;
+    const number = page.pageNumber ?? index;
     pageMap.set(number, page);
   });
 
@@ -114,7 +111,7 @@ export function buildPageMetadataMap(
   }
 
   const metadata: Record<number, PageMetadata> = {};
-  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+  for (let pageNumber = 0; pageNumber < totalPages; pageNumber++) {
     const page = pageMap.get(pageNumber);
     metadata[pageNumber] = computePageMetadataEntry(pageNumber, totalPages, page);
   }
@@ -124,12 +121,11 @@ export function buildPageMetadataMap(
 export function computePageMetadataEntry(pageNumber: number, totalPages: number, page?: Page): PageMetadata {
   const fallbackType = deriveFallbackPageType(pageNumber, totalPages);
   const pageType = (page?.pageType as NonNullable<Page['pageType']>) ?? fallbackType;
-  const isSpecial = pageType !== 'content';
-  const isEditable = !(pageType === 'inner-front' || pageType === 'inner-back');
+  const isSpecial = pageType === 'front-cover' || pageType === 'back-cover' || pageType === 'first-page' || pageType === 'last-page';
+  const isEditable = true; // Alle Seiten editierbar; Cover: kein qna/qna2, keine Zuweisung
   const isSelectable = isEditable;
-  // Use pagePairId from page if available, otherwise calculate it using the unified system
   const pairId = page?.pagePairId ?? calculatePagePairId(pageNumber, totalPages, pageType);
-  const canAssignUser = isEditable && !(pageType === 'back-cover' || pageType === 'front-cover');
+  const canAssignUser = !(pageType === 'back-cover' || pageType === 'front-cover');
   const canAddQna = canAssignUser;
 
   return {
@@ -139,7 +135,7 @@ export function computePageMetadataEntry(pageNumber: number, totalPages: number,
     isSpecial,
     isEditable,
     isSelectable,
-    isLocked: !isEditable,
+    isLocked: false,
     canAssignUser,
     canAddQna,
     isPlaceholder: page?.isPlaceholder ?? true
@@ -171,30 +167,15 @@ export function getPairBounds(pages: Page[], index: number) {
 
 /**
  * Calculates the correct pagePairId for a page based on its pageNumber and totalPages.
- * Uses pair-X format (e.g., pair-0, pair-1, pair-cover, pair-intro-0, pair-outro-last).
+ * Neue Struktur: 0=front, 1=first content, 2-3 pair, ..., n-1=last content, n=back
  */
 export function calculatePagePairId(pageNumber: number, totalPages: number, pageType?: Page['pageType']): string {
-  // Special pages
-  if (pageNumber === 1 || pageNumber === 2) {
-    return 'pair-cover'; // Cover pages
-  }
-  if (pageNumber === 3) {
-    return 'pair-intro-0'; // Inner Front
-  }
-  if (pageNumber === totalPages) {
-    return 'pair-outro-last'; // Inner Back
-  }
-  if (pageNumber === totalPages - 1) {
-    return 'pair-outro-last'; // Last content page pairs with Inner Back
-  }
-  if (pageNumber === 4) {
-    return 'pair-intro-0'; // First content page pairs with Inner Front
-  }
-  
-  // Regular content pages: pair them starting from page 5
-  // Page 5-6: pair-0, Page 7-8: pair-1, etc.
-  const contentPageIndex = pageNumber - 4; // Page 5 -> 1, Page 6 -> 2, etc.
-  const pairIndex = Math.floor((contentPageIndex - 1) / 2); // Page 5-6 -> 0, Page 7-8 -> 1
+  if (pageNumber === 0) return 'pair-front';
+  if (totalPages > 0 && pageNumber === totalPages - 1) return 'pair-back';
+  if (pageNumber === 1) return 'pair-intro-0';
+  if (totalPages > 2 && pageNumber === totalPages - 2) return 'pair-outro-last';
+  // Page 2-3: pair-0, 4-5: pair-1, etc.
+  const pairIndex = Math.floor((pageNumber - 2) / 2);
   return `pair-${pairIndex}`;
 }
 
@@ -205,12 +186,12 @@ export function calculatePagePairId(pageNumber: number, totalPages: number, page
 export function recalculatePagePairIds(pages: Page[]): Page[] {
   const totalPages = pages.length;
   return pages.map((page, index) => {
-    const pageNumber = page.pageNumber ?? index + 1;
+    const pageNumber = page.pageNumber ?? index;
     const calculatedPairId = calculatePagePairId(pageNumber, totalPages, page.pageType);
     return {
       ...page,
       pagePairId: calculatedPairId,
-      pageNumber: pageNumber // Ensure pageNumber is set
+      pageNumber
     };
   });
 }
@@ -236,100 +217,44 @@ function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: stri
   };
 }
 
+/** Stellt sicher, dass front-cover (0) und back-cover (n) existieren; setzt pageNumber 0-basiert. */
 export function ensureSpecialPages(pages: Page[]): Page[] {
-  const spreadPairMap = new Map<'cover' | 'intro' | 'outro', string>();
-  const updatedPages = pages.map((page) => {
-    if (!page.pageType || !isSpecialPageType(page.pageType)) {
-      return page;
-    }
-    const config = SPECIAL_PAGE_CONFIG[page.pageType];
-    if (!config) {
-      return page;
-    }
-    if (config.spread !== 'content') {
-      // Use existing pagePairId if available, otherwise will be calculated later
-      const existingPair = spreadPairMap.get(config.spread);
-      const appliedPairId = existingPair || page.pagePairId || 'temp';
-      if (!existingPair) {
-        spreadPairMap.set(config.spread, appliedPairId);
-      }
-      return {
-        ...page,
-        pagePairId: appliedPairId,
-        isSpecialPage: true,
-        isLocked: config.locked,
-        isPrintable: config.printable
-      };
-    }
+  const updatedPages = pages.map((page, index) => {
+    const pageNumber = page.pageNumber ?? index;
+    const pageType = deriveFallbackPageType(pageNumber, pages.length);
+    const pairId = calculatePagePairId(pageNumber, pages.length, pageType);
+    const config = SPECIAL_PAGE_CONFIG[pageType] ?? SPECIAL_PAGE_CONFIG['content'];
     return {
       ...page,
-      isSpecialPage: config.locked,
+      pageNumber,
+      pageType,
+      pagePairId: pairId,
+      isSpecialPage: pageType === 'front-cover' || pageType === 'back-cover' || pageType === 'first-page' || pageType === 'last-page',
       isLocked: config.locked,
       isPrintable: config.printable
     };
   });
 
-  const existingTypes = new Set(updatedPages.map((page) => page.pageType).filter(Boolean) as NonNullable<Page['pageType']>[]);
-
-  const ensurePairIdForSpread = (spread: 'cover' | 'intro' | 'outro') => {
-    if (!spreadPairMap.has(spread)) {
-      spreadPairMap.set(spread, 'temp');
-    }
-    return spreadPairMap.get(spread)!;
-  };
-
-  const ensurePageType = (pageType: NonNullable<Page['pageType']>, spread: 'cover' | 'intro' | 'outro') => {
-    if (existingTypes.has(pageType)) {
-      return;
-    }
-    const pairId = ensurePairIdForSpread(spread);
-    updatedPages.push(createSpecialPage(pageType, pairId));
-    existingTypes.add(pageType);
-  };
-
-  ensurePageType('back-cover', 'cover');
-  ensurePageType('front-cover', 'cover');
-  ensurePageType('inner-front', 'intro');
-  // Do NOT automatically create 'first-page' and 'last-page' - they are regular content pages
-  // ensurePageType('first-page', 'intro');
-  // ensurePageType('last-page', 'outro');
-  // 'inner-back' wird nicht über ensurePageType hinzugefügt, da immer die bestehende letzte Seite
-  // als Inner Back markiert werden soll (siehe weiter unten).
-
   const orderedPages = sortPagesByBookStructure(updatedPages);
+  const hasFront = orderedPages.some((p) => p.pageType === 'front-cover' || (p.pageNumber ?? -1) === 0);
+  const hasBack = orderedPages.some((p) => p.pageType === 'back-cover');
 
-  const enforceInnerBackConfig = (page: Page): Page => {
-    const config = SPECIAL_PAGE_CONFIG['inner-back'];
-    return {
-      ...page,
-      pageType: 'inner-back',
-      isSpecialPage: true,
-      isLocked: config.locked,
-      isPrintable: config.printable,
-      pagePairId: page.pagePairId ?? ensurePairIdForSpread('outro')
-    };
-  };
-
-  if (orderedPages.length > 0) {
-    const lastIndex = orderedPages.length - 1;
-    const innerBackIndex = orderedPages.findIndex((page) => page.pageType === 'inner-back');
-
-    if (innerBackIndex === -1) {
-      const newInnerBack = createSpecialPage('inner-back', ensurePairIdForSpread('outro'));
-      orderedPages.push(enforceInnerBackConfig(newInnerBack));
-    } else if (innerBackIndex !== lastIndex) {
-      const [innerBackPage] = orderedPages.splice(innerBackIndex, 1);
-      orderedPages.push(enforceInnerBackConfig(innerBackPage));
-    } else {
-      orderedPages[lastIndex] = enforceInnerBackConfig(orderedPages[lastIndex]);
-    }
+  if (!hasFront && orderedPages.length > 0) {
+    const frontPage = createSpecialPage('front-cover', 'pair-front');
+    frontPage.pageNumber = 0;
+    orderedPages.unshift(frontPage);
   }
+  if (!hasBack && orderedPages.length > 0) {
+    const backPage = createSpecialPage('back-cover', 'pair-back');
+    backPage.pageNumber = orderedPages.length;
+    orderedPages.push(backPage);
+  }
+
   const renumberedPages = orderedPages.map((page, index) => ({
     ...page,
-    pageNumber: index + 1
+    pageNumber: index
   }));
-  
-  // Recalculate all pagePairIds using the unified system
+
   return recalculatePagePairIds(renumberedPages);
 }
 

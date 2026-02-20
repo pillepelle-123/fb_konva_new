@@ -49,6 +49,8 @@ import {
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getStickerById, loadStickerRegistry } from '../../../../data/templates/stickers';
 import { toast } from 'sonner';
+import { createPageNumberElement } from '../../../../utils/page-number-utils';
+import { PageNumberItem } from '../canvas-items/page-number-item';
 
 
 const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
@@ -725,7 +727,8 @@ export default function Canvas() {
 
         // If questionId is provided, check for existing answer in tempAnswers
         if (questionId && questionId !== '') {
-          const assignedUser = state.pageAssignments[state.activePageIndex + 1];
+          const pageNum = currentPage?.pageNumber ?? state.activePageIndex;
+          const assignedUser = state.pageAssignments[pageNum];
           const userIdToCheck = assignedUser?.id || user?.id;
 
           if (userIdToCheck) {
@@ -790,19 +793,19 @@ export default function Canvas() {
   const partnerInfo = useMemo(() => {
     if (!state.currentBook) return null;
     const pages = state.currentBook.pages;
+    const totalPages = pages.length;
     const active = pages[state.activePageIndex];
     if (!active) return null;
+    const activePageNumber = active.pageNumber ?? state.activePageIndex;
+    if (activePageNumber === 0 || (totalPages > 0 && activePageNumber === totalPages - 1)) {
+      return null;
+    }
     if (active.pagePairId) {
       const partnerIndex = pages.findIndex(
         (page, index) => page.pagePairId === active.pagePairId && index !== state.activePageIndex
       );
       if (partnerIndex !== -1) {
-        return { page: pages[partnerIndex], index: partnerIndex };
-      }
-    } else {
-      const inferredIndex = state.activePageIndex % 2 === 0 ? state.activePageIndex + 1 : state.activePageIndex - 1;
-      if (inferredIndex >= 0 && inferredIndex < pages.length) {
-        return { page: pages[inferredIndex], index: inferredIndex };
+        return { page: pages[partnerIndex], index: partnerIndex, isPlaceholder: false };
       }
     }
     return null;
@@ -817,33 +820,30 @@ export default function Canvas() {
     }
   }, [state.currentBook, state.activePageIndex, partnerInfo, ensurePagesLoaded]);
   const partnerPage = partnerInfo?.page ?? null;
-  const hasPartnerPage = Boolean(partnerPage);
+  const totalPages = state.pagePagination?.totalPages ?? state.currentBook?.pages.length ?? 0;
+  const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex;
+  const lastPageNumber = totalPages > 0 ? totalPages - 1 : 0;
+  const hasPlaceholderLeft = activePageNumber === 1;
+  // Vorletzte Seite (letzte Content-Seite) bekommt Platzhalter rechts; letzte Seite (Back Cover) nicht
+  const hasPlaceholderRight = totalPages > 2 && activePageNumber === totalPages - 2;
+  const hasPartnerPage = Boolean(partnerPage) || hasPlaceholderLeft || hasPlaceholderRight;
   const partnerPageIndex = partnerInfo?.index ?? -1;
-  const totalPages = state.currentBook?.pages.length ?? 0;
-  const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex + 1;
   const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
   const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
   const isCoverPage =
     currentPage?.pageType === 'back-cover' ||
     currentPage?.pageType === 'front-cover' ||
-    activePageNumber === 1 ||
-    activePageNumber === 2;
-  const isReverseCoverPage =
-    activePageNumber === 3 || (totalPages > 0 && activePageNumber === totalPages);
+    activePageNumber === 0 ||
+    activePageNumber === lastPageNumber;
   const canEditCoverForUser = isPublisherUser && isCoverPage;
-  // Only block rendering for reverse cover pages (page 3 or last page) if user is not a publisher
-  // Do not block based on isPrintable flag for regular content pages
-  const shouldBlockCanvasRendering =
-    !canEditCoverForUser && isReverseCoverPage;
+  const shouldBlockCanvasRendering = false;
   const isPreviewTargetLocked = useCallback(
     (info?: { page: typeof currentPage; index: number }) => {
       if (!info || !info.page) return false;
-      const targetPageNumber = info.page.pageNumber ?? info.index + 1;
-      if (targetPageNumber === 3) return true;
-      if (totalPages > 0 && targetPageNumber === totalPages) return true;
+      const targetPageNumber = info.page.pageNumber ?? info.index;
       return false;
     },
-    [totalPages]
+    []
   );
   const previewTargetLocked = isPreviewTargetLocked(partnerInfo ?? undefined);
   const lockedPreviewPattern = useMemo(() => {
@@ -867,16 +867,10 @@ export default function Canvas() {
     return patternCanvas;
   }, []);
   const getPaletteForPage = (page?: typeof currentPage) => {
-    // Get page color palette (or book color palette if page.colorPaletteId is null)
     const pageColorPaletteId = page?.colorPaletteId ?? null;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
-
-    // If book.colorPaletteId is null, use theme's default palette
-    const bookThemeId = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-    const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookThemeId) : null;
-
-    // Determine effective palette: page palette > book palette > theme's default palette
-    const effectivePaletteId = pageColorPaletteId ?? bookColorPaletteId ?? bookThemePaletteId;
+    const pageThemeId = page?.themeId ?? 'default';
+    const themePaletteId = !pageColorPaletteId ? getThemePaletteId(pageThemeId) : null;
+    const effectivePaletteId = pageColorPaletteId ?? themePaletteId;
 
     if (effectivePaletteId === null) {
       return { paletteId: null as string | null, palette: null as ColorPalette | null };
@@ -932,7 +926,7 @@ export default function Canvas() {
       active: activeColor,
       partner: partnerColor
     };
-  }, [currentPage, partnerPage, state.currentBook?.colorPaletteId, state.currentBook?.bookTheme, getPaletteForPage]);
+  }, [currentPage, partnerPage, getPaletteForPage]);
 
   const safetyMarginStrokeColor = safetyMarginColors.active;
   const partnerSafetyMarginStrokeColor = safetyMarginColors.partner;
@@ -940,22 +934,17 @@ export default function Canvas() {
   // Helper function to get template IDs for defaults (uses getActiveTemplateIds for proper inheritance)
   const getTemplateIdsForDefaults = useCallback(() => {
     const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+    const themeId = activeTemplateIds.themeId;
     
-    // Get theme IDs
-    const pageTheme = activeTemplateIds.themeId;
-    const bookTheme = state.currentBook?.bookTheme || state.currentBook?.themeId || 'default';
-    
-    // Get palette IDs with theme fallback
     const pageColorPaletteId = currentPage?.colorPaletteId ?? null;
-    const bookColorPaletteId = state.currentBook?.colorPaletteId ?? null;
-    const bookThemePaletteId = !bookColorPaletteId ? getThemePaletteId(bookTheme) : null;
-    const effectiveBookColorPaletteId = bookColorPaletteId ?? bookThemePaletteId;
+    const themePaletteId = !pageColorPaletteId ? getThemePaletteId(themeId) : null;
+    const effectivePaletteId = pageColorPaletteId ?? themePaletteId;
     
     return {
-      pageTheme,
-      bookTheme,
+      pageTheme: themeId,
+      bookTheme: themeId,
       pageColorPaletteId,
-      bookColorPaletteId: effectiveBookColorPaletteId,
+      bookColorPaletteId: effectivePaletteId,
       pageLayoutTemplateId: currentPage?.layoutTemplateId ?? null,
       bookLayoutTemplateId: state.currentBook?.layoutTemplateId ?? null
     };
@@ -967,9 +956,10 @@ export default function Canvas() {
       const pageIndex =
         state.currentBook?.pages?.findIndex((entry) => entry.id === page.id) ?? -1;
       const derivedPageNumber =
-        page.pageNumber ?? (pageIndex >= 0 ? pageIndex + 1 : null);
+        page.pageNumber ?? (pageIndex >= 0 ? pageIndex : null);
+      const isCoverPage = page.pageType === 'front-cover' || page.pageType === 'back-cover';
       const numberLabel =
-        derivedPageNumber && derivedPageNumber > 0
+        derivedPageNumber != null && !isCoverPage
           ? `Page ${derivedPageNumber}`
           : null;
       // Only show special page labels for actual special pages (not first-page/last-page)
@@ -1010,9 +1000,22 @@ export default function Canvas() {
     const canvasHeight = orientation === 'landscape' ? dimensions.width : dimensions.height;
     const spreadGapCanvas = hasPartnerPage ? canvasWidth * 0.025 : 0;
     const spreadWidthCanvas = hasPartnerPage ? canvasWidth * 2 + spreadGapCanvas : canvasWidth;
-    const isActiveLeft = partnerInfo ? state.activePageIndex <= partnerInfo.index : true;
-    const activePageOffsetX = partnerInfo && !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
-    const previewPageOffsetX = partnerInfo ? (isActiveLeft ? canvasWidth + spreadGapCanvas : 0) : null;
+    let isActiveLeft = true;
+    let activePageOffsetX = 0;
+    let previewPageOffsetX: number | null = null;
+    if (hasPlaceholderLeft) {
+      isActiveLeft = false;
+      activePageOffsetX = canvasWidth + spreadGapCanvas;
+      previewPageOffsetX = 0;
+    } else if (hasPlaceholderRight) {
+      isActiveLeft = true;
+      activePageOffsetX = 0;
+      previewPageOffsetX = canvasWidth + spreadGapCanvas;
+    } else if (partnerInfo) {
+      isActiveLeft = state.activePageIndex <= partnerInfo.index;
+      activePageOffsetX = !isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
+      previewPageOffsetX = isActiveLeft ? canvasWidth + spreadGapCanvas : 0;
+    }
     const pageOffsetY = 0;
 
     return {
@@ -1027,7 +1030,7 @@ export default function Canvas() {
       previewPageOffsetX,
       pageOffsetY
     };
-  }, [state.currentBook?.orientation, state.currentBook?.pageSize, hasPartnerPage, partnerInfo, state.activePageIndex]);
+  }, [state.currentBook?.orientation, state.currentBook?.pageSize, hasPartnerPage, hasPlaceholderLeft, hasPlaceholderRight, partnerInfo, state.activePageIndex]);
 
   // Extract for easier access
   const {
@@ -2989,7 +2992,7 @@ export default function Canvas() {
       }
       
       // Check "one question per user" rule
-      const currentPageNumber = state.activePageIndex + 1;
+      const currentPageNumber = currentPage?.pageNumber ?? state.activePageIndex;
       const assignedUser = state.pageAssignments[currentPageNumber];
       
       if (assignedUser) {
@@ -3065,7 +3068,7 @@ export default function Canvas() {
       // Check if this is a qna element with a questionId being pasted
       if (element.textType === 'qna' && element.questionId) {
         // Check if the current page is assigned to a user
-        const currentPageNumber = state.activePageIndex + 1;
+        const currentPageNumber = currentPage?.pageNumber ?? state.activePageIndex;
         const assignedUser = state.pageAssignments[currentPageNumber];
 
         if (assignedUser) {
@@ -5007,25 +5010,6 @@ export default function Canvas() {
     }
   };
 
-  if (!currentPage || shouldBlockCanvasRendering) {
-    const messageTitle = isReverseCoverPage
-      ? 'This page cannot be edited'
-      : 'This page is not printable';
-    const messageBody = isReverseCoverPage
-      ? 'This side of the cover is intentionally left blank so the spread lines up correctly.'
-      : 'This side of the spread is intentionally left blank. Use the opposite page to add your content.';
-    return (
-      <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
-        <div className="flex flex-col items-center justify-center w-full h-full bg-muted/40 border border-dashed border-muted rounded-xl text-center px-8 py-10 space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">{messageTitle}</h2>
-          <p className="text-sm text-muted-foreground max-w-md">
-            {messageBody}
-          </p>
-        </div>
-      </CanvasPageContainer>
-    );
-  }
-
   // Berechne State-Werte für QNA-Elemente
   // Serialisiere Element-Eigenschaften für Dependencies, damit Änderungen erkannt werden
   const qnaElementsSerialized = useMemo(() => {
@@ -5143,9 +5127,23 @@ export default function Canvas() {
     state.currentBook
   ]);
 
+  // Early return for blocked pages - must be after all hooks (shouldBlockCanvasRendering is always false in new structure)
+  if (!currentPage || shouldBlockCanvasRendering) {
+    return (
+      <CanvasPageContainer assignedUser={state.pageAssignments[activePageNumber] || null}>
+        <div className="flex flex-col items-center justify-center w-full h-full bg-muted/40 border border-dashed border-muted rounded-xl text-center px-8 py-10 space-y-3">
+          <h2 className="text-xl font-semibold text-foreground">This page cannot be edited</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            This side of the spread is intentionally left blank.
+          </p>
+        </div>
+      </CanvasPageContainer>
+    );
+  }
+
   return (
     <CanvasOverlayProvider>
-      <CanvasPageContainer assignedUser={state.pageAssignments[state.activePageIndex + 1] || null}>
+      <CanvasPageContainer assignedUser={state.pageAssignments[activePageNumber] || null}>
         <CanvasContainer 
           ref={containerRef} 
           pageId={currentPage?.id} 
@@ -5240,14 +5238,28 @@ export default function Canvas() {
               x={activePageOffsetX}
               y={pageOffsetY}
             />
-            {partnerPage && previewPageOffsetX !== null && (
-              <CanvasPageEditArea
-                width={canvasWidth}
-                height={canvasHeight}
-                x={previewPageOffsetX}
-                y={pageOffsetY}
-              />
-            )}
+            {(partnerPage || hasPlaceholderLeft || hasPlaceholderRight) && previewPageOffsetX !== null &&
+              (((hasPlaceholderLeft || hasPlaceholderRight) && !partnerPage) ? (
+                <Rect
+                  x={previewPageOffsetX}
+                  y={pageOffsetY}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  fill="white"
+                  stroke="#e5e7eb"
+                  strokeWidth={11}
+                  listening={false}
+                  fillPatternImage={lockedPreviewPattern ?? undefined}
+                  fillPatternRepeat="repeat"
+                />
+              ) : (
+                <CanvasPageEditArea
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  x={previewPageOffsetX}
+                  y={pageOffsetY}
+                />
+              ))}
             {/* Background Layer */}
             <CanvasBackground
               page={currentPage}
@@ -5697,6 +5709,43 @@ export default function Canvas() {
                 });
               })()}
 
+            {/* Page number preview - when "Show Page Numbers" is checked but no element exists yet */}
+            {state.pageNumberingPreview?.enabled &&
+              (() => {
+                const totalPagesForNumbering =
+                  state.pagePagination?.totalPages ?? state.currentBook?.pages.length ?? 0;
+                const activePageNum = currentPage?.pageNumber ?? state.activePageIndex;
+                const lastPageNum = totalPagesForNumbering > 0 ? totalPagesForNumbering - 1 : 0;
+                const isContentPage =
+                  activePageNum !== 0 && activePageNum !== lastPageNum;
+                const hasPageNumberElement = (currentPage?.elements || []).some(
+                  (el: CanvasElement) => el.isPageNumber
+                );
+                if (!isContentPage || hasPageNumberElement) return null;
+                const contentPageNumber =
+                  state.currentBook?.pages
+                    .slice(0, state.activePageIndex + 1)
+                    .filter(
+                      (p: { pageNumber?: number }) => {
+                        const pn = p.pageNumber ?? 0;
+                        return pn !== 0 && pn !== lastPageNum;
+                      }
+                    ).length;
+                const synthEl = createPageNumberElement(
+                  contentPageNumber,
+                  canvasWidth,
+                  canvasHeight,
+                  state.pageNumberingPreview
+                );
+                return (
+                  <PageNumberItem
+                    key="page-number-preview-active"
+                    element={synthEl}
+                    pageNumberingPreview={state.pageNumberingPreview}
+                  />
+                );
+              })()}
+
             {/* Preview elements */}
               {isDrawing && currentPath.length > 2 && (
                 <PreviewBrush points={currentPath} />
@@ -5784,11 +5833,48 @@ export default function Canvas() {
                         pageSide={isActiveLeft ? 'right' : 'left'}
                         pageIndex={partnerPageIndex}
                         activePageIndex={state.activePageIndex}
-                        pageNumberingPreview={null}
+                        pageNumberingPreview={state.pageNumberingPreview}
                       />
                     </Group>
                   );
                 })}
+                {/* Page number preview on partner page - when "Show Page Numbers" is checked */}
+                {state.pageNumberingPreview?.enabled &&
+                  partnerPage &&
+                  (() => {
+                    const totalPagesForNumbering =
+                      state.pagePagination?.totalPages ?? state.currentBook?.pages.length ?? 0;
+                    const partnerPageNum = partnerPage.pageNumber ?? partnerPageIndex;
+                    const lastPageNum = totalPagesForNumbering > 0 ? totalPagesForNumbering - 1 : 0;
+                    const isContentPage =
+                      partnerPageNum !== 0 && partnerPageNum !== lastPageNum;
+                    const hasPageNumberElement = (partnerPage.elements || []).some(
+                      (el: CanvasElement) => el.isPageNumber
+                    );
+                    if (!isContentPage || hasPageNumberElement) return null;
+                    const contentPageNumber =
+                      state.currentBook?.pages
+                        .slice(0, partnerPageIndex + 1)
+                        .filter(
+                          (p: { pageNumber?: number }) => {
+                            const pn = p.pageNumber ?? 0;
+                            return pn !== 0 && pn !== lastPageNum;
+                          }
+                        ).length;
+                    const synthEl = createPageNumberElement(
+                      contentPageNumber,
+                      canvasWidth,
+                      canvasHeight,
+                      state.pageNumberingPreview
+                    );
+                    return (
+                      <PageNumberItem
+                        key="page-number-preview-partner"
+                        element={synthEl}
+                        pageNumberingPreview={state.pageNumberingPreview}
+                      />
+                    );
+                  })()}
               </Group>
             )}
             {partnerPage && previewPageOffsetX !== null && !state.isMiniPreview && (
@@ -6637,7 +6723,7 @@ export default function Canvas() {
               if (clipboard.some(element => element.pageId === currentPageId)) {
                 return undefined; // Hide paste option for same page
               }
-              const currentPageNumber = state.activePageIndex + 1;
+              const currentPageNumber = state.currentBook?.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
               const assignedUser = state.pageAssignments[currentPageNumber];
               if (assignedUser) {
                 const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../../context/editor-context';
 import type { Page } from '../../../../context/editor-context';
 import { MIN_TOTAL_PAGES, MAX_TOTAL_PAGES } from '../../../../constants/book-limits';
+import { isContentPairPage } from '../../../../utils/book-structure';
 import BookExportModal from '../book-export-modal';
 import { BookPreviewModal } from '../preview/book-preview-modal';
 import BookManagerModal from '../../books/book-manager-modal';
@@ -93,51 +94,57 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   if (!state.currentBook) return null;
 
   const activePairPages = getPairPages(state.currentBook.pages, state.activePageIndex);
+  const totalPages = state.pagePagination?.totalPages ?? state.currentBook.pages.length;
+  const activePairIsContentPair = activePairPages.every((p) => isContentPairPage(p?.pageNumber ?? -1, totalPages));
   const activePairLocked = activePairPages.some((page) => page?.isLocked);
   const activePairSpecial = activePairPages.some((page) => page?.isSpecialPage);
   const activePairNonPrintable = activePairPages.some((page) => page?.isPrintable === false);
-  const canDuplicateSpread = activePairPages.length > 0 && !activePairLocked && !activePairSpecial && !activePairNonPrintable;
+  const canDuplicateSpread = activePairPages.length > 0 && activePairIsContentPair && !activePairLocked && !activePairSpecial && !activePairNonPrintable;
   const remainingPagesAfterDelete = state.currentBook.pages.length - activePairPages.length;
   const deleteLeavesMinimum = remainingPagesAfterDelete >= MIN_TOTAL_PAGES;
   const canDeleteSpread = canDuplicateSpread && deleteLeavesMinimum;
   const deleteTooltip = !deleteLeavesMinimum
     ? `Books must keep at least ${MIN_TOTAL_PAGES} pages.`
-    : activePairSpecial
-      ? 'Special page pairs cannot be deleted.'
-      : activePairLocked
-        ? 'This page pair is locked.'
-        : undefined;
+    : !activePairIsContentPair
+      ? 'Only content page pairs can be deleted.'
+      : activePairSpecial
+        ? 'Special page pairs cannot be deleted.'
+        : activePairLocked
+          ? 'This page pair is locked.'
+          : undefined;
   const canAddSpread = state.currentBook.pages.length + 2 <= MAX_TOTAL_PAGES;
-  const duplicateBlockedMessage = activePairSpecial
-    ? 'Special page pairs cannot be duplicated.'
-    : activePairLocked
-      ? 'This page pair is locked and cannot be duplicated.'
-      : activePairNonPrintable
-        ? 'Non-printable page pairs cannot be duplicated.'
-        : 'This page pair cannot be duplicated.';
+  const duplicateBlockedMessage = !activePairIsContentPair
+    ? 'Only content page pairs can be duplicated.'
+    : activePairSpecial
+      ? 'Special page pairs cannot be duplicated.'
+      : activePairLocked
+        ? 'This page pair is locked and cannot be duplicated.'
+        : activePairNonPrintable
+          ? 'Non-printable page pairs cannot be duplicated.'
+          : 'This page pair cannot be duplicated.';
   const addBlockedMessage = `Books can have at most ${MAX_TOTAL_PAGES} pages. Delete a page pair before adding another one.`;
 
   const { pages } = state.currentBook;
   const visiblePages = getVisiblePages();
   const visiblePageNumbers = getVisiblePageNumbers();
-  const currentPage = state.activePageIndex + 1;
+  const currentPage = state.currentBook.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
   
-  // For own_page access, calculate visible page index and total
+  // For own_page access, calculate visible page index and total (0-based page numbers)
   const getVisiblePageInfo = () => {
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
       const visibleIndex = visiblePageNumbers.indexOf(currentPage);
       return {
-        currentVisiblePage: visibleIndex + 1,
+        currentVisiblePage: visibleIndex >= 0 ? visibleIndex : 0,
         totalVisiblePages: visiblePageNumbers.length,
         canGoPrev: visibleIndex > 0,
-        canGoNext: visibleIndex < visiblePageNumbers.length - 1
+        canGoNext: visibleIndex >= 0 && visibleIndex < visiblePageNumbers.length - 1
       };
     }
     return {
       currentVisiblePage: currentPage,
-      totalVisiblePages: visiblePages.length, // Use visiblePages instead of pages
+      totalVisiblePages: visiblePages.length,
       canGoPrev: state.activePageIndex > 0,
-      canGoNext: state.activePageIndex < visiblePages.length - 1 // Use visiblePages instead of pages
+      canGoNext: state.activePageIndex < visiblePages.length - 1
     };
   };
   
@@ -290,15 +297,19 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
 
   const handleGoToPage = (page: number) => {
     if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
-      // For own_page access, page parameter is the visible page number (1-based)
-      if (page >= 1 && page <= visiblePageNumbers.length) {
-        const actualPageNumber = visiblePageNumbers[page - 1];
-        ensurePagesLoaded(actualPageNumber - 1, actualPageNumber);
-        dispatch({ type: 'SET_ACTIVE_PAGE', payload: actualPageNumber - 1 });
+      // For own_page access, page is 0-based index into visiblePageNumbers
+      if (page >= 0 && page < visiblePageNumbers.length) {
+        const actualPageNumber = visiblePageNumbers[page];
+        const pageIndex = state.currentBook!.pages.findIndex((p) => (p.pageNumber ?? -1) === actualPageNumber);
+        if (pageIndex >= 0) {
+          ensurePagesLoaded(pageIndex, pageIndex + 1);
+          dispatch({ type: 'SET_ACTIVE_PAGE', payload: pageIndex });
+        }
       }
     } else {
-      ensurePagesLoaded(page - 1, page);
-      dispatch({ type: 'SET_ACTIVE_PAGE', payload: page - 1 });
+      // 0-based page number
+      ensurePagesLoaded(page, page + 1);
+      dispatch({ type: 'SET_ACTIVE_PAGE', payload: page });
     }
   };
 
@@ -322,7 +333,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         {showPagesSubmenu ? (
           <PagesSubmenu
             pages={visiblePages} // Always use visiblePages to exclude preview pages
-            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p, idx) => idx === state.activePageIndex)}
+            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p) => (p.pageNumber ?? -1) === currentPage)}
             onClose={() => setShowPagesSubmenu(false)}
             onPageSelect={handleGoToPage}
             onReorderPages={handleReorderPages}
@@ -331,7 +342,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             onShowAddPageDialog={handleShowAddPageDialog}
           />
         ) : (
-          <div className="flex items-center justify-between w-full h-11 px-0 gap-2 relative z-[100]">
+          <div className="flex items-center justify-between w-full p-0 pt-1 gap-2 relative z-[100]">
             {/* Left Section - Page Controls */}
             <div className="flex items-center gap-2">
               <PageNavigation
@@ -364,10 +375,10 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
               <BookTitle title={state.currentBook.name} readOnly={!canEditBookSettings()} />
             </div>
 
-            <div className="mr-2" style={{ transform: 'translateY(-1px)' }}>
+            <div className="mr-2">
             <PageAssignmentButton
-                currentPage={currentPage}
-                bookId={state.currentBook.id}
+                currentPage={Number(currentPage)}
+                bookId={Number(state.currentBook.id)}
               />
               </div>
 
@@ -432,7 +443,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
             setShowBookManager(false);
             setBookManagerTab(undefined);
           }}
-          bookId={state.currentBook.id}
+          bookId={Number(state.currentBook.id)}
           initialTab={bookManagerTab}
         />
       )}
