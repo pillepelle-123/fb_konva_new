@@ -63,7 +63,6 @@ interface CanvasOverlaysProps {
   // Tooltip props
   inactivePageTooltip: { x: number; y: number } | null;
   outsidePageTooltip: { x: number; y: number } | null;
-  imageQualityTooltip: { x: number; y: number; text: string } | null;
 }
 
 export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
@@ -121,8 +120,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
 
   // Tooltips
   inactivePageTooltip,
-  outsidePageTooltip,
-  imageQualityTooltip
+  outsidePageTooltip
 }) => {
   return (
     <>
@@ -229,19 +227,6 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         </Tooltip>
       )}
 
-      {/* Tooltip for image print quality */}
-      {imageQualityTooltip && (
-        <Tooltip
-          side="right"
-          content={imageQualityTooltip.text}
-          forceVisible
-          screenPosition={imageQualityTooltip}
-          backgroundColor="#ffffff"
-          textColor="#111827"
-        >
-          <div />
-        </Tooltip>
-      )}
     </>
   );
 };

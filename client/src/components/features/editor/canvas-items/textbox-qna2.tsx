@@ -439,6 +439,17 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     state.tempAnswers
   ]);
 
+  useEffect(() => {
+    const globalWindow = window as ExtendedWindow;
+    globalWindow[`openAnswerEditor_${element.id}`] = () => {
+      if (assignedUser?.id !== user?.id) return;
+      enableInlineTextEditing();
+    };
+    return () => {
+      delete globalWindow[`openAnswerEditor_${element.id}`];
+    };
+  }, [element.id, assignedUser?.id, user?.id, enableInlineTextEditing]);
+
   const getClickAreaFromEvent = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
       const stage = e.target.getStage();

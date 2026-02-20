@@ -2,8 +2,10 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import type { ReactNode } from 'react';
 import { Group, Rect } from 'react-konva';
 import { SelectionHoverRectangle } from '../canvas/selection-hover-rectangle';
+import { useQna2Overlay } from '../canvas/qna2-overlay-context';
 import Konva from 'konva';
 import { useEditor } from '../../../../context/editor-context';
+import { useAuth } from '../../../../context/auth-context';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { BOOK_PAGE_DIMENSIONS, DEFAULT_BOOK_ORIENTATION, DEFAULT_BOOK_PAGE_SIZE } from '../../../../constants/book-formats';
 import { calculateContrastColor } from '../../../../utils/contrast-color';
@@ -77,12 +79,15 @@ function BaseCanvasItem({
   hoveredElementId,
   interactive = true, // Default to interactive mode
   isZoomingRef,
+  zoom = 1,
 }: BaseCanvasItemProps) {
   const { state, dispatch, canEditElement } = useEditor();
+  const { user } = useAuth();
   const { start: startDragCommand, end: endDragCommand } = useCanvasCommand('Move Element', 'CANVAS_DRAG');
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [partnerHovered, setPartnerHovered] = useState(false);
+  const [mouseOverQna2Overlay, setMouseOverQna2Overlay] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isTransforming, setIsTransforming] = useState(false);
   const transformStartDataRef = useRef<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number } | null>(null);
@@ -132,6 +137,99 @@ function BaseCanvasItem({
     state.currentBook?.colorPaletteId,
     state.currentBook?.bookTheme
   ]);
+
+  // QNA2: Rollen und Page-Assignment für Action-Buttons
+  const elementPageNumber = useMemo(() => {
+    if (!state.currentBook?.pages) return null;
+    for (const page of state.currentBook.pages) {
+      if (page.elements?.some((el) => el.id === element.id)) {
+        return page.pageNumber ?? null;
+      }
+    }
+    return null;
+  }, [state.currentBook?.pages, element.id]);
+  const assignedUser = elementPageNumber !== null
+    ? state.pageAssignments[elementPageNumber] ?? null
+    : null;
+  const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
+  const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
+  const showQna2QuestionButton = element.textType === 'qna2' && isPublisherUser;
+  const showQna2AnswerButton = element.textType === 'qna2' && Boolean(
+    element.questionId && assignedUser && user?.id === assignedUser.id
+  );
+  const showQna2Buttons = showQna2QuestionButton || showQna2AnswerButton;
+  const selectionOverlayVisible = interactive && (isHovered || partnerHovered || isWithinSelection || hoveredElementId === element.id || mouseOverQna2Overlay) && state.activeTool === 'select';
+
+  const { setOverlay } = useQna2Overlay();
+  const qna2Inset = ((element.textSettings?.padding ?? element.padding ?? 8) as number) + 4;
+
+  useEffect(() => {
+    if (!showQna2Buttons || !selectionOverlayVisible) {
+      setOverlay(null);
+      return;
+    }
+    setOverlay({
+      elementId: element.id,
+      getRect: () => {
+        const node = groupRef.current;
+        const stage = node?.getStage();
+        if (!node || !stage) return null;
+        const rect = node.getClientRect({ skipStroke: true });
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      },
+      getButtonPositions: () => {
+        const node = groupRef.current;
+        const stage = node?.getStage();
+        if (!node || !stage) return null;
+        const rect = node.getClientRect({ skipStroke: true });
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+        const stageBox = stage.container().getBoundingClientRect();
+        return {
+          topRight: { x: stageBox.left + rect.x + rect.width, y: stageBox.top + rect.y },
+          bottomRight: { x: stageBox.left + rect.x + rect.width, y: stageBox.top + rect.y + rect.height },
+        };
+      },
+      strokeColor: contrastStrokeColor,
+      showQuestionButton: showQna2QuestionButton,
+      showAnswerButton: showQna2AnswerButton,
+      inset: qna2Inset,
+      onQuestionClick: () => {
+        window.dispatchEvent(new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } }));
+      },
+      onAnswerClick: () => {
+        const openAnswerEditor = (window as unknown as Record<string, () => void>)[`openAnswerEditor_${element.id}`];
+        if (typeof openAnswerEditor === 'function') openAnswerEditor();
+      },
+    });
+    return () => setOverlay(null, element.id);
+  }, [
+    showQna2Buttons,
+    selectionOverlayVisible,
+    element.id,
+    contrastStrokeColor,
+    showQna2QuestionButton,
+    showQna2AnswerButton,
+    qna2Inset,
+    setOverlay,
+  ]);
+
+  useEffect(() => {
+    if (!element || !showQna2Buttons) return;
+
+    const handleOverlayEnter = (event: CustomEvent) => {
+      if (event.detail?.elementId === element.id) setMouseOverQna2Overlay(true);
+    };
+    const handleOverlayLeave = (event: CustomEvent) => {
+      if (event.detail?.elementId === element.id) setMouseOverQna2Overlay(false);
+    };
+    window.addEventListener('qna2OverlayMouseEnter', handleOverlayEnter as EventListener);
+    window.addEventListener('qna2OverlayMouseLeave', handleOverlayLeave as EventListener);
+    return () => {
+      window.removeEventListener('qna2OverlayMouseEnter', handleOverlayEnter as EventListener);
+      window.removeEventListener('qna2OverlayMouseLeave', handleOverlayLeave as EventListener);
+    };
+  }, [element?.id, showQna2Buttons]);
 
   useEffect(() => {
     if (!element) return;
@@ -404,6 +502,20 @@ function BaseCanvasItem({
         stroke="transparent"
         perfectDrawEnabled={false}
       />
+
+      {/* Erweiterte Hit-Area rechts für QNA2-Buttons – verhindert Verschwinden beim Hover über die Buttons */}
+      {showQna2Buttons && interactive && state.activeTool === 'select' && (
+        <Rect
+          name="qna2ButtonHitExtension"
+          x={defaultHitArea.x + defaultHitArea.width}
+          y={defaultHitArea.y}
+          width={50}
+          height={defaultHitArea.height}
+          fill="transparent"
+          listening={true}
+          perfectDrawEnabled={false}
+        />
+      )}
 
       {/* Pass isDragging to children if they are React elements */}
       {children}

@@ -15,6 +15,8 @@ import { CanvasContainer } from './canvas-container';
 import { SnapGuidelines } from './snap-guidelines';
 import CanvasErrorBoundary from './CanvasErrorBoundary';
 import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } from './canvas-overlay';
+import { Qna2OverlayProvider } from './qna2-overlay-context';
+import { CanvasOverlayUnified } from './canvas-overlay-unified';
 import { CanvasBackground } from './CanvasBackground';
 import { CanvasOverlays } from './CanvasOverlays';
 import { PerformanceMonitor } from './PerformanceMonitor';
@@ -27,7 +29,6 @@ import { calculateQuestionStyle, calculateAnswerStyle, parseQuestionPayload, str
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { Skeleton } from '../../../ui/primitives';
-import { Lock, LockOpen } from 'lucide-react';
 import { snapPosition, snapDimensions, type SnapGuideline } from '../../../../utils/snapping';
 
 import { createPreviewImage, resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
@@ -540,7 +541,7 @@ export default function Canvas() {
   const [snapGuidelines, setSnapGuidelines] = useState<SnapGuideline[]>([]);
   const [hoveredSafetyMargin, setHoveredSafetyMargin] = useState<boolean>(false);
   const [safetyMarginTooltip, setSafetyMarginTooltip] = useState<{ x: number; y: number } | null>(null);
-  const [imageQualityTooltip, setImageQualityTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [imageQualityTooltip, setImageQualityTooltip] = useState<{ screenX: number; screenY: number; text?: string; color?: string } | null>(null);
   const [isManuallyHovering, setIsManuallyHovering] = useState<boolean>(false);
   // Track if actually transforming (not just selected)
   const isTransformingRef = useRef<boolean>(false);
@@ -1108,11 +1109,12 @@ export default function Canvas() {
   );
 
   useEffect(() => {
-    const handleImageQualityTooltip = (event: CustomEvent<{ text: string; clientX: number; clientY: number }>) => {
+    const handleImageQualityTooltip = (event: CustomEvent<{ text?: string; color?: string; screenX: number; screenY: number }>) => {
       setImageQualityTooltip({
-        x: event.detail.clientX,
-        y: event.detail.clientY,
-        text: event.detail.text
+        screenX: event.detail.screenX,
+        screenY: event.detail.screenY,
+        text: event.detail.text,
+        color: event.detail.color
       });
     };
 
@@ -5143,6 +5145,7 @@ export default function Canvas() {
 
   return (
     <CanvasOverlayProvider>
+      <Qna2OverlayProvider stageRef={stageRef} zoom={zoom} stagePos={stagePos}>
       <CanvasPageContainer assignedUser={state.pageAssignments[activePageNumber] || null}>
         <CanvasContainer 
           ref={containerRef} 
@@ -5154,17 +5157,13 @@ export default function Canvas() {
         >
         {/* Canvas Overlay Container - direkt im Canvas-Container, nicht als Portal */}
         <CanvasOverlayContainer />
-        
-        {/* Lock Elements Toggle Button - positioned left of tool settings panel */}
-        {!state.isMiniPreview && (
-          <div 
-            className="absolute top-2 z-50 bg-background/90 backdrop-blur-sm border border-border rounded-md p-1.5 shadow-lg cursor-pointer hover:bg-background/95 transition-colors"
-            style={{ 
-              right: state.settingsPanelVisible && panelOffset > 0 
-                ? `${panelOffset}px` 
-                : '0.5rem' // If panel is hidden or offset not calculated, show at edge
-            }}
-            onClick={() => {
+
+        {/* Einheitliche Overlay-Ebene: QNA2-Buttons, Lock-Button, Image-Quality-Tooltip */}
+        <CanvasOverlayUnified
+          lockButton={{
+            visible: !state.isMiniPreview,
+            locked: Boolean(state.editorSettings?.editor?.lockElements),
+            onClick: () => {
               const currentLockState = Boolean(state.editorSettings?.editor?.lockElements);
               dispatch({
                 type: 'UPDATE_EDITOR_SETTINGS',
@@ -5173,26 +5172,12 @@ export default function Canvas() {
                   settings: { lockElements: !currentLockState }
                 }
               });
-            }}
-          >
-            <Tooltip 
-              side="left" 
-              content={
-                state.editorSettings?.editor?.lockElements 
-                  ? "Click to unlock elements (allow moving, resizing, rotating, and adding new elements)"
-                  : "Click to lock elements (prevent moving, resizing, rotating, and adding new elements)"
-              }
-            >
-              <div style={{ pointerEvents: 'auto' }}>
-                {state.editorSettings?.editor?.lockElements ? (
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <LockOpen className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            </Tooltip>
-          </div>
-        )}
+            },
+            panelOffset,
+            settingsPanelVisible: state.settingsPanelVisible,
+          }}
+          imageQualityTooltip={imageQualityTooltip}
+        />
 
         <CanvasErrorBoundary>
           <CanvasStage
@@ -6783,11 +6768,11 @@ export default function Canvas() {
         // Tooltips
         inactivePageTooltip={inactivePageTooltip}
         outsidePageTooltip={outsidePageTooltip}
-        imageQualityTooltip={imageQualityTooltip}
       />
 
       <PerformanceMonitor stageRef={stageRef} />
 
+      </Qna2OverlayProvider>
     </CanvasOverlayProvider>
   );
 }

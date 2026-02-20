@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Rect, Image as KonvaImage, Group, Line, Path, Circle } from 'react-konva';
+import { Rect, Image as KonvaImage, Group, Line } from 'react-konva';
 import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
@@ -525,20 +525,37 @@ export default function Image(props: ImageProps) {
           })()}
 
           {image && imageQuality && element.type === 'image' && !isTransforming && isImageHovered && (() => {
-            const indicatorRadius = 6;
-            const indicatorX = size.width;
-            const indicatorY = 0;
-            const inverseZoom = zoom ? 1 / zoom : 1;
-            const tooltipOffsetX = 12;
-            const tooltipOffsetY = 0;
+            const CORNER_SIZE = 50;
+            const CORNER_EXTENSION = 30;
 
             const handleQualityTooltip = (evt: Konva.KonvaEventObject<MouseEvent>) => {
-              const { clientX, clientY } = evt.evt;
+              const groupNode = imageRef.current?.getParent();
+              const stage = evt.target.getStage();
+              if (!groupNode || !stage) return;
+
+              const pointerPos = stage.getPointerPosition();
+              if (!pointerPos) return;
+
+              const imgWidth = size.width || element.width || 0;
+              const isOverCornerExtension = evt.target.name() === 'imageQualityCornerExtension';
+              let isInCorner = isOverCornerExtension;
+              if (!isInCorner) {
+                const transform = evt.target.getAbsoluteTransform().copy().invert();
+                const localPos = transform.point(pointerPos);
+                isInCorner = localPos.x > imgWidth - CORNER_SIZE && localPos.y < CORNER_SIZE;
+              }
+
+              const stageBox = stage.container().getBoundingClientRect();
+              const topRightCanvas = groupNode.getAbsoluteTransform().point({ x: imgWidth, y: 0 });
+              const screenX = stageBox.left + topRightCanvas.x;
+              const screenY = stageBox.top + topRightCanvas.y;
+
               window.dispatchEvent(new CustomEvent('imageQualityTooltip', {
                 detail: {
-                  text: imageQuality.text,
-                  clientX: clientX + tooltipOffsetX,
-                  clientY: clientY + tooltipOffsetY
+                  text: isInCorner ? imageQuality.text : undefined,
+                  color: imageQuality.color,
+                  screenX,
+                  screenY
                 }
               }));
             };
@@ -547,23 +564,32 @@ export default function Image(props: ImageProps) {
               window.dispatchEvent(new CustomEvent('imageQualityTooltipHide'));
             };
 
+            const imgWidth = size.width || element.width || 0;
+            const imgHeight = size.height || element.height || 0;
+
             return (
               <Group
-                x={indicatorX}
-                y={indicatorY}
-                scaleX={inverseZoom}
-                scaleY={inverseZoom}
+                listening={true}
                 onMouseEnter={handleQualityTooltip}
                 onMouseMove={handleQualityTooltip}
                 onMouseLeave={handleQualityTooltipHide}
               >
-                <Circle
-                  radius={indicatorRadius}
-                  x={-indicatorRadius * 0.5}
-                  y={indicatorRadius * 0.5}
-                  fill={imageQuality.color}
-                  stroke="#ffffff"
-                  strokeWidth={3}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={imgWidth}
+                  height={imgHeight}
+                  fill="transparent"
+                  listening={true}
+                />
+                <Rect
+                  name="imageQualityCornerExtension"
+                  x={imgWidth - CORNER_EXTENSION}
+                  y={-CORNER_EXTENSION}
+                  width={CORNER_EXTENSION * 2}
+                  height={CORNER_EXTENSION * 2}
+                  fill="transparent"
+                  listening={true}
                 />
               </Group>
             );
