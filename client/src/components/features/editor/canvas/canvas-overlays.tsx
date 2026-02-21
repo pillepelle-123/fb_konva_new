@@ -1,6 +1,7 @@
 import React from 'react';
 import ContextMenu from '../../../ui/overlays/context-menu';
 import { QuestionSelectorModal } from '../question-selector-modal';
+import { Qna2EditorModal } from '../qna2-editor-modal';
 import { Alert } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { QrCodeModal } from '../qr-code/qr-code-modal';
@@ -13,7 +14,7 @@ interface CanvasOverlaysProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onCopy: () => void;
-  onPaste: () => void | undefined;
+  onPaste?: (() => void) | undefined;
   onMoveToFront: () => void;
   onMoveToBack: () => void;
   onMoveUp: () => void;
@@ -50,6 +51,13 @@ interface CanvasOverlaysProps {
   showQuestionSelectorModal: boolean;
   onQuestionSelectorModalClose: () => void;
   questionSelectorElementId: string | null;
+
+  // QNA2 Editor Modal props (combined Question + Answer tabs for qna2 textbox)
+  showQna2EditorModal: boolean;
+  onQna2EditorModalClose: () => void;
+  qna2EditorElementId: string | null;
+  qna2EditorCanShowQuestionTab: boolean;
+  qna2EditorCanShowAnswerTab: boolean;
 
   // QR Code Modal props
   showQrCodeModal: boolean;
@@ -108,6 +116,13 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   showQuestionSelectorModal,
   onQuestionSelectorModalClose,
   questionSelectorElementId,
+
+  // QNA2 Editor Modal
+  showQna2EditorModal,
+  onQna2EditorModalClose,
+  qna2EditorElementId,
+  qna2EditorCanShowQuestionTab,
+  qna2EditorCanShowAnswerTab,
 
   // QR Code Modal
   showQrCodeModal,
@@ -171,13 +186,25 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         />
       )}
 
-      {/* Question Selector Modal (second instance) */}
+      {/* Question Selector Modal (for qna textbox) */}
       {showQuestionSelectorModal && questionSelectorElementId && canManageQuestions && (
         <QuestionSelectorModal
           isOpen={showQuestionSelectorModal}
           onClose={onQuestionSelectorModalClose}
           onQuestionSelect={onQuestionSelect}
           elementId={questionSelectorElementId}
+        />
+      )}
+
+      {/* QNA2 Editor Modal (Question + Answer tabs for qna2 textbox) */}
+      {showQna2EditorModal && qna2EditorElementId && (
+        <Qna2EditorModal
+          isOpen={showQna2EditorModal}
+          onClose={onQna2EditorModalClose}
+          onQuestionSelect={onQuestionSelect}
+          elementId={qna2EditorElementId}
+          canShowQuestionTab={qna2EditorCanShowQuestionTab}
+          canShowAnswerTab={qna2EditorCanShowAnswerTab}
         />
       )}
 

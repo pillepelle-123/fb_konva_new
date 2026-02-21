@@ -153,6 +153,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     if (base.format) {
       if (base.format.paragraphSpacing) base.paragraphSpacing = base.format.paragraphSpacing;
       if (base.format.padding !== undefined) base.padding = base.format.padding;
+      if (base.format.textAlign) base.align = base.format.textAlign;
     }
 
     // Map nested ruledLines properties to flat canvas element properties
@@ -560,18 +561,8 @@ function getBaseDefaultsForType(elementType: string): any {
       paragraphSpacing: 'medium',
       ruledLines: false,
       padding: 8,
-      textSettings: {
-        fontSize: 50,
-        fontColor: '#1f2937',
-        fontFamily: 'Arial, sans-serif',
-        fontBold: false,
-        fontItalic: false,
-        fontOpacity: 1,
-        align: 'left',
-        paragraphSpacing: 'medium',
-        ruledLines: false,
-        padding: 8
-      }
+      questionSettings: { fontSize: 50, fontFamily: 'Arial, sans-serif', fontBold: false, fontItalic: false, fontOpacity: 1 },
+      answerSettings: { fontSize: 50, fontFamily: 'Arial, sans-serif', fontBold: false, fontItalic: false, fontOpacity: 1 }
     },
     qr_code: {
       qrForegroundColor: '#111827',
@@ -597,8 +588,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
   // Use ONLY the provided paletteId, NOT the theme's default palette
   const palette = paletteId ? getPalette(paletteId) : undefined;
   
-  // For QnA elements, convert fontSize in questionSettings and answerSettings from common to actual
-  if (elementType === 'qna') {
+  // For QnA elements (qna and qna2), convert fontSize in questionSettings and answerSettings from common to actual
+  if (elementType === 'qna' || elementType === 'qna2') {
     const category = getThemeCategory(elementType);
     const themeDefaults = theme.elementDefaults[category] || {};
     
@@ -687,6 +678,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
               value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
             } else if (prop === 'backgroundEnabled') {
               value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+            } else if (prop === 'ruledLines') {
+              // ruledLines liegt auf Textebene in themes.json, nicht in questionSettings/answerSettings
+              value = themeDefaults.ruledLines;
             }
           }
 
@@ -743,11 +737,33 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       (convertedDefaults as any).questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
       (convertedDefaults as any).answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
 
+      // qna2: textSettings für textbox-qna2 (erwartet textSettings für ruledLines, border, etc.)
+      if (elementType === 'qna2') {
+        const rl = (convertedDefaults as any).ruledLines;
+        (convertedDefaults as any).textSettings = {
+          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, theme: 'default' },
+          ruledLinesWidth: (convertedDefaults as any).ruledLinesWidth ?? 0.8,
+          ruledLinesTheme: (convertedDefaults as any).ruledLinesTheme ?? 'rough',
+          ruledLinesColor: (convertedDefaults as any).ruledLinesColor ?? '#1f2937',
+          ruledLinesOpacity: (convertedDefaults as any).ruledLinesOpacity ?? 1,
+          backgroundColor: (convertedDefaults as any).backgroundColor,
+          backgroundOpacity: (convertedDefaults as any).backgroundOpacity,
+          backgroundEnabled: (convertedDefaults as any).backgroundEnabled,
+          cornerRadius: (convertedDefaults as any).cornerRadius,
+          borderColor: (convertedDefaults as any).borderColor,
+          borderWidth: (convertedDefaults as any).borderWidth,
+          borderOpacity: (convertedDefaults as any).borderOpacity,
+          borderTheme: (convertedDefaults as any).borderTheme,
+          borderEnabled: (convertedDefaults as any).borderEnabled,
+          padding: (convertedDefaults as any).padding
+        };
+      }
+
       return { ...convertedDefaults, ...paletteDefaults };
     }
 
-    // For qna elements without palette, still apply shared properties cleanup
-    if (elementType === 'qna') {
+    // For qna/qna2 elements without palette, still apply shared properties cleanup
+    if (elementType === 'qna' || elementType === 'qna2') {
       const questionSettings = convertedDefaults.questionSettings || {};
       const answerSettings = convertedDefaults.answerSettings || {};
 
@@ -777,6 +793,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
               value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
             } else if (prop === 'backgroundEnabled') {
               value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+            } else if (prop === 'ruledLines') {
+              // ruledLines liegt auf Textebene in themes.json, nicht in questionSettings/answerSettings
+              value = themeDefaults.ruledLines;
             }
           }
 
@@ -826,13 +845,35 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
 
       (convertedDefaults as any).questionSettings = Object.keys(cleanedQuestionSettings).length > 0 ? cleanedQuestionSettings : undefined;
       (convertedDefaults as any).answerSettings = Object.keys(cleanedAnswerSettings).length > 0 ? cleanedAnswerSettings : undefined;
+
+      // qna2: textSettings für textbox-qna2 (erwartet textSettings für ruledLines, border, etc.)
+      if (elementType === 'qna2') {
+        const rl = (convertedDefaults as any).ruledLines;
+        (convertedDefaults as any).textSettings = {
+          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, theme: 'default' },
+          ruledLinesWidth: (convertedDefaults as any).ruledLinesWidth ?? 0.8,
+          ruledLinesTheme: (convertedDefaults as any).ruledLinesTheme ?? 'rough',
+          ruledLinesColor: (convertedDefaults as any).ruledLinesColor ?? '#1f2937',
+          ruledLinesOpacity: (convertedDefaults as any).ruledLinesOpacity ?? 1,
+          backgroundColor: (convertedDefaults as any).backgroundColor,
+          backgroundOpacity: (convertedDefaults as any).backgroundOpacity,
+          backgroundEnabled: (convertedDefaults as any).backgroundEnabled,
+          cornerRadius: (convertedDefaults as any).cornerRadius,
+          borderColor: (convertedDefaults as any).borderColor,
+          borderWidth: (convertedDefaults as any).borderWidth,
+          borderOpacity: (convertedDefaults as any).borderOpacity,
+          borderTheme: (convertedDefaults as any).borderTheme,
+          borderEnabled: (convertedDefaults as any).borderEnabled,
+          padding: (convertedDefaults as any).padding
+        };
+      }
     }
 
     return convertedDefaults;
   }
 
-  // For free_text and qna2 elements, build textSettings structure
-  if (elementType === 'free_text' || elementType === 'qna2') {
+  // For free_text elements, build textSettings structure (qna2 uses qna branch above)
+  if (elementType === 'free_text') {
     const category = getThemeCategory(elementType);
     const themeDefaults = theme.elementDefaults[category] || {};
     
@@ -1376,10 +1417,13 @@ export function applyThemeToElementConsistent(
   // Verwende getGlobalThemeDefaults mit Palette-Parameter für Konsistenz
   const themeDefaults = getGlobalThemeDefaults(themeId, elementType, paletteId);
 
+  // ruledLines separat behandeln, damit explizite Benutzerauswahl nicht überschrieben wird
+  const { ruledLines: _themeRuledLines, ...themeDefaultsWithoutRuledLines } = themeDefaults as any;
+
   // Deep merge theme properties while preserving element content
   const updatedElement: any = {
     ...element,
-    ...themeDefaults,
+    ...themeDefaultsWithoutRuledLines,
     theme: themeId,
     // Preserve essential content properties
     id: element.id,
@@ -1392,33 +1436,34 @@ export function applyThemeToElementConsistent(
     rotation: element.rotation,
   };
 
-  // Handle nested objects properly (deep merge)
-  if (themeDefaults.font && element.font) {
-    updatedElement.font = { ...element.font, ...themeDefaults.font };
+  // Handle nested objects: Theme-Werte immer anwenden (Theme als Basis, Element-Overrides wo Theme fehlt)
+  if (themeDefaults.font) {
+    updatedElement.font = { ...(element.font || {}), ...themeDefaults.font };
   }
 
-  if (themeDefaults.border && element.border) {
-    updatedElement.border = { ...element.border, ...themeDefaults.border };
+  if (themeDefaults.border) {
+    updatedElement.border = { ...(element.border || {}), ...themeDefaults.border };
   }
 
-  if (themeDefaults.background && element.background) {
-    updatedElement.background = { ...element.background, ...themeDefaults.background };
+  if (themeDefaults.background) {
+    updatedElement.background = { ...(element.background || {}), ...themeDefaults.background };
   }
 
-  if (themeDefaults.ruledLines && element.ruledLines) {
-    updatedElement.ruledLines = { ...element.ruledLines, ...themeDefaults.ruledLines };
+  // ruledLines: Theme-Werte immer übernehmen (Option A) – beim Theme-Wechsel kommt das neue Theme
+  if (themeDefaults.ruledLines) {
+    updatedElement.ruledLines = themeDefaults.ruledLines;
   }
 
-  if (themeDefaults.questionSettings && element.questionSettings) {
-    updatedElement.questionSettings = { ...element.questionSettings, ...themeDefaults.questionSettings };
+  if (themeDefaults.questionSettings) {
+    updatedElement.questionSettings = { ...(element.questionSettings || {}), ...themeDefaults.questionSettings };
   }
 
-  if (themeDefaults.answerSettings && element.answerSettings) {
-    updatedElement.answerSettings = { ...element.answerSettings, ...themeDefaults.answerSettings };
+  if (themeDefaults.answerSettings) {
+    updatedElement.answerSettings = { ...(element.answerSettings || {}), ...themeDefaults.answerSettings };
   }
 
-  if (themeDefaults.textSettings && element.textSettings) {
-    updatedElement.textSettings = { ...element.textSettings, ...themeDefaults.textSettings };
+  if (themeDefaults.textSettings) {
+    updatedElement.textSettings = { ...(element.textSettings || {}), ...themeDefaults.textSettings };
   }
 
   return updatedElement;

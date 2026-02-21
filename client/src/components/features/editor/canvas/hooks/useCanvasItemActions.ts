@@ -30,7 +30,7 @@ export const useCanvasItemActions = ({
 }: UseCanvasItemActionsProps) => {
 
   const hasSelectedQna = () =>
-    currentPage?.elements?.some((el: any) => state.selectedElementIds.includes(el.id) && el.textType === 'qna') || false;
+    currentPage?.elements?.some((el: any) => state.selectedElementIds.includes(el.id) && (el.textType === 'qna' || el.textType === 'qna2')) || false;
 
   const handleDuplicateItems = useCallback(() => {
     if (!currentPage) return;
@@ -64,18 +64,21 @@ export const useCanvasItemActions = ({
       if (element) {
         const newId = idMapping.get(elementId)!;
         newElementIds.push(newId);
+        const isQnaOrQna2 = element.textType === 'qna' || element.textType === 'qna2';
         const duplicatedElement = {
           ...element,
           id: newId,
           x: element.x + 20,
           y: element.y + 20,
-          // Clear text for question, answer and qna elements
-          text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.text,
-          formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.formattedText,
+          // Clear text for question, answer, qna and qna2 elements – Kopie ist leere Hülle mit Platzhalter
+          text: (element.textType === 'question' || element.textType === 'answer' || isQnaOrQna2) ? '' : element.text,
+          formattedText: (element.textType === 'question' || element.textType === 'answer' || isQnaOrQna2) ? '' : element.formattedText,
           // Clear question styling for duplicated questions
           fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-          // Clear questionId for question and qna elements
-          questionId: (element.textType === 'question' || element.textType === 'qna') ? undefined : element.questionId,
+          // Never copy question/answer: qna and qna2 become empty shells
+          questionId: (element.textType === 'question' || isQnaOrQna2) ? undefined : element.questionId,
+          answerId: isQnaOrQna2 ? undefined : element.answerId,
+          richTextSegments: isQnaOrQna2 ? [] : element.richTextSegments,
           // Update questionElementId reference for answer elements
           questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
         };
@@ -116,10 +119,10 @@ export const useCanvasItemActions = ({
 
   const handlePasteItems = useCallback(() => {
     if (clipboard.length === 0) return;
-    if (!canCreateQna && clipboard.some((element: any) => element.textType === 'qna')) return;
+    if (!canCreateQna && clipboard.some((element: any) => element.textType === 'qna' || element.textType === 'qna2')) return;
 
     const hasQuestionAnswer = clipboard.some((element: any) =>
-      element.textType === 'question' || element.textType === 'answer'
+      element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna' || element.textType === 'qna2'
     );
 
     if (hasQuestionAnswer) {
@@ -130,7 +133,9 @@ export const useCanvasItemActions = ({
       const currentPageNumber = state.activePageIndex + 1;
       const assignedUser = state.pageAssignments[currentPageNumber];
       if (assignedUser) {
-        const questionElements = clipboard.filter((el: any) => el.textType === 'question' && el.questionId);
+        const questionElements = clipboard.filter((el: any) =>
+          (el.textType === 'question' || el.textType === 'qna' || el.textType === 'qna2') && el.questionId
+        );
         const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
         const hasConflict = questionElements.some((el: any) => userQuestions.has(el.questionId));
         if (hasConflict) return undefined; // Hide paste option for conflicts

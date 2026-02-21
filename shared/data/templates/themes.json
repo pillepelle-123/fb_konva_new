@@ -195,7 +195,7 @@
         "padding": 12,
         "paragraphSpacing": "medium",
         "ruledLines": {
-          "enabled": false,
+          "enabled": true,
           "width": 0.8,
           "opacity": 0.5,
           "theme": "glow"

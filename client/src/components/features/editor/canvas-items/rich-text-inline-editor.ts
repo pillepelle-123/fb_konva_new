@@ -483,7 +483,7 @@ export function createRichTextInlineEditor(params: RichTextInlineEditorParams): 
   };
 
   const discardButton = document.createElement('button');
-  discardButton.textContent = 'Verwerfen';
+  discardButton.textContent = 'Discard';
   discardButton.style.padding = '8px 16px';
   discardButton.style.borderRadius = '6px';
   discardButton.style.border = '1px solid hsl(var(--input))';

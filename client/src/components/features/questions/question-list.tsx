@@ -80,6 +80,10 @@ export interface QuestionListProps {
   userRole?: 'owner' | 'publisher' | 'author';
   onViewAnswers?: (questionId: string, questionText: string) => void;
   highlightedQuestionId?: string;
+  /** Pending selection (e.g. before Save); when set, used for selected styling; badge "Assigned to textbox" uses highlightedQuestionId */
+  selectedQuestionId?: string;
+  /** When true, clicking the highlighted/selected question still triggers onQuestionSelect (e.g. for deselect) */
+  allowHighlightedClick?: boolean;
   // For pool mode
   searchTerm?: string;
   onSearchChange?: (term: string) => void;
@@ -158,6 +162,8 @@ export function QuestionList({
   maxQuestions,
   onNavigate,
   highlightedQuestionId,
+  selectedQuestionId,
+  allowHighlightedClick = false,
 }: QuestionListProps) {
   const [localEditingId, setLocalEditingId] = useState<string | null>(null);
   const [localEditText, setLocalEditText] = useState('');
@@ -714,14 +720,16 @@ export function QuestionList({
         const unavailableReason = validationResult?.reason || null;
 
         const isHighlighted = highlightedQuestionId === question.id;
-        // If highlighted, show as active (not disabled) but still not clickable
-        const shouldShowAsDisabled = isDisabled && !isHighlighted;
+        const isSelected = (selectedQuestionId ?? highlightedQuestionId) === question.id;
+        // If selected/highlighted, show as active (not disabled)
+        const shouldShowAsDisabled = isDisabled && !isSelected;
         
-        // Determine badge text: combine "Zugewiesen" and unavailableReason if both exist
-        // Always check unavailableReason even if highlighted, to show combined badge
+        // Determine badge text: "Assigned to textbox" only for actually assigned; "Selected" for pending
         let statusBadgeText: string | null = null;
         if (isHighlighted) {
           statusBadgeText = 'Assigned to textbox';
+        } else if (isSelected && selectedQuestionId) {
+          statusBadgeText = 'Selected';
         } else if (unavailableReason) {
           statusBadgeText = unavailableReason;
         }
@@ -773,14 +781,16 @@ export function QuestionList({
               mode === 'view' 
                 ? 'border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20' 
                 : mode === 'select' && !shouldShowAsDisabled
-                  ? isHighlighted
-                    ? 'border shadow-sm cursor-not-allowed hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-secondary'
+                  ? isSelected
+                    ? allowHighlightedClick
+                      ? 'border shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-secondary'
+                      : 'border shadow-sm cursor-not-allowed hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-secondary'
                     : 'border shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/20 hover:bg-primary/5'
                   : 'border shadow-sm'
             }
             onClick={(e) => {
-              // Only handle clicks in select mode and if not disabled and not highlighted
-              if (mode === 'select' && !shouldShowAsDisabled && !isHighlighted) {
+              // Only handle clicks in select mode and if not disabled; allow selected click when allowHighlightedClick
+              if (mode === 'select' && !shouldShowAsDisabled && (!isSelected || allowHighlightedClick)) {
                 const target = e.target as HTMLElement;
                 // Don't trigger selection if clicking on buttons or interactive elements
                 if (target.closest('button')) return;
@@ -854,12 +864,7 @@ export function QuestionList({
                       </h3>
                       {showStatusBadge && (
                         <Badge 
-                          variant="highlight" 
-                          // className={`${
-                          //   isHighlighted 
-                          //     ? 'bg-secondary text-secondary-foreground border-secondary/20' 
-                          //     : 'bg-destructive/10 text-destructive border-destructive/20'
-                          // }`}
+                          variant={statusBadgeText === 'Selected' ? 'default' : 'highlight'} 
                         >
                           {statusBadgeText}
                         </Badge>

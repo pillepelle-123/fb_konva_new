@@ -380,6 +380,10 @@ export default function Image(props: ImageProps) {
       {...baseProps}
       element={element}
       onDoubleClick={handleDoubleClick}
+      onDragStart={(e) => {
+        handleImageHoverEnd();
+        baseProps.onDragStart?.(e);
+      }}
       onMouseEnter={() => setIsImageHovered(true)}
       onMouseLeave={handleImageHoverEnd}
     >
@@ -524,9 +528,8 @@ export default function Image(props: ImageProps) {
             return frameElement;
           })()}
 
-          {image && imageQuality && element.type === 'image' && !isTransforming && isImageHovered && (() => {
+          {image && imageQuality && element.type === 'image' && !isTransforming && !props.isDragging && isImageHovered && (() => {
             const CORNER_SIZE = 50;
-            const CORNER_EXTENSION = 30;
 
             const handleQualityTooltip = (evt: Konva.KonvaEventObject<MouseEvent>) => {
               const groupNode = imageRef.current?.getParent();
@@ -537,13 +540,9 @@ export default function Image(props: ImageProps) {
               if (!pointerPos) return;
 
               const imgWidth = size.width || element.width || 0;
-              const isOverCornerExtension = evt.target.name() === 'imageQualityCornerExtension';
-              let isInCorner = isOverCornerExtension;
-              if (!isInCorner) {
-                const transform = evt.target.getAbsoluteTransform().copy().invert();
-                const localPos = transform.point(pointerPos);
-                isInCorner = localPos.x > imgWidth - CORNER_SIZE && localPos.y < CORNER_SIZE;
-              }
+              const transform = evt.target.getAbsoluteTransform().copy().invert();
+              const localPos = transform.point(pointerPos);
+              const isInCorner = localPos.x > imgWidth - CORNER_SIZE && localPos.y < CORNER_SIZE;
 
               const stageBox = stage.container().getBoundingClientRect();
               const topRightCanvas = groupNode.getAbsoluteTransform().point({ x: imgWidth, y: 0 });
@@ -579,15 +578,6 @@ export default function Image(props: ImageProps) {
                   y={0}
                   width={imgWidth}
                   height={imgHeight}
-                  fill="transparent"
-                  listening={true}
-                />
-                <Rect
-                  name="imageQualityCornerExtension"
-                  x={imgWidth - CORNER_EXTENSION}
-                  y={-CORNER_EXTENSION}
-                  width={CORNER_EXTENSION * 2}
-                  height={CORNER_EXTENSION * 2}
                   fill="transparent"
                   listening={true}
                 />

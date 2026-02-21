@@ -9,7 +9,7 @@ interface ModalProps {
   children: ReactNode | ((currentView: string, navigate: (view: string) => void) => ReactNode);
   actions?: ReactNode | ((currentView: string, navigate: (view: string) => void) => ReactNode);
   closeOnBackdrop?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   initialView?: string;
 }
 
@@ -46,6 +46,7 @@ export function Modal({
     sm: 'max-w-lg',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
+    xl: 'max-w-5xl',
   };
 
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useEditor, createSampleBook } from '../../context/editor-context';
+import { useAuth } from '../../context/auth-context';
 import { AbilityProvider } from '../../abilities/ability-context';
 import EditorBar from '../../components/features/editor/editor-bar';
 import Toolbar from '../../components/features/editor/toolbar';
@@ -8,6 +9,7 @@ import Canvas from '../../components/features/editor/canvas';
 import { ZoomProvider } from '../../components/features/editor/canvas/zoom-context';
 import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../components/features/editor/tool-settings/tool-settings-panel';
 import { StatusBar } from '../../components/features/editor/status-bar';
+import { AdminInfoPanel } from '../../components/features/editor/admin-info-panel';
 import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
 import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
@@ -20,8 +22,10 @@ function EditorContent() {
   const { bookId } = useParams<{ bookId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   const openPreviewOnLoad = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -618,6 +622,9 @@ function EditorContent() {
         saveBook().then(() => {
           toast.success('Book saved successfully');
         }).catch(console.error);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i' && user?.role === 'admin') {
+        e.preventDefault();
+        setAdminPanelOpen((prev) => !prev);
       }
     };
 
@@ -650,7 +657,7 @@ function EditorContent() {
       window.removeEventListener('addPage', handleAddPage);
       window.removeEventListener('addPagePairAtIndex', handleAddPagePairAtIndex);
     };
-  }, [undo, redo, saveBook, state.currentBook, dispatch]);
+  }, [undo, redo, saveBook, state.currentBook, dispatch, user?.role]);
 
   if (!state.currentBook) {
     return (
@@ -724,10 +731,10 @@ function EditorContent() {
             
             <StatusBar />
           </div>
+        </div>
 
+        <AdminInfoPanel open={adminPanelOpen} onClose={() => setAdminPanelOpen(false)} />
       </div>
-      
-    </div>
     </ZoomProvider>
   );
 }

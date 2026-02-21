@@ -131,6 +131,10 @@ import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } fr
 import { calculatePageDimensions } from '../utils/template-utils';
 import { createPageNumberElement, renumberPageNumberElementsInPages, type PageNumberingSettings } from '../utils/page-number-utils';
 import { pageTemplates } from '../data/templates/page-templates';
+import {
+  getQuestionIdsAssignedToUser,
+  checkUserQuestionConflictsForPageAssignment,
+} from '../services/question-assignment-rules';
 import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes';
 import { getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../utils/global-themes';
 import { getElementPaletteColors } from '../utils/global-palettes';
@@ -1752,91 +1756,94 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case 'UPDATE_ELEMENT_PRESERVE_SELECTION':
       if (!state.currentBook) return state;
+      // Element auf allen Seiten suchen (nicht nur activePageIndex), damit QnA2-Auswahl
+      // im Modal auch bei Spread-Ansicht (Partner-Seite) funktioniert
       const updatedBookPreserve = {
         ...state.currentBook,
-        pages: state.currentBook.pages.map((page, index) => {
-          if (index === state.activePageIndex) {
-            const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
-            if (elementIndex !== -1) {
-              const oldElement = page.elements[elementIndex];
-              const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
-              
-              // Deep merge nested objects like questionSettings and answerSettings
-              const mergedUpdates = { ...enforcedUpdates };
-              if (enforcedUpdates.questionSettings) {
-                mergedUpdates.questionSettings = {
-                  ...oldElement.questionSettings,
-                  ...enforcedUpdates.questionSettings
-                };
-              }
-              if (enforcedUpdates.answerSettings) {
-                mergedUpdates.answerSettings = {
-                  ...oldElement.answerSettings,
-                  ...enforcedUpdates.answerSettings
-                };
-              }
-              if (enforcedUpdates.textSettings) {
-                mergedUpdates.textSettings = {
-                  ...oldElement.textSettings,
-                  ...enforcedUpdates.textSettings
-                };
-              }
-              
-              // Check if this is a color update and mark as override
-              const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
-              const colorOverrides = { ...oldElement.colorOverrides };
-              
-              // Also check nested color properties in questionSettings and answerSettings
-              if (mergedUpdates.questionSettings) {
-                if (mergedUpdates.questionSettings.fontColor !== undefined && 
-                    mergedUpdates.questionSettings.fontColor !== oldElement.questionSettings?.fontColor) {
-                  colorOverrides['questionSettings.fontColor'] = true;
-                }
-                if (mergedUpdates.questionSettings.borderColor !== undefined && 
-                    mergedUpdates.questionSettings.borderColor !== oldElement.questionSettings?.borderColor) {
-                  colorOverrides['questionSettings.borderColor'] = true;
-                }
-                if (mergedUpdates.questionSettings.backgroundColor !== undefined && 
-                    mergedUpdates.questionSettings.backgroundColor !== oldElement.questionSettings?.backgroundColor) {
-                  colorOverrides['questionSettings.backgroundColor'] = true;
-                }
-              }
-              if (mergedUpdates.answerSettings) {
-                if (mergedUpdates.answerSettings.fontColor !== undefined && 
-                    mergedUpdates.answerSettings.fontColor !== oldElement.answerSettings?.fontColor) {
-                  colorOverrides['answerSettings.fontColor'] = true;
-                }
-                if (mergedUpdates.answerSettings.borderColor !== undefined && 
-                    mergedUpdates.answerSettings.borderColor !== oldElement.answerSettings?.borderColor) {
-                  colorOverrides['answerSettings.borderColor'] = true;
-                }
-                if (mergedUpdates.answerSettings.backgroundColor !== undefined && 
-                    mergedUpdates.answerSettings.backgroundColor !== oldElement.answerSettings?.backgroundColor) {
-                  colorOverrides['answerSettings.backgroundColor'] = true;
-                }
-              }
-              
-              colorProperties.forEach(prop => {
-                if (mergedUpdates[prop] !== undefined && mergedUpdates[prop] !== oldElement[prop]) {
-                  colorOverrides[prop] = true;
-                }
-              });
-              
-              return {
-                ...page,
-                elements: page.elements.map((el, elIndex) =>
-                  elIndex === elementIndex ? { ...oldElement, ...mergedUpdates, colorOverrides } : el
-                )
+        pages: state.currentBook.pages.map((page) => {
+          const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
+          if (elementIndex !== -1) {
+            const oldElement = page.elements[elementIndex];
+            const enforcedUpdates = enforceThemeBoundaries(action.payload.updates, oldElement);
+            
+            // Deep merge nested objects like questionSettings and answerSettings
+            const mergedUpdates = { ...enforcedUpdates };
+            if (enforcedUpdates.questionSettings) {
+              mergedUpdates.questionSettings = {
+                ...oldElement.questionSettings,
+                ...enforcedUpdates.questionSettings
               };
             }
+            if (enforcedUpdates.answerSettings) {
+              mergedUpdates.answerSettings = {
+                ...oldElement.answerSettings,
+                ...enforcedUpdates.answerSettings
+              };
+            }
+            if (enforcedUpdates.textSettings) {
+              mergedUpdates.textSettings = {
+                ...oldElement.textSettings,
+                ...enforcedUpdates.textSettings
+              };
+            }
+            
+            // Check if this is a color update and mark as override
+            const colorProperties = ['stroke', 'fill', 'fontColor', 'borderColor', 'backgroundColor'];
+            const colorOverrides = { ...oldElement.colorOverrides };
+            
+            // Also check nested color properties in questionSettings and answerSettings
+            if (mergedUpdates.questionSettings) {
+              if (mergedUpdates.questionSettings.fontColor !== undefined && 
+                  mergedUpdates.questionSettings.fontColor !== oldElement.questionSettings?.fontColor) {
+                colorOverrides['questionSettings.fontColor'] = true;
+              }
+              if (mergedUpdates.questionSettings.borderColor !== undefined && 
+                  mergedUpdates.questionSettings.borderColor !== oldElement.questionSettings?.borderColor) {
+                colorOverrides['questionSettings.borderColor'] = true;
+              }
+              if (mergedUpdates.questionSettings.backgroundColor !== undefined && 
+                  mergedUpdates.questionSettings.backgroundColor !== oldElement.questionSettings?.backgroundColor) {
+                colorOverrides['questionSettings.backgroundColor'] = true;
+              }
+            }
+            if (mergedUpdates.answerSettings) {
+              if (mergedUpdates.answerSettings.fontColor !== undefined && 
+                  mergedUpdates.answerSettings.fontColor !== oldElement.answerSettings?.fontColor) {
+                colorOverrides['answerSettings.fontColor'] = true;
+              }
+              if (mergedUpdates.answerSettings.borderColor !== undefined && 
+                  mergedUpdates.answerSettings.borderColor !== oldElement.answerSettings?.borderColor) {
+                colorOverrides['answerSettings.borderColor'] = true;
+              }
+              if (mergedUpdates.answerSettings.backgroundColor !== undefined && 
+                  mergedUpdates.answerSettings.backgroundColor !== oldElement.answerSettings?.backgroundColor) {
+                colorOverrides['answerSettings.backgroundColor'] = true;
+              }
+            }
+            
+            colorProperties.forEach(prop => {
+              if (mergedUpdates[prop] !== undefined && mergedUpdates[prop] !== oldElement[prop]) {
+                colorOverrides[prop] = true;
+              }
+            });
+            
+            return {
+              ...page,
+              elements: page.elements.map((el, elIndex) =>
+                elIndex === elementIndex ? { ...oldElement, ...mergedUpdates, colorOverrides } : el
+              )
+            };
           }
           return page;
         })
       };
       const stateAfterUpdate = { ...state, currentBook: updatedBookPreserve, hasUnsavedChanges: true };
-      const updatedPageId = updatedBookPreserve.pages[state.activePageIndex]?.id;
+      const updatedPageIndex = state.currentBook.pages.findIndex(p =>
+        p.elements.some(el => el.id === action.payload.id)
+      );
+      const updatedPageId = updatedPageIndex >= 0 ? updatedBookPreserve.pages[updatedPageIndex]?.id : undefined;
       const preserveStateWithInvalidation = invalidatePagePreviews(stateAfterUpdate, updatedPageId ? [updatedPageId] : []);
-      return markPageIndexAsModified(preserveStateWithInvalidation, state.activePageIndex);
+      return markPageIndexAsModified(preserveStateWithInvalidation, updatedPageIndex >= 0 ? updatedPageIndex : state.activePageIndex);
     
     case 'UPDATE_GROUPED_ELEMENT':
       if (!state.currentBook) return state;
@@ -3236,12 +3243,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             affectedPageIndexes: [action.payload.pageIndex]
           });
       const updatedBookBg = { ...savedBgState.currentBook! };
-      const backgroundPage = updatedBookBg.pages[action.payload.pageIndex];
-      if (backgroundPage) {
-        backgroundPage.background = action.payload.background;
-      }
+      const pageIndexBg = action.payload.pageIndex;
+      updatedBookBg.pages = updatedBookBg.pages.map((page, idx) =>
+        idx === pageIndexBg ? { ...page, background: action.payload.background } : page
+      );
       const stateWithChanges = { ...savedBgState, currentBook: updatedBookBg, hasUnsavedChanges: true };
-      return markPageIndexAsModified(stateWithChanges, action.payload.pageIndex);
+      return markPageIndexAsModified(stateWithChanges, pageIndexBg);
     
     case 'SET_BOOK_THEME':
       if (!state.currentBook) return state;
@@ -3379,20 +3386,34 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               
               // Apply palette colors based on element type (same logic as APPLY_COLOR_PALETTE)
               if (updatedElement.type === 'text' || updatedElement.textType) {
-                // For qna, font properties are in questionSettings/answerSettings
-                if (updatedElement.textType === 'qna') {
-                  // Update QnA specific settings - no nested font objects
+                // For qna and qna2, font properties are in questionSettings/answerSettings
+                if (updatedElement.textType === 'qna' || updatedElement.textType === 'qna2') {
+                  const qnaPaletteColors = getElementPaletteColors(effectivePaletteForElement, 'qna');
                   if (updatedElement.questionSettings) {
                     updates.questionSettings = {
                       ...updatedElement.questionSettings,
-                      fontColor: effectivePaletteForElement.colors.text
+                      fontColor: qnaPaletteColors.qnaQuestionText
                     };
                   }
                   if (updatedElement.answerSettings) {
                     updates.answerSettings = {
                       ...updatedElement.answerSettings,
-                      fontColor: effectivePaletteForElement.colors.text
+                      fontColor: qnaPaletteColors.qnaAnswerText
                     };
+                  }
+                  // For qna2: also update top-level and textSettings colors
+                  if (updatedElement.textType === 'qna2') {
+                    updates.borderColor = qnaPaletteColors.qnaBorder;
+                    updates.backgroundColor = qnaPaletteColors.qnaBackground;
+                    updates.ruledLinesColor = qnaPaletteColors.qnaAnswerRuledLines;
+                    if (updatedElement.textSettings) {
+                      updates.textSettings = {
+                        ...updatedElement.textSettings,
+                        borderColor: qnaPaletteColors.qnaBorder,
+                        backgroundColor: qnaPaletteColors.qnaBackground,
+                        ruledLinesColor: qnaPaletteColors.qnaAnswerRuledLines,
+                      };
+                    }
                   }
                 } else {
                   // For other text elements, update font color in nested font object if it exists
@@ -3515,15 +3536,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 
                 // Update border/background colors on top-level (only individual properties, no border/background objects)
                 // Update font color for all text elements
-                if (updatedElement.textType !== 'qna') {
+                if (updatedElement.textType !== 'qna' && updatedElement.textType !== 'qna2') {
                   updates.fontColor = effectivePaletteForElement.colors.text;
                   updates.fill = effectivePaletteForElement.colors.text;
                   updates.borderColor = effectivePaletteForElement.colors.primary;
                   updates.backgroundColor = effectivePaletteForElement.colors.accent;
                 } else {
-                  // For qna, only update border/background colors on top-level (font colors are in questionSettings/answerSettings)
-                  updates.borderColor = effectivePaletteForElement.colors.primary;
-                  updates.backgroundColor = effectivePaletteForElement.colors.accent;
+                  // For qna/qna2, only update border/background colors on top-level (font colors are in questionSettings/answerSettings)
+                  const qnaColors = getElementPaletteColors(effectivePaletteForElement, 'qna');
+                  updates.borderColor = qnaColors.qnaBorder;
+                  updates.backgroundColor = qnaColors.qnaBackground;
+                  if (updatedElement.textType === 'qna2') {
+                    updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
+                  }
                 }
               }
               
@@ -5043,6 +5068,28 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 if (element.ruledLinesColor !== undefined) {
                   updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
                 }
+              } else if (element.textType === 'qna2') {
+                // Update QnA2 colors - same structure as qna (questionSettings/answerSettings + top-level)
+                const qnaColors = getPaletteColors('qna');
+                updates.questionSettings = {
+                  ...element.questionSettings,
+                  fontColor: qnaColors.qnaQuestionText,
+                };
+                updates.answerSettings = {
+                  ...element.answerSettings,
+                  fontColor: qnaColors.qnaAnswerText,
+                };
+                updates.borderColor = qnaColors.qnaBorder;
+                updates.backgroundColor = qnaColors.qnaBackground;
+                updates.ruledLinesColor = qnaColors.qnaAnswerRuledLines;
+                if (element.textSettings) {
+                  updates.textSettings = {
+                    ...element.textSettings,
+                    borderColor: qnaColors.qnaBorder,
+                    backgroundColor: qnaColors.qnaBackground,
+                    ruledLinesColor: qnaColors.qnaAnswerRuledLines,
+                  };
+                }
               } else if (element.textType === 'free_text') {
                 // Handle free_text elements - update colors only, preserve enabled states
                 const freeTextColors = getPaletteColors('free_text');
@@ -6209,109 +6256,20 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return state.historyActions;
   };
   
-  const getQuestionAssignmentsForUser = (userId: number): Set<string> => {
-    if (!state.currentBook) return new Set();
-    
-    // Get all pages assigned to this user
-    const userPages = Object.entries(state.pageAssignments)
-      .filter(([_, user]) => user?.id === userId)
-      .map(([pageNum, _]) => parseInt(pageNum));
-    
-    // Get all questions on those pages (including qna)
-    const assignedQuestions = new Set<string>();
-    state.currentBook.pages.forEach(page => {
-      if (userPages.includes(page.pageNumber)) {
-        page.elements.forEach(element => {
-          if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
-            assignedQuestions.add(element.questionId);
-          }
-        });
-      }
-    });
-    
-    return assignedQuestions;
-  };
-  
-  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: string; questionText: string; pageNumbers: number[] }[] => {
-    if (!state.currentBook) return [];
-    
-    // Map to store conflicts: questionId -> { questionText, pageNumbers }
-    const conflictsMap = new Map<string, { questionText: string; pageNumbers: Set<number> }>();
-    
-    // Get questions on the target page
-    const targetPage = state.currentBook.pages.find(p => p.pageNumber === pageNumber);
-    if (!targetPage) return [];
-    
-    // Get all questions on the target page (including qna)
-    const targetQuestions = new Set<string>();
-    targetPage.elements.forEach(element => {
-      if ((element.textType === 'question' || element.textType === 'qna') && element.questionId) {
-        targetQuestions.add(element.questionId);
-        // Initialize conflict entry for this question
-        if (!conflictsMap.has(element.questionId)) {
-          conflictsMap.set(element.questionId, {
-            questionText: getQuestionText(element.questionId) || 'Unknown question',
-            pageNumbers: new Set<number>()
-          });
-        }
-      }
-    });
-    
-    // Check if any of these questions already exist on pages assigned to this user
-    for (const page of state.currentBook.pages) {
-      if (page.pageNumber !== pageNumber) {
-        const assignedUser = state.pageAssignments[page.pageNumber];
-        if (assignedUser && assignedUser.id === userId) {
-          page.elements.forEach(element => {
-            if ((element.textType === 'question' || element.textType === 'qna') && element.questionId && targetQuestions.has(element.questionId)) {
-              // Add this page number to the conflict for this question
-              const conflict = conflictsMap.get(element.questionId);
-              if (conflict) {
-                conflict.pageNumbers.add(page.pageNumber);
-              }
-            }
-          });
-        }
-      }
-    }
-    
-    // Convert map to array, filtering out questions with no conflicts
-    const conflicts: { questionId: string; questionText: string; pageNumbers: number[] }[] = [];
-    conflictsMap.forEach((conflict, questionId) => {
-      if (conflict.pageNumbers.size > 0) {
-        conflicts.push({
-          questionId,
-          questionText: conflict.questionText,
-          pageNumbers: Array.from(conflict.pageNumbers).sort((a, b) => a - b)
-        });
-      }
-    });
-    
-    return conflicts;
-  };
-  
-  const isQuestionAvailableForUser = (questionId: string, userId: number): boolean => {
-    if (!state.currentBook) return false;
-    
-    // Get all pages assigned to this user
-    const userPages = Object.entries(state.pageAssignments)
-      .filter(([_, user]) => user?.id === userId)
-      .map(([pageNum, _]) => parseInt(pageNum));
-    
-    // Check if question exists on any of these pages (including qna)
-    for (const page of state.currentBook.pages) {
-      if (userPages.includes(page.pageNumber)) {
-        const hasQuestion = page.elements.some(el => 
-          (el.textType === 'question' || el.textType === 'qna') && el.questionId === questionId
-        );
-        if (hasQuestion) {
-          return false; // Question already exists on a page assigned to this user
-        }
-      }
-    }
-    
-    return true;
-  };
+  const getQuestionAssignmentsForUser = (userId: number): Set<string> =>
+    getQuestionIdsAssignedToUser(state.currentBook, state.pageAssignments, userId);
+
+  const checkUserQuestionConflicts = (userId: number, pageNumber: number): { questionId: string; questionText: string; pageNumbers: number[] }[] =>
+    checkUserQuestionConflictsForPageAssignment(
+      state.currentBook,
+      state.pageAssignments,
+      pageNumber,
+      userId,
+      (id) => getQuestionText(id) || 'Unknown question'
+    );
+
+  const isQuestionAvailableForUser = (questionId: string, userId: number): boolean =>
+    !getQuestionIdsAssignedToUser(state.currentBook, state.pageAssignments, userId).has(questionId);
   
   const refreshPageAssignments = useCallback(async () => {
     if (!state.currentBook) return;

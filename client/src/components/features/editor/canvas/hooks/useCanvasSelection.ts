@@ -31,8 +31,14 @@ export function useCanvasSelection() {
   const [lastClickTime, setLastClickTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({
+  // Context menu state (canvasX/canvasY = Position im Canvas für Paste bei Rechtsklick)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    visible: boolean;
+    canvasX?: number;
+    canvasY?: number;
+  }>({
     x: 0,
     y: 0,
     visible: false

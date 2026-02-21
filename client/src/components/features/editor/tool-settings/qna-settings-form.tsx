@@ -37,6 +37,14 @@ const getCurrentFontName = (fontFamily: string) => {
   return "Arial";
 };
 
+/** Resolve ruledLines enabled state – matches textbox-qna2/textbox-qna logic (object.enabled vs boolean) */
+function getRuledLinesEnabled(ruledLines: unknown): boolean {
+  if (typeof ruledLines === 'object' && ruledLines !== null) {
+    return (ruledLines as { enabled?: boolean }).enabled ?? false;
+  }
+  return !!ruledLines;
+}
+
 interface QnASettingsFormProps {
   sectionType: 'question' | 'answer' | 'shared';
   element: any;
@@ -1262,7 +1270,7 @@ export function QnASettingsForm({
           <Tooltip content="Ruled Lines" side="left">
             <Label className="flex items-center gap-1" variant="xs">
               <Checkbox
-                checked={Boolean(element.ruledLines)}
+                checked={getRuledLinesEnabled(element.ruledLines ?? element.textSettings?.ruledLines)}
                 onCheckedChange={(checked) => {
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1324,9 +1332,7 @@ export function QnASettingsForm({
         </div>
       </div>
       
-      {(() => {
-        return element.ruledLines ?? false;
-      })() && (
+      {getRuledLinesEnabled(element.ruledLines ?? element.textSettings?.ruledLines) && (
         <IndentedSection>
           <div className="min-w-0">
             <Tooltip content="Line Width" side="left" fullWidth={true}>

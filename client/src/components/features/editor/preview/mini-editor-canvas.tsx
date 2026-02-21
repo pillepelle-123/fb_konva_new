@@ -39,20 +39,18 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
     }
   }, [props.className]);
 
-  // Always trigger fitToView for mini previews on mount and when props change
+  // Einmalig fitToView bei Mount und wenn Theme, Palette oder Layout sich ändern
   useEffect(() => {
-    // Dispatch event to trigger fitToView in Canvas component
-    // Use a delay to ensure the container has rendered
     const timeoutId = setTimeout(() => {
       window.dispatchEvent(new CustomEvent('triggerFitToView'));
     }, 150);
     return () => clearTimeout(timeoutId);
-  }, [props.pageSize, props.orientation, props.baseTemplate, props.leftTemplate, props.rightTemplate]);
+  }, [props.pageSize, props.orientation, props.themeId, props.paletteId, props.baseTemplate, props.leftTemplate, props.rightTemplate]);
 
   const isModal = props.className?.includes('h-full');
 
   return (
-    <div className={`rounded-2xl bg-white shadow-sm border p-4 ${props.className ?? ''} ${!isModal ? 'h-[350px]' : 'h-full'} flex flex-col`}>
+    <div className={`rounded-2xl bg-white shadow-sm border p-2 ${props.className ?? ''} ${!isModal ? 'h-[350px]' : 'h-full'} flex flex-col`}>
       {!isModal && <div className="text-sm font-semibold mb-3 flex-shrink-0">Live Preview</div>}
       <div
         className="w-full mini-editor-preview flex-1 min-h-0"
@@ -60,8 +58,7 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
           width: '100%',
           overflow: 'hidden',
           borderRadius: 12,
-          // Enable interactions in modal, disable in regular mini preview
-          pointerEvents: isModal ? 'auto' : 'none',
+          pointerEvents: 'none',
         }}
       >
         {/* Hide Canvas HTML badges and lock banner inside the mini preview */}
@@ -81,9 +78,9 @@ export default function MiniEditorCanvas(props: MiniEditorCanvasProps) {
           leftTemplate={props.leftTemplate}
           rightTemplate={props.rightTemplate}
           mirrorRight={props.mirrorRight}
-          allowInteractions={isModal}
+          allowInteractions={false}
         >
-          <ZoomProvider initialZoom={0.2}>
+          <ZoomProvider initialZoom={0.2} minZoom={0.05}>
             <Canvas />
           </ZoomProvider>
         </EditorPreviewProvider>

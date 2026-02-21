@@ -240,7 +240,8 @@ const arePropsEqual = (
   if (prevProps.activeTool !== nextProps.activeTool) return false;
   if (prevProps.lockElements !== nextProps.lockElements) return false;
   if (prevProps.dispatch !== nextProps.dispatch) return false;
-  
+  if (prevProps.isDragging !== nextProps.isDragging) return false;
+
   // Skip re-render
   return true;
 };

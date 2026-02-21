@@ -92,7 +92,7 @@ export function extractLayoutTemplate(
 
   // Filter and process qna elements
   const qnaElements = elements.filter(
-    el => el.textType === 'qna' || el.type === 'qna'
+    el => el.textType === 'qna' || el.textType === 'qna2' || el.type === 'qna'
   );
 
   // Filter and process image elements

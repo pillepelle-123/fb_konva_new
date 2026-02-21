@@ -99,9 +99,22 @@ export function createRichTextLayoutFromSegments(params: CreateRichTextLayoutPar
     prevSegmentIndex = segmentIndex;
 
     if (text === '\n') {
-      flushLine();
-      cursorY += currentLineHeight;
-      currentLineHeight = tokenLineHeight;
+      if (lineRuns.length === 0) {
+        // Leere Zeile (z.B. durch doppelte Eingabetaste): linePosition mit gleicher Zeilenhöhe und Ruled Line
+        const lineHeight = tokenLineHeight;
+        const lineBaselineY = cursorY + baselineOffset;
+        linePositions.push({
+          y: lineBaselineY + RULED_LINE_BASELINE_OFFSET,
+          lineHeight,
+          style
+        });
+        cursorY += lineHeight;
+        currentLineHeight = lineHeight;
+      } else {
+        flushLine();
+        cursorY += currentLineHeight;
+        currentLineHeight = tokenLineHeight;
+      }
       cursorX = startX;
       continue;
     }

@@ -3,7 +3,7 @@ import type { CanvasElement, Page, Book } from '../context/editor-context';
 import type { PageTemplate } from '../types/template-types';
 import { convertTemplateToElements } from './template-to-elements';
 import { getActiveTemplateIds } from './template-inheritance';
-import { getGlobalThemeDefaults } from './global-themes';
+import { applyThemeToElementConsistent } from './global-themes';
 
 interface ContentMapping {
   existingElement: CanvasElement;
@@ -26,19 +26,20 @@ export function applyLayoutTemplateWithPreservation(
   const templateElements = convertTemplateToElements(template, canvasSize);
   
   // Separate elements into categories for layout mapping
-  // Only QNA textboxes and images/image-placeholders participate in layout mapping
+  // Only QNA textboxes (qna + qna2) and images/image-placeholders participate in layout mapping
+  const isQnaOrQna2 = (el: CanvasElement) => el.textType === 'qna' || el.textType === 'qna2';
   const existingMappableElements = existingElements.filter(el =>
-    el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder'
+    isQnaOrQna2(el) || el.type === 'image' || el.type === 'placeholder'
   );
 
   // Template slots for QNA and images
   const templateMappableSlots = templateElements.filter(el =>
-    el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder'
+    isQnaOrQna2(el) || el.type === 'image' || el.type === 'placeholder'
   );
 
   // Elements that should remain in their current positions (unchanged)
   const existingUnmappableElements = existingElements.filter(el =>
-    !(el.textType === 'qna' || el.type === 'image' || el.type === 'placeholder')
+    !(isQnaOrQna2(el) || el.type === 'image' || el.type === 'placeholder')
   );
 
   // Smart mapping for QNA textboxes and images/image-placeholders
@@ -88,22 +89,21 @@ export function applyLayoutTemplateWithPreservation(
   const unmappedTemplateSlots = templateMappableSlots.filter(el => !mappedTemplateIds.has(el.id));
 
   unmappedTemplateSlots.forEach(slot => {
-    // Get current theme and palette IDs for new elements
+    // Get current theme and palette IDs for new elements (page → book fallback)
     const activeTemplateIds = getActiveTemplateIds(page, book || null);
     const themeId = activeTemplateIds.themeId;
-    const paletteId = activeTemplateIds.colorPaletteId || undefined;
+    const paletteId = activeTemplateIds.colorPaletteId ?? undefined;
 
-    // Get theme defaults with palette for the element type
-    const elementType = slot.textType || slot.type || 'text';
-    const themeDefaults = getGlobalThemeDefaults(themeId, elementType, paletteId);
+    // Apply theme and palette via centralized function (themes.json + color-palettes.json)
+    const themedSlot = applyThemeToElementConsistent(slot, themeId, paletteId);
 
-    // Create new element with theme/palette applied
+    // Create new element with fresh ID and cleared content
     const newElement = {
-      ...slot,
-      ...themeDefaults,
-      id: uuidv4(), // New ID for new elements
+      ...themedSlot,
+      id: uuidv4(),
       text: '',
       formattedText: '',
+      richTextSegments: undefined,
       rotation: slot.rotation || 0
     };
 
@@ -131,9 +131,9 @@ function createSmartMappings(
     });
   };
 
-  // 1. Map QNA textboxes to QNA slots (sorted by y-position)
-  const qnaElements = existingElements.filter(el => el.textType === 'qna');
-  const qnaSlots = templateSlots.filter(slot => slot.textType === 'qna');
+  // 1. Map QNA textboxes (qna + qna2) to QNA slots (sorted by y-position)
+  const qnaElements = existingElements.filter(el => el.textType === 'qna' || el.textType === 'qna2');
+  const qnaSlots = templateSlots.filter(slot => slot.textType === 'qna' || slot.textType === 'qna2');
 
   const sortedQnaElements = sortByYPosition(qnaElements);
   const sortedQnaSlots = sortByYPosition(qnaSlots);

@@ -18,7 +18,7 @@ import { CanvasOverlayProvider, CanvasOverlayContainer, CanvasOverlayPortal } fr
 import { Qna2OverlayProvider } from './qna2-overlay-context';
 import { CanvasOverlayUnified } from './canvas-overlay-unified';
 import { CanvasBackground } from './CanvasBackground';
-import { CanvasOverlays } from './CanvasOverlays';
+import { CanvasOverlays } from './canvas-overlays';
 import { PerformanceMonitor } from './PerformanceMonitor';
 import { useCanvasDrawing } from './hooks/useCanvasDrawing';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
@@ -69,6 +69,128 @@ const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, heigh
       listening={false}
       perfectDrawEnabled={false}
     />
+  );
+});
+
+/** Muted-foreground mit 50% Opacity für Konva (--muted-foreground/70) */
+function getMutedForegroundColor(): string {
+  if (typeof document === 'undefined') return 'rgba(100, 116, 139, 0.5)';
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--muted-foreground').trim();
+  if (!value) return 'rgba(100, 116, 139, 0.5)';
+  // value ist "215.4 16.3% 46.9%" – zu hsla konvertieren
+  const parts = value.split(/\s+/);
+  const h = parseFloat(parts[0]) || 215;
+  const s = parseFloat(parts[1]) || 16;
+  const l = parseFloat(parts[2]) || 47;
+  return `hsla(${h}, ${s}%, ${l}%, 0.5)`;
+}
+
+/** Cross-Pattern als Canvas für performante Wiederholung (Lucide Cross) */
+const CROSS_PATTERN_SIZE = 130;
+const crossPatternCache = new Map<string, HTMLCanvasElement>();
+
+function getCrossPatternCanvas(color: string): HTMLCanvasElement {
+  const cached = crossPatternCache.get(color);
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = CROSS_PATTERN_SIZE;
+  canvas.height = CROSS_PATTERN_SIZE;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const half = CROSS_PATTERN_SIZE / 2;
+    const arm = 20;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(half - arm, half - arm);
+    ctx.lineTo(half + arm, half + arm);
+    ctx.moveTo(half - arm, half + arm);
+    ctx.lineTo(half + arm, half - arm);
+    ctx.stroke();
+  }
+  crossPatternCache.set(color, canvas);
+  return canvas;
+}
+
+/** Placeholder für Inside Front Cover / Inside Back Cover */
+const InsideCoverPlaceholder = React.memo(function InsideCoverPlaceholder({
+  x,
+  y,
+  width,
+  height,
+  label,
+  fillPatternImage
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: 'Inside Front Cover' | 'Inside Back Cover';
+  fillPatternImage?: HTMLCanvasElement;
+}) {
+  const color = useMemo(() => getMutedForegroundColor(), []);
+  const crossPattern = useMemo(() => getCrossPatternCanvas(color), [color]);
+
+  // Anpassung: Text und Rahmen – hier Größen ändern
+  const INSIDE_COVER_FONT_SIZE = 82;
+  const INSIDE_COVER_PADDING =  126;
+  const INSIDE_COVER_STROKE_WIDTH = 0;
+
+  const textWidth = label === 'Inside Front Cover' ? 800 : 750;
+  const textHeight = INSIDE_COVER_FONT_SIZE + 12;
+  const boxWidth = textWidth + INSIDE_COVER_PADDING * 2;
+  const boxHeight = textHeight + INSIDE_COVER_PADDING * 2;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const boxX = centerX - boxWidth / 2;
+  const boxY = centerY - boxHeight / 2;
+
+  return (
+    <Group
+      x={x}
+      y={y}
+      listening={false}
+      clipFunc={(ctx) => {
+        ctx.beginPath();
+        ctx.rect(0, 0, width, height);
+        ctx.closePath();
+      }}
+    >
+      <Rect
+        width={width}
+        height={height}
+        fill="white"
+        stroke="#e5e7eb"
+        strokeWidth={11}
+        fillPatternImage={fillPatternImage ?? undefined}
+        fillPatternRepeat="repeat"
+      />
+      <Rect
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+        fillPatternImage={crossPattern}
+        fillPatternRepeat="repeat"
+        listening={false}
+      />
+      <Rect x={boxX} y={boxY} width={boxWidth} height={boxHeight} fill="white" listening={false} />
+      <Rect x={boxX} y={boxY} width={boxWidth} height={boxHeight} stroke={color} strokeWidth={INSIDE_COVER_STROKE_WIDTH} fill="transparent" />
+      <Text
+        x={boxX + INSIDE_COVER_PADDING}
+        y={boxY + INSIDE_COVER_PADDING}
+        width={textWidth}
+        height={textHeight}
+        text={label}
+        fontSize={INSIDE_COVER_FONT_SIZE}
+        fontFamily="Inter, system-ui, sans-serif"
+        fill={color}
+        align="center"
+        verticalAlign="middle"
+        listening={false}
+      />
+    </Group>
   );
 });
 
@@ -527,6 +649,10 @@ export default function Canvas() {
   const [selectedQuestionElementId, setSelectedQuestionElementId] = useState<string | null>(null);
   const [showQuestionSelectorModal, setShowQuestionSelectorModal] = useState(false);
   const [questionSelectorElementId, setQuestionSelectorElementId] = useState<string | null>(null);
+  const [showQna2EditorModal, setShowQna2EditorModal] = useState(false);
+  const [qna2EditorElementId, setQna2EditorElementId] = useState<string | null>(null);
+  const [qna2EditorCanShowQuestionTab, setQna2EditorCanShowQuestionTab] = useState(false);
+  const [qna2EditorCanShowAnswerTab, setQna2EditorCanShowAnswerTab] = useState(false);
   const editingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertPosition, setAlertPosition] = useState<{ x: number; y: number } | null>(null);
@@ -690,13 +816,15 @@ export default function Canvas() {
     const targetElementId = elementId || selectedQuestionElementId;
 
     if (targetElementId) {
-      const element = currentPage?.elements.find(el => el.id === targetElementId);
+      // Element auf allen Seiten suchen (Qna2-Modal: Element kann auf Partner-Seite sein)
+      const elementPage = state.currentBook?.pages?.find(p => p.elements?.some(el => el.id === targetElementId));
+      const element = elementPage?.elements?.find(el => el.id === targetElementId);
 
       if (element?.textType === 'qna' || element?.textType === 'qna2') {
         // Calculate question order: use provided position, or count existing qna elements (qna only)
         let order = questionPosition;
-        if (element.textType === 'qna' && order === undefined && currentPage) {
-          const qnaElements = currentPage.elements.filter(
+        if (element.textType === 'qna' && order === undefined && elementPage) {
+          const qnaElements = elementPage.elements.filter(
             el => el.textType === 'qna' && el.questionOrder !== undefined
           );
           order = qnaElements.length > 0
@@ -728,7 +856,7 @@ export default function Canvas() {
 
         // If questionId is provided, check for existing answer in tempAnswers
         if (questionId && questionId !== '') {
-          const pageNum = currentPage?.pageNumber ?? state.activePageIndex;
+          const pageNum = elementPage?.pageNumber ?? currentPage?.pageNumber ?? state.activePageIndex;
           const assignedUser = state.pageAssignments[pageNum];
           const userIdToCheck = assignedUser?.id || user?.id;
 
@@ -743,17 +871,18 @@ export default function Canvas() {
       } else {
         // For regular question elements
         // Validate: Check if question already exists on this page
-        if (questionId && questionId !== '' && currentPage) {
-          const questionsOnPage = currentPage.elements
+        const pageToValidate = elementPage ?? currentPage;
+        if (questionId && questionId !== '' && pageToValidate) {
+          const questionsOnPage = pageToValidate.elements
             .filter(el => el.id !== targetElementId && el.questionId === questionId)
             .map(el => el.questionId);
 
           if (questionsOnPage.length > 0) {
-            const element = currentPage.elements.find(el => el.id === targetElementId);
-            if (element) {
+            const elemForAlert = pageToValidate.elements.find(el => el.id === targetElementId);
+            if (elemForAlert) {
               setAlertMessage('This question already exists on this page.');
-              const alertX = (element.x + (element.width || 100) / 2);
-              const alertY = element.y;
+              const alertX = (elemForAlert.x + (elemForAlert.width || 100) / 2);
+              const alertY = elemForAlert.y;
               setAlertPosition({ x: alertX, y: alertY });
               setTimeout(() => {
                 setAlertMessage(null);
@@ -787,9 +916,13 @@ export default function Canvas() {
       }
     }
     setShowQuestionDialog(false);
+    setShowQuestionSelectorModal(false);
+    setShowQna2EditorModal(false);
+    setQuestionSelectorElementId(null);
+    setQna2EditorElementId(null);
     // Reset selectedQuestionElementId after a delay to allow questionSelected event to process
     setTimeout(() => setSelectedQuestionElementId(null), 100);
-  }, [selectedQuestionElementId, currentPage, state.pageAssignments, state.activePageIndex, user?.id, dispatch]);
+  }, [selectedQuestionElementId, currentPage, state.currentBook, state.pageAssignments, state.activePageIndex, user?.id, dispatch]);
 
   const partnerInfo = useMemo(() => {
     if (!state.currentBook) return null;
@@ -1188,12 +1321,8 @@ export default function Canvas() {
   );
   const switchToPartnerPage = useCallback(() => {
     if (!partnerInfo) return;
-    const targetPageNumber = partnerInfo.page.pageNumber ?? partnerInfo.index + 1;
-    if (targetPageNumber === 3 || (totalPages > 0 && targetPageNumber === totalPages)) {
-      return;
-    }
     dispatch({ type: 'SET_ACTIVE_PAGE', payload: partnerInfo.index });
-  }, [dispatch, partnerInfo, totalPages]);
+  }, [dispatch, partnerInfo]);
 
   const handlePreviewCanvasClick = useCallback(
     (evt?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -2942,14 +3071,16 @@ export default function Canvas() {
     // Context menu only on active page – not on gray area or partner page
     if (isPointerOutsideActivePage(pos)) return;
     
-    setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true });
+    const canvasX = (pos.x - stagePos.x) / zoom - activePageOffsetX;
+    const canvasY = (pos.y - stagePos.y) / zoom - pageOffsetY;
+    setContextMenu({ x: e.evt.pageX, y: e.evt.pageY, visible: true, canvasX, canvasY });
   };
 
 
 
   const handleCopyItems = () => {
     if (!currentPage) return;
-    if (!canCreateQna && currentPage.elements.some(el => state.selectedElementIds.includes(el.id) && el.textType === 'qna')) {
+    if (!canCreateQna && currentPage.elements.some(el => state.selectedElementIds.includes(el.id) && (el.textType === 'qna' || el.textType === 'qna2'))) {
       return;
     }
     
@@ -2975,30 +3106,31 @@ export default function Canvas() {
     setContextMenu({ x: 0, y: 0, visible: false });
   };
 
-  const handlePasteItems = () => {
+  const handlePasteItems = (pasteAtCanvasPosition?: { x: number; y: number }) => {
     if (clipboard.length === 0) return;
     if (!canCreateElements) return;
-    if (!canCreateQna && clipboard.some((element) => element.textType === 'qna')) return;
+    if (!canCreateQna && clipboard.some((element) => element.textType === 'qna' || element.textType === 'qna2')) return;
     
-    // Check if clipboard contains question or answer elements
-    const hasQuestionAnswer = clipboard.some(element => 
-      element.textType === 'question' || element.textType === 'answer'
+    // Nur für standalone question/answer: Same-Page und Konflikt prüfen
+    // qna/qna2 werden als leere Hülle eingefügt → Paste immer erlauben
+    const hasStandaloneQuestionAnswer = clipboard.some(
+      element => element.textType === 'question' || element.textType === 'answer'
     );
     
-    if (hasQuestionAnswer) {
-      // Check if pasting on same page where it was copied
+    if (hasStandaloneQuestionAnswer) {
       const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
       if (clipboard.some(element => element.pageId === currentPageId)) {
         setContextMenu({ x: 0, y: 0, visible: false });
         return; // Prevent pasting on same page
       }
       
-      // Check "one question per user" rule
       const currentPageNumber = currentPage?.pageNumber ?? state.activePageIndex;
       const assignedUser = state.pageAssignments[currentPageNumber];
       
       if (assignedUser) {
-        const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+        const questionElements = clipboard.filter(el =>
+          el.textType === 'question' && el.questionId
+        );
         const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
         
         const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
@@ -3020,24 +3152,25 @@ export default function Canvas() {
       }
     }
     
-    // Check if pasting on same page as source
-    const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
-    const isPastingOnSamePage = clipboard.some(element => element.pageId === currentPageId);
-    
     // Calculate offset based on top-left element to maintain relative positions
     const minX = Math.min(...clipboard.map(el => el.x));
     const minY = Math.min(...clipboard.map(el => el.y));
     
-    // Calculate paste position based on whether it's same page or different page
+    // Paste position: bei Rechtsklick → Paste = Klickposition, bei Strg+V = bisherige Logik
     let x: number, y: number;
-    if (isPastingOnSamePage) {
-      // Same page: offset by 20px right and 20px down from original position
-      x = minX + 150;
-      y = minY + 150;
+    if (pasteAtCanvasPosition) {
+      x = pasteAtCanvasPosition.x;
+      y = pasteAtCanvasPosition.y;
     } else {
-      // Different page: use original position (top-left element position)
-      x = minX;
-      y = minY;
+      const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
+      const isPastingOnSamePage = clipboard.some(element => element.pageId === currentPageId);
+      if (isPastingOnSamePage) {
+        x = minX + 150;
+        y = minY + 150;
+      } else {
+        x = minX;
+        y = minY;
+      }
     }
 
     const filteredClipboard = clipboard;
@@ -3060,40 +3193,11 @@ export default function Canvas() {
     
     const newElementIds: string[] = [];
     
+    const isQnaOrQna2 = (el: typeof filteredClipboard[0]) => el.textType === 'qna' || el.textType === 'qna2';
+
     filteredClipboard.forEach((element) => {
       const newId = idMapping.get(element.id)!;
       newElementIds.push(newId);
-
-      let questionId = element.questionId;
-      let shouldShowConflictToast = false;
-
-      // Check if this is a qna element with a questionId being pasted
-      if (element.textType === 'qna' && element.questionId) {
-        // Check if the current page is assigned to a user
-        const currentPageNumber = currentPage?.pageNumber ?? state.activePageIndex;
-        const assignedUser = state.pageAssignments[currentPageNumber];
-
-        if (assignedUser) {
-          // Check if this question is already assigned to this user
-          const isAvailable = isQuestionAvailableForUser(element.questionId, assignedUser.id);
-          if (!isAvailable) {
-            // Question is already assigned to this user - clear questionId and show toast
-            questionId = undefined;
-            shouldShowConflictToast = true;
-
-            // Show toast error similar to page-assignment-popover.tsx
-            const questionText = getQuestionText(element.questionId) || 'Unknown question';
-            setTimeout(() => {
-              toast.error(
-                `Cannot paste question "${questionText}" on page ${currentPageNumber}.\n\nThis question is already assigned to ${assignedUser.name} on another page.`,
-                {
-                  duration: 5000, // Show for 5 seconds to allow reading longer messages
-                }
-              );
-            }, 100);
-          }
-        }
-      }
 
       const pastedElement = {
         ...element,
@@ -3101,13 +3205,15 @@ export default function Canvas() {
         x: x + (element.x - minX),
         y: y + (element.y - minY),
         pageId: state.currentBook?.pages[state.activePageIndex]?.id, // Track source page
-        // Clear text for question, answer and qna elements when pasting
-        text: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.text,
-        formattedText: (element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna') ? '' : element.formattedText,
+        // Clear text for question, answer, qna and qna2 – Kopie ist leere Hülle mit Platzhalter
+        text: (element.textType === 'question' || element.textType === 'answer' || isQnaOrQna2(element)) ? '' : element.text,
+        formattedText: (element.textType === 'question' || element.textType === 'answer' || isQnaOrQna2(element)) ? '' : element.formattedText,
         // Clear question styling for pasted questions
         fontColor: element.textType === 'question' ? '#9ca3af' : (element.fontColor || element.fill),
-        // Clear questionId for question elements and qna elements with conflicts
-        questionId: (element.textType === 'question' || (element.textType === 'qna' && shouldShowConflictToast)) ? undefined : questionId,
+        // Never copy question/answer: qna and qna2 become empty shells
+        questionId: (element.textType === 'question' || isQnaOrQna2(element)) ? undefined : element.questionId,
+        answerId: isQnaOrQna2(element) ? undefined : element.answerId,
+        richTextSegments: isQnaOrQna2(element) ? [] : element.richTextSegments,
         // Update questionElementId reference for answer elements
         questionElementId: element.questionElementId ? idMapping.get(element.questionElementId) : element.questionElementId
       };
@@ -4124,7 +4230,7 @@ export default function Canvas() {
       if (selectedQuestionElementId) {
         const element = currentPage?.elements.find(el => el.id === selectedQuestionElementId);
                 
-        if (element && (element.textType === 'qna' || element.textType === 'question')) {
+        if (element && (element.textType === 'qna' || element.textType === 'qna2' || element.textType === 'question')) {
           // Validate: Check if question already exists on this page (excluding current element)
           if (questionId && currentPage) {
             const questionsOnPage = currentPage.elements
@@ -4166,18 +4272,31 @@ export default function Canvas() {
         return;
       }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'question' || element.textType === 'qna')) {
+      if (element && (element.textType === 'question' || element.textType === 'qna' || element.textType === 'qna2')) {
         setSelectedQuestionElementId(element.id);
         setShowQuestionDialog(true);
       }
     };
     
     const handleOpenQuestionSelector = (event: CustomEvent) => {
-      if (!canManageQuestions) {
-        return;
-      }
       const element = currentPage?.elements.find(el => el.id === event.detail.elementId);
-      if (element && (element.textType === 'qna' || element.textType === 'qna2')) {
+      if (!element) return;
+      if (element.textType === 'qna2') {
+        const pageNum = currentPage?.pageNumber ?? state.activePageIndex + 1;
+        const assignedUser = state.pageAssignments[pageNum] ?? (
+          state.userRole === 'author' && state.assignedPages?.includes(pageNum) && user
+            ? { id: user.id }
+            : null
+        );
+        const canShowQuestionTab = canManageQuestions; // Owner/Publisher
+        const canShowAnswerTab = Boolean(assignedUser && user?.id === assignedUser.id);
+        if (canShowQuestionTab || canShowAnswerTab) {
+          setQna2EditorElementId(element.id);
+          setQna2EditorCanShowQuestionTab(canShowQuestionTab);
+          setQna2EditorCanShowAnswerTab(canShowAnswerTab);
+          setShowQna2EditorModal(true);
+        }
+      } else if (element.textType === 'qna' && canManageQuestions) {
         setQuestionSelectorElementId(element.id);
         setShowQuestionSelectorModal(true);
       }
@@ -4239,7 +4358,7 @@ export default function Canvas() {
         clearTimeout(editingTimeoutRef.current);
       }
     };
-  }, [currentPage, editingElement, selectedQuestionElementId, user]);
+  }, [currentPage, editingElement, selectedQuestionElementId, user, state.userRole, state.assignedPages, state.pageAssignments]);
 
 
 
@@ -4486,8 +4605,9 @@ export default function Canvas() {
     }
     
     // Ensure zoom is never negative or zero
-    optimalZoom = Math.max(optimalZoom, 0.1);
-    
+    // Mini preview: min 5% to allow fitting both pages in small containers
+    optimalZoom = Math.max(optimalZoom, state.isMiniPreview ? 0.07 : 0.1);
+
     // For mini previews, ensure we don't zoom in too much - cap at 0.8 (80%) to allow closer view
     if (state.isMiniPreview) {
       optimalZoom = Math.min(optimalZoom, 0.8);
@@ -4510,17 +4630,10 @@ export default function Canvas() {
   }, [fitToView]);
 
   // Auto-fit when entering the canvas editor or when container size changes
+  // Für Mini-Preview: nur via triggerFitToView (kein zoom in deps → verhindert Update-Loop)
   useEffect(() => {
     if (state.isMiniPreview) {
-      // For mini previews, only fit to view initially or when dimensions change
-      // Don't auto-fit if user has manually zoomed
-      if (!hasManualZoom) {
-        const timeoutId = setTimeout(() => {
-          fitToView();
-        }, 50);
-        return () => clearTimeout(timeoutId);
-      }
-      return;
+      return; // Mini-Preview: fitToView nur über triggerFitToView-Event
     }
     const hasInitialZoom = zoom !== 0.8; // 0.8 is the initial zoom value
     if (!hasInitialZoom) {
@@ -4528,15 +4641,7 @@ export default function Canvas() {
     }
   }, [fitToView, state.isMiniPreview, zoom, canvasWidth, canvasHeight, hasPartnerPage, hasManualZoom]);
 
-  // For mini previews, also react to container size changes (but only if user hasn't manually zoomed)
-  useEffect(() => {
-    if (state.isMiniPreview && containerSize.width > 0 && containerSize.height > 0 && !hasManualZoom) {
-      const timeoutId = setTimeout(() => {
-        fitToView();
-      }, 50);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [fitToView, state.isMiniPreview, containerSize.width, containerSize.height, hasManualZoom]);
+  // Für Mini-Preview: kein Container-Resize-Effect (statische Anzeige, verhindert Update-Loop)
 
   // Auto-fit when page changes (reset zoom to show both pages)
   useEffect(() => {
@@ -4597,13 +4702,13 @@ export default function Canvas() {
     }
   }, [partnerPage?.id, partnerPage?.elements?.length]);
 
-  // Listen for fitToView trigger events (e.g., when modal opens)
+  // Listen for fitToView trigger events (e.g., when modal opens or container resizes)
   useEffect(() => {
     if (!state.isMiniPreview) return;
     
-    const handleTriggerFitToView = () => {
-      if (!hasManualZoom) {
-        // Reset manual zoom flag when modal opens to allow auto-fit
+    const handleTriggerFitToView = (e?: Event) => {
+      const force = (e instanceof CustomEvent && e.detail?.force) === true;
+      if (force || !hasManualZoom) {
         setHasManualZoom(false);
         setTimeout(() => {
           fitToView();
@@ -4611,9 +4716,9 @@ export default function Canvas() {
       }
     };
     
-    window.addEventListener('triggerFitToView', handleTriggerFitToView);
+    window.addEventListener('triggerFitToView', handleTriggerFitToView as EventListener);
     return () => {
-      window.removeEventListener('triggerFitToView', handleTriggerFitToView);
+      window.removeEventListener('triggerFitToView', handleTriggerFitToView as EventListener);
     };
   }, [state.isMiniPreview, hasManualZoom, fitToView]);
 
@@ -5201,7 +5306,8 @@ export default function Canvas() {
             }}
           >
           <Layer>
-            {/* Page boundary rectangle - always visible during zoom minimal mode */}
+            {/* Page boundary rectangle - ausblenden im Mini-Preview */}
+            {!state.isMiniPreview && (
             <Rect
               x={activePageOffsetX}
               y={pageOffsetY}
@@ -5213,6 +5319,7 @@ export default function Canvas() {
               fill="transparent"
               listening={false}
             />
+            )}
 
 
 
@@ -5225,17 +5332,13 @@ export default function Canvas() {
             />
             {(partnerPage || hasPlaceholderLeft || hasPlaceholderRight) && previewPageOffsetX !== null &&
               (((hasPlaceholderLeft || hasPlaceholderRight) && !partnerPage) ? (
-                <Rect
+                <InsideCoverPlaceholder
                   x={previewPageOffsetX}
                   y={pageOffsetY}
                   width={canvasWidth}
                   height={canvasHeight}
-                  fill="white"
-                  stroke="#e5e7eb"
-                  strokeWidth={11}
-                  listening={false}
+                  label={hasPlaceholderLeft ? 'Inside Front Cover' : 'Inside Back Cover'}
                   fillPatternImage={lockedPreviewPattern ?? undefined}
-                  fillPatternRepeat="repeat"
                 />
               ) : (
                 <CanvasPageEditArea
@@ -5270,6 +5373,9 @@ export default function Canvas() {
                 resolveBackgroundImageUrl={resolveBackgroundImageUrl}
               />
             )}
+            {/* Safety Margin – im Mini-Preview ausblenden */}
+            {!state.isMiniPreview && (
+            <>
             {/* Safety Margin Hover-Area - außerhalb der Safety-Margin (hinter Canvas Elements) */}
             <Group x={activePageOffsetX} y={pageOffsetY}>
               {/* Obere Area */}
@@ -5393,6 +5499,8 @@ export default function Canvas() {
                 name="no-print"
               />
             )}
+            </>
+            )}
             
             {/* Canvas elements der aktiven Seite (keine Clips – dürfen auch über die Grenze zur Nachbar-Seite hinaus
                 selektiert und verschoben werden). Die „Trennung“ wird erreicht, indem nur die Partner-/Preview-Seite
@@ -5429,6 +5537,7 @@ export default function Canvas() {
                     element={element}
                     interactive={shouldElementBeInteractive(element)}
                     isSelected={state.selectedElementIds.includes(element.id)}
+                    isDragging={isDragging && state.selectedElementIds.length === 1 && state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
                     hoveredElementId={state.hoveredElementId}
                     pageSide={isActiveLeft ? 'left' : 'right'}
@@ -5781,7 +5890,7 @@ export default function Canvas() {
                 y={pageOffsetY}
                 listening={false}
                 name="no-print preview-page"
-                opacity={0.3}
+                opacity={state.isMiniPreview ? 1 : 0.3}
                 // Wenn diese Seite nur als Vorschau angezeigt wird (Partnerseite),
                 // clippen wir ihre Elemente auf ihre eigene Seitenfläche, damit
                 // Überstände nicht in die aktive Seite "hineinragen".
@@ -6701,9 +6810,14 @@ export default function Canvas() {
           onPaste={(() => {
             if (clipboard.length === 0) return undefined;
             const hasQuestionAnswer = clipboard.some(element => 
-              element.textType === 'question' || element.textType === 'answer'
+              element.textType === 'question' || element.textType === 'answer' || element.textType === 'qna' || element.textType === 'qna2'
             );
-            if (hasQuestionAnswer) {
+            // Nur für standalone question/answer: Same-Page und Konflikt prüfen
+            // qna/qna2 werden als leere Hülle eingefügt → Paste immer erlauben
+            const hasStandaloneQuestionAnswer = clipboard.some(
+              el => el.textType === 'question' || el.textType === 'answer'
+            );
+            if (hasStandaloneQuestionAnswer) {
               const currentPageId = state.currentBook?.pages[state.activePageIndex]?.id;
               if (clipboard.some(element => element.pageId === currentPageId)) {
                 return undefined; // Hide paste option for same page
@@ -6711,13 +6825,20 @@ export default function Canvas() {
               const currentPageNumber = state.currentBook?.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
               const assignedUser = state.pageAssignments[currentPageNumber];
               if (assignedUser) {
-                const questionElements = clipboard.filter(el => el.textType === 'question' && el.questionId);
+                const questionElements = clipboard.filter(el =>
+                  el.textType === 'question' && el.questionId
+                );
                 const userQuestions = getQuestionAssignmentsForUser(assignedUser.id);
                 const hasConflict = questionElements.some(el => userQuestions.has(el.questionId));
                 if (hasConflict) return undefined; // Hide paste option for conflicts
               }
             }
-            return handlePasteItems;
+            // Rechtsklick → Paste: an Klickposition einfügen; Strg+V nutzt handlePasteItems() ohne Position
+            return () => handlePasteItems(
+              contextMenu.canvasX != null && contextMenu.canvasY != null
+                ? { x: contextMenu.canvasX, y: contextMenu.canvasY }
+                : undefined
+            );
           })()}
           onMoveToFront={handleMoveToFront}
           onMoveToBack={handleMoveToBack}
@@ -6755,6 +6876,13 @@ export default function Canvas() {
         showQuestionSelectorModal={showQuestionSelectorModal}
         onQuestionSelectorModalClose={() => setShowQuestionSelectorModal(false)}
         questionSelectorElementId={questionSelectorElementId}
+
+        // QNA2 Editor Modal
+        showQna2EditorModal={showQna2EditorModal}
+        onQna2EditorModalClose={() => setShowQna2EditorModal(false)}
+        qna2EditorElementId={qna2EditorElementId}
+        qna2EditorCanShowQuestionTab={qna2EditorCanShowQuestionTab}
+        qna2EditorCanShowAnswerTab={qna2EditorCanShowAnswerTab}
 
         // QR Code Modal
         showQrCodeModal={showQrCodeModal}

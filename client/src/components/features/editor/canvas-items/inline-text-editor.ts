@@ -41,7 +41,7 @@ function applyInlineEditorStyling(textarea: HTMLTextAreaElement, style: RichText
     color: INLINE_EDITOR_STYLES.textColor,
     opacity: '1', // Full opacity for text
     lineHeight: scaledLineHeight + 'px',
-    textAlign: style.align || 'left',
+    textAlign: 'left', // Immer linksbündig in der Textarea, unabhängig von der Element-Ausrichtung
     border: `${INLINE_EDITOR_STYLES.borderWidth} ${INLINE_EDITOR_STYLES.borderStyle} ${INLINE_EDITOR_STYLES.borderColor}`,
     borderWidth: INLINE_EDITOR_STYLES.borderWidth,
     borderStyle: INLINE_EDITOR_STYLES.borderStyle,
@@ -1505,6 +1505,7 @@ export interface InlineTextEditorForQna2Params {
   element: CanvasElement;
   answerText: string;
   defaultStyle: RichTextStyle;
+  questionStyle?: RichTextStyle; // Schriftart für die Frage (falls abweichend von defaultStyle)
   textRef: React.RefObject<Konva.Rect>;
   setIsEditing: (open: boolean) => void;
   dispatch: (action: { type: string; payload?: unknown }) => void;
@@ -1526,6 +1527,7 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
     element,
     answerText,
     defaultStyle,
+    questionStyle,
     textRef,
     setIsEditing,
     dispatch,
@@ -1561,6 +1563,9 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
   const fontSize = 24;
   const lineHeight = fontSize * 1.2;
 
+  const defaultFont = 'Inter, system-ui, sans-serif';
+  const effectiveQuestionStyle = questionStyle ?? defaultStyle;
+
   const questionHeader = document.createElement('div');
   questionHeader.style.position = 'fixed';
   questionHeader.style.left = editorLeft + 'px';
@@ -1571,15 +1576,52 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
   questionHeader.style.borderRadius = '8px 8px 0 0';
   questionHeader.style.padding = '12px 16px';
   questionHeader.style.fontSize = '18px';
-  questionHeader.style.fontWeight = defaultStyle.fontBold ? 'bold' : 'normal';
-  questionHeader.style.fontStyle = defaultStyle.fontItalic ? 'italic' : 'normal';
-  questionHeader.style.fontFamily = defaultStyle.fontFamily;
-  questionHeader.style.color = defaultStyle.fontColor || '#1f2937';
+  questionHeader.style.fontWeight = effectiveQuestionStyle.fontBold ? 'bold' : 'normal';
+  questionHeader.style.fontStyle = effectiveQuestionStyle.fontItalic ? 'italic' : 'normal';
+  questionHeader.style.fontFamily = effectiveQuestionStyle.fontFamily;
+  questionHeader.style.color = effectiveQuestionStyle.fontColor || '#1f2937';
   questionHeader.style.display = 'flex';
   questionHeader.style.alignItems = 'center';
+  questionHeader.style.justifyContent = 'space-between';
+  questionHeader.style.gap = '12px';
   questionHeader.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)';
   questionHeader.style.zIndex = '10001';
-  questionHeader.textContent = questionPrefix ? questionPrefix.trim() : 'Antwort';
+  questionHeader.style.outline = 'none';
+  questionHeader.tabIndex = -1; // Fokussierbar bei Klick, damit Blur-Handler nicht fälschlich schließt
+
+  const questionTextSpan = document.createElement('span');
+  questionTextSpan.style.overflow = 'hidden';
+  questionTextSpan.style.textOverflow = 'ellipsis';
+  questionTextSpan.style.whiteSpace = 'nowrap';
+  questionTextSpan.style.flex = '1';
+  questionTextSpan.textContent = questionPrefix ? questionPrefix.trim() : 'Antwort';
+  questionHeader.appendChild(questionTextSpan);
+
+  const checkboxContainer = document.createElement('label');
+  checkboxContainer.style.display = 'flex';
+  checkboxContainer.style.alignItems = 'center';
+  checkboxContainer.style.gap = '6px';
+  checkboxContainer.style.cursor = 'pointer';
+  checkboxContainer.style.fontSize = '14px';
+  checkboxContainer.style.whiteSpace = 'nowrap';
+  checkboxContainer.style.userSelect = 'none';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.style.width = '16px';
+  checkbox.style.height = '16px';
+  checkbox.style.cursor = 'pointer';
+  checkbox.style.accentColor = 'hsl(var(--primary))';
+
+  const checkboxLabel = document.createElement('span');
+  checkboxLabel.textContent = 'Display in readable font';
+  checkboxLabel.style.color = '#6b7280';
+  checkboxLabel.style.fontFamily = defaultFont;
+
+  checkboxContainer.appendChild(checkbox);
+  checkboxContainer.appendChild(checkboxLabel);
+  questionHeader.appendChild(checkboxContainer);
+
   document.body.appendChild(questionHeader);
 
   const textarea = document.createElement('textarea');
@@ -1600,13 +1642,20 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
   document.body.appendChild(textarea);
   textarea.focus();
 
+  checkbox.addEventListener('change', () => {
+    const useReadableFont = checkbox.checked;
+    textarea.style.fontFamily = useReadableFont ? defaultFont : defaultStyle.fontFamily;
+    questionTextSpan.style.fontFamily = useReadableFont ? defaultFont : effectiveQuestionStyle.fontFamily;
+  });
+
   const overlayContainer = document.createElement('div');
   overlayContainer.id = 'inline-editor-canvas-overlay-container';
   overlayContainer.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;pointer-events:auto';
   document.body.insertBefore(overlayContainer, textarea);
 
   const buttonFooter = document.createElement('div');
-  buttonFooter.style.cssText = 'position:fixed;background:#fff;border-radius:0 0 8px 8px;padding:12px 16px;display:flex;align-items:center;justify-content:flex-end;gap:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);z-index:10001';
+  buttonFooter.style.cssText = 'position:fixed;background:#fff;border-radius:0 0 8px 8px;padding:12px 16px;display:flex;align-items:center;justify-content:flex-end;gap:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);z-index:10001;outline:none';
+  buttonFooter.tabIndex = -1; // Fokussierbar bei Klick, damit Blur-Handler nicht fälschlich schließt
   document.body.appendChild(buttonFooter);
 
   const updateFooterPosition = () => {
@@ -1673,13 +1722,13 @@ export function createInlineTextEditorForQna2(params: InlineTextEditorForQna2Par
   };
 
   const discardButton = document.createElement('button');
-  discardButton.textContent = 'Verwerfen';
+  discardButton.textContent = 'Discard Answer';
   discardButton.style.cssText = 'padding:8px 16px;border-radius:6px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));cursor:pointer;font-size:14px';
   discardButton.addEventListener('click', () => removeEditor());
   buttonFooter.appendChild(discardButton);
 
   const saveButton = document.createElement('button');
-  saveButton.textContent = 'Speichern';
+  saveButton.textContent = 'Save Answer';
   saveButton.style.cssText = 'padding:8px 16px;border-radius:6px;border:1px solid hsl(var(--primary));background:hsl(var(--primary));color:hsl(var(--primary-foreground));cursor:pointer;font-size:14px';
   saveButton.addEventListener('click', () => saveChanges());
   buttonFooter.appendChild(saveButton);

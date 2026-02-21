@@ -4,18 +4,14 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { calculateQuestionStyle, calculateAnswerStyle } from './textbox-qna-utils';
-import { parseHtmlToSegments } from '../../../../../../shared/utils/rich-text-layout';
+import { calculateQuestionStyle, calculateAnswerStyle, getDisplaySegments } from './textbox-qna-utils';
 import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
-import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
-import type { RichTextStyle, TextRun, TextSegment } from '../../../../../../shared/types/text-layout';
-import type { LinePosition, LayoutResult } from '../../../../../../shared/types/layout';
-import { buildFont, getLineHeight, measureText as sharedMeasureText } from '../../../../../../shared/utils/text-layout';
+import type { TextRun } from '../../../../../../shared/types/text-layout';
+import type { LinePosition } from '../../../../../../shared/types/layout';
+import { buildFont, getLineHeight } from '../../../../../../shared/utils/text-layout';
+import { calculateContrastColor } from '../../../../utils/contrast-color';
 import { createRichTextLayoutFromSegments } from '../../../../../../shared/utils/rich-text-layout';
-import { createRichTextInlineEditor } from './rich-text-inline-editor';
-import { createInlineTextEditorForQna2 } from './inline-text-editor';
-import { FEATURE_FLAGS } from '../../../../utils/feature-flags';
 import type { Theme } from '../../../../utils/themes-client';
 
 const RULED_LINE_BASELINE_OFFSET = 12;
@@ -82,41 +78,6 @@ const RichTextShape = React.memo(RichTextShapeComponent, (prevProps, nextProps) 
 }) as typeof RichTextShapeComponent;
 RichTextShape.displayName = 'RichTextShape';
 
-/** Build display segments: question (questionStyle) + answer (answerStyle). */
-function getDisplaySegments(
-  element: CanvasElement,
-  questionStyle: RichTextStyle,
-  answerStyle: RichTextStyle,
-  questionText: string,
-  answerTextFromTempAnswers?: string
-): TextSegment[] {
-  let answerSegments: TextSegment[];
-  if (element.questionId && answerTextFromTempAnswers !== undefined) {
-    answerSegments = answerTextFromTempAnswers
-      ? parseHtmlToSegments(answerTextFromTempAnswers, answerStyle)
-      : [];
-  } else {
-    answerSegments = element.richTextSegments ?? [];
-  }
-  const answerInNewRow = (element as any).answerInNewRow ?? false;
-  const hasAnswer = answerSegments.length > 0 || (element.questionId && answerTextFromTempAnswers !== undefined);
-  if (questionText) {
-    // answerInNewRow: Line Break zwischen Frage und Antwort; sonst Leerzeichen
-    const separator = answerInNewRow && hasAnswer ? '\n' : (questionText.endsWith(' ') ? '' : ' ');
-    const questionSegment: TextSegment = {
-      text: questionText + separator,
-      style: questionStyle
-    };
-    return [questionSegment, ...answerSegments];
-  }
-  if (answerSegments.length > 0) return answerSegments;
-  const text = element.formattedText || element.text || '';
-  if (!text) return [];
-  return [{ text, style: answerStyle }];
-}
-
-type ExtendedWindow = Window & typeof globalThis & Record<string, unknown>;
-
 function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   const { element, isDragging, answerText: propsAnswerText, assignedUser: propsAssignedUser, questionStyle: propsQuestionStyle, answerStyle: propsAnswerStyle } = props;
   const { state, dispatch, getQuestionText } = useEditor();
@@ -125,7 +86,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   const elementHeight = element.height ?? 0;
   const textShapeRef = useRef<Konva.Shape>(null);
   const textRef = useRef<Konva.Rect>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing] = useState(false);
   const [isTransforming, setIsTransforming] = useState(false);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -133,10 +94,13 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = elementTheme || state.currentBook?.themeId || state.currentBook?.bookTheme;
 
+  const pageColorPaletteId = currentPage?.colorPaletteId;
+  const bookColorPaletteId = state.currentBook?.colorPaletteId;
   const qna2Defaults = useMemo(() => {
     const activeTheme = pageTheme || bookTheme || 'default';
-    return getGlobalThemeDefaults(activeTheme, 'qna2', undefined);
-  }, [pageTheme, bookTheme]);
+    const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
+    return getGlobalThemeDefaults(activeTheme, 'qna2', effectivePaletteId);
+  }, [pageTheme, bookTheme, pageColorPaletteId, bookColorPaletteId]);
 
   const questionStyle = useMemo(
     () => propsQuestionStyle ?? calculateQuestionStyle(element, currentPage, state.currentBook ?? undefined),
@@ -159,7 +123,11 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     return null;
   }, [state.currentBook?.pages, element.id]);
   const assignedUser = propsAssignedUser ?? (elementPageNumber !== null
-    ? state.pageAssignments[elementPageNumber] ?? null
+    ? (state.pageAssignments[elementPageNumber] ?? (
+        state.userRole === 'author' && state.assignedPages?.includes(elementPageNumber) && user
+          ? { id: user.id }
+          : null
+      ))
     : null);
   const answerText = propsAnswerText ?? (element.questionId && assignedUser
     ? (state.tempAnswers[element.questionId]?.[assignedUser.id] as { text?: string } | undefined)?.text ?? ''
@@ -168,41 +136,6 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     () => getDisplaySegments(element, questionStyle, answerStyle, questionText, answerText),
     [element, questionStyle, answerStyle, questionText, answerText]
   );
-  const answerSegmentsOnly = useMemo(() => {
-    if (element.questionId && answerText !== undefined) {
-      return answerText ? parseHtmlToSegments(answerText, answerStyle) : [];
-    }
-    return element.richTextSegments ?? [];
-  }, [element.questionId, element.richTextSegments, answerText, answerStyle]);
-
-  const ctx = getGlobalCanvasContext();
-  /** Compute bounding box of question runs. Uses full first line for easier clicking. */
-  const getQuestionAreaBounds = useCallback(
-    (layoutResult: LayoutResult, qText: string) => {
-      if (!qText || !layoutResult.runs.length) return null;
-      const questionCharCount = qText.length + (qText.endsWith(' ') ? 0 : 1);
-      let acc = 0;
-      const questionRuns: typeof layoutResult.runs = [];
-      for (const run of layoutResult.runs) {
-        if (acc >= questionCharCount) break;
-        questionRuns.push(run);
-        acc += run.text.length;
-      }
-      if (questionRuns.length === 0) return null;
-      const lastRun = questionRuns[questionRuns.length - 1];
-      const lastWidth = sharedMeasureText(lastRun.text, lastRun.style, ctx);
-      const questionEndX = lastRun.x + lastWidth;
-      const firstLineHeight = layoutResult.linePositions?.[0]?.lineHeight ?? (layoutResult.runs[0]?.style.fontSize ?? 16) * 1.2;
-      return {
-        x: padding,
-        y: padding,
-        width: Math.max(questionEndX - padding, 30),
-        height: firstLineHeight
-      };
-    },
-    [ctx, padding]
-  );
-
   const answerInNewRow = (element as any).answerInNewRow ?? false;
   const questionAnswerGap = (element as any).questionAnswerGap ?? 0;
   const questionAnswerGapVertical = (element as any).questionAnswerGapVertical ?? questionAnswerGap;
@@ -221,12 +154,10 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     });
   }, [richTextSegments, elementWidth, elementHeight, padding, answerInNewRow, questionAnswerGapVertical, questionAnswerGapHorizontal]);
 
-  const questionAreaBounds = useMemo(
-    () => (questionText ? getQuestionAreaBounds(layout, questionText) : null),
-    [layout, questionText, getQuestionAreaBounds]
-  );
-
-  const ruledLines = element.ruledLines ?? element.textSettings?.ruledLines ?? qna2Defaults.textSettings?.ruledLines ?? false;
+  const ruledLinesConfig = element.ruledLines ?? element.textSettings?.ruledLines ?? qna2Defaults.textSettings?.ruledLines ?? false;
+  const ruledLines = typeof ruledLinesConfig === 'object' && ruledLinesConfig !== null
+    ? (ruledLinesConfig as { enabled?: boolean }).enabled ?? false
+    : !!ruledLinesConfig;
   const ruledLinesWidth =
     element.ruledLinesWidth ?? element.textSettings?.ruledLinesWidth ?? qna2Defaults.textSettings?.ruledLinesWidth ?? 0.8;
   const ruledLinesTheme =
@@ -370,137 +301,20 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     };
   }, [element.id, dispatch]);
 
-  useEffect(() => {
-    const globalWindow = window as ExtendedWindow;
-    globalWindow[`openQuestionSelector_${element.id}`] = () => {
-      globalWindow.dispatchEvent(
-        new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } })
-      );
-    };
-    return () => {
-      delete globalWindow[`openQuestionSelector_${element.id}`];
-    };
-  }, [element.id]);
-
-  const answerTextPlain = useMemo(
-    () => (answerSegmentsOnly ?? []).map((s) => s.text).join(''),
-    [answerSegmentsOnly]
-  );
-
-  const enableInlineTextEditing = useCallback(() => {
-    if (FEATURE_FLAGS.QNA2_RICH_TEXT_EDITOR) {
-      createRichTextInlineEditor({
-        element,
-        richTextSegments: answerSegmentsOnly,
-        defaultStyle: answerStyle,
-        textRef,
-        setIsEditing,
-        dispatch,
-        boxWidth: elementWidth,
-        boxHeight: elementHeight,
-        padding,
-        questionPrefix: questionText || undefined,
-        user,
-        questionId: element.questionId ?? undefined,
-        answerId: element.questionId && assignedUser
-          ? (state.tempAnswers[element.questionId]?.[assignedUser.id] as { answerId?: string } | undefined)?.answerId
-          : undefined
-      });
-    } else {
-      createInlineTextEditorForQna2({
-        element,
-        answerText: answerTextPlain,
-        defaultStyle: answerStyle,
-        textRef,
-        setIsEditing,
-        dispatch,
-        boxWidth: elementWidth,
-        boxHeight: elementHeight,
-        padding,
-        questionPrefix: questionText || undefined,
-        user,
-        answerId: element.questionId && assignedUser
-          ? (state.tempAnswers[element.questionId]?.[assignedUser.id] as { answerId?: string } | undefined)?.answerId
-          : undefined
-      });
-    }
-  }, [
-    element,
-    answerSegmentsOnly,
-    answerTextPlain,
-    answerStyle,
-    elementWidth,
-    elementHeight,
-    padding,
-    dispatch,
-    questionText,
-    user,
-    assignedUser,
-    state.tempAnswers
-  ]);
-
-  useEffect(() => {
-    const globalWindow = window as ExtendedWindow;
-    globalWindow[`openAnswerEditor_${element.id}`] = () => {
-      if (assignedUser?.id !== user?.id) return;
-      enableInlineTextEditing();
-    };
-    return () => {
-      delete globalWindow[`openAnswerEditor_${element.id}`];
-    };
-  }, [element.id, assignedUser?.id, user?.id, enableInlineTextEditing]);
-
-  const getClickAreaFromEvent = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
-      const stage = e.target.getStage();
-      if (!stage) return 'answer';
-      const pointerPos = stage.getPointerPosition();
-      if (!pointerPos) return 'answer';
-      const groupNode = textRef.current?.getParent();
-      if (!groupNode) return 'answer';
-      const transform = groupNode.getAbsoluteTransform().copy().invert();
-      const localPos = transform.point(pointerPos);
-      if (questionAreaBounds && element.questionId) {
-        const { x, y, width, height } = questionAreaBounds;
-        if (
-          localPos.x >= x &&
-          localPos.x <= x + width &&
-          localPos.y >= y &&
-          localPos.y <= y + height
-        ) {
-          return 'question';
-        }
-      }
-      return 'answer';
-    },
-    [questionAreaBounds, element.questionId]
-  );
+  // Berechtigungen: Owner/Publisher → Question-Tab; pageAssignment → Answer-Tab
+  const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
+  const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
+  const canShowQuestionTab = isPublisherUser;
+  const canShowAnswerTab = Boolean(assignedUser && user?.id === assignedUser.id);
+  const canOpenQna2Editor = canShowQuestionTab || canShowAnswerTab;
 
   const handleDoubleClick = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     if (props.interactive === false || state.activeTool !== 'select' || (e?.evt && e.evt.button !== 0))
       return;
-    if (!e) return;
-    const clickArea = getClickAreaFromEvent(e);
-    if (clickArea === 'question') {
-      const globalWindow = window as ExtendedWindow;
-      const directFn = globalWindow[`openQuestionSelector_${element.id}`];
-      if (typeof directFn === 'function') {
-        directFn();
-      } else {
-        window.dispatchEvent(
-          new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } })
-        );
-      }
-    } else {
-      if (!element.questionId) {
-        const globalWindow = window as ExtendedWindow;
-        const directFn = globalWindow[`openQuestionSelector_${element.id}`];
-        if (typeof directFn === 'function') directFn();
-        return;
-      }
-      if (!assignedUser || assignedUser.id !== user?.id) return;
-      enableInlineTextEditing();
-    }
+    if (!e || !canOpenQna2Editor) return;
+    window.dispatchEvent(
+      new CustomEvent('openQuestionDialog', { detail: { elementId: element.id } })
+    );
   };
 
   const hitArea = useMemo(
@@ -509,12 +323,59 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   );
 
   const showSkeleton = isTransforming || isDragging;
-  const hasAnswerContent = answerSegmentsOnly.some((s) => s.text.trim().length > 0);
-  const hasContent = questionText.length > 0 || hasAnswerContent;
-  const showPlaceholder = !element.questionId ? !hasContent : !hasAnswerContent;
-  const placeholderText = !element.questionId
-    ? 'Doppelklick zum Hinzufügen einer Frage...'
-    : 'Doppelklick zum Schreiben der Antwort...';
+  const hasContent = layout.runs.length > 0;
+  const placeholderColor = useMemo(
+    () => calculateContrastColor(currentPage ?? undefined),
+    [currentPage]
+  );
+  const tooltipText = canOpenQna2Editor
+    ? 'Double-click to edit question and answer'
+    : 'Double-click to edit';
+
+  const handleTooltip = useCallback(
+    (evt: Konva.KonvaEventObject<MouseEvent>) => {
+      if (props.interactive === false) return;
+      const { clientX, clientY } = evt.evt;
+      window.dispatchEvent(
+        new CustomEvent('imageQualityTooltip', {
+          detail: {
+            text: tooltipText,
+            screenX: clientX,
+            screenY: clientY
+          }
+        })
+      );
+    },
+    [tooltipText, props.interactive]
+  );
+
+  const handleTooltipHide = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('imageQualityTooltipHide'));
+  }, []);
+
+  const handleMouseEnter = useCallback(
+    (evt: Konva.KonvaEventObject<MouseEvent>) => {
+      handleTooltip(evt);
+      if (canOpenQna2Editor) {
+        const stage = evt.target.getStage();
+        if (stage?.container()) {
+          stage.container().style.cursor = 'pointer';
+        }
+      }
+    },
+    [handleTooltip, canOpenQna2Editor]
+  );
+
+  const handleMouseLeave = useCallback(
+    (evt: Konva.KonvaEventObject<MouseEvent>) => {
+      handleTooltipHide();
+      const stage = evt.target.getStage();
+      if (stage?.container()) {
+        stage.container().style.cursor = '';
+      }
+    },
+    [handleTooltipHide]
+  );
 
   // Skeleton-Zeilen: einheitlicher Abstand, ein Rectangle pro Slot, größere Lücken dazwischen
   const skeletonLinePositions = useMemo(() => {
@@ -635,28 +496,25 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
               );
             })()}
           {!isEditing && (
-            <RichTextShape
-              ref={textShapeRef}
-              runs={layout.runs}
-              width={elementWidth}
-              height={layout.contentHeight}
-            />
-          )}
-          {showPlaceholder && !isEditing && (
-            <KonvaText
-              x={padding}
-              y={padding}
-              width={elementWidth - padding * 2}
-              height={elementHeight - padding * 2}
-              text={placeholderText}
-              fontSize={Math.max(answerStyle.fontSize * 0.8, 16)}
-              fontFamily={answerStyle.fontFamily}
-              fill="#9ca3af"
-              opacity={0.4}
-              align="left"
-              verticalAlign="top"
-              listening={false}
-            />
+            hasContent ? (
+              <RichTextShape
+                ref={textShapeRef}
+                runs={layout.runs}
+                width={elementWidth}
+                height={layout.contentHeight}
+              />
+            ) : (
+              <KonvaText
+                x={padding}
+                y={padding}
+                width={elementWidth - padding * 2}
+                text="Double click to add question"
+                fontSize={answerStyle.fontSize}
+                fontFamily={answerStyle.fontFamily ?? 'Arial, sans-serif'}
+                fill={placeholderColor}
+                listening={false}
+              />
+            )
           )}
         </>
       )}
@@ -668,6 +526,9 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
         height={elementHeight}
         fill="transparent"
         listening={true}
+        onMouseEnter={handleMouseEnter}
+        onMouseMove={handleTooltip}
+        onMouseLeave={handleMouseLeave}
       />
     </BaseCanvasItem>
   );

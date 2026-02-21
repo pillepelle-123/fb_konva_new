@@ -130,6 +130,7 @@ export function getElementPaletteColors(palette: ColorPalette, elementType: stri
 
   switch (elementType) {
     case 'qna':
+    case 'qna2':
       return {
         qnaQuestionText: getColor('qnaQuestionText', 'text', palette.colors.text),
         qnaAnswerText: getColor('qnaAnswerText', 'text', palette.colors.text),

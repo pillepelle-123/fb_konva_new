@@ -30,10 +30,10 @@ export function getActiveTemplateIds(page: Page | undefined, book: Book | null):
     };
   }
 
-  // Page has its own theme, layout, and palette (no inheritance from book)
-  const themeId = page.themeId ?? 'default';
+  // Page has its own theme, layout, and palette; fall back to book when page has none set
+  const themeId = page.themeId ?? book.themeId ?? book.bookTheme ?? 'default';
   const layoutTemplateId = page.layoutTemplateId ?? null;
-  const colorPaletteId = page.colorPaletteId ?? null;
+  const colorPaletteId = page.colorPaletteId ?? book.colorPaletteId ?? null;
 
   return {
     layoutTemplateId,

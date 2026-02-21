@@ -38,7 +38,7 @@ router.get('/:identifier/thumbnail', authenticateToken, async (req, res) => {
   try {
     const image = await backgroundImagesService.getBackgroundImage(req.params.identifier)
     if (!image || !image.storage?.filePath) {
-      return res.status(404).json({ error: 'Background image not found' })
+      return res.status(404).json({ error: 'Background image thumbnail not found' })
     }
     const relPath = (image.storage.thumbnailPath || image.storage.filePath || '').replace(/^\/+/, '')
     if (!relPath) return res.status(404).json({ error: 'Background image thumbnail not found' })

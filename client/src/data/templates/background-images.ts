@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { BackgroundImage, BackgroundImageWithUrl } from '../../types/template-types.ts'
+import staticBackgroundImagesData from './background-images.json'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -143,6 +144,49 @@ function rebuildDerivedState(images: BackgroundImageWithUrl[]) {
   registryCategories = Array.from(categorySet)
 }
 
+/** Transform static JSON record to BackgroundImageWithUrl (fallback when API fails) */
+function transformJsonRecord(record: {
+  id: string
+  name: string
+  category: string
+  format: 'vector' | 'pixel'
+  filePath: string
+  thumbnail?: string
+  defaultSize?: string
+  defaultOpacity?: number
+  defaultWidth?: number
+  defaultPosition?: string
+  backgroundColor?: { enabled?: boolean; defaultValue?: string }
+  paletteSlots?: string
+  description?: string
+  tags?: string[]
+}): BackgroundImageWithUrl {
+  const filePath = record.filePath ?? ''
+  const thumbnailPath = record.thumbnail ?? record.filePath ?? ''
+  const url = resolveLocalUrl(filePath) || filePath
+  const thumbnailUrl = resolveLocalUrl(thumbnailPath) || thumbnailPath || url
+  return {
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    format: record.format,
+    filePath,
+    thumbnail: thumbnailPath,
+    defaultSize: (record.defaultSize as BackgroundImage['defaultSize']) ?? 'cover',
+    defaultOpacity: record.defaultOpacity ?? 1,
+    defaultWidth: record.defaultWidth,
+    defaultPosition: (record.defaultPosition as BackgroundImage['defaultPosition']),
+    backgroundColor: record.backgroundColor
+      ? { enabled: Boolean(record.backgroundColor.enabled), defaultValue: record.backgroundColor.defaultValue }
+      : undefined,
+    paletteSlots: record.paletteSlots === 'standard' || record.paletteSlots === 'auto' ? record.paletteSlots : undefined,
+    description: record.description,
+    tags: record.tags,
+    url,
+    thumbnailUrl: thumbnailUrl || url,
+  }
+}
+
 export async function loadBackgroundImageRegistry(force = false) {
   if (registry.length > 0 && !force) return
 
@@ -157,7 +201,10 @@ export async function loadBackgroundImageRegistry(force = false) {
     // SVG preload removed – SVGs are loaded on-demand via loadBackgroundImageSvg()
   } catch (error) {
     console.error('Hintergrundbilder konnten nicht geladen werden:', error)
-    rebuildDerivedState([])
+    // Fallback: Load from static JSON so theme background images (e.g. Sketchy) work without API
+    const records = (staticBackgroundImagesData?.images ?? []) as Parameters<typeof transformJsonRecord>[0][]
+    const images = records.map(transformJsonRecord)
+    rebuildDerivedState(images)
   }
 }
 

@@ -10,7 +10,8 @@ import { FormField } from '../../components/ui/layout/form-field';
 import { apiService } from '../../services/api';
 import { pageTemplates as builtinPageTemplates } from '../../data/templates/page-templates';
 import themesData from '../../data/templates/themes';
-import MiniEditorCanvas from '../../components/features/editor/preview/mini-editor-canvas';
+import { StaticSpreadPreview } from '../../components/features/editor/preview/static-spread-preview';
+import { PreviewModal } from '../../components/features/editor/preview/preview-modal';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
 import { getThemePaletteId } from '../../utils/global-themes';
 import { BasicInfoStep } from '../../components/features/books/create/basic-info-step';
@@ -25,6 +26,7 @@ import {
   DEFAULT_ASSIGNMENT_PAGE_COUNT,
 } from '../../components/features/books/create/types';
 import { convertTemplateToElements } from '../../utils/template-to-elements';
+import { applyThemeToElementConsistent } from '../../utils/global-themes';
 import { calculatePageDimensions } from '../../utils/template-utils';
 import { addPageNumbersToPages } from '../../utils/page-number-utils';
 import { calculatePagePairId } from '../../utils/book-structure';
@@ -527,14 +529,20 @@ export default function BookCreatePage() {
         const isRightPage = i % 2 === 0;
         const templateForPage = shouldHaveLayoutTemplate ? (isRightPage ? rightResolved : leftResolved) : null;
 
-        const pageElements = shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [];
-        
+        let pageElements = shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [];
+        // Apply current theme and palette to elements (themes.json + color-palettes.json)
+        if (shouldHaveThemeAndBackground && pageElements.length > 0) {
+          const themeId = wizardState.design.themeId || 'default';
+          const paletteId = wizardState.design.paletteId ?? getThemePaletteId(themeId) ?? undefined;
+          pageElements = pageElements.map((el) => applyThemeToElementConsistent(el, themeId, paletteId));
+        }
+
         pages.push({
           pageNumber: i,
           elements: pageElements,
           layoutTemplateId: templateForPage ? templateForPage.id : null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
-          themeId: shouldHaveThemeAndBackground ? undefined : null,
+          themeId: shouldHaveThemeAndBackground ? (wizardState.design.themeId || 'default') : null,
           colorPaletteId: shouldHaveThemeAndBackground 
             ? wizardState.design.paletteId // null means "Theme's Default Palette"
             : null,
@@ -566,7 +574,7 @@ export default function BookCreatePage() {
           // Only process content pages (page 4 to totalPages-1)
           if (page.pageNumber >= 4 && page.pageNumber < totalPages) {
             page.elements.forEach((element, elementIndex) => {
-              if (element.textType === 'qna') {
+              if (element.textType === 'qna' || element.textType === 'qna2') {
                 qnaInlineTextboxes.push({
                   pageIndex: i,
                   elementIndex,
@@ -1107,30 +1115,33 @@ ${user?.name || '[user name]'}`;
                       {getStepComponent(activeStepIndex)}
                     </div>
 
-                    {/* Right: Live mini editor canvas (40%) */}
+                    {/* Right: Live Preview – beide Seiten nebeneinander (40%) */}
                     <div className="lg:col-span-2 flex flex-col min-h-0 relative overflow-hidden h-full">
-                      <div className="h-full">
+                      <div className="h-full flex flex-col">
                         {showCanvas && canvasLoaded ? (
                           <motion.div
-                            key={`canvas-content-${activeStepIndex}`}
+                            key={`preview-${activeStepIndex}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.3 }}
                             onClick={() => setPreviewModalOpen(true)}
-                            className="cursor-pointer transition-opacity hover:opacity-90 h-full"
-                            title="Click to view larger preview"
+                            className="cursor-pointer transition-opacity hover:opacity-90 flex-1 min-h-0 rounded-2xl bg-white shadow-sm border p-2 flex flex-col"
+                            title="Klicken für größere Vorschau"
                           >
-                            <MiniEditorCanvas
-                              pageSize={wizardState.basic.pageSize}
-                              orientation={wizardState.basic.orientation}
-                              themeId={wizardState.design.themeId}
-                              paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
-                              baseTemplate={wizardState.design.layoutTemplate ?? null}
-                              pickLeftRight={wizardState.design.pickLeftRight}
-                              leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-                              rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-                              mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-                            />
+                            <div className="text-sm font-semibold mb-3 flex-shrink-0">Live Preview</div>
+                            <div className="flex-1 min-h-0">
+                              <StaticSpreadPreview
+                                pageSize={wizardState.basic.pageSize}
+                                orientation={wizardState.basic.orientation}
+                                themeId={wizardState.design.themeId}
+                                paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                                baseTemplate={wizardState.design.layoutTemplate ?? null}
+                                pickLeftRight={wizardState.design.pickLeftRight}
+                                leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
+                                rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
+                                mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
+                              />
+                            </div>
                           </motion.div>
                         ) : showCanvas && !canvasLoaded ? (
                           <div className="h-full flex items-center justify-center bg-muted/20 rounded-2xl">
@@ -1181,44 +1192,11 @@ ${user?.name || '[user name]'}`;
         </DialogContent>
       </Dialog>
 
-      {/* Preview Modal */}
-      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-6 flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Live Preview</DialogTitle>
-          </DialogHeader>
-          <div className="w-full  mt-4 flex-1 min-h-0" style={{ overflow: 'auto', position: 'relative' }}>
-            <div
-              className="w-full h-full rounded-lg"
-              style={{
-                position: 'relative',
-              }}
-            >
-              <style>
-                {`
-                  .preview-modal div.absolute.z-20 { display: none !important; }
-                  .preview-modal .pointer-events-none.absolute.z-20 { display: none !important; }
-                  .preview-modal .mini-editor-preview { height: 100% !important; }
-                `}
-              </style>
-              <div className="preview-modal w-full h-full">
-                <MiniEditorCanvas
-                  pageSize={wizardState.basic.pageSize}
-                  orientation={wizardState.basic.orientation}
-                  themeId={wizardState.design.themeId}
-                  paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
-                  baseTemplate={wizardState.design.layoutTemplate ?? null}
-                  pickLeftRight={wizardState.design.pickLeftRight}
-                  leftTemplate={wizardState.design.leftLayoutTemplate ?? null}
-                  rightTemplate={wizardState.design.rightLayoutTemplate ?? null}
-                  mirrorRight={wizardState.design.mirrorLayout && !wizardState.design.pickLeftRight}
-                  className="border-0 shadow-none p-0 h-full"
-                />
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        wizardState={wizardState}
+      />
       </div>
     </>
   );

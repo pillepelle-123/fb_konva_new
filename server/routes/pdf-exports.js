@@ -433,6 +433,24 @@ async function loadBookDataFromDB(bookId, userId) {
           }
         }
 
+        // Update QnA2 elements with actual answer text (same as qna - for PDF renderer getDisplaySegments)
+        if (element.textType === 'qna2' && element.questionId) {
+          const pageAssignment = assignmentsResult.rows.find(pa => pa.page_id === page.id);
+          if (pageAssignment) {
+            const assignedUserAnswer = answersResult.rows.find(a =>
+              a.question_id === element.questionId && a.user_id === pageAssignment.user_id
+            );
+            if (assignedUserAnswer) {
+              const answerText = assignedUserAnswer.formatted_text || assignedUserAnswer.answer_text || '';
+              return {
+                ...element,
+                answerText,
+                answerId: assignedUserAnswer.id
+              };
+            }
+          }
+        }
+
         return element;
       });
 

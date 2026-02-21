@@ -29,15 +29,15 @@ export function convertTemplateTextboxToElement(
   textbox: TemplateTextbox, 
   palette: ColorPalette
 ): CanvasElement {
-  // Determine textType: qna or free_text are supported
-  // - qna: for Q&A layouts (layoutVariant === 'inline' or type === 'qna')
+  // Determine textType: qna2 or free_text are supported
+  // - qna2: for Q&A layouts (layoutVariant === 'inline' or type === 'qna') – uses textbox-qna2 component
   // - free_text: for all other text boxes
   const isQna = textbox.layoutVariant === 'inline' || textbox.type === 'qna';
-  const textType: CanvasElement['textType'] = isQna ? 'qna' : 'free_text';
+  const textType: CanvasElement['textType'] = isQna ? 'qna2' : 'free_text';
   
   // Use appropriate defaults with type guards
   // getGlobalThemeDefaults() now includes base defaults, so we can use it with 'default' theme
-  const qnaDefaults = getGlobalThemeDefaults('default', 'qna', undefined);
+  const qnaDefaults = getGlobalThemeDefaults('default', 'qna2', undefined);
   const freeTextDefaults = getGlobalThemeDefaults('default', 'free_text', undefined);
   const defaults = isQna ? qnaDefaults : freeTextDefaults;
   
@@ -57,13 +57,15 @@ export function convertTemplateTextboxToElement(
     padding: defaults.padding || 4,
     // Add type-specific settings - for qna, font properties are only in questionSettings/answerSettings
     ...(isQna ? {
-      // qna specific settings
+      // qna2 specific settings (textbox-qna2 component)
       layoutVariant: 'inline',
       // Übernehme questionSettings und answerSettings aus Template (falls vorhanden), sonst Defaults
       questionSettings: textbox.questionSettings ||
         (qnaDefaults.questionSettings ? { ...qnaDefaults.questionSettings } : undefined),
       answerSettings: textbox.answerSettings ||
-        (qnaDefaults.answerSettings ? { ...qnaDefaults.answerSettings } : undefined)
+        (qnaDefaults.answerSettings ? { ...qnaDefaults.answerSettings } : undefined),
+      // textSettings für qna2 (ruledLines, border, etc.) – wird von Theme/Palette später ergänzt
+      ...(qnaDefaults.textSettings && { textSettings: { ...qnaDefaults.textSettings } })
     } : {
       // free_text specific settings
       fontColor: (defaults as any).fontColor || '#000000',

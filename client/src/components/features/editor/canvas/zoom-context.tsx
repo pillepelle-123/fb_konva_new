@@ -10,10 +10,20 @@ interface ZoomContextType {
 
 const ZoomContext = createContext<ZoomContextType | null>(null);
 
-export function ZoomProvider({ children, initialZoom = 0.8 }: { children: React.ReactNode; initialZoom?: number }) {
+export function ZoomProvider({
+  children,
+  initialZoom = 0.8,
+  minZoom: minZoomProp,
+  maxZoom: maxZoomProp,
+}: {
+  children: React.ReactNode;
+  initialZoom?: number;
+  minZoom?: number;
+  maxZoom?: number;
+}) {
   const [zoom, setZoomState] = useState(initialZoom);
-  const minZoom = 0.1;
-  const maxZoom = 1;
+  const minZoom = minZoomProp ?? 0.1;
+  const maxZoom = maxZoomProp ?? 1;
   const setZoomRef = useRef<((zoom: number, centerPoint?: { x: number; y: number }) => void) | null>(null);
   
   const registerSetZoom = useCallback((setZoomFn: (zoom: number, centerPoint?: { x: number; y: number }) => void) => {

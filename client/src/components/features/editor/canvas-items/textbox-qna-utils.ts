@@ -1,7 +1,8 @@
-import type { CanvasElement } from '../../../context/editor-context';
-import type { RichTextStyle } from '../../../../../shared/types/text-layout';
+import type { CanvasElement } from '../../../../context/editor-context';
+import type { RichTextStyle, TextSegment } from '../../../../../../shared/types/text-layout';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { commonToActual } from '../../../../utils/font-size-converter';
+import { parseHtmlToSegments } from '../../../../../../shared/utils/rich-text-layout';
 
 /** FontSize aus "common" (8–24) in "actual" (33+) konvertieren, falls nötig. Siehe font-size-converter. */
 function ensureActualFontSize(value: number, isQna2: boolean): number {
@@ -67,9 +68,8 @@ export function calculateQuestionStyle(
   const activeTheme = pageTheme || bookTheme || 'default';
   const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
   const toolDefaults = getGlobalThemeDefaults(activeTheme, isQna2 ? 'qna2' : 'qna', effectivePaletteId);
-  const qnaDefaults = isQna2
-    ? { questionSettings: toolDefaults.textSettings, answerSettings: toolDefaults.textSettings }
-    : toolDefaults;
+  // qna2 nutzt nun wie qna questionSettings/answerSettings aus dem Theme
+  const qnaDefaults = toolDefaults;
 
   const layoutVariant = qnaElement.layoutVariant || 'inline';
   const individualSettings = qnaElement.qnaIndividualSettings ?? false;
@@ -129,9 +129,8 @@ export function calculateAnswerStyle(
   const activeTheme = pageTheme || bookTheme || 'default';
   const effectivePaletteId = pageColorPaletteId || bookColorPaletteId;
   const toolDefaults = getGlobalThemeDefaults(activeTheme, isQna2 ? 'qna2' : 'qna', effectivePaletteId);
-  const qnaDefaults = isQna2
-    ? { questionSettings: toolDefaults.textSettings, answerSettings: toolDefaults.textSettings }
-    : toolDefaults;
+  // qna2 nutzt nun wie qna questionSettings/answerSettings aus dem Theme
+  const qnaDefaults = toolDefaults;
 
   const layoutVariant = qnaElement.layoutVariant || 'inline';
   const individualSettings = qnaElement.qnaIndividualSettings ?? false;
@@ -195,4 +194,45 @@ export function stripHtml(text: string): string {
   const temp = document.createElement('div');
   temp.innerHTML = text;
   return temp.textContent || temp.innerText || '';
+}
+
+/**
+ * Build display segments for QnA2: question (questionStyle) + answer (answerStyle).
+ * Shared between textbox-qna2.tsx and pdf-renderer for consistent PDF export.
+ */
+export function getDisplaySegments(
+  element: CanvasElement,
+  questionStyle: RichTextStyle,
+  answerStyle: RichTextStyle,
+  questionText: string,
+  answerTextFromTempAnswers?: string
+): TextSegment[] {
+  let answerSegments: TextSegment[];
+  if (element.questionId && answerTextFromTempAnswers !== undefined) {
+    if (answerTextFromTempAnswers) {
+      answerSegments = parseHtmlToSegments(answerTextFromTempAnswers, answerStyle);
+      // Fallback: Plain-Text aus Textarea (z.B. wenn document fehlt) – Newlines bleiben erhalten
+      if (answerSegments.length === 0 && answerTextFromTempAnswers.trim()) {
+        answerSegments = [{ text: answerTextFromTempAnswers, style: answerStyle }];
+      }
+    } else {
+      answerSegments = [];
+    }
+  } else {
+    answerSegments = element.richTextSegments ?? [];
+  }
+  const answerInNewRow = (element as any).answerInNewRow ?? false;
+  const hasAnswer = answerSegments.length > 0 || (element.questionId && answerTextFromTempAnswers !== undefined);
+  if (questionText) {
+    const separator = answerInNewRow && hasAnswer ? '\n' : (questionText.endsWith(' ') ? '' : ' ');
+    const questionSegment: TextSegment = {
+      text: questionText + separator,
+      style: questionStyle
+    };
+    return [questionSegment, ...answerSegments];
+  }
+  if (answerSegments.length > 0) return answerSegments;
+  const text = element.formattedText || element.text || '';
+  if (!text) return [];
+  return [{ text, style: answerStyle }];
 }

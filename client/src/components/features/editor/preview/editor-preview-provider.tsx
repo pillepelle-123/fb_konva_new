@@ -128,8 +128,9 @@ export function EditorPreviewProvider({
       pages: [
         {
           id: 'preview-left',
-          pageNumber: 1,
+          pageNumber: 2,
           pageType: 'content',
+          pagePairId: 'preview-spread',
           layoutTemplateId: leftResolved?.id ?? null,
           colorPaletteId: paletteId,
           themeId,
@@ -138,8 +139,9 @@ export function EditorPreviewProvider({
         },
         {
           id: 'preview-right',
-          pageNumber: 2,
+          pageNumber: 3,
           pageType: 'content',
+          pagePairId: 'preview-spread',
           layoutTemplateId: rightResolved?.id ?? null,
           colorPaletteId: paletteId,
           themeId,
@@ -153,7 +155,8 @@ export function EditorPreviewProvider({
     return {
       // Editor state subset needed by Canvas
       currentBook: book as any,
-      activePageIndex: 0,
+      // Index 1 = rechte Seite; mit pagePairId wird die linke Seite als Partner angezeigt → Doppelseite 2–3
+      activePageIndex: 1,
       selectedElementIds: [] as string[],
       isMiniPreview: true,
       hoveredElementId: null as string | null,
