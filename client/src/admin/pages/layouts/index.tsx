@@ -4,7 +4,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { DataTable, DataTableColumnHeader } from '../../components/table'
 import { JsonEditor } from '../../components/JsonEditor'
 import { useAdminLayouts } from '../../hooks'
-import type { AdminLayoutTemplate } from '../../services/themes-palettes-layouts'
+import type { AdminLayout } from '../../services/themes-palettes-layouts'
 import { Edit2, LayoutPanelLeft, LayoutTemplate } from 'lucide-react'
 
 function formatDate(value: string | null | undefined) {
@@ -17,17 +17,17 @@ function formatDate(value: string | null | undefined) {
 }
 
 export default function AdminLayoutsPage() {
-  const [editingLayout, setEditingLayout] = useState<AdminLayoutTemplate | null>(null)
+  const [editingLayout, setEditingLayout] = useState<AdminLayout | null>(null)
   const [editData, setEditData] = useState<Record<string, unknown>>({})
 
   const { layoutsQuery, layouts, updateLayout, isUpdating } = useAdminLayouts()
 
-  const columns = useMemo<ColumnDef<AdminLayoutTemplate>[]>(
+  const columns = useMemo<ColumnDef<AdminLayout>[]>(
     () => [
       {
         accessorKey: 'id',
         header: ({ column }) => <DataTableColumnHeader column={column} title="ID" />,
-        cell: ({ row }) => <span className="font-mono text-xs truncate max-w-[180px] block" title={row.original.id}>{row.original.id}</span>,
+        cell: ({ row }) => <span className="font-mono text-xs truncate max-w-[180px] block" title={String(row.original.id)}>{row.original.id}</span>,
       },
       {
         accessorKey: 'name',
@@ -60,7 +60,7 @@ export default function AdminLayoutsPage() {
   const handleSave = async () => {
     if (!editingLayout) return
     try {
-      await updateLayout({ id: editingLayout.id, data: editData as Partial<AdminLayoutTemplate> })
+      await updateLayout({ id: editingLayout.id, data: editData as Partial<AdminLayout> })
       setEditingLayout(null)
     } catch (err) {
       console.error('Failed to update layout:', err)

@@ -462,7 +462,7 @@ async function loadBookDataFromDB(bookId, userId) {
           ...pageData.background,
           pageTheme: page.theme_id || null
         },
-        layoutTemplateId: page.layout_template_id,
+        layoutId: page.layout_id,
         ...(page.theme_id ? { themeId: page.theme_id } : {}),
         colorPaletteId: page.color_palette_id,
         pageType: page.page_type || 'content'

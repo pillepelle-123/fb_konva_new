@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../../context/editor-context';
 import { useAuth } from '../../../context/auth-context';
 import { useSandboxOptional } from '../../../context/sandbox-context';
@@ -6,7 +7,7 @@ import { Button } from '../../ui/primitives/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 import { Input } from '../../ui/primitives/input';
 import { Label } from '../../ui/primitives/label';
-import { X, Layers, Save, Droplets, Palette } from 'lucide-react';
+import { X, Layers, Save, Palette, Download, Upload } from 'lucide-react';
 import { exportPageJsonToWindow } from '../../../utils/page-json-exporter';
 import { cn } from '../../../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,7 +21,7 @@ import {
   generatePaletteId,
 } from '../../../utils/theme-palette-exporter';
 import { createAdminTheme, createAdminColorPalette } from '../../../admin/services/themes-palettes-layouts';
-import { fetchThemes, fetchColorPalettes } from '../../../services/api';
+import { fetchThemes, fetchColorPalettes, fetchSandboxPages, fetchSandboxPage, saveSandboxPage, updateSandboxPage } from '../../../services/api';
 import { setThemesData, setColorPalettesData } from '../../../data/templates/templates-data';
 import { colorPalettes } from '../../../data/templates/color-palettes';
 import { OPENMOJI_STICKERS, getOpenMojiUrl } from '../../../data/templates/openmoji-stickers';
@@ -50,6 +51,7 @@ function getBrushBounds(points: number[]) {
 }
 
 export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminInfoPanelProps) {
+  const navigate = useNavigate();
   const { user, token } = useAuth();
   const { state, dispatch } = useEditor();
   const sandbox = useSandboxOptional();
@@ -63,6 +65,13 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
   const [paletteDialogOpen, setPaletteDialogOpen] = useState(false);
   const [paletteName, setPaletteName] = useState('');
   const [isSavingPalette, setIsSavingPalette] = useState(false);
+  const [saveSandboxDialogOpen, setSaveSandboxDialogOpen] = useState(false);
+  const [sandboxPageName, setSandboxPageName] = useState('');
+  const [isSavingSandbox, setIsSavingSandbox] = useState(false);
+  const [loadSandboxDialogOpen, setLoadSandboxDialogOpen] = useState(false);
+  const [sandboxPagesList, setSandboxPagesList] = useState<{ id: number; name: string; updated_at: string }[]>([]);
+  const [sandboxLoadFilter, setSandboxLoadFilter] = useState('');
+  const [isLoadingSandboxList, setIsLoadingSandboxList] = useState(false);
 
   if (user?.role !== 'admin') {
     return null;
@@ -93,8 +102,8 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       currentBook.orientation || 'portrait'
     );
 
-    const margin = 80;
-    const gap = 60;
+    const margin = 120;
+    const gap = 90;
     let y = margin;
 
     // QnA2
@@ -104,16 +113,18 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       type: 'text' as const,
       x: margin,
       y,
-      width: Math.min(600, canvasSize.width - margin * 2),
-      height: 200,
+      width: Math.min(700, canvasSize.width - margin * 2),
+      height: 260,
       ...qna2Defaults,
       text: '',
       textType: 'qna2' as const,
       richTextSegments: [] as { text: string; bold?: boolean; italic?: boolean }[],
       textSettings: (qna2Defaults.textSettings as object) || {},
+      sandboxDummyQuestion: 'Wie lautet die Beispiel-Frage?',
+      sandboxDummyAnswer: 'Dies ist eine längere Beispiel-Antwort, die das Styling der Schriftart für Fragen und Antworten demonstrieren soll.',
     };
     dispatch({ type: 'ADD_ELEMENT', payload: qna2Element });
-    y += 200 + gap;
+    y += 260 + gap;
 
     // Rect (shape)
     const rectDefaults = getGlobalThemeDefaults(themeId, 'rect', paletteId);
@@ -122,12 +133,12 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       type: 'rect' as const,
       x: margin,
       y,
-      width: 200,
-      height: 120,
+      width: 260,
+      height: 160,
       ...rectDefaults,
     };
     dispatch({ type: 'ADD_ELEMENT', payload: rectElement });
-    y += 120 + gap;
+    y += 160 + gap;
 
     // Placeholder (image)
     const imageDefaults = getGlobalThemeDefaults(themeId, 'placeholder', paletteId);
@@ -136,12 +147,12 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       type: 'placeholder' as const,
       x: margin,
       y,
-      width: 200,
-      height: 150,
+      width: 260,
+      height: 200,
       ...imageDefaults,
     };
     dispatch({ type: 'ADD_ELEMENT', payload: placeholderElement });
-    y += 150 + gap;
+    y += 200 + gap;
 
     // Sticker (OpenMoji)
     const stickerDefaults = getGlobalThemeDefaults(themeId, 'sticker', paletteId) as Record<string, unknown>;
@@ -152,8 +163,8 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       type: 'sticker' as const,
       x: margin,
       y,
-      width: 150,
-      height: 150,
+      width: 200,
+      height: 200,
       src: stickerUrl,
       stickerId: `openmoji-${firstOpenMoji.hexcode}`,
       stickerFormat: 'vector' as const,
@@ -162,7 +173,7 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
       ...stickerDefaults,
     };
     dispatch({ type: 'ADD_ELEMENT', payload: stickerElement });
-    y += 150 + gap;
+    y += 200 + gap;
 
     // Brush (simple wavy line)
     const brushDefaults = getGlobalThemeDefaults(themeId, 'brush', paletteId);
@@ -189,22 +200,121 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
     if (!currentPage) return;
     const activeTemplateIds = getActiveTemplateIds(currentPage, currentBook);
     setThemePaletteId(activeTemplateIds.colorPaletteId || 'default');
-    setThemeName('');
+    setThemeName(sandbox?.state.currentSandboxPageName ?? '');
     setThemeDescription('Theme aus Canvas erstellt');
     setThemeDialogOpen(true);
   };
 
   const handleOpenPaletteDialog = () => {
-    setPaletteName('');
+    setPaletteName(sandbox?.state.currentSandboxPageName ?? '');
     setPaletteDialogOpen(true);
   };
+
+  const handleOpenSaveSandboxDialog = () => {
+    setSandboxPageName(sandbox?.state.currentSandboxPageName ?? '');
+    setSaveSandboxDialogOpen(true);
+  };
+
+  const handleSaveSandboxPage = async () => {
+    if (!currentPage || !currentBook || !sandbox || !token) return;
+    const name = sandboxPageName.trim() || 'Unbenannt';
+    setIsSavingSandbox(true);
+    try {
+      const page = {
+        ...currentPage,
+        elements: currentPage.elements ?? [],
+        background: currentPage.background,
+      };
+      const payload = {
+        name,
+        page,
+        sandboxColors: sandbox.state.sandboxColors,
+        partSlotOverrides: sandbox.state.partSlotOverrides,
+        pageSlotOverrides: sandbox.state.pageSlotOverrides,
+      };
+      const currentId = sandbox.state.currentSandboxPageId;
+      if (currentId != null) {
+        await updateSandboxPage(currentId, payload);
+        sandbox.setCurrentSandboxPage({ id: currentId, name });
+      } else {
+        const res = await saveSandboxPage(payload);
+        sandbox.setCurrentSandboxPage({ id: res.id, name });
+      }
+      setSaveSandboxDialogOpen(false);
+      toast.success(`Sandbox-Seite „${name}“ gespeichert`);
+    } catch (err) {
+      console.error('Sandbox speichern fehlgeschlagen:', err);
+      toast.error('Sandbox-Seite konnte nicht gespeichert werden');
+    } finally {
+      setIsSavingSandbox(false);
+    }
+  };
+
+  const handleOpenLoadSandboxDialog = async () => {
+    setLoadSandboxDialogOpen(true);
+    setSandboxLoadFilter('');
+    setIsLoadingSandboxList(true);
+    try {
+      const pages = await fetchSandboxPages();
+      setSandboxPagesList(pages);
+    } catch (err) {
+      console.error('Sandbox-Liste laden fehlgeschlagen:', err);
+      toast.error('Sandbox-Seiten konnten nicht geladen werden');
+      setSandboxPagesList([]);
+    } finally {
+      setIsLoadingSandboxList(false);
+    }
+  };
+
+  const handleLoadSandboxPage = async (id: number) => {
+    if (!sandbox || !state.currentBook) return;
+    try {
+      const data = await fetchSandboxPage(id);
+      const page = data.page;
+      if (!page) {
+        toast.error('Ungültige Sandbox-Daten');
+        return;
+      }
+      const book = {
+        ...state.currentBook,
+        id: 'sandbox',
+        name: 'Sandbox',
+        pageSize: state.currentBook.pageSize || 'A4',
+        orientation: state.currentBook.orientation || 'portrait',
+        themeId: state.currentBook.themeId || 'default',
+        bookTheme: state.currentBook.bookTheme || 'default',
+        colorPaletteId: state.currentBook.colorPaletteId || 'default',
+        pages: [page],
+      };
+      dispatch({ type: 'SET_BOOK', payload: book });
+      sandbox.loadSandboxState({
+        sandboxColors: data.sandboxColors ?? sandbox.state.sandboxColors,
+        partSlotOverrides: data.partSlotOverrides ?? {},
+        pageSlotOverrides: data.pageSlotOverrides ?? {},
+      });
+      sandbox.setCurrentSandboxPage({ id: data.id, name: data.name });
+      setLoadSandboxDialogOpen(false);
+      toast.success(`Sandbox-Seite „${data.name}“ geladen`);
+      navigate(`/admin/sandbox/${data.id}`, { replace: true });
+    } catch (err) {
+      console.error('Sandbox laden fehlgeschlagen:', err);
+      toast.error('Sandbox-Seite konnte nicht geladen werden');
+    }
+  };
+
+  const filteredSandboxPages = sandboxLoadFilter.trim()
+    ? sandboxPagesList.filter(
+        (p) =>
+          p.name.toLowerCase().includes(sandboxLoadFilter.toLowerCase())
+      )
+    : sandboxPagesList;
 
   const handleSavePalette = async () => {
     if (!paletteName.trim() || !token || !sandbox) return;
     setIsSavingPalette(true);
     try {
       const parts = buildPartsFromElements(
-        currentPage?.elements || [],
+        currentPage?.elements ?? [],
         sandbox.state.partSlotOverrides,
         sandbox.state.pageSlotOverrides
       );
@@ -282,7 +392,7 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
         el.type === 'sticker'
     ) ?? false;
 
-  const sandboxColors = sandbox?.state.sandboxColors ?? {};
+  const sandboxColors: Record<PaletteColorSlot, string> = sandbox?.state.sandboxColors ?? ({} as Record<PaletteColorSlot, string>);
   const sandboxColorSlotOpen = sandbox?.state.sandboxColorSlotOpen ?? null;
 
   return (
@@ -335,6 +445,26 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
                 </div>
               </div>
               <div className="space-y-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full h-8 text-xs bg-white/15 hover:bg-white/25 text-white border-0 flex items-center justify-center gap-1.5"
+                  onClick={handleOpenSaveSandboxDialog}
+                  disabled={!currentPage || !token}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Seite speichern
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full h-8 text-xs bg-white/15 hover:bg-white/25 text-white border-0 flex items-center justify-center gap-1.5"
+                  onClick={handleOpenLoadSandboxDialog}
+                  disabled={!token}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Seite laden
+                </Button>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -521,6 +651,81 @@ export function AdminInfoPanel({ open, onClose, isSandboxMode = false }: AdminIn
               {isSavingTheme ? 'Speichern…' : 'Speichern'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveSandboxDialogOpen} onOpenChange={setSaveSandboxDialogOpen}>
+        <DialogContent className="max-w-md" title="Sandbox-Seite speichern">
+          <DialogHeader>
+            <DialogTitle>Sandbox-Seite speichern</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="sandbox-page-name">Name</Label>
+              <Input
+                id="sandbox-page-name"
+                value={sandboxPageName}
+                onChange={(e) => setSandboxPageName(e.target.value)}
+                placeholder="z.B. Meine Sandbox-Seite"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveSandboxDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveSandboxPage}
+              disabled={isSavingSandbox}
+            >
+              {isSavingSandbox ? 'Speichern…' : 'Speichern'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={loadSandboxDialogOpen} onOpenChange={setLoadSandboxDialogOpen}>
+        <DialogContent className="max-w-md" size="lg" title="Sandbox-Seite laden">
+          <DialogHeader>
+            <DialogTitle>Sandbox-Seite laden</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="sandbox-load-filter">Filtern</Label>
+              <Input
+                id="sandbox-load-filter"
+                value={sandboxLoadFilter}
+                onChange={(e) => setSandboxLoadFilter(e.target.value)}
+                placeholder="Nach Name filtern..."
+              />
+            </div>
+            <div className="max-h-[300px] overflow-auto border rounded-md">
+              {isLoadingSandboxList ? (
+                <div className="p-4 text-center text-muted-foreground">Laden…</div>
+              ) : filteredSandboxPages.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  Keine Sandbox-Seiten gefunden.
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {filteredSandboxPages.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                        onClick={() => handleLoadSandboxPage(p.id)}
+                      >
+                        <span className="font-medium">{p.name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {p.updated_at ? new Date(p.updated_at).toLocaleString('de-DE') : ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

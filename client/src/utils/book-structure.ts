@@ -205,7 +205,7 @@ function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: stri
     elements: [],
     background: undefined,
     database_id: undefined,
-    layoutTemplateId: undefined,
+    layoutId: undefined,
     colorPaletteId: undefined,
     pageType,
     pagePairId: pairId,

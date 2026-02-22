@@ -83,6 +83,10 @@ export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: Abili
     if (pageAccessLevel === 'all_pages') {
       can('view', 'Page');
 
+      // Pan und Zoom immer erlauben (für Ansicht nicht zugewiesener Seiten)
+      can('use', 'Tool', { toolId: 'pan' });
+      can('use', 'Tool', { toolId: 'zoom' });
+
       if (assignedPageCondition) {
         can('edit', 'Page', assignedPageCondition);
       }

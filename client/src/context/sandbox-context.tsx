@@ -18,6 +18,8 @@ interface SandboxState {
   sandboxColorSlotOpen: PaletteColorSlot | null;
   partSlotOverrides: Record<string, Record<string, PaletteColorSlot>>;
   pageSlotOverrides: Partial<Record<PagePartName, PaletteColorSlot>>;
+  currentSandboxPageId: number | null;
+  currentSandboxPageName: string | null;
 }
 
 type SandboxAction =
@@ -39,6 +41,18 @@ type SandboxAction =
   | {
       type: 'SET_PAGE_SLOT_OVERRIDE';
       payload: { partName: PagePartName; slot: PaletteColorSlot };
+    }
+  | {
+      type: 'LOAD_SANDBOX_STATE';
+      payload: {
+        sandboxColors: Record<PaletteColorSlot, string>;
+        partSlotOverrides: Record<string, Record<string, PaletteColorSlot>>;
+        pageSlotOverrides: Partial<Record<PagePartName, PaletteColorSlot>>;
+      };
+    }
+  | {
+      type: 'SET_CURRENT_SANDBOX_PAGE';
+      payload: { id: number; name: string } | null;
     };
 
 const initialState: SandboxState = {
@@ -46,6 +60,8 @@ const initialState: SandboxState = {
   sandboxColorSlotOpen: null,
   partSlotOverrides: {},
   pageSlotOverrides: {},
+  currentSandboxPageId: null,
+  currentSandboxPageName: null,
 };
 
 function sandboxReducer(state: SandboxState, action: SandboxAction): SandboxState {
@@ -98,6 +114,23 @@ function sandboxReducer(state: SandboxState, action: SandboxAction): SandboxStat
         },
       };
     }
+    case 'LOAD_SANDBOX_STATE': {
+      const { sandboxColors, partSlotOverrides, pageSlotOverrides } = action.payload;
+      return {
+        ...state,
+        sandboxColors: sandboxColors ?? state.sandboxColors,
+        partSlotOverrides: partSlotOverrides ?? {},
+        pageSlotOverrides: pageSlotOverrides ?? {},
+      };
+    }
+    case 'SET_CURRENT_SANDBOX_PAGE': {
+      const payload = action.payload;
+      return {
+        ...state,
+        currentSandboxPageId: payload?.id ?? null,
+        currentSandboxPageName: payload?.name ?? null,
+      };
+    }
     default:
       return state;
   }
@@ -112,6 +145,12 @@ export interface SandboxContextValue {
   getPartSlot: (elementId: string, partName: string) => PaletteColorSlot | undefined;
   getPageSlot: (partName: PagePartName) => PaletteColorSlot | undefined;
   getColorForSlot: (slot: PaletteColorSlot) => string;
+  loadSandboxState: (payload: {
+    sandboxColors: Record<PaletteColorSlot, string>;
+    partSlotOverrides: Record<string, Record<string, PaletteColorSlot>>;
+    pageSlotOverrides: Partial<Record<PagePartName, PaletteColorSlot>>;
+  }) => void;
+  setCurrentSandboxPage: (payload: { id: number; name: string } | null) => void;
 }
 
 const SandboxContext = createContext<SandboxContextValue | undefined>(undefined);
@@ -168,6 +207,24 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     [state.sandboxColors]
   );
 
+  const loadSandboxState = useCallback(
+    (payload: {
+      sandboxColors: Record<PaletteColorSlot, string>;
+      partSlotOverrides: Record<string, Record<string, PaletteColorSlot>>;
+      pageSlotOverrides: Partial<Record<PagePartName, PaletteColorSlot>>;
+    }) => {
+      dispatch({ type: 'LOAD_SANDBOX_STATE', payload });
+    },
+    []
+  );
+
+  const setCurrentSandboxPage = useCallback(
+    (payload: { id: number; name: string } | null) => {
+      dispatch({ type: 'SET_CURRENT_SANDBOX_PAGE', payload });
+    },
+    []
+  );
+
   const value: SandboxContextValue = {
     state,
     setSandboxColor,
@@ -177,6 +234,8 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     getPartSlot,
     getPageSlot,
     getColorForSlot,
+    loadSandboxState,
+    setCurrentSandboxPage,
   };
 
   return (

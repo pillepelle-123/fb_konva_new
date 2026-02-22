@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { AbilityProvider } from '../../../abilities/ability-context';
 import { EditorProvider, useEditor } from '../../../context/editor-context';
 import { SandboxProvider, useSandbox } from '../../../context/sandbox-context';
@@ -10,10 +11,12 @@ import ToolSettingsPanel, { type ToolSettingsPanelRef } from '../../../component
 import { StatusBar } from '../../../components/features/editor/status-bar';
 import { AdminInfoPanel } from '../../../components/features/editor/admin-info-panel';
 import QuestionSelectionHandler from '../../../components/features/editor/question-selection-handler';
-import { fetchThemes, fetchLayoutTemplates, fetchColorPalettes } from '../../../services/api';
+import { fetchThemes, fetchLayouts, fetchColorPalettes, fetchSandboxPage } from '../../../services/api';
 import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../../data/templates/templates-data';
+import { toast } from 'sonner';
 
 function SandboxEditorContent() {
+  const { sandboxPageId } = useParams<{ sandboxPageId?: string }>();
   const { state, dispatch, canEditCanvas } = useEditor();
   const sandbox = useSandbox();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
@@ -82,7 +85,7 @@ function SandboxEditorContent() {
       try {
         const [themesRes, layoutsRes, palettesRes] = await Promise.all([
           fetchThemes(),
-          fetchLayoutTemplates(),
+          fetchLayouts(),
           fetchColorPalettes(),
         ]);
         setThemesData(themesRes.themes || []);
@@ -98,12 +101,52 @@ function SandboxEditorContent() {
     loadTemplateData();
   }, [dispatch]);
 
-  // Set sandbox book and full permissions on mount
+  // Set sandbox book on mount / when URL changes: load from API if sandboxPageId in URL, else create new
   useEffect(() => {
-    if (!state.currentBook) {
-      dispatch({ type: 'SET_BOOK', payload: createSandboxBook() });
+    const id = sandboxPageId ? parseInt(sandboxPageId, 10) : null;
+    // Skip fetch if we already have this page loaded (e.g. after loading from dialog + navigate)
+    if (id && !isNaN(id) && state.currentBook?.id === 'sandbox' && sandbox.state.currentSandboxPageId === id) {
+      return;
     }
-  }, [state.currentBook, dispatch]);
+    if (id && !isNaN(id)) {
+        fetchSandboxPage(id)
+          .then((data) => {
+            const page = data.page;
+            if (!page) {
+              toast.error('Ungültige Sandbox-Daten');
+            dispatch({ type: 'SET_BOOK', payload: createSandboxBook() });
+            sandbox.setCurrentSandboxPage(null);
+            return;
+          }
+          const book = {
+            id: 'sandbox',
+            name: 'Sandbox',
+            pageSize: 'A4',
+            orientation: 'portrait',
+            themeId: 'default',
+            bookTheme: 'default',
+            colorPaletteId: 'default',
+            pages: [page],
+          };
+          dispatch({ type: 'SET_BOOK', payload: book });
+          sandbox.loadSandboxState({
+            sandboxColors: data.sandboxColors ?? sandbox.state.sandboxColors,
+            partSlotOverrides: data.partSlotOverrides ?? {},
+            pageSlotOverrides: data.pageSlotOverrides ?? {},
+          });
+          sandbox.setCurrentSandboxPage({ id: data.id, name: data.name });
+        })
+        .catch((err) => {
+          console.error('Sandbox laden fehlgeschlagen:', err);
+          toast.error('Sandbox-Seite konnte nicht geladen werden');
+          dispatch({ type: 'SET_BOOK', payload: createSandboxBook() });
+          sandbox.setCurrentSandboxPage(null);
+        });
+    } else {
+      dispatch({ type: 'SET_BOOK', payload: createSandboxBook() });
+      sandbox.setCurrentSandboxPage(null);
+    }
+  }, [sandboxPageId, dispatch, sandbox, state.currentBook?.id, sandbox.state.currentSandboxPageId]);
 
   // Grant full editor permissions for sandbox (Tool-Settings, Toolbar, etc. require editorInteractionLevel + abilities)
   useEffect(() => {

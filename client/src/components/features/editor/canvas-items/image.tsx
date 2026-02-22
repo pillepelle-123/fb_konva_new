@@ -142,8 +142,8 @@ export default function Image(props: ImageProps) {
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const pageLayoutId = currentPage?.layoutId;
+  const bookLayoutId = state.currentBook?.layoutId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
 
@@ -189,11 +189,17 @@ export default function Image(props: ImageProps) {
   // Load existing image when src changes
   useEffect(() => {
     if ((element.type === 'image' || element.type === 'sticker') && element.src) {
-      const src = element.src;
+      let src = element.src;
       const isProtectedImageUrl = src.includes('/api/images/file/');
       const isProtectedStickerUrl = src.includes('/api/stickers/');
       const isProtectedBgImageUrl = src.includes('/api/background-images/');
       const isProtectedUrl = isProtectedImageUrl || isProtectedStickerUrl || isProtectedBgImageUrl;
+
+      // Proxy-URL für Editor: alle Buch-Kollaborateure können Bilder sehen (unabhängig vom Uploader)
+      if (isProtectedImageUrl && state.currentBook?.id != null) {
+        const bookId = String(state.currentBook.id);
+        src = src.replace(/(\/api\/images\/file\/\d+)(\?.*)?$/, (_, base, query) => base + '/for-book/' + bookId + (query || ''));
+      }
 
       const loadImage = (url: string) => {
         let imageUrl = url;
@@ -245,7 +251,7 @@ export default function Image(props: ImageProps) {
     } else {
       setImage(null);
     }
-  }, [element.type, element.src, token, zoom, ADAPTIVE_IMAGE_RESOLUTION_ENABLED]);
+  }, [element.type, element.src, token, zoom, ADAPTIVE_IMAGE_RESOLUTION_ENABLED, state.currentBook?.id]);
 
   // onTransform Handler direkt auf dem Image-Node - genau wie in der React-Konva-Lösung
   // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
@@ -490,7 +496,7 @@ export default function Image(props: ImageProps) {
             const frameWidth = size.width;
             const frameHeight = size.height;
             
-            const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+            const seed = frameTheme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
             
             const frameElement = renderThemedBorder({
               width: strokeWidth,
@@ -503,7 +509,7 @@ export default function Image(props: ImageProps) {
                 roughness: frameTheme === 'rough' ? 8 : undefined,
                 seed: seed
               },
-              zoom: zoom,
+              zoom: frameTheme === 'rough' ? 1 : zoom,
               strokeScaleEnabled: true,
               listening: false
             });

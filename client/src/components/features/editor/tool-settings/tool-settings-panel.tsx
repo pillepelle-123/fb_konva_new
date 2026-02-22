@@ -24,7 +24,7 @@ interface ToolSettingsPanelProps {
 }
 
 const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>(({ isSandboxMode = false }, ref) => {
-  const { state, dispatch, canViewToolSettings } = useEditor();
+  const { state, dispatch, canViewToolSettings, isAuthorOnViewOnlyPage } = useEditor();
   const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
@@ -152,13 +152,16 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
   }, [state.selectedElementIds.length, isCollapsed]);
 
   const canShowSettings = canViewToolSettings();
+  const isViewOnlyPage = isAuthorOnViewOnlyPage();
   
-  // Force collapsed state when settings are not available
+  // Eingeklappt wenn Settings nicht verfügbar oder Autor auf nicht zugewiesener Seite; ausgeklappt wenn Autor auf zugewiesener Seite
   useEffect(() => {
-    if (!canShowSettings) {
+    if (!canShowSettings || isViewOnlyPage) {
       setIsCollapsed(true);
+    } else {
+      setIsCollapsed(false);
     }
-  }, [canShowSettings]);
+  }, [canShowSettings, isViewOnlyPage]);
 
   // Reset settings views when not showing background settings
   useEffect(() => {

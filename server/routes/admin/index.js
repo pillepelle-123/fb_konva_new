@@ -6,7 +6,7 @@ const backgroundImagesRouter = require('./background-images')
 const stickersRouter = require('./stickers')
 const themesRouter = require('./themes')
 const colorPalettesRouter = require('./color-palettes')
-const layoutTemplatesRouter = require('./layout-templates')
+const layoutsRouter = require('./layouts')
 
 const router = express.Router()
 
@@ -17,7 +17,7 @@ router.use('/background-images', backgroundImagesRouter)
 router.use('/stickers', stickersRouter)
 router.use('/themes', themesRouter)
 router.use('/color-palettes', colorPalettesRouter)
-router.use('/layout-templates', layoutTemplatesRouter)
+router.use('/layouts', layoutsRouter)
 
 module.exports = router
 

@@ -453,7 +453,7 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
         const borderOpacity = element.textSettings?.borderOpacity ?? freeTextDefaults.textSettings?.borderOpacity ?? 1;
         const cornerRadius = element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
         const theme = (element.textSettings?.borderTheme || freeTextDefaults.textSettings?.borderTheme || 'default') as Theme;
-        const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+        const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
         const borderElement = renderThemedBorder({
           width: borderWidth,
           color: borderColor,
@@ -484,7 +484,7 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
               y={padding}
               width={elementWidth - padding * 2}
               height={elementHeight - padding * 2}
-              text="Double-click to add text..."
+              text="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore."
               fontSize={Math.max(textStyle.fontSize * 0.8, 16)}
               fontFamily={textStyle.fontFamily}
               fill="#9ca3af"

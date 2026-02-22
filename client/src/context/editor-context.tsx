@@ -500,7 +500,7 @@ export interface Page {
   elements: CanvasElement[];
   background?: PageBackground;
   database_id?: number; // Database pages.id
-  layoutTemplateId?: string; // page-level layout template ID
+  layoutId?: string | number; // page-level layout ID
   themeId?: string; // page-level theme ID (in addition to background.pageTheme for compatibility)
   colorPaletteId?: string; // page-level color palette ID
   isPreview?: boolean; // Flag für temporäre Preview-Seiten (werden nicht in UI angezeigt)
@@ -523,7 +523,7 @@ export interface Book {
   orientation: string;
   pages: Page[];
   bookTheme?: string; // book-level theme ID (kept for backward compatibility)
-  layoutTemplateId?: string; // book-level layout template ID
+  layoutId?: string | number; // book-level layout ID
   themeId?: string; // book-level theme ID
   colorPaletteId?: string; // book-level color palette ID
   owner_id?: number; // book owner ID
@@ -610,12 +610,10 @@ interface SpreadPlanPage {
   background: BackgroundStylePlan;
 }
 
-function resolveTemplateReference(templateRef?: string | PageTemplate | null): PageTemplate | null {
+function resolveTemplateReference(templateRef?: string | number | PageTemplate | null): PageTemplate | null {
   if (!templateRef) return null;
-  if (typeof templateRef === 'string') {
-    return pageTemplates.find((template) => template.id === templateRef) ?? null;
-  }
-  return templateRef;
+  if (typeof templateRef === 'object') return templateRef;
+  return pageTemplates.find((template) => String(template.id) === String(templateRef)) ?? null;
 }
 
 function pickRandomTemplateFromPool(
@@ -677,7 +675,7 @@ function buildSpreadPlanForBook(book: Book, canvasSize: { width: number; height:
   left: SpreadPlanPage;
   right: SpreadPlanPage;
 } {
-  const fallbackTemplate = resolveTemplateReference(book.layoutTemplateId) ?? pageTemplates[0] ?? null;
+  const fallbackTemplate = resolveTemplateReference(book.layoutId) ?? pageTemplates[0] ?? null;
   const assistedLayouts = {
     single: resolveTemplateReference(book.assistedLayouts?.single),
     left: resolveTemplateReference(book.assistedLayouts?.left),
@@ -909,7 +907,7 @@ type EditorAction =
   | { type: 'SET_PAGE_THEME'; payload: { pageIndex: number; themeId: string; skipHistory?: boolean } }
   | { type: 'SET_BOOK_LAYOUT_TEMPLATE'; payload: string | null }
   | { type: 'SET_BOOK_COLOR_PALETTE'; payload: string | null; skipHistory?: boolean }
-  | { type: 'SET_PAGE_LAYOUT_TEMPLATE'; payload: { pageIndex: number; layoutTemplateId: string | null } }
+  | { type: 'SET_PAGE_LAYOUT'; payload: { pageIndex: number; layoutId: string | number | null } }
   | { type: 'SET_PAGE_COLOR_PALETTE'; payload: { pageIndex: number; colorPaletteId: string | null; skipHistory?: boolean } }
   | { type: 'APPLY_THEME_TO_ELEMENTS'; payload: { pageIndex: number; themeId: string; elementType?: string; applyToAllPages?: boolean; skipHistory?: boolean; preserveColors?: boolean } }
   | { type: 'REORDER_PAGES'; payload: { fromIndex: number; toIndex: number; count?: number } }
@@ -1094,7 +1092,7 @@ function createPlaceholderPage(pageNumber: number): Page {
     pageNumber,
     elements: [],
     isPlaceholder: true,
-    layoutTemplateId: undefined,
+    layoutId: undefined,
     themeId: undefined,
     colorPaletteId: undefined,
   };
@@ -1284,7 +1282,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           pageEffectivePaletteId = page.colorPaletteId;
         }
 
-        const pageLayoutTemplateId = page.layoutTemplateId ?? book.layoutTemplateId ?? null;
+        const pageLayoutId = page.layoutId ?? book.layoutId ?? null;
 
         resolvedElements = resolvedElements.map((element: any) => {
           const toolType = element.textType || element.type;
@@ -1645,20 +1643,27 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
     
-    case 'SET_ACTIVE_PAGE':
+    case 'SET_ACTIVE_PAGE': {
       const activePageState = { ...state, activePageIndex: action.payload, selectedElementIds: [] };
-      // Auto-set pan tool for authors on non-assigned pages
-      if (activePageState.userRole === 'author' && !activePageState.assignedPages.includes(action.payload + 1)) {
-        activePageState.activeTool = 'pan';
-      }
-      // Auto-set select tool for authors on assigned pages
-      else if (activePageState.userRole === 'author' && activePageState.assignedPages.includes(action.payload + 1)) {
-        activePageState.activeTool = 'select';
+      // Auto-set pan/select für Autoren: nur auf zugewiesenen Seiten editierbar (select), sonst nur Ansicht (pan)
+      if (activePageState.userRole === 'author') {
+        const page = activePageState.currentBook?.pages?.[action.payload];
+        const pageNumber = page?.pageNumber ?? action.payload;
+        const isAssigned = activePageState.assignedPages.includes(pageNumber);
+        activePageState.activeTool = isAssigned ? 'select' : 'pan';
       }
       return activePageState;
+    }
     
-    case 'SET_ACTIVE_TOOL':
+    case 'SET_ACTIVE_TOOL': {
+      // Autoren dürfen auf nicht zugewiesenen Seiten nicht zu select wechseln
+      if (state.userRole === 'author' && action.payload === 'select') {
+        const page = state.currentBook?.pages?.[state.activePageIndex];
+        const pageNumber = page?.pageNumber ?? state.activePageIndex;
+        if (!state.assignedPages.includes(pageNumber)) return state;
+      }
       return { ...state, activeTool: action.payload };
+    }
     
     case 'SET_SELECTED_ELEMENTS':
       // Preserve selectedGroupedElement if the group is still selected
@@ -1680,13 +1685,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_USER':
       return { ...state, user: action.payload };
     
-    case 'SET_USER_ROLE':
+    case 'SET_USER_ROLE': {
       const roleState = { ...state, userRole: action.payload.role, assignedPages: action.payload.assignedPages };
-      // Auto-set pan tool for authors on non-assigned pages
-      if (roleState.userRole === 'author' && !roleState.assignedPages.includes(roleState.activePageIndex + 1)) {
-        roleState.activeTool = 'pan';
+      if (roleState.userRole === 'author') {
+        const page = roleState.currentBook?.pages?.[roleState.activePageIndex];
+        const pageNumber = page?.pageNumber ?? roleState.activePageIndex;
+        roleState.activeTool = roleState.assignedPages.includes(pageNumber) ? 'select' : 'pan';
       }
       return roleState;
+    }
     
     case 'SET_USER_PERMISSIONS':
       return { ...state, pageAccessLevel: action.payload.pageAccessLevel, editorInteractionLevel: action.payload.editorInteractionLevel };
@@ -1695,8 +1702,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook || !state.currentBook.pages[state.activePageIndex]) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      // Check if author is assigned to current page
-      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
+      // Check if author is assigned to current page (gilt für own_page und all_pages)
+      if (state.userRole === 'author') {
+        const page = state.currentBook?.pages?.[state.activePageIndex];
+        const pageNumber = page?.pageNumber ?? state.activePageIndex;
+        if (!state.assignedPages.includes(pageNumber)) return state;
+      }
       const savedState = action.skipHistory
         ? state
         : saveToHistory(state, `Add ${action.payload.type}`, {
@@ -1739,8 +1750,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         const element = state.currentBook.pages[state.activePageIndex]?.elements.find(el => el.id === action.payload.id);
         if (!element || element.textType !== 'answer') return state;
       }
-      // Check if author is assigned to current page
-      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
+      // Check if author is assigned to current page (gilt für own_page und all_pages)
+      if (state.userRole === 'author') {
+        const page = state.currentBook?.pages?.[state.activePageIndex];
+        const pageNumber = page?.pageNumber ?? state.activePageIndex;
+        if (!state.assignedPages.includes(pageNumber)) return state;
+      }
       const updatedBook = { ...state.currentBook };
       const page = updatedBook.pages[state.activePageIndex];
       const elementIndex = page.elements.findIndex(el => el.id === action.payload.id);
@@ -1992,8 +2007,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!state.currentBook) return state;
       // Block for answer_only users
       if (state.editorInteractionLevel === 'answer_only') return state;
-      // Check if author is assigned to current page
-      if (state.userRole === 'author' && !state.assignedPages.includes(state.activePageIndex + 1)) return state;
+      // Check if author is assigned to current page (gilt für own_page und all_pages)
+      if (state.userRole === 'author') {
+        const page = state.currentBook.pages[state.activePageIndex];
+        const pageNumber = page?.pageNumber ?? state.activePageIndex;
+        if (!state.assignedPages.includes(pageNumber)) return state;
+      }
       const savedDeleteState = action.skipHistory
         ? state
         : saveToHistory(state, 'Delete Element', {
@@ -2029,7 +2048,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       
       // Get book-level settings
       const bookThemeId = book.themeId || book.bookTheme || 'default';
-      const bookLayoutTemplateId = book.layoutTemplateId || null;
+      const bookLayoutId = book.layoutId || null;
       const bookColorPaletteId = book.colorPaletteId || null;
       
       // Initialize page background with book theme if available
@@ -2103,7 +2122,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
         bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
         colorPaletteId: bookColorPaletteId || book.colorPaletteId,
-        layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
+        layoutId: bookLayoutId || book.layoutId
       } as Book;
       
       // Prepare tool settings for the new page (clone existing to avoid mutation)
@@ -2193,7 +2212,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           elements: baseElements,
           background: clonePageBackground(initialBackground),
           database_id: undefined,
-          layoutTemplateId: plan.template?.id ?? book.layoutTemplateId ?? undefined,
+          layoutId: plan.template?.id ?? book.layoutId ?? undefined,
           colorPaletteId: undefined,
           pageType: 'content',
           isSpecialPage: false,
@@ -2259,7 +2278,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
       // Get book-level settings
       const bookThemeId = book.themeId || book.bookTheme || 'default';
-      const bookLayoutTemplateId = book.layoutTemplateId || null;
+      const bookLayoutId = book.layoutId || null;
       const bookColorPaletteId = book.colorPaletteId || null;
 
       // Initialize page background with book theme if available
@@ -2318,7 +2337,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         themeId: bookThemeId !== 'default' ? bookThemeId : book.themeId,
         bookTheme: bookThemeId !== 'default' ? bookThemeId : book.bookTheme,
         colorPaletteId: bookColorPaletteId || book.colorPaletteId,
-        layoutTemplateId: bookLayoutTemplateId || book.layoutTemplateId
+        layoutId: bookLayoutId || book.layoutId
       } as Book;
 
       // Prepare tool settings for the new page (clone existing to avoid mutation)
@@ -2377,7 +2396,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: [],
         background: clonePageBackground(initialBackground),
         database_id: undefined,
-        layoutTemplateId: book.layoutTemplateId ?? undefined,
+        layoutId: book.layoutId ?? undefined,
         colorPaletteId: undefined,
         pageType: 'content',
         isSpecialPage: false,
@@ -2413,7 +2432,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           elements: baseElements,
           background: clonePageBackground(initialBackground),
           database_id: undefined,
-          layoutTemplateId: plan.template?.id ?? book.layoutTemplateId ?? undefined,
+          layoutId: plan.template?.id ?? book.layoutId ?? undefined,
           colorPaletteId: undefined,
           pageType: 'content',
           isSpecialPage: false,
@@ -2624,7 +2643,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: [], // Empty - no template elements
         background: clonePageBackground(initialBackground),
         database_id: undefined,
-        layoutTemplateId: undefined, // No layout template for empty pages
+        layoutId: undefined, // No layout template for empty pages
         colorPaletteId: undefined,
         pageType: 'content',
         isSpecialPage: false,
@@ -2642,7 +2661,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: [], // Empty - no template elements
         background: clonePageBackground(initialBackground),
         database_id: undefined,
-        layoutTemplateId: undefined, // No layout template for empty pages
+        layoutId: undefined, // No layout template for empty pages
         colorPaletteId: undefined,
         pageType: 'content',
         isSpecialPage: false,
@@ -2938,7 +2957,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         elements: pageToPreview.elements.map(el => ({ ...el, id: uuidv4() })),
         background: pageToPreview.background ? { ...pageToPreview.background } : undefined,
         database_id: undefined,
-        layoutTemplateId: pageToPreview.layoutTemplateId,
+        layoutId: pageToPreview.layoutId,
         themeId: pageToPreview.themeId,
         colorPaletteId: pageToPreview.colorPaletteId,
         isPreview: true
@@ -3269,7 +3288,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       // Get book color palette (or theme's default palette if book.colorPaletteId is null)
       const currentBookColorPaletteId = originalBook.colorPaletteId || null;
       const currentBookThemePaletteId = !currentBookColorPaletteId ? getThemePaletteId(action.payload) : null;
-      const currentBookLayoutTemplateId = originalBook.layoutTemplateId;
+      const currentBookLayoutId = originalBook.layoutId;
       
       // Update all pages that inherit the book theme (background, themeId, and elements)
       // IMPORTANT: Do this in ONE pass to avoid any issues with themeId being restored
@@ -3358,7 +3377,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           
           // Apply theme and palette to elements
           // First apply theme to elements, then apply palette colors using APPLY_COLOR_PALETTE logic
-          const pageLayoutTemplateId = page.layoutTemplateId;
+          const pageLayoutId = page.layoutId;
           const bookThemePaletteIdForElements = !currentBookColorPaletteId ? getThemePaletteId(action.payload) : null;
           const effectiveBookColorPaletteId = currentBookColorPaletteId || bookThemePaletteIdForElements;
           
@@ -3631,7 +3650,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...savedBookLayoutState,
         currentBook: {
           ...savedBookLayoutState.currentBook!,
-          layoutTemplateId: action.payload
+          layoutId: action.payload
         },
         hasUnsavedChanges: true
       };
@@ -3911,7 +3930,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       }
       return wrapStateWithPageInvalidation({ ...savedPageThemeState, currentBook: updatedBookPageTheme, hasUnsavedChanges: true });
     
-    case 'SET_PAGE_LAYOUT_TEMPLATE':
+    case 'SET_PAGE_LAYOUT':
       if (!state.currentBook) return state;
       const savedPageLayoutState = saveToHistory(state, 'Set Page Layout Template', {
         affectedPageIndexes: [action.payload.pageIndex],
@@ -3920,7 +3939,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookPageLayout = { ...savedPageLayoutState.currentBook! };
       const targetPageLayout = updatedBookPageLayout.pages[action.payload.pageIndex];
       if (targetPageLayout) {
-        targetPageLayout.layoutTemplateId = action.payload.layoutTemplateId;
+        targetPageLayout.layoutId = action.payload.layoutId;
       }
       return withPreviewInvalidation(
         { ...savedPageLayoutState, currentBook: updatedBookPageLayout, hasUnsavedChanges: true },
@@ -3999,7 +4018,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           'ruledLinesWidth',
           'ruledLinesTheme',
           'ruledLinesOpacity',
-          'ruledLinesTarget'
+          'ruledLinesTarget',
+          // Layout properties (QnA)
+          'padding',
+          'paragraphSpacing',
+          'align',
+          'textSettings',
+          'answerInNewRow',
+          'questionAnswerGap',
+          'qnaIndividualSettings'
         ];
 
         Object.keys(from).forEach((key) => {
@@ -4062,8 +4089,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const currentPage = updatedBookApplyTheme.pages.find((_: any, idx: number) => 
               action.payload.applyToAllPages || idx === action.payload.pageIndex
             );
-            const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-            const bookLayoutTemplateId = updatedBookApplyTheme.layoutTemplateId;
+            const pageLayoutId = currentPage?.layoutId;
+            const bookLayoutId = updatedBookApplyTheme.layoutId;
             const pageColorPaletteId = currentPage?.colorPaletteId;
             const bookColorPaletteId = updatedBookApplyTheme.colorPaletteId;
             // If book.colorPaletteId is null, use theme's default palette
@@ -5368,6 +5395,7 @@ export const EditorContext = createContext<{
 export const useEditor = () => {
   const context = useContext(EditorContext);
   const ability = useAbility();
+  const { user: authUser } = useAuth();
   if (!context) {
     // Check if we're in a React Fast Refresh scenario
     // During hot reload, components may render before providers are ready
@@ -5411,6 +5439,7 @@ export const useEditor = () => {
         pageMetadata: {},
         getPageMetadata: () => undefined,
         canEditCurrentPage: () => false,
+        isAuthorOnViewOnlyPage: () => false,
         canUseTools: () => false,
         canViewToolSettings: () => false,
         canEditElement: () => false,
@@ -5433,20 +5462,50 @@ export const useEditor = () => {
     if (!currentBook) return null;
     const page = currentBook.pages[context.state.activePageIndex];
     if (!page) return null;
-    const assignedUser = context.state.pageAssignments?.[page.pageNumber] ?? null;
+    const pageNum = page.pageNumber ?? -1;
+    const pageNumNorm = typeof pageNum === 'number' ? pageNum : Number(pageNum);
+    // User-ID: state.user kann verzögert gesetzt sein (SET_USER in useEffect), authUser als Fallback
+    const authorId = context.state.user?.id ?? authUser?.id ?? null;
+    // Lookup in pageAssignments: try both number and string keys (API may return either)
+    const assignments = (context.state.pageAssignments ?? {}) as Record<number | string, { id?: number } | null>;
+    const assignedUser = assignments[pageNum] ?? assignments[pageNumNorm] ?? assignments[String(pageNum)] ?? null;
     let assignedUserId = typeof assignedUser?.id === 'number' ? assignedUser.id : null;
-    if (!assignedUserId && context.state.userRole === 'author' && context.state.user?.id) {
-      if (context.state.assignedPages?.includes(page.pageNumber)) {
-        assignedUserId = context.state.user.id;
+    // Autoren: assignedUserId nur setzen, wenn Seite in assignedPages (gilt für own_page und all_pages)
+    if (context.state.userRole === 'author' && authorId) {
+      const assigned = context.state.assignedPages ?? [];
+      const isAssignedPage = assigned.some((p) => Number(p) === (Number.isNaN(pageNumNorm) ? -1 : pageNumNorm));
+      if (isAssignedPage) {
+        assignedUserId = authorId;
       }
     }
-    return { assignedUserId };
+    const result = { assignedUserId };
+    if (context.state.userRole === 'author' && (window as any).__debugQna2Selection === true) {
+      console.log('[QnA2-Selection] getCurrentPageAbilityData', {
+        pageNum,
+        pageNumNorm,
+        authorId,
+        assignedUser,
+        assignedUserId: result.assignedUserId,
+        userRole: context.state.userRole,
+        pageAccessLevel: context.state.pageAccessLevel,
+        assignedPages: context.state.assignedPages
+      });
+    }
+    return result;
   };
 
   const canEditCurrentPage = () => {
     const pageData = getCurrentPageAbilityData();
     if (!pageData) return false;
     return ability.can('edit', subject('Page', pageData));
+  };
+
+  /** true wenn Autor auf einer Seite ist, die er nur anschauen darf (nicht zugewiesen) */
+  const isAuthorOnViewOnlyPage = () => {
+    if (context.state.userRole !== 'author') return false;
+    const page = context.state.currentBook?.pages?.[context.state.activePageIndex];
+    const pageNumber = page?.pageNumber ?? context.state.activePageIndex;
+    return !context.state.assignedPages.includes(pageNumber);
   };
 
   const canUseTools = () => {
@@ -5463,11 +5522,22 @@ export const useEditor = () => {
 
   const canEditElement = (element?: { textType?: string | null }) => {
     const pageData = getCurrentPageAbilityData();
-    if (!pageData) return false;
-    if (element?.textType === 'answer') {
-      return ability.can('edit', subject('Answer', { page: pageData }));
+    if (!pageData) {
+      if (element?.textType === 'qna2' && (window as any).__debugQna2Selection === true) {
+        console.log('[QnA2-Selection] canEditElement: pageData is null');
+      }
+      return false;
     }
-    return ability.can('edit', subject('Element', { page: pageData }));
+    let result: boolean;
+    if (element?.textType === 'answer') {
+      result = ability.can('edit', subject('Answer', { page: pageData }));
+    } else {
+      result = ability.can('edit', subject('Element', { page: pageData }));
+    }
+    if (element?.textType === 'qna2' && (window as any).__debugQna2Selection === true) {
+      console.log('[QnA2-Selection] canEditElement', { textType: element?.textType, result, pageData });
+    }
+    return result;
   };
 
   const canCreateElement = () => {
@@ -5513,6 +5583,7 @@ export const useEditor = () => {
   return {
     ...context,
     canEditCurrentPage,
+    isAuthorOnViewOnlyPage,
     canUseTools,
     canViewToolSettings,
     canEditElement,
@@ -5553,7 +5624,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       currentPageNumber: state.currentBook?.pages[state.activePageIndex]?.pageNumber ?? null,
       pageAssignment: state.currentBook?.pages[state.activePageIndex]?.pageNumber
         ? state.pageAssignments?.[state.currentBook.pages[state.activePageIndex].pageNumber] ?? null
-        : null
+        : null,
+      pageAssignments: state.pageAssignments,
+      debugQna2Selection: '(window.__debugQna2Selection = true) in Konsole aktivieren'
     });
     return () => {
       (window as any).__editorDebug = undefined;
@@ -5624,7 +5697,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           questionId: el.questionId,
         })),
         background: page.background,
-        layoutTemplateId: page.layoutTemplateId,
+        layoutId: page.layoutId,
         themeId: page.themeId,
         colorPaletteId: page.colorPaletteId,
       });
@@ -5867,10 +5940,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      // For authors, only save assigned pages and answers
+      // For authors: only save assigned pages via author-save (gilt auch bei all_pages)
       if ((user?.role === 'author' || state.userRole === 'author') && state.assignedPages.length > 0) {
-        const assignedPages = state.currentBook.pages.filter((_, index) => 
-          state.assignedPages.includes(index + 1)
+        const assignedPages = state.currentBook.pages.filter((page) => 
+          state.assignedPages.includes(page.pageNumber ?? -1)
         );
         
         const response = await fetch(`${apiUrl}/books/${state.currentBook.id}/author-save`, {
@@ -6166,12 +6239,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'SET_BOOK', payload: bookWithDatabaseIds, pagination: paginationState });
       
       if (userRole) {
-        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
- 
+        // Zuerst Permissions, damit SET_USER_ROLE den korrekten pageAccessLevel hat (für activeTool pan/select)
         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
           pageAccessLevel: userRole.page_access_level || 'all_pages', 
           editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 
         } });
+        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
       } else {
         // Default permissions for book owner (no specific role returned)
         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
@@ -6580,14 +6653,14 @@ function applyThemeAndPaletteToElement(
   options: {
     pageThemeId?: string;
     bookThemeId?: string;
-    pageLayoutTemplateId?: string | null;
-    bookLayoutTemplateId?: string | null;
+    pageLayoutId?: string | null;
+    bookLayoutId?: string | null;
     pagePaletteId?: string | null;
     bookPaletteId?: string | null;
     toolSettings?: Record<string, any>;
   }
 ): CanvasElement {
-  const { pageThemeId, bookThemeId, pageLayoutTemplateId, bookLayoutTemplateId, pagePaletteId, bookPaletteId, toolSettings } = options;
+  const { pageThemeId, bookThemeId, pageLayoutId, bookLayoutId, pagePaletteId, bookPaletteId, toolSettings } = options;
   const activeThemeId = pageThemeId || bookThemeId;
   const toolType = element.textType || element.type;
 
@@ -6700,8 +6773,8 @@ function applyThemeAndPaletteToPage(
     effectivePaletteId = page.colorPaletteId || undefined;
   }
   const pagePaletteId = effectivePaletteId;
-  const pageLayoutTemplateId = page.layoutTemplateId ?? null;
-  const bookLayoutTemplateId = book.layoutTemplateId ?? null;
+  const pageLayoutId = page.layoutId ?? null;
+  const bookLayoutId = book.layoutId ?? null;
 
   const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : undefined;
   let updatedBackground = page.background;
@@ -6727,8 +6800,8 @@ function applyThemeAndPaletteToPage(
     applyThemeAndPaletteToElement(element, {
       pageThemeId: activeThemeId,
       bookThemeId: activeThemeId,
-      pageLayoutTemplateId,
-      bookLayoutTemplateId,
+      pageLayoutId,
+      bookLayoutId,
       pagePaletteId,
       bookPaletteId,
       toolSettings

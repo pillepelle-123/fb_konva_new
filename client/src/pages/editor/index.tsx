@@ -12,7 +12,7 @@ import { StatusBar } from '../../components/features/editor/status-bar';
 import { AdminInfoPanel } from '../../components/features/editor/admin-info-panel';
 import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
-import { fetchThemes, fetchLayoutTemplates, fetchColorPalettes, apiService } from '../../services/api';
+import { fetchThemes, fetchLayouts, fetchColorPalettes, apiService } from '../../services/api';
 import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../data/templates/templates-data';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
 import { applyBackgroundImageTemplate } from '../../utils/background-image-utils';
@@ -42,7 +42,7 @@ function EditorContent() {
       try {
         const [themesRes, layoutsRes, palettesRes] = await Promise.all([
           fetchThemes(),
-          fetchLayoutTemplates(),
+          fetchLayouts(),
           fetchColorPalettes()
         ]);
         setThemesData(themesRes.themes || []);
@@ -83,8 +83,8 @@ function EditorContent() {
           }
         });
         dispatch({
-          type: 'SET_PAGE_LAYOUT_TEMPLATE',
-          payload: { pageIndex: 0, layoutTemplateId: template.id }
+          type: 'SET_PAGE_LAYOUT',
+          payload: { pageIndex: 0, layoutId: template.id }
         });
       }
 
@@ -153,7 +153,7 @@ function EditorContent() {
             console.log('Creating book with:', {
               bookTheme: tempBook?.bookTheme,
               themeId: tempBook?.themeId,
-              layoutTemplateId: tempBook?.layoutTemplateId,
+              layoutId: tempBook?.layoutId,
               colorPaletteId: tempBook?.colorPaletteId
             });
             
@@ -169,7 +169,7 @@ function EditorContent() {
                 orientation: tempBook?.orientation || 'portrait',
                 bookTheme: tempBook?.bookTheme || tempBook?.themeId || 'default',
                 themeId: tempBook?.themeId || tempBook?.bookTheme || 'default',
-                layoutTemplateId: tempBook?.layoutTemplateId || null,
+                layoutId: tempBook?.layoutId || null,
                 colorPaletteId: tempBook?.colorPaletteId || null,
                 minPages: tempBook?.minPages ?? tempBook?.min_pages ?? null,
                 maxPages: tempBook?.maxPages ?? tempBook?.max_pages ?? null,
@@ -259,7 +259,7 @@ function EditorContent() {
                   bookTheme: tempBook?.bookTheme || tempBook?.theme || newBook.bookTheme || newBook.book_theme,
                   themeId: tempBook?.themeId || newBook.themeId || newBook.theme_id,
                   colorPaletteId: tempBook?.colorPaletteId || tempBook?.palette?.id || newBook.colorPaletteId || newBook.color_palette_id,
-                  layoutTemplateId: tempBook?.layoutTemplateId || tempBook?.selectedTemplateId || newBook.layoutTemplateId || newBook.layout_template_id,
+                  layoutId: tempBook?.layoutId || tempBook?.selectedTemplateId || newBook.layoutId || newBook.layout_id,
                   minPages: tempBook?.minPages ?? newBook.minPages ?? newBook.min_pages ?? null,
                   maxPages: tempBook?.maxPages ?? newBook.maxPages ?? newBook.max_pages ?? null,
                   pagePairingEnabled: tempBook?.pagePairingEnabled ?? newBook.pagePairingEnabled ?? newBook.page_pairing_enabled ?? false,
@@ -372,7 +372,7 @@ function EditorContent() {
                       pageNumber: page.pageNumber || page.page_number || index + 1,
                       id: pageId || undefined,
                       database_id: pageId || undefined,
-                      layoutTemplateId: page.layoutTemplateId || tempBook?.layoutTemplateId || null,
+                      layoutId: page.layoutId || tempBook?.layoutId || null,
                       colorPaletteId: pagePaletteOverrideId,
                       themeId: pageThemeOverrideId
                     };
@@ -427,11 +427,11 @@ function EditorContent() {
                       const pageAssignments = loadBookData.pageAssignments || [];
                       
                       if (userRole) {
-                        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
                         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 
                           pageAccessLevel: userRole.page_access_level || 'all_pages', 
                           editorInteractionLevel: userRole.editor_interaction_level || 'full_edit_with_settings' 
                         } });
+                        dispatch({ type: 'SET_USER_ROLE', payload: { role: userRole.role, assignedPages: userRole.assignedPages || [] } });
                       } else {
                         // Default permissions for book owner
                         dispatch({ type: 'SET_USER_PERMISSIONS', payload: { 

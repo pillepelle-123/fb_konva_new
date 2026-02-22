@@ -1004,8 +1004,8 @@ export function PDFRenderer({
           const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
           const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
           const bookTheme = bookData?.themeId || bookData?.bookTheme;
-          const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-          const bookLayoutTemplateId = bookData?.layoutTemplateId;
+          const pageLayoutId = currentPage?.layoutId;
+          const bookLayoutId = bookData?.layoutId;
           const pageColorPaletteId = currentPage?.colorPaletteId;
           const bookColorPaletteId = bookData?.colorPaletteId;
           
@@ -3079,8 +3079,8 @@ export function PDFRenderer({
                   const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
                   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
                   const bookTheme = bookData?.themeId || bookData?.bookTheme;
-                  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-                  const bookLayoutTemplateId = bookData?.layoutTemplateId;
+                  const pageLayoutId = currentPage?.layoutId;
+                  const bookLayoutId = bookData?.layoutId;
                   const pageColorPaletteId = currentPage?.colorPaletteId;
                   const bookColorPaletteId = bookData?.colorPaletteId;
 

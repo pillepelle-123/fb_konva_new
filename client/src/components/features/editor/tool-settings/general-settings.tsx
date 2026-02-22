@@ -240,8 +240,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplates = getActiveTemplateIds(currentPage, state.currentBook);
 
-  const layout = activeTemplates.layoutTemplateId
-    ? (pageTemplates.find(t => t.id === activeTemplates.layoutTemplateId) || null)
+  const layout = activeTemplates.layoutId
+    ? (pageTemplates.find(t => t.id === activeTemplates.layoutId) || null)
     : null;
   const theme = getGlobalTheme(activeTemplates.themeId);
   const paletteOverrideId = currentPage?.colorPaletteId ?? null;

@@ -128,15 +128,16 @@ export function ToolSettingsPopover({ activeTool, children }: ToolSettingsPopove
     });
   };
   
-  const needsSettings = ['brush', 'line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'pipette'].includes(activeTool);
-  const needsFill = ['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(activeTool);
+  // Nur Brush und Pipette öffnen das Popover – Shapes verwenden immer Theme/Palette-Defaults
+  const needsSettings = ['brush', 'pipette'].includes(activeTool);
+  const needsFill = false; // Shapes nutzen Theme-Defaults, kein manuelles Fill im Popover
   
   // Get theme context for defaults
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
-  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-  const bookLayoutTemplateId = state.currentBook?.layoutTemplateId;
+  const pageLayoutId = currentPage?.layoutId;
+  const bookLayoutId = state.currentBook?.layoutId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = state.currentBook?.colorPaletteId;
   

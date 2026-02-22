@@ -287,23 +287,29 @@ export function extractThemeDefaults(
     qnaDefaults.layoutVariant = qnaElement.layoutVariant || 'inline';
     qnaDefaults.questionPosition = qnaElement.questionPosition || 'left';
     qnaDefaults.questionWidth = qnaElement.questionWidth || 40;
+    qnaDefaults.answerInNewRow = qnaElement.answerInNewRow ?? false;
+    qnaDefaults.questionAnswerGap = qnaElement.questionAnswerGap ?? 0;
+    qnaDefaults.qnaIndividualSettings = qnaElement.qnaIndividualSettings ?? false;
     
     if (qnaElement.cornerRadius !== undefined) {
       qnaDefaults.cornerRadius = actualToCommonRadius(qnaElement.cornerRadius);
     }
     
-    if (qnaElement.padding !== undefined) {
-      qnaDefaults.padding = qnaElement.padding;
+    if (qnaElement.padding !== undefined || qnaElement.textSettings?.padding !== undefined) {
+      qnaDefaults.padding = qnaElement.padding ?? qnaElement.textSettings?.padding ?? 8;
     }
     
-    qnaDefaults.paragraphSpacing = qnaElement.questionSettings?.paragraphSpacing || qnaElement.answerSettings?.paragraphSpacing || 'medium';
-    qnaDefaults.align = qnaElement.questionSettings?.align || qnaElement.answerSettings?.align || qnaElement.format?.textAlign || qnaElement.align || 'left';
+    const paragraphSpacing = qnaElement.questionSettings?.paragraphSpacing ?? qnaElement.answerSettings?.paragraphSpacing ?? qnaElement.textSettings?.paragraphSpacing ?? 'medium';
+    const align = qnaElement.questionSettings?.align ?? qnaElement.answerSettings?.align ?? qnaElement.textSettings?.align ?? qnaElement.format?.textAlign ?? qnaElement.align ?? 'left';
+    qnaDefaults.paragraphSpacing = paragraphSpacing;
+    qnaDefaults.align = align;
+    qnaDefaults.format = { textAlign: align, paragraphSpacing, padding: qnaDefaults.padding ?? 8 };
     
-    // Border settings
-    const borderEnabled = qnaElement.questionSettings?.border?.enabled ?? qnaElement.answerSettings?.border?.enabled ?? qnaElement.border?.enabled ?? false;
-    const borderWidth = qnaElement.questionSettings?.borderWidth ?? qnaElement.answerSettings?.borderWidth ?? qnaElement.borderWidth ?? 1;
-    const borderTheme = qnaElement.questionSettings?.borderTheme ?? qnaElement.answerSettings?.borderTheme ?? qnaElement.border?.borderTheme ?? qnaElement.theme ?? pageTheme ?? 'default';
-    const borderOpacity = qnaElement.questionSettings?.borderOpacity ?? qnaElement.answerSettings?.borderOpacity ?? qnaElement.borderOpacity ?? 1;
+    // Border settings (QnA2 stores borderEnabled on top-level, not in questionSettings.border)
+    const borderEnabled = qnaElement.borderEnabled ?? qnaElement.textSettings?.borderEnabled ?? qnaElement.questionSettings?.border?.enabled ?? qnaElement.answerSettings?.border?.enabled ?? qnaElement.border?.enabled ?? false;
+    const borderWidth = qnaElement.borderWidth ?? qnaElement.textSettings?.borderWidth ?? qnaElement.questionSettings?.borderWidth ?? qnaElement.answerSettings?.borderWidth ?? 1;
+    const borderTheme = qnaElement.borderTheme ?? qnaElement.textSettings?.borderTheme ?? qnaElement.questionSettings?.borderTheme ?? qnaElement.answerSettings?.borderTheme ?? qnaElement.border?.borderTheme ?? qnaElement.theme ?? pageTheme ?? 'default';
+    const borderOpacity = qnaElement.borderOpacity ?? qnaElement.textSettings?.borderOpacity ?? qnaElement.questionSettings?.borderOpacity ?? qnaElement.answerSettings?.borderOpacity ?? 1;
     
     qnaDefaults.border = {
       enabled: borderEnabled,
@@ -312,20 +318,23 @@ export function extractThemeDefaults(
       theme: borderTheme
     };
     
-    // Background settings
-    const backgroundEnabled = qnaElement.questionSettings?.background?.enabled ?? qnaElement.answerSettings?.background?.enabled ?? qnaElement.background?.enabled ?? false;
-    const backgroundOpacity = qnaElement.questionSettings?.backgroundOpacity ?? qnaElement.answerSettings?.backgroundOpacity ?? qnaElement.backgroundOpacity ?? 1;
+    // Background settings (QnA2 stores backgroundEnabled on top-level, not in questionSettings.background)
+    const backgroundEnabled = qnaElement.backgroundEnabled ?? qnaElement.textSettings?.backgroundEnabled ?? qnaElement.questionSettings?.background?.enabled ?? qnaElement.answerSettings?.background?.enabled ?? qnaElement.background?.enabled ?? false;
+    const backgroundOpacity = qnaElement.backgroundOpacity ?? qnaElement.textSettings?.backgroundOpacity ?? qnaElement.questionSettings?.backgroundOpacity ?? qnaElement.answerSettings?.backgroundOpacity ?? 1;
     
     qnaDefaults.background = {
       enabled: backgroundEnabled,
       opacity: backgroundOpacity
     };
     
-    // Ruled lines (element level: ruledLines.enabled or ruledLinesEnabled)
-    const ruledLines = qnaElement.ruledLines?.enabled ?? qnaElement.ruledLinesEnabled ?? false;
-    const ruledLinesWidth = qnaElement.ruledLinesWidth ?? qnaElement.ruledLines?.width ?? 0.8;
-    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? qnaElement.ruledLines?.theme ?? 'default';
-    const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? qnaElement.ruledLines?.opacity ?? 0.5;
+    // Ruled lines (element level: ruledLines.enabled, textSettings.ruledLines, or ruledLinesEnabled)
+    const ruledLinesConfig = qnaElement.ruledLines ?? qnaElement.textSettings?.ruledLines;
+    const ruledLines = typeof ruledLinesConfig === 'object' && ruledLinesConfig !== null
+      ? (ruledLinesConfig as { enabled?: boolean }).enabled ?? false
+      : !!(ruledLinesConfig ?? qnaElement.ruledLinesEnabled);
+    const ruledLinesWidth = qnaElement.ruledLinesWidth ?? qnaElement.textSettings?.ruledLinesWidth ?? qnaElement.ruledLines?.width ?? 0.8;
+    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? qnaElement.textSettings?.ruledLinesTheme ?? qnaElement.ruledLines?.theme ?? 'default';
+    const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? qnaElement.textSettings?.ruledLinesOpacity ?? qnaElement.ruledLines?.opacity ?? 0.5;
     
     qnaDefaults.ruledLines = {
       enabled: ruledLines,

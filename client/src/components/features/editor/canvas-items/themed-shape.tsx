@@ -85,14 +85,12 @@ export default function ThemedShape(props: CanvasItemProps) {
   const strokeProps = renderer.getStrokeProps(element, zoom);
 
   // For rough theme, ensure high roughness value like QnA borders
+  // Align with QnA2 border: zoom=1 (no strokeWidth*zoom), seed=1 (consistent stroke count)
   if (theme === 'rough' && strokeProps.strokeWidth > 0) {
-    // Regenerate path with roughness 8 to match QnA border style
     const roughRenderer = getThemeRenderer('rough');
-    // Create element copy with higher roughness for border
-    const roughElement = { ...element, roughness: 8 };
-    const roughPathData = roughRenderer.generatePath(roughElement, zoom);
+    const roughElement = { ...element, roughness: 8, seed: 1 };
+    const roughPathData = roughRenderer.generatePath(roughElement, 1);
     if (roughPathData) {
-      // Use the rougher path for borders
       pathData = roughPathData;
     }
   }

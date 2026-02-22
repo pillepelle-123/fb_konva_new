@@ -41,7 +41,7 @@ class ApiService {
       bookTheme: data.bookTheme,
       owner_id: data.owner_id,
       isTemporary: data.isTemporary,
-      layoutTemplateId: data.layoutTemplateId,
+      layoutId: data.layoutId ?? data.layoutTemplateId,
       themeId: data.themeId,
       colorPaletteId: data.colorPaletteId,
       minPages: data.minPages ?? data.min_pages ?? null,
@@ -257,10 +257,10 @@ export const fetchThemes = async () => {
   return response.json();
 };
 
-export const fetchLayoutTemplates = async (category?: string) => {
-  const url = category ? `${API_URL}/layout-templates?category=${encodeURIComponent(category)}` : `${API_URL}/layout-templates`;
+export const fetchLayouts = async (category?: string) => {
+  const url = category ? `${API_URL}/layouts?category=${encodeURIComponent(category)}` : `${API_URL}/layouts`;
   const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch layout templates');
+  if (!response.ok) throw new Error('Failed to fetch layouts');
   return response.json();
 };
 
@@ -281,5 +281,80 @@ export const createPageFromTemplate = async (templateId: string, paletteId: stri
   });
   
   if (!response.ok) throw new Error('Failed to create page from template');
+  return response.json();
+};
+
+// Sandbox page API (auth required)
+export const fetchSandboxPages = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/sandbox-page`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch sandbox pages');
+  const data = await response.json();
+  return data.pages ?? [];
+};
+
+export const fetchSandboxPage = async (id: number) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/sandbox-page/${id}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch sandbox page');
+  return response.json();
+};
+
+export const saveSandboxPage = async (data: {
+  name: string;
+  page: unknown;
+  sandboxColors: Record<string, string>;
+  partSlotOverrides: Record<string, Record<string, string>>;
+  pageSlotOverrides: Record<string, string>;
+}) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/sandbox-page`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to save sandbox page');
+  }
+  return response.json();
+};
+
+export const updateSandboxPage = async (
+  id: number,
+  data: {
+    name: string;
+    page: unknown;
+    sandboxColors: Record<string, string>;
+    partSlotOverrides: Record<string, Record<string, string>>;
+    pageSlotOverrides: Record<string, string>;
+  }
+) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/sandbox-page/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update sandbox page');
+  }
   return response.json();
 };

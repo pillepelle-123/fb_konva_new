@@ -35,14 +35,14 @@ interface Page {
   themeId?: string;
   background?: { pageTheme?: string };
   colorPaletteId?: string;
-  layoutTemplateId?: string;
+  layoutId?: string;
 }
 
 interface Book {
   themeId?: string;
   bookTheme?: string;
   colorPaletteId?: string;
-  layoutTemplateId?: string;
+  layoutId?: string;
 }
 
 /**
@@ -217,6 +217,12 @@ export function getDisplaySegments(
       }
     } else {
       answerSegments = [];
+    }
+  } else if (!element.questionId && answerTextFromTempAnswers) {
+    // Sandbox case: use sandboxDummyAnswer passed as answerTextFromTempAnswers
+    answerSegments = parseHtmlToSegments(answerTextFromTempAnswers, answerStyle);
+    if (answerSegments.length === 0 && answerTextFromTempAnswers.trim()) {
+      answerSegments = [{ text: answerTextFromTempAnswers, style: answerStyle }];
     }
   } else {
     answerSegments = element.richTextSegments ?? [];

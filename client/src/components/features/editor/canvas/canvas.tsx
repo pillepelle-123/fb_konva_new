@@ -52,6 +52,7 @@ import { getStickerById, loadStickerRegistry } from '../../../../data/templates/
 import { toast } from 'sonner';
 import { createPageNumberElement } from '../../../../utils/page-number-utils';
 import { PageNumberItem } from '../canvas-items/page-number-item';
+import { debugQna2Selection } from '../../../../utils/debug-qna2-selection';
 
 
 const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, height, x = 0, y = 0 }: { width: number; height: number; x?: number; y?: number }) {
@@ -793,6 +794,7 @@ export default function Canvas() {
   const loadingImagesRef = useRef<Set<string>>(new Set());
   const failedBackgroundUrlsRef = useRef<Set<string>>(new Set()); // Avoid retries and repeated errors
   const cacheAccessOrderRef = useRef<string[]>([]); // Track access order for LRU eviction
+  const prevTokenRef = useRef<string | null>(null); // Track token for retry on login
   const [backgroundQuality, setBackgroundQuality] = useState<'preview' | 'full'>('preview');
   
   // Snapping functionality
@@ -1015,6 +1017,29 @@ export default function Canvas() {
     return { paletteId: effectivePaletteId, palette };
   };
 
+  // Phase 2.2: Canvas erst interaktiv, wenn pageAssignments und userRole/assignedPages geladen sind.
+  // Verhindert, dass Autoren beim ersten Laden nicht selektieren können (canEditElement noch false).
+  const permissionsReady = useMemo(() => {
+    if (!state.currentBook) return false;
+    // Owner/Publisher: immer bereit (userRole null oder nicht 'author')
+    if (state.userRole !== 'author') return true;
+    // Author: bereit, wenn assignedPages oder pageAccessLevel geladen
+    const ready = (
+      state.assignedPages.length > 0 ||
+      state.pageAccessLevel === 'all_pages' ||
+      Object.keys(state.pageAssignments ?? {}).length > 0
+    );
+    if (state.userRole === 'author') {
+      debugQna2Selection('permissionsReady (author)', {
+        ready,
+        assignedPages: state.assignedPages,
+        pageAccessLevel: state.pageAccessLevel,
+        pageAssignmentsKeys: Object.keys(state.pageAssignments ?? {})
+      });
+    }
+    return ready;
+  }, [state.currentBook, state.userRole, state.assignedPages, state.pageAccessLevel, state.pageAssignments]);
+
   // Phase 2.3: Determine if element should be interactive based on current tool
   // This optimizes performance by reducing event listeners on non-interactive elements
   const shouldElementBeInteractive = useCallback((element: CanvasElement): boolean => {
@@ -1080,8 +1105,8 @@ export default function Canvas() {
       bookTheme: themeId,
       pageColorPaletteId,
       bookColorPaletteId: effectivePaletteId,
-      pageLayoutTemplateId: currentPage?.layoutTemplateId ?? null,
-      bookLayoutTemplateId: state.currentBook?.layoutTemplateId ?? null
+      pageLayoutId: currentPage?.layoutId ?? null,
+      bookLayoutId: state.currentBook?.layoutId ?? null
     };
   }, [state.currentBook, state.activePageIndex]);
 
@@ -2245,6 +2270,8 @@ export default function Canvas() {
     const pos = e.target.getStage()?.getPointerPosition();
     if (pos && isCreationToolActive && !state.stylePainterActive) {
       setStageCursor(isPointerOutsideActivePage(pos) ? 'not-allowed' : null);
+    } else if (pos && !isCreationToolActive && state.activeTool === 'pan') {
+      setStageCursor(isPanning ? 'grabbing' : 'grab');
     }
     if (pos) {
       setLastMousePos({ x: pos.x, y: pos.y });
@@ -2517,9 +2544,14 @@ export default function Canvas() {
 
   useEffect(() => {
     if (!isCreationToolActive) {
-      setStageCursor(null);
+      // Pan-Tool: Hand-Cursor (grab/grabbing) für panning-typisches Verhalten
+      if (state.activeTool === 'pan') {
+        setStageCursor(isPanning ? 'grabbing' : 'grab');
+      } else {
+        setStageCursor(null);
+      }
     }
-  }, [isCreationToolActive, setStageCursor]);
+  }, [isCreationToolActive, setStageCursor, state.activeTool, isPanning]);
 
 
   /* Brush */
@@ -2675,8 +2707,8 @@ export default function Canvas() {
           y: previewShape.y,
           width: previewShape.width,
           height: previewShape.height,
-          ...shapeDefaults, // Apply ALL defaults
-          polygonSides: previewShape.type === 'polygon' ? (state.toolSettings?.polygon?.polygonSides || shapeDefaults.polygonSides || 5) : shapeDefaults.polygonSides
+          ...shapeDefaults, // Apply ALL defaults (Theme + Color Palette)
+          polygonSides: previewShape.type === 'polygon' ? (shapeDefaults.polygonSides ?? 5) : shapeDefaults.polygonSides
         };
         if (addElementIfAllowed(newElement)) {
           dispatch({ type: 'SET_ACTIVE_TOOL', payload: 'select' });
@@ -3597,8 +3629,13 @@ export default function Canvas() {
       }
     }
     
-    const isBackgroundClick = e.target === e.target.getStage() || 
-      (e.target.getClassName() === 'Rect' && !e.target.id());
+    // Hit-Area- und QnA2-Overlay-Rects haben id – nicht als Hintergrund-Klick werten
+    const targetId = (e.target.id?.() ?? e.target.attrs?.id ?? '') + '';
+    const isCanvasItemHit = targetId.startsWith('hit-area-') || targetId.startsWith('qna2-overlay-');
+    const isBackgroundClick = !isCanvasItemHit && (
+      e.target === e.target.getStage() || 
+      (e.target.getClassName() === 'Rect' && !e.target.id())
+    );
     
     if (isBackgroundClick) {
       // Don't clear selection if we're currently dragging a group
@@ -3628,7 +3665,13 @@ export default function Canvas() {
   // Preload background images when page changes or background is updated
   useEffect(() => {
     const background = currentPage?.background;
-    
+
+    // When token becomes available (e.g. after login), allow retry of previously failed protected URLs
+    if (token && !prevTokenRef.current) {
+      failedBackgroundUrlsRef.current.clear();
+    }
+    prevTokenRef.current = token;
+
     // Helper function to evict least recently used entries
     const evictOldEntries = () => {
       const accessOrder = cacheAccessOrderRef.current;
@@ -3669,14 +3712,18 @@ export default function Canvas() {
         accessOrder.push(imageUrl);
         return;
       }
-      
+
+      const isProtectedBgUrl = imageUrl.includes('/api/background-images/');
+      // Protected API URLs need token for fetch; without token, img.src would fail (no Auth).
+      // Skip preload until token is available – effect re-runs when token changes.
+      if (isProtectedBgUrl && !token) return;
+
       const loadingImages = loadingImagesRef.current;
       if (loadingImages.has(imageUrl)) return; // Already loading
-      
+
       loadingImages.add(imageUrl);
-      const isProtectedBgUrl = imageUrl.includes('/api/background-images/');
-      
-      const loadImageFromUrl = (url: string) => {
+
+      const loadImageFromUrl = (url: string, loadSource: 'fetch' | 'direct') => {
         const img = new window.Image();
         const isDataUrl = url.startsWith('data:');
         const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
@@ -3704,17 +3751,10 @@ export default function Canvas() {
         img.onerror = () => {
           loadingImages.delete(imageUrl);
           failedBackgroundUrlsRef.current.add(imageUrl);
-          if (!imageUrl.startsWith('data:')) {
-            console.error(`[Background Cache] Failed to load background image: ${imageUrl}`, {
-              complete: img.complete,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight
-            });
-          }
         };
         img.src = url;
       };
-      
+
       if (isProtectedBgUrl && token) {
         fetch(imageUrl, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
           .then((res) => {
@@ -3722,14 +3762,13 @@ export default function Canvas() {
             return res.blob();
           })
           .then((blob) => {
-            loadImageFromUrl(URL.createObjectURL(blob));
+            loadImageFromUrl(URL.createObjectURL(blob), 'fetch');
           })
-          .catch((err) => {
+          .catch(() => {
             loadingImages.delete(imageUrl);
-            console.error(`[Background Cache] Failed to fetch background image: ${imageUrl}`, err);
           });
       } else {
-        loadImageFromUrl(imageUrl);
+        loadImageFromUrl(imageUrl, 'direct');
       }
     };
     
@@ -5157,7 +5196,9 @@ export default function Canvas() {
           ruledLinesColor: qnaEl.ruledLinesColor,
           ruledLinesOpacity: qnaEl.ruledLinesOpacity,
           ruledLinesTarget: qnaEl.ruledLinesTarget,
-          theme: el.theme // Wichtig für Theme-Berechnung
+          theme: el.theme, // Wichtig für Theme-Berechnung
+          sandboxDummyQuestion: qnaEl.sandboxDummyQuestion,
+          sandboxDummyAnswer: qnaEl.sandboxDummyAnswer
         });
       })
       .join('|');
@@ -5175,7 +5216,7 @@ export default function Canvas() {
     currentPage?.elements.forEach(element => {
       if (element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2')) {
         // Berechne questionText
-        let questionText = 'Double-click to add a question...';
+        let questionText = (element as { sandboxDummyQuestion?: string }).sandboxDummyQuestion ?? 'Double-click to add a question...';
         if (element.questionId) {
           const questionData = state.tempQuestions[element.questionId];
           if (questionData) {
@@ -5204,7 +5245,11 @@ export default function Canvas() {
             answerText = (element as any).richTextSegments.map((s: { text: string }) => s.text).join('');
           }
         } else {
-          if (element.formattedText) {
+          // Sandbox: sandboxDummyAnswer für Dummy-Anzeige
+          const sandboxDummy = (element as { sandboxDummyAnswer?: string }).sandboxDummyAnswer;
+          if (sandboxDummy) {
+            answerText = sandboxDummy;
+          } else if (element.formattedText) {
             answerText = stripHtml(element.formattedText);
           } else if (element.text) {
             answerText = element.text;
@@ -5536,7 +5581,17 @@ export default function Canvas() {
                     >
                   <CanvasItemComponent
                     element={element}
-                    interactive={shouldElementBeInteractive(element)}
+                    interactive={(() => {
+                      const inter = permissionsReady && shouldElementBeInteractive(element);
+                      if (element.textType === 'qna2' && !inter) {
+                        debugQna2Selection('CanvasItemComponent interactive=FALSE', {
+                          elementId: element.id,
+                          permissionsReady,
+                          shouldBeInteractive: shouldElementBeInteractive(element)
+                        });
+                      }
+                      return inter;
+                    })()}
                     isSelected={state.selectedElementIds.includes(element.id)}
                     isDragging={isDragging && state.selectedElementIds.length === 1 && state.selectedElementIds.includes(element.id)}
                     zoom={zoom}
@@ -5555,6 +5610,13 @@ export default function Canvas() {
                     answerStyle={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.answerStyle : undefined}
                     assignedUser={element.type === 'text' && (element.textType === 'qna' || element.textType === 'qna2') ? qnaElementData.get(element.id)?.assignedUser : undefined}
                     onSelect={(e) => {
+                    if (element.textType === 'qna2') {
+                      debugQna2Selection('Canvas onSelect ENTRY', {
+                        elementId: element.id,
+                        editorInteractionLevel: state.editorInteractionLevel,
+                        stylePainterActive: state.stylePainterActive
+                      });
+                    }
                     // Handle style painter click
                     if (state.stylePainterActive && e?.evt?.button === 0) {
                       dispatch({ type: 'APPLY_COPIED_STYLE', payload: element.id });
@@ -6723,20 +6785,37 @@ export default function Canvas() {
                       node.scaleY(1);
                       }
                     } else {
-                      // For shapes and other elements, preserve scaleX and scaleY
-                      // Always save scaleX/scaleY explicitly, even if they're 1, to ensure they're persisted
-                      const nodeScaleX = node.scaleX();
-                      const nodeScaleY = node.scaleY();
-                      const nodeRotation = node.rotation();
-                      
-                      // Convert from adjusted position (with offset) back to original position (without offset)
-                      const offsetX = node.offsetX() || 0;
-                      const offsetY = node.offsetY() || 0;
-                      updates.x = node.x() - offsetX;
-                      updates.y = node.y() - offsetY;
-                      updates.scaleX = typeof nodeScaleX === 'number' ? nodeScaleX : 1;
-                      updates.scaleY = typeof nodeScaleY === 'number' ? nodeScaleY : 1;
-                      updates.rotation = typeof nodeRotation === 'number' ? nodeRotation : 0;
+                      // For shapes: convert scale to width/height so stroke stays at consistent px thickness (like QnA borders)
+                      const SHAPE_TYPES = ['line', 'rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'brush', 'brush-multicolor'];
+                      if (SHAPE_TYPES.includes(element.type)) {
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+                        const finalWidth = Math.max(20, (element.width || 100) * scaleX);
+                        const finalHeight = Math.max(20, (element.height || 100) * scaleY);
+                        const offsetX = finalWidth / 2;
+                        const offsetY = finalHeight / 2;
+                        updates.width = finalWidth;
+                        updates.height = finalHeight;
+                        updates.x = node.x() - offsetX;
+                        updates.y = node.y() - offsetY;
+                        updates.rotation = typeof node.rotation() === 'number' ? node.rotation() : 0;
+                        updates.scaleX = 1;
+                        updates.scaleY = 1;
+                        node.scaleX(1);
+                        node.scaleY(1);
+                      } else {
+                        // For other elements (e.g. qr_code), preserve scaleX and scaleY
+                        const nodeScaleX = node.scaleX();
+                        const nodeScaleY = node.scaleY();
+                        const nodeRotation = node.rotation();
+                        const offsetX = node.offsetX() || 0;
+                        const offsetY = node.offsetY() || 0;
+                        updates.x = node.x() - offsetX;
+                        updates.y = node.y() - offsetY;
+                        updates.scaleX = typeof nodeScaleX === 'number' ? nodeScaleX : 1;
+                        updates.scaleY = typeof nodeScaleY === 'number' ? nodeScaleY : 1;
+                        updates.rotation = typeof nodeRotation === 'number' ? nodeRotation : 0;
+                      }
                     }
                     
                     dispatch({

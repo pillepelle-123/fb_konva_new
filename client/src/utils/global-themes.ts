@@ -47,6 +47,7 @@ export interface GlobalTheme {
     sticker: Partial<CanvasElement>;
     shape: Partial<CanvasElement>;
     brush: Partial<CanvasElement>;
+    line: Partial<CanvasElement>;
   };
 }
 
@@ -208,9 +209,21 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
 
     // Apply palette colors automatically (overriding hardcoded colors)
     if (palette) {
-      // Always use palette colors for stroke/fill (shapes, brushes, lines)
-      base.stroke = palette.colors.primary;
-      base.fill = elementType === 'shape' ? (base.fill && base.fill !== 'transparent' ? base.fill : palette.colors.surface || palette.colors.accent) : (base.fill || palette.colors.primary);
+      // Always use palette colors for stroke/fill (shapes, brushes, lines) - use parts mapping when available
+      const lineStrokeColor = getPalettePartColor(palette, 'lineStroke', 'primary', palette.colors.primary);
+      const brushStrokeColor = getPalettePartColor(palette, 'brushStroke', 'primary', palette.colors.primary);
+      const shapeStrokeColor = getPalettePartColor(palette, 'shapeStroke', 'primary', palette.colors.primary);
+      const shapeFillColor = getPalettePartColor(palette, 'shapeFill', 'surface', palette.colors.surface);
+      base.stroke = elementType === 'line' ? (lineStrokeColor || palette.colors.primary)
+        : elementType === 'brush' ? (brushStrokeColor || palette.colors.primary)
+        : elementType === 'shape' ? (shapeStrokeColor || palette.colors.primary)
+        : palette.colors.primary;
+      if (elementType !== 'line' && elementType !== 'brush') {
+        // Shapes: fill nur setzen wenn backgroundEnabled !== false (Theme-Default respektieren)
+        base.fill = elementType === 'shape'
+          ? (base.backgroundEnabled === false ? 'transparent' : (base.fill && base.fill !== 'transparent' ? base.fill : shapeFillColor || palette.colors.surface || palette.colors.accent))
+          : (base.fill || palette.colors.primary);
+      }
       
       // Apply palette colors to font
       if (base.font) {
@@ -305,7 +318,8 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       image: buildElement('image', config.elementDefaults.image || {}),
       sticker: buildElement('sticker', config.elementDefaults.sticker || {}),
       shape: buildElement('shape', config.elementDefaults.shape || {}),
-      brush: buildElement('brush', config.elementDefaults.brush || {})
+      brush: buildElement('brush', config.elementDefaults.brush || {}),
+      line: buildElement('line', config.elementDefaults.line || {})
     }
   };
 }
@@ -374,6 +388,7 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'brush':
       return 'brush';
     case 'line':
+      return 'line';
     case 'rect':
     case 'circle':
     case 'heart':
@@ -589,6 +604,9 @@ function getBaseDefaultsForType(elementType: string): any {
       paragraphSpacing: 'medium',
       ruledLines: false,
       padding: 8,
+      answerInNewRow: false,
+      questionAnswerGap: 0,
+      qnaIndividualSettings: false,
       questionSettings: { fontSize: 50, fontFamily: 'Arial, sans-serif', fontBold: false, fontItalic: false, fontOpacity: 1 },
       answerSettings: { fontSize: 50, fontFamily: 'Arial, sans-serif', fontBold: false, fontItalic: false, fontOpacity: 1 }
     },
@@ -711,7 +729,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
         'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
         'cornerRadius', 'padding', 'paragraphSpacing', 'align',
         'layoutVariant', 'questionPosition', 'questionWidth',
-        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
+        'answerInNewRow', 'questionAnswerGap', 'qnaIndividualSettings'
       ];
 
       // Move shared properties from questionSettings/answerSettings to top-level
@@ -723,17 +742,20 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
           if (value === undefined || value === null) {
             value = answerSettings[prop];
           }
+          if (value === undefined || value === null) {
+            value = themeDefaults[prop];
+          }
 
           // Special handling for nested properties
           if (value === undefined || value === null) {
             if (prop === 'borderColor') {
               value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
             } else if (prop === 'borderEnabled') {
-              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled ?? themeDefaults.border?.enabled;
             } else if (prop === 'backgroundColor') {
               value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
             } else if (prop === 'backgroundEnabled') {
-              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled ?? themeDefaults.background?.enabled;
             } else if (prop === 'ruledLines') {
               // ruledLines liegt auf Textebene in themes.json, nicht in questionSettings/answerSettings
               value = themeDefaults.ruledLines;
@@ -757,8 +779,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       // Font properties are now only directly in questionSettings, no nested font object
 
       // Keep border.enabled and background.enabled for rendering check
-      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? false;
-      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? false;
+      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? (themeDefaults as any).border?.enabled ?? false;
+      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? (themeDefaults as any).background?.enabled ?? false;
 
       cleanedQuestionSettings.border = {
         ...(questionSettings.border || {}),
@@ -811,7 +833,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
           borderOpacity: (convertedDefaults as any).borderOpacity,
           borderTheme: (convertedDefaults as any).borderTheme,
           borderEnabled: (convertedDefaults as any).borderEnabled,
-          padding: (convertedDefaults as any).padding
+          padding: (convertedDefaults as any).padding,
+          align: (convertedDefaults as any).align,
+          paragraphSpacing: (convertedDefaults as any).paragraphSpacing
         };
       }
 
@@ -829,7 +853,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
         'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
         'cornerRadius', 'padding', 'paragraphSpacing', 'align',
         'layoutVariant', 'questionPosition', 'questionWidth',
-        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines'
+        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
+        'answerInNewRow', 'questionAnswerGap', 'qnaIndividualSettings'
       ];
 
       // Move shared properties from questionSettings/answerSettings to top-level
@@ -844,11 +869,11 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
             if (prop === 'borderColor') {
               value = questionSettings.border?.borderColor || answerSettings.border?.borderColor;
             } else if (prop === 'borderEnabled') {
-              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled;
+              value = questionSettings.border?.enabled ?? answerSettings.border?.enabled ?? questionSettings.borderEnabled ?? answerSettings.borderEnabled ?? themeDefaults.border?.enabled;
             } else if (prop === 'backgroundColor') {
               value = questionSettings.background?.backgroundColor || answerSettings.background?.backgroundColor;
             } else if (prop === 'backgroundEnabled') {
-              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled;
+              value = questionSettings.background?.enabled ?? answerSettings.background?.enabled ?? questionSettings.backgroundEnabled ?? answerSettings.backgroundEnabled ?? themeDefaults.background?.enabled;
             } else if (prop === 'ruledLines') {
               // ruledLines liegt auf Textebene in themes.json, nicht in questionSettings/answerSettings
               value = themeDefaults.ruledLines;
@@ -870,8 +895,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       if (questionSettings.fontColor !== undefined) cleanedQuestionSettings.fontColor = questionSettings.fontColor;
       if (questionSettings.fontOpacity !== undefined) cleanedQuestionSettings.fontOpacity = questionSettings.fontOpacity;
 
-      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? false;
-      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? false;
+      const borderEnabled = (convertedDefaults as any).borderEnabled ?? (questionSettings as any).border?.enabled ?? (questionSettings as any).borderEnabled ?? (themeDefaults as any).border?.enabled ?? false;
+      const backgroundEnabled = (convertedDefaults as any).backgroundEnabled ?? (questionSettings as any).background?.enabled ?? (questionSettings as any).backgroundEnabled ?? (themeDefaults as any).background?.enabled ?? false;
 
       cleanedQuestionSettings.border = {
         ...(questionSettings.border || {}),
@@ -920,7 +945,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
           borderOpacity: (convertedDefaults as any).borderOpacity,
           borderTheme: (convertedDefaults as any).borderTheme,
           borderEnabled: (convertedDefaults as any).borderEnabled,
-          padding: (convertedDefaults as any).padding
+          padding: (convertedDefaults as any).padding,
+          align: (convertedDefaults as any).align,
+          paragraphSpacing: (convertedDefaults as any).paragraphSpacing
         };
       }
     }
@@ -1045,7 +1072,12 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       paletteDefaults.stroke = palette.colors.primary;
     } else if (['rect', 'circle', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley', 'shape'].includes(elementType)) {
       paletteDefaults.stroke = palette.colors.primary;
-      paletteDefaults.fill = palette.colors.surface || palette.colors.accent;
+      // Fill nur setzen wenn backgroundEnabled !== false (Theme-Default respektieren)
+      if (mergedDefaults.backgroundEnabled !== false) {
+        paletteDefaults.fill = palette.colors.surface || palette.colors.accent;
+      } else {
+        paletteDefaults.fill = 'transparent';
+      }
     } else if (elementType === 'qr_code') {
       paletteDefaults.qrForegroundColor = palette.colors.text || palette.colors.primary;
       paletteDefaults.qrBackgroundColor = palette.colors.background || palette.colors.surface;

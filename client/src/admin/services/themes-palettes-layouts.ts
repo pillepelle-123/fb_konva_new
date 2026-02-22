@@ -1,7 +1,7 @@
 import { apiFetch } from './http'
 
 export interface AdminTheme {
-  id: string
+  id: string | number
   name: string
   description?: string
   palette_id?: string
@@ -13,7 +13,7 @@ export interface AdminTheme {
 }
 
 export interface AdminColorPalette {
-  id: string
+  id: string | number
   name: string
   colors: Record<string, string>
   parts: Record<string, string>
@@ -21,8 +21,8 @@ export interface AdminColorPalette {
   updated_at?: string
 }
 
-export interface AdminLayoutTemplate {
-  id: string
+export interface AdminLayout {
+  id: string | number
   name: string
   category?: string
   thumbnail?: string
@@ -37,7 +37,7 @@ export async function fetchAdminThemes(token: string | null) {
   return res.items
 }
 
-export async function fetchAdminTheme(token: string | null, id: string) {
+export async function fetchAdminTheme(token: string | null, id: string | number) {
   const res = await apiFetch<{ theme: AdminTheme }>(token, `/admin/themes/${encodeURIComponent(id)}`)
   return res.theme
 }
@@ -50,7 +50,7 @@ export async function createAdminTheme(token: string | null, data: Omit<AdminThe
   return res.theme
 }
 
-export async function updateAdminTheme(token: string | null, id: string, data: Partial<AdminTheme>) {
+export async function updateAdminTheme(token: string | null, id: string | number, data: Partial<AdminTheme>) {
   const res = await apiFetch<{ theme: AdminTheme }>(token, `/admin/themes/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -63,7 +63,7 @@ export async function fetchAdminColorPalettes(token: string | null) {
   return res.items
 }
 
-export async function fetchAdminColorPalette(token: string | null, id: string) {
+export async function fetchAdminColorPalette(token: string | null, id: string | number) {
   const res = await apiFetch<{ palette: AdminColorPalette }>(token, `/admin/color-palettes/${encodeURIComponent(id)}`)
   return res.palette
 }
@@ -76,7 +76,7 @@ export async function createAdminColorPalette(token: string | null, data: Omit<A
   return res.palette
 }
 
-export async function updateAdminColorPalette(token: string | null, id: string, data: Partial<AdminColorPalette>) {
+export async function updateAdminColorPalette(token: string | null, id: string | number, data: Partial<AdminColorPalette>) {
   const res = await apiFetch<{ palette: AdminColorPalette }>(token, `/admin/color-palettes/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -84,19 +84,19 @@ export async function updateAdminColorPalette(token: string | null, id: string, 
   return res.palette
 }
 
-export async function fetchAdminLayoutTemplates(token: string | null, category?: string) {
+export async function fetchAdminLayouts(token: string | null, category?: string) {
   const query = category ? `?category=${encodeURIComponent(category)}` : ''
-  const res = await apiFetch<{ items: AdminLayoutTemplate[] }>(token, `/admin/layout-templates${query}`)
+  const res = await apiFetch<{ items: AdminLayout[] }>(token, `/admin/layouts${query}`)
   return res.items
 }
 
-export async function fetchAdminLayoutTemplate(token: string | null, id: string) {
-  const res = await apiFetch<{ template: AdminLayoutTemplate }>(token, `/admin/layout-templates/${encodeURIComponent(id)}`)
+export async function fetchAdminLayout(token: string | null, id: string | number) {
+  const res = await apiFetch<{ template: AdminLayout }>(token, `/admin/layouts/${encodeURIComponent(String(id))}`)
   return res.template
 }
 
-export async function updateAdminLayoutTemplate(token: string | null, id: string, data: Partial<AdminLayoutTemplate>) {
-  const res = await apiFetch<{ template: AdminLayoutTemplate }>(token, `/admin/layout-templates/${encodeURIComponent(id)}`, {
+export async function updateAdminLayout(token: string | null, id: string | number, data: Partial<AdminLayout>) {
+  const res = await apiFetch<{ template: AdminLayout }>(token, `/admin/layouts/${encodeURIComponent(String(id))}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   })

@@ -57,6 +57,9 @@ export const ELEMENT_PROPERTY_TO_PART: Record<
   placeholder: {
     borderColor: 'imageBorder',
   },
+  image: {
+    borderColor: 'imageBorder',
+  },
   line: {
     stroke: 'lineStroke',
   },
@@ -91,6 +94,7 @@ function getPartToElementPropertyMap(): Record<string, Record<string, string>> {
     },
     rect: { shapeStroke: 'stroke', shapeFill: 'fill' },
     placeholder: { imageBorder: 'borderColor' },
+    image: { imageBorder: 'borderColor' },
     line: { lineStroke: 'stroke' },
     brush: { brushStroke: 'stroke' },
     sticker: {
@@ -193,7 +197,7 @@ function getElementType(element: { type?: string; textType?: string }): string {
  * Optionally includes page-level parts (pageBackground, pagePattern) from pageSlotOverrides.
  */
 export function buildPartsFromElements(
-  elements: Array<{ id: string; type?: string; textType?: string; [key: string]: unknown }>,
+  elements: Array<{ id: string; type?: string; textType?: string }>,
   partSlotOverridesMap: Record<string, Record<string, PaletteColorSlot>>,
   pageSlotOverrides?: Partial<Record<'pageBackground' | 'pagePattern', PaletteColorSlot>>
 ): Record<string, PaletteColorSlot> {
@@ -229,8 +233,8 @@ export function createSandboxBook(): Book {
   const paletteId: string | undefined = undefined;
   const canvasSize = calculatePageDimensions('A4', 'portrait');
 
-  const margin = 80;
-  const gap = 60;
+  const margin = 120;
+  const gap = 90;
   let y = margin;
 
   const elements: unknown[] = [];
@@ -242,15 +246,17 @@ export function createSandboxBook(): Book {
     type: 'text',
     x: margin,
     y,
-    width: Math.min(600, canvasSize.width - margin * 2),
-    height: 200,
+    width: Math.min(700, canvasSize.width - margin * 2),
+    height: 260,
     ...qna2Defaults,
     text: '',
     textType: 'qna2',
     richTextSegments: [] as { text: string; bold?: boolean; italic?: boolean }[],
     textSettings: (qna2Defaults.textSettings as object) || {},
+    sandboxDummyQuestion: 'Wie lautet die Beispiel-Frage?',
+    sandboxDummyAnswer: 'Dies ist eine längere Beispiel-Antwort, die das Styling der Schriftart für Fragen und Antworten demonstrieren soll.',
   });
-  y += 200 + gap;
+  y += 260 + gap;
 
   // FreeText
   const freeTextDefaults = getGlobalThemeDefaults(themeId, 'free_text', paletteId) as Record<string, unknown>;
@@ -259,15 +265,15 @@ export function createSandboxBook(): Book {
     type: 'text',
     x: margin,
     y,
-    width: 400,
-    height: 100,
+    width: 500,
+    height: 140,
     ...freeTextDefaults,
     text: '',
     textType: 'free_text',
     richTextSegments: [],
     textSettings: (freeTextDefaults.textSettings as object) || {},
   });
-  y += 100 + gap;
+  y += 140 + gap;
 
   // Rect (shape)
   const rectDefaults = getGlobalThemeDefaults(themeId, 'rect', paletteId);
@@ -276,11 +282,11 @@ export function createSandboxBook(): Book {
     type: 'rect',
     x: margin,
     y,
-    width: 200,
-    height: 120,
+    width: 260,
+    height: 160,
     ...rectDefaults,
   });
-  y += 120 + gap;
+  y += 160 + gap;
 
   // Placeholder (image)
   const imageDefaults = getGlobalThemeDefaults(themeId, 'placeholder', paletteId);
@@ -289,11 +295,11 @@ export function createSandboxBook(): Book {
     type: 'placeholder',
     x: margin,
     y,
-    width: 200,
-    height: 150,
+    width: 260,
+    height: 200,
     ...imageDefaults,
   });
-  y += 150 + gap;
+  y += 200 + gap;
 
   // Sticker (OpenMoji)
   const stickerDefaults = getGlobalThemeDefaults(themeId, 'sticker', paletteId) as Record<string, unknown>;
@@ -304,8 +310,8 @@ export function createSandboxBook(): Book {
     type: 'sticker',
     x: margin,
     y,
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     src: stickerUrl,
     stickerId: `openmoji-${firstOpenMoji.hexcode}`,
     stickerFormat: 'vector',
@@ -313,7 +319,7 @@ export function createSandboxBook(): Book {
     stickerOriginalUrl: stickerUrl,
     ...stickerDefaults,
   });
-  y += 150 + gap;
+  y += 200 + gap;
 
   // Line
   const lineDefaults = getGlobalThemeDefaults(themeId, 'line', paletteId);
@@ -322,9 +328,9 @@ export function createSandboxBook(): Book {
     type: 'line',
     x: margin,
     y,
-    width: 200,
+    width: 260,
     height: 0,
-    points: [0, 0, 200, 0],
+    points: [0, 0, 260, 0],
     ...lineDefaults,
   });
   y += gap;

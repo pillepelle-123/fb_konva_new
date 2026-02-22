@@ -19,6 +19,7 @@ export default function AdminApp() {
             <Route path="color-palettes" element={<AdminColorPalettesPage />} />
             <Route path="layouts" element={<AdminLayoutsPage />} />
             <Route path="sandbox" element={<SandboxEditorPage />} />
+            <Route path="sandbox/:sandboxPageId" element={<SandboxEditorPage />} />
             <Route path="*" element={<Navigate to="users" replace />} />
           </Routes>
         </AdminLayout>

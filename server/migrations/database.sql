@@ -26,6 +26,14 @@ DROP TABLE IF EXISTS book_friends CASCADE;
 DROP TABLE IF EXISTS pages CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS friend_invitations CASCADE;
+DROP TABLE IF EXISTS user_blocks CASCADE;
+DROP TABLE IF EXISTS conversation_participant_settings CASCADE;
+DROP TABLE IF EXISTS conversation_invitations CASCADE;
+DROP TABLE IF EXISTS color_palettes CASCADE;
+DROP TABLE IF EXISTS themes CASCADE;
+DROP TABLE IF EXISTS layouts CASCADE;
+DROP TABLE IF EXISTS sandbox_page CASCADE;
 
 -- Drop types
 DROP TYPE IF EXISTS page_access_level CASCADE;
@@ -61,9 +69,9 @@ CREATE TABLE books (
   owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   page_size VARCHAR(50) NOT NULL DEFAULT 'A4',
   orientation VARCHAR(50) NOT NULL DEFAULT 'portrait',
-  layout_template_id VARCHAR(255),
-  theme_id VARCHAR(255),
-  color_palette_id VARCHAR(255),
+  layout_id INTEGER,
+  theme_id INTEGER,
+  color_palette_id INTEGER,
   min_pages INTEGER,
   max_pages INTEGER,
   page_pairing_enabled BOOLEAN DEFAULT FALSE,
@@ -80,7 +88,7 @@ CREATE TABLE books (
 );
 
 -- Create indexes for book's styling columns
-CREATE INDEX idx_books_layout_template_id ON books(layout_template_id);
+CREATE INDEX idx_books_layout_id ON books(layout_id);
 CREATE INDEX idx_books_theme_id ON books(theme_id);
 CREATE INDEX idx_books_color_palette_id ON books(color_palette_id);
 CREATE INDEX idx_books_owner_id ON books(owner_id);
@@ -91,9 +99,9 @@ CREATE TABLE pages (
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   page_number INTEGER NOT NULL,
   elements JSONB DEFAULT '[]'::jsonb,
-  layout_template_id VARCHAR(255),
-  theme_id VARCHAR(255),
-  color_palette_id VARCHAR(255),
+  layout_id INTEGER,
+  theme_id INTEGER,
+  color_palette_id INTEGER,
   page_type VARCHAR(50),
   page_pair_id VARCHAR(100),
   is_special_page BOOLEAN DEFAULT FALSE,
@@ -520,21 +528,9 @@ CREATE INDEX IF NOT EXISTS idx_conversation_invitations_conversation ON public.c
 -- Themes, Color Palettes, Layouts
 -- ###############################################################
 
--- Themes (id = Text-Key wie default, sketchy)
-CREATE TABLE IF NOT EXISTS themes (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  palette_id TEXT,
-  config JSONB NOT NULL DEFAULT '{}'::jsonb,
-  sort_order INT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Color Palettes
 CREATE TABLE IF NOT EXISTS color_palettes (
-  id TEXT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   colors JSONB NOT NULL DEFAULT '{}'::jsonb,
   parts JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -544,9 +540,21 @@ CREATE TABLE IF NOT EXISTS color_palettes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Layout Templates
-CREATE TABLE IF NOT EXISTS layout_templates (
-  id TEXT PRIMARY KEY,
+-- Themes (id = Text-Key wie default, sketchy)
+CREATE TABLE IF NOT EXISTS themes (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  palette_id INT REFERENCES color_palettes(id),
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Layouts 
+CREATE TABLE IF NOT EXISTS layouts (
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   category TEXT,
   thumbnail TEXT,
@@ -558,7 +566,21 @@ CREATE TABLE IF NOT EXISTS layout_templates (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_layout_templates_category ON layout_templates(category);
+CREATE INDEX IF NOT EXISTS idx_layouts_category ON layouts(category);
+
+-- ###############################################################
+-- Sandbox Pages (for Theme- and Palette- Creation)
+-- ###############################################################
+
+CREATE TABLE IF NOT EXISTS public.sandbox_page (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL DEFAULT 'Unbenannt',
+  page_data JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sandbox_page_user_id ON public.sandbox_page(user_id);
+CREATE INDEX IF NOT EXISTS idx_sandbox_page_updated_at ON public.sandbox_page(updated_at DESC);
 
 
 -- ###############################################################

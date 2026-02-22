@@ -13,6 +13,7 @@ import { buildFont, getLineHeight } from '../../../../../../shared/utils/text-la
 import { calculateContrastColor } from '../../../../utils/contrast-color';
 import { createRichTextLayoutFromSegments } from '../../../../../../shared/utils/rich-text-layout';
 import type { Theme } from '../../../../utils/themes-client';
+import { debugQna2Selection } from '../../../../utils/debug-qna2-selection';
 
 const RULED_LINE_BASELINE_OFFSET = 12;
 
@@ -79,7 +80,7 @@ const RichTextShape = React.memo(RichTextShapeComponent, (prevProps, nextProps) 
 RichTextShape.displayName = 'RichTextShape';
 
 function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
-  const { element, isDragging, answerText: propsAnswerText, assignedUser: propsAssignedUser, questionStyle: propsQuestionStyle, answerStyle: propsAnswerStyle } = props;
+  const { element, isDragging, onSelect, answerText: propsAnswerText, assignedUser: propsAssignedUser, questionStyle: propsQuestionStyle, answerStyle: propsAnswerStyle } = props;
   const { state, dispatch, getQuestionText, canEditElement } = useEditor();
   const { user } = useAuth();
   const elementWidth = element.width ?? 0;
@@ -112,7 +113,9 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   );
 
   const padding = element.textSettings?.padding ?? element.padding ?? qna2Defaults.padding ?? 8;
-  const questionText = element.questionId ? getQuestionText(element.questionId) : '';
+  const questionText = element.questionId
+    ? getQuestionText(element.questionId)
+    : ((element as { sandboxDummyQuestion?: string }).sandboxDummyQuestion ?? '');
   const elementPageNumber = useMemo(() => {
     if (!state.currentBook?.pages) return null;
     for (const page of state.currentBook.pages) {
@@ -132,7 +135,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     : null);
   const answerText = propsAnswerText ?? (element.questionId && assignedUser
     ? (state.tempAnswers[element.questionId]?.[assignedUser.id] as { text?: string } | undefined)?.text ?? ''
-    : undefined);
+    : undefined) ?? (element as { sandboxDummyAnswer?: string }).sandboxDummyAnswer;
   const richTextSegments = useMemo(
     () => getDisplaySegments(element, questionStyle, answerStyle, questionText, answerText),
     [element, questionStyle, answerStyle, questionText, answerText]
@@ -353,9 +356,9 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   }, []);
 
   const handleMouseEnter = useCallback(
-    (evt: Konva.KonvaEventObject<MouseEvent>) => {
-      handleTooltip(evt);
-      if (canOpenQna2Editor) {
+    (evt?: Konva.KonvaEventObject<MouseEvent>) => {
+      if (evt) handleTooltip(evt);
+      if (canOpenQna2Editor && evt?.target) {
         const stage = evt.target.getStage();
         if (stage?.container()) {
           stage.container().style.cursor = 'pointer';
@@ -366,15 +369,44 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   );
 
   const handleMouseLeave = useCallback(
-    (evt: Konva.KonvaEventObject<MouseEvent>) => {
+    (evt?: Konva.KonvaEventObject<MouseEvent>) => {
       handleTooltipHide();
-      const stage = evt.target.getStage();
-      if (stage?.container()) {
-        stage.container().style.cursor = '';
+      if (evt?.target) {
+        const stage = evt.target.getStage();
+        if (stage?.container()) {
+          stage.container().style.cursor = '';
+        }
       }
     },
     [handleTooltipHide]
   );
+
+  // Expliziter Klick-Handler auf dem Overlay: garantiert Einzelauswahl für Autoren.
+  // Das Overlay liegt über dem gesamten Element; ohne diesen Handler würden Klicks
+  // bei manchen Konstellationen nicht die Hit-Area/BaseCanvasItem erreichen.
+  const handleOverlayClick = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      debugQna2Selection('handleOverlayClick', {
+        elementId: element.id,
+        interactive: props.interactive,
+        activeTool: state.activeTool,
+        button: e.evt.button
+      });
+      if (props.interactive === false || state.activeTool !== 'select' || e.evt.button !== 0) {
+        debugQna2Selection('handleOverlayClick EARLY RETURN', { reason: 'interactive/activeTool/button' });
+        return;
+      }
+      e.cancelBubble = true;
+      debugQna2Selection('handleOverlayClick calling onSelect', { elementId: element.id });
+      onSelect?.(e);
+    },
+    [props.interactive, state.activeTool, onSelect, element.id]
+  );
+  const handleOverlayTap = useCallback(() => {
+    debugQna2Selection('handleOverlayTap', { elementId: element.id, interactive: props.interactive, activeTool: state.activeTool });
+    if (props.interactive === false || state.activeTool !== 'select') return;
+    onSelect?.();
+  }, [props.interactive, state.activeTool, onSelect, element.id]);
 
   // Skeleton-Zeilen: einheitlicher Abstand, ein Rectangle pro Slot, größere Lücken dazwischen
   const skeletonLinePositions = useMemo(() => {
@@ -395,7 +427,15 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   }, [elementHeight, padding, answerStyle]);
 
   return (
-    <BaseCanvasItem {...props} onDoubleClick={handleDoubleClick} hitArea={hitArea}>
+    <BaseCanvasItem
+      {...props}
+      onSelect={onSelect}
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={(evt) => evt && handleTooltip(evt)}
+      hitArea={hitArea}
+    >
       {showSkeleton ? (
         <Group listening={false}>
           {skeletonLinePositions.map((pos, i) => (
@@ -468,7 +508,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
                 (element.textSettings?.borderTheme ||
                   qna2Defaults.textSettings?.borderTheme ||
                   'default')) as Theme;
-              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+              const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
               const borderElement = renderThemedBorder({
                 width: borderWidth,
                 color: borderColor,
@@ -507,7 +547,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
                 x={padding}
                 y={padding}
                 width={elementWidth - padding * 2}
-                text="Double click to add question"
+                text={(element as { sandboxDummyQuestion?: string }).sandboxDummyQuestion || (element as { sandboxDummyAnswer?: string }).sandboxDummyAnswer || "Double click to add question"}
                 fontSize={answerStyle.fontSize}
                 fontFamily={answerStyle.fontFamily ?? 'Arial, sans-serif'}
                 fill={placeholderColor}
@@ -517,17 +557,20 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
           )}
         </>
       )}
+      {/* Transparentes Overlay: expliziter onClick/onTap für Einzelauswahl (Autoren).
+          Ohne diesen Handler erreichen Klicks bei manchen Konstellationen nicht die
+          Hit-Area. Tooltip/Hover über onMouseEnter/onMouseLeave/onMouseMove an BaseCanvasItem. */}
       <Rect
         ref={textRef}
+        id={`qna2-overlay-${element.id}`}
         x={0}
         y={0}
         width={elementWidth}
         height={elementHeight}
         fill="transparent"
         listening={true}
-        onMouseEnter={handleMouseEnter}
-        onMouseMove={handleTooltip}
-        onMouseLeave={handleMouseLeave}
+        onClick={handleOverlayClick}
+        onTap={handleOverlayTap}
       />
     </BaseCanvasItem>
   );

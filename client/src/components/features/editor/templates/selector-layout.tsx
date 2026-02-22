@@ -26,7 +26,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
   
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
-  const currentLayoutId = activeTemplateIds.layoutTemplateId;
+  const currentLayoutId = activeTemplateIds.layoutId;
   
   const currentLayout = currentLayoutId 
     ? getPageTemplates().find((t: PageTemplate) => t.id === currentLayoutId) || null 
@@ -154,8 +154,8 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
           payload: { template: selectedLayout, pageIndex, applyToAllPages: false, skipHistory: true }
         });
         dispatch({
-          type: 'SET_PAGE_LAYOUT_TEMPLATE',
-          payload: { pageIndex, layoutTemplateId: selectedLayout.id }
+          type: 'SET_PAGE_LAYOUT',
+          payload: { pageIndex, layoutId: selectedLayout.id }
         });
       });
       
@@ -171,8 +171,8 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
     });
     
     dispatch({
-      type: 'SET_PAGE_LAYOUT_TEMPLATE',
-      payload: { pageIndex: state.activePageIndex, layoutTemplateId: selectedLayout.id }
+      type: 'SET_PAGE_LAYOUT',
+      payload: { pageIndex: state.activePageIndex, layoutId: selectedLayout.id }
     });
     
     dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Layout: ${selectedLayout.name}` });

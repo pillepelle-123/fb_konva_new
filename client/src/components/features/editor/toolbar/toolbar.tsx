@@ -6,19 +6,22 @@ import { ToolbarContent } from './toolbar-content';
 import { TooltipProvider } from '../../../ui/composites/tooltip';
 
 export default function Toolbar() {
-  const { state, dispatch, canUseTool } = useEditor();
+  const { state, dispatch, canUseTool, isAuthorOnViewOnlyPage } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
   const toolbarContentRef = useRef<{ closeSubmenus: () => void }>(null);
 
   const toolAccessAllowed = canUseTool(state.activeTool);
   const isAnswerOnly = canUseTool('select');
+  const isViewOnlyPage = isAuthorOnViewOnlyPage();
   
-  // Force collapsed state when tools are not available (except answer-only mode where select/pan/zoom work)
+  // Eingeklappt wenn Tools nicht verfügbar oder Autor auf nicht zugewiesener Seite; ausgeklappt wenn Autor auf zugewiesener Seite
   useEffect(() => {
-    if (!toolAccessAllowed && !isAnswerOnly) {
+    if ((!toolAccessAllowed && !isAnswerOnly) || isViewOnlyPage) {
       setIsExpanded(false);
+    } else {
+      setIsExpanded(true);
     }
-  }, [toolAccessAllowed, isAnswerOnly]);
+  }, [toolAccessAllowed, isAnswerOnly, isViewOnlyPage]);
 
   return (
     <TooltipProvider>
@@ -42,6 +45,7 @@ export default function Toolbar() {
           activeTool={state.activeTool}
           isExpanded={isExpanded}
           onToolSelect={(toolId) => dispatch({ type: 'SET_ACTIVE_TOOL', payload: toolId as any })}
+          onlyPanZoomEnabled={isViewOnlyPage}
         />
       </ToolbarContainer>
     </TooltipProvider>

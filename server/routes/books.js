@@ -362,7 +362,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       orientation: book.orientation,
       owner_id: book.owner_id,
       bookTheme: book.theme_id, // Use theme_id (book_theme was deprecated)
-      layoutTemplateId: book.layout_template_id,
+      layoutId: book.layout_id,
       themeId: book.theme_id,
       colorPaletteId: book.color_palette_id,
       minPages: book.min_pages,
@@ -446,7 +446,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
             ...pageData.background,
             pageTheme: page.theme_id || null
           },
-          layoutTemplateId: page.layout_template_id,
+          layoutId: page.layout_id,
           // Only set themeId if it's not null - if it's null, the page inherits the book theme
           // This way, pages that inherit the book theme won't have themeId property at all
           ...(page.theme_id ? { themeId: page.theme_id } : {}),
@@ -546,7 +546,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           await pool.query(
             `UPDATE public.pages 
              SET elements = $1,
-                 layout_template_id = $2,
+                 layout_id = $2,
                  theme_id = $3,
                  color_palette_id = $4,
                  page_type = $5,
@@ -560,7 +560,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
              WHERE id = $13`,
             [
               JSON.stringify(completePageData), 
-              page.layoutTemplateId || null,
+              page.layoutId || null,
               themeIdToSave,
               page.colorPaletteId || null,
               pageMeta.pageType,
@@ -736,7 +736,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
          SET name = $1,
              page_size = $2,
              orientation = $3,
-             layout_template_id = $4,
+             layout_id = $4,
              theme_id = $5,
              color_palette_id = $6,
              min_pages = $7,
@@ -753,7 +753,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           name, 
           pageSize, 
           orientation, 
-          req.body.layoutTemplateId || null,
+          req.body.layoutId || null,
           req.body.themeId || bookTheme,
           req.body.colorPaletteId || null,
           req.body.minPages ?? null,
@@ -877,7 +877,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             `UPDATE public.pages 
              SET page_number = $1,
                  elements = $2,
-                 layout_template_id = $3,
+                 layout_id = $3,
                  theme_id = $4,
                  color_palette_id = $5,
                  page_type = $6,
@@ -892,7 +892,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             [
               page.pageNumber, 
               JSON.stringify(completePageData), 
-              page.layoutTemplateId || null,
+              page.layoutId || null,
               themeIdToSave,
               page.colorPaletteId || null,
               pageMeta.pageType,
@@ -961,7 +961,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               `UPDATE public.pages 
                SET page_number = $1,
                    elements = $2,
-                   layout_template_id = $3,
+                   layout_id = $3,
                    theme_id = $4,
                    color_palette_id = $5,
                    page_type = $6,
@@ -976,7 +976,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               [
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
-                page.layoutTemplateId || null,
+                page.layoutId || null,
                 page.themeId || null,
                 page.colorPaletteId || null,
                 pageMeta.pageType,
@@ -1035,7 +1035,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                  book_id,
                  page_number,
                  elements,
-                 layout_template_id,
+                 layout_id,
                  theme_id,
                  color_palette_id,
                  page_type,
@@ -1051,7 +1051,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 bookId, 
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
-                page.layoutTemplateId || null,
+                page.layoutId || null,
                 themeIdToInsert,
                 page.colorPaletteId || null,
                 pageMeta.pageType,
@@ -1382,7 +1382,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // Create new book
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, pageSize, orientation, bookTheme, layoutTemplateId, themeId, colorPaletteId } = req.body;
+    const { name, pageSize, orientation, bookTheme, layoutId, themeId, colorPaletteId } = req.body;
     const userId = req.user.id;
     const finalTheme = themeId || bookTheme || 'default';
 
@@ -1392,7 +1392,7 @@ router.post('/', authenticateToken, async (req, res) => {
         owner_id,
         page_size,
         orientation,
-        layout_template_id,
+        layout_id,
         theme_id,
         color_palette_id,
         min_pages,
@@ -1409,7 +1409,7 @@ router.post('/', authenticateToken, async (req, res) => {
         userId,
         pageSize,
         orientation,
-        layoutTemplateId || null,
+        layoutId || null,
         finalTheme,
         colorPaletteId || null,
         req.body.minPages ?? null,
@@ -1431,7 +1431,7 @@ router.post('/', authenticateToken, async (req, res) => {
         book_id,
         page_number,
         elements,
-        layout_template_id,
+        layout_id,
         theme_id,
         color_palette_id,
         page_type,

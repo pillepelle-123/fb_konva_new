@@ -1,14 +1,14 @@
 /**
- * Seed script: Import themes, color palettes, and layout templates from JSON files into the database.
- * Run after create_themes_palettes_layouts_tables.sql migration.
+ * Seed script: Import themes, color palettes, and layouts from JSON files into the database.
+ * Run after create_themes_palettes_layouts_tables.sql and migrate_serial_ids_and_layouts.sql.
  *
  * Usage: node scripts/seed-themes-palettes-layouts.js
  * Requires: DATABASE_URL in .env
  */
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { Pool } = require('pg');
 const fs = require('fs').promises;
-const path = require('path');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -27,14 +27,46 @@ async function run() {
   try {
     await client.query(`SET search_path TO ${schema}`);
 
-    // 1. Run migration if tables don't exist
-    const migrationPath = path.join(__dirname, '../migrations/create_themes_palettes_layouts_tables.sql');
-    const migrationSql = await fs.readFile(migrationPath, 'utf8');
-    await client.query(migrationSql);
+    // 1. Run migrations if tables don't exist (old schema first, then migrate to new)
+    const createPath = path.join(__dirname, '../migrations/create_themes_palettes_layouts_tables.sql');
+    const migratePath = path.join(__dirname, '../migrations/migrate_serial_ids_and_layouts.sql');
+    let createSql = await fs.readFile(createPath, 'utf8');
+    let migrateSql = await fs.readFile(migratePath, 'utf8');
+    if (createSql.charCodeAt(0) === 0xFEFF) createSql = createSql.slice(1);
+    if (migrateSql.charCodeAt(0) === 0xFEFF) migrateSql = migrateSql.slice(1);
+    await client.query(createSql);
+    await client.query(migrateSql);
 
     const projectRoot = path.join(__dirname, '../..');
 
-    // 2. Seed themes
+    // 2. Seed color palettes first (SERIAL id, no explicit id)
+    const palettesPath = path.join(projectRoot, 'shared/data/templates/color-palettes.json');
+    const palettesRaw = await fs.readFile(palettesPath, 'utf8');
+    const palettesData = JSON.parse(palettesRaw);
+    const palettes = palettesData.palettes || [];
+    const paletteNameToId = {};
+
+    for (let i = 0; i < palettes.length; i++) {
+      const p = palettes[i];
+      const res = await client.query(
+        `INSERT INTO color_palettes (name, colors, parts, contrast, sort_order)
+         VALUES ($1, $2::jsonb, $3::jsonb, $4, $5)
+         RETURNING id, name`,
+        [
+          p.name || p.id,
+          JSON.stringify(p.colors || {}),
+          JSON.stringify(p.parts || {}),
+          p.contrast || null,
+          i,
+        ]
+      );
+      if (res.rows[0]) {
+        paletteNameToId[p.name || p.id] = res.rows[0].id;
+      }
+    }
+    console.log(`Seeded ${palettes.length} color palettes`);
+
+    // 3. Seed themes (SERIAL id, palette_id from lookup)
     const themesPath = path.join(projectRoot, 'shared/data/templates/themes.json');
     const themesRaw = await fs.readFile(themesPath, 'utf8');
     const themesData = JSON.parse(themesRaw);
@@ -44,57 +76,21 @@ async function run() {
         pageSettings: theme.pageSettings || {},
         elementDefaults: theme.elementDefaults || {},
       };
+      const paletteId = paletteNameToId[theme.palette || 'default'] ?? null;
       await client.query(
-        `INSERT INTO themes (id, name, description, palette_id, config, sort_order)
-         VALUES ($1, $2, $3, $4, $5::jsonb, 0)
-         ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name,
-           description = EXCLUDED.description,
-           palette_id = EXCLUDED.palette_id,
-           config = EXCLUDED.config,
-           updated_at = NOW()`,
+        `INSERT INTO themes (name, description, palette_id, config, sort_order)
+         VALUES ($1, $2, $3, $4::jsonb, 0)`,
         [
-          id,
           theme.name || id,
           theme.description || null,
-          theme.palette || null,
+          paletteId,
           JSON.stringify(config),
         ]
       );
     }
     console.log(`Seeded ${Object.keys(themesData).length} themes`);
 
-    // 3. Seed color palettes
-    const palettesPath = path.join(projectRoot, 'shared/data/templates/color-palettes.json');
-    const palettesRaw = await fs.readFile(palettesPath, 'utf8');
-    const palettesData = JSON.parse(palettesRaw);
-    const palettes = palettesData.palettes || [];
-
-    for (let i = 0; i < palettes.length; i++) {
-      const p = palettes[i];
-      await client.query(
-        `INSERT INTO color_palettes (id, name, colors, parts, contrast, sort_order)
-         VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)
-         ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name,
-           colors = EXCLUDED.colors,
-           parts = EXCLUDED.parts,
-           contrast = EXCLUDED.contrast,
-           sort_order = EXCLUDED.sort_order,
-           updated_at = NOW()`,
-        [
-          p.id,
-          p.name || p.id,
-          JSON.stringify(p.colors || {}),
-          JSON.stringify(p.parts || {}),
-          p.contrast || null,
-          i,
-        ]
-      );
-    }
-    console.log(`Seeded ${palettes.length} color palettes`);
-
-    // 4. Seed layout templates
+    // 4. Seed layouts (SERIAL id, table: layouts)
     const layoutsPath = path.join(projectRoot, 'client/src/data/templates/layout.json');
     const layoutsRaw = await fs.readFile(layoutsPath, 'utf8');
     const layoutsData = JSON.parse(layoutsRaw);
@@ -111,19 +107,9 @@ async function run() {
       };
 
       await client.query(
-        `INSERT INTO layout_templates (id, name, category, thumbnail, textboxes, elements, meta, sort_order)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8)
-         ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name,
-           category = EXCLUDED.category,
-           thumbnail = EXCLUDED.thumbnail,
-           textboxes = EXCLUDED.textboxes,
-           elements = EXCLUDED.elements,
-           meta = EXCLUDED.meta,
-           sort_order = EXCLUDED.sort_order,
-           updated_at = NOW()`,
+        `INSERT INTO layouts (name, category, thumbnail, textboxes, elements, meta, sort_order)
+         VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7)`,
         [
-          lt.id,
           lt.name || lt.id,
           lt.category || null,
           lt.thumbnail || null,
@@ -134,7 +120,7 @@ async function run() {
         ]
       );
     }
-    console.log(`Seeded ${layouts.length} layout templates`);
+    console.log(`Seeded ${layouts.length} layouts`);
 
     console.log('Seed completed successfully.');
   } catch (err) {

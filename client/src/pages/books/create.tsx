@@ -7,7 +7,7 @@ import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users, MessageCircle
 import { Button } from '../../components/ui/primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { FormField } from '../../components/ui/layout/form-field';
-import { apiService, fetchThemes, fetchLayoutTemplates, fetchColorPalettes } from '../../services/api';
+import { apiService, fetchThemes, fetchLayouts, fetchColorPalettes } from '../../services/api';
 import { getPageTemplates } from '../../data/templates/page-templates';
 import { getThemesData } from '../../data/templates/templates-data';
 import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../data/templates/templates-data';
@@ -110,7 +110,7 @@ export default function BookCreatePage() {
       try {
         const [themesRes, layoutsRes, palettesRes] = await Promise.all([
           fetchThemes(),
-          fetchLayoutTemplates(),
+          fetchLayouts(),
           fetchColorPalettes()
         ]);
         setThemesData(themesRes.themes || []);
@@ -281,7 +281,7 @@ export default function BookCreatePage() {
           bookTheme: 'default',
           themeId: 'default',
           colorPaletteId: 'default',
-          layoutTemplateId: null,
+          layoutId: null,
           pagePairingEnabled: true,
           specialPagesConfig: {
             cover: { locked: true, printable: false },
@@ -326,7 +326,7 @@ export default function BookCreatePage() {
         pages.push({
           pageNumber: i,
           elements: [], // No elements for Blank Canvas
-          layoutTemplateId: null,
+          layoutId: null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? undefined : null,
           colorPaletteId: shouldHaveThemeAndBackground ? 'default' : null,
@@ -361,7 +361,7 @@ export default function BookCreatePage() {
           bookTheme: 'default',
           themeId: 'default',
           colorPaletteId: 'default',
-          layoutTemplateId: null,
+          layoutId: null,
           pagePairingEnabled: true,
           specialPagesConfig: {
             cover: { locked: true, printable: false },
@@ -447,7 +447,7 @@ export default function BookCreatePage() {
           bookTheme: wizardState.design.themeId,
           themeId: wizardState.design.themeId,
           colorPaletteId: wizardState.design.paletteId, // null means "Theme's Default Palette"
-          layoutTemplateId: wizardState.design.pickLeftRight 
+          layoutId: wizardState.design.pickLeftRight 
             ? (wizardState.design.leftLayoutTemplate?.id ?? wizardState.design.layoutTemplate?.id ?? null)
             : (wizardState.design.layoutTemplate?.id ?? null),
           leftLayoutTemplateId: wizardState.design.pickLeftRight ? wizardState.design.leftLayoutTemplate?.id ?? null : null,
@@ -573,7 +573,7 @@ export default function BookCreatePage() {
         pages.push({
           pageNumber: i,
           elements: pageElements,
-          layoutTemplateId: templateForPage ? templateForPage.id : null,
+          layoutId: templateForPage ? templateForPage.id : null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? (wizardState.design.themeId || 'default') : null,
           colorPaletteId: shouldHaveThemeAndBackground 
@@ -673,7 +673,7 @@ export default function BookCreatePage() {
           bookTheme: wizardState.design.themeId,
           themeId: wizardState.design.themeId,
           colorPaletteId: wizardState.design.paletteId, // null means "Theme's Default Palette"
-          layoutTemplateId: wizardState.design.layoutTemplate?.id ?? null,
+          layoutId: wizardState.design.layoutTemplate?.id ?? null,
           pagePairingEnabled: true,
           specialPagesConfig: {
             cover: { locked: true, printable: false },

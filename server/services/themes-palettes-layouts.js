@@ -81,21 +81,15 @@ async function getThemeById(id) {
 }
 
 async function createTheme(data) {
-  const { id, name, description, palette_id, palette, config } = data;
+  const { name, description, palette_id, palette, config } = data;
   const paletteId = palette_id ?? palette ?? null;
   const configJson = config || { pageSettings: {}, elementDefaults: {} };
 
   const { rows } = await pool.query(
-    `INSERT INTO themes (id, name, description, palette_id, config, sort_order)
-     VALUES ($1, $2, $3, $4, $5::jsonb, 0)
-     ON CONFLICT (id) DO UPDATE SET
-       name = EXCLUDED.name,
-       description = EXCLUDED.description,
-       palette_id = EXCLUDED.palette_id,
-       config = EXCLUDED.config,
-       updated_at = NOW()
+    `INSERT INTO themes (name, description, palette_id, config, sort_order)
+     VALUES ($1, $2, $3, $4::jsonb, 0)
      RETURNING id, name, description, palette_id, config, sort_order, created_at, updated_at`,
-    [id, name ?? id, description ?? null, paletteId, JSON.stringify(configJson)]
+    [name ?? 'Theme', description ?? null, paletteId, JSON.stringify(configJson)]
   );
   return rows.length ? mapThemeRow(rows[0]) : null;
 }
@@ -148,30 +142,16 @@ async function getColorPaletteById(id) {
   return rows.length ? mapPaletteRow(rows[0]) : null;
 }
 
-function generatePaletteIdFromName(name) {
-  return (name || 'palette')
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
-}
-
 async function createColorPalette(data) {
-  const { id, name, colors, parts, contrast } = data;
-  const paletteId = id || generatePaletteIdFromName(name);
+  const { name, colors, parts, contrast } = data;
   const colorsJson = colors || {};
   const partsJson = parts || {};
 
   const { rows } = await pool.query(
-    `INSERT INTO color_palettes (id, name, colors, parts, contrast, sort_order)
-     VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, 0)
-     ON CONFLICT (id) DO UPDATE SET
-       name = EXCLUDED.name,
-       colors = EXCLUDED.colors,
-       parts = EXCLUDED.parts,
-       contrast = EXCLUDED.contrast,
-       updated_at = NOW()
+    `INSERT INTO color_palettes (name, colors, parts, contrast, sort_order)
+     VALUES ($1, $2::jsonb, $3::jsonb, $4, 0)
      RETURNING id, name, colors, parts, contrast, sort_order, created_at, updated_at`,
-    [paletteId, name ?? paletteId, JSON.stringify(colorsJson), JSON.stringify(partsJson), contrast ?? 'AA']
+    [name ?? 'Palette', JSON.stringify(colorsJson), JSON.stringify(partsJson), contrast ?? 'AA']
   );
   return rows.length ? mapPaletteRow(rows[0]) : null;
 }
@@ -192,9 +172,9 @@ async function updateColorPalette(id, data) {
   return rows.length ? mapPaletteRow(rows[0]) : null;
 }
 
-async function listLayoutTemplates(category) {
+async function listLayouts(category) {
   let query = `SELECT id, name, category, thumbnail, textboxes, elements, meta, sort_order, created_at, updated_at
-               FROM layout_templates`;
+               FROM layouts`;
   const values = [];
   if (category && category !== 'all') {
     values.push(category);
@@ -205,19 +185,19 @@ async function listLayoutTemplates(category) {
   return rows.map(mapLayoutRow);
 }
 
-async function getLayoutTemplateById(id) {
+async function getLayoutById(id) {
   const { rows } = await pool.query(
     `SELECT id, name, category, thumbnail, textboxes, elements, meta, sort_order, created_at, updated_at
-     FROM layout_templates WHERE id = $1`,
+     FROM layouts WHERE id = $1`,
     [id]
   );
   return rows.length ? mapLayoutRow(rows[0]) : null;
 }
 
-async function updateLayoutTemplate(id, data) {
+async function updateLayout(id, data) {
   const { name, category, thumbnail, textboxes, elements, meta } = data;
   const { rows } = await pool.query(
-    `UPDATE layout_templates
+    `UPDATE layouts
      SET name = COALESCE($2, name),
          category = COALESCE($3, category),
          thumbnail = COALESCE($4, thumbnail),
@@ -249,7 +229,7 @@ module.exports = {
   getColorPaletteById,
   createColorPalette,
   updateColorPalette,
-  listLayoutTemplates,
-  getLayoutTemplateById,
-  updateLayoutTemplate,
+  listLayouts,
+  getLayoutById,
+  updateLayout,
 };

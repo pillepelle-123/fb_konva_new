@@ -19,7 +19,7 @@ export function useAdminColorPalettes() {
   })
 
   const updatePaletteMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AdminColorPalette> }) =>
+    mutationFn: ({ id, data }: { id: string | number; data: Partial<AdminColorPalette> }) =>
       updateAdminColorPalette(token, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'color-palettes'] })

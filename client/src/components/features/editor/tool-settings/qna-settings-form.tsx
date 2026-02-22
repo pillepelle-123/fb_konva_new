@@ -1206,6 +1206,8 @@ export function QnASettingsForm({
                       showLayoutControls={false}
                       individualSettings={true}
                       activeSection="question"
+                      isSandboxMode={isSandboxMode}
+                      sandbox={sandbox}
                     />
                   </div>
                   <div className="w-1/2 flex-1 flex-shrink-0">
@@ -1220,6 +1222,8 @@ export function QnASettingsForm({
                       showLayoutControls={false}
                       individualSettings={true}
                       activeSection="answer"
+                      isSandboxMode={isSandboxMode}
+                      sandbox={sandbox}
                     />
                   </div>
                 </div>

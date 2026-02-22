@@ -13,6 +13,7 @@ import { getThemePaletteId } from '../../../../utils/global-themes';
 import type { ColorPalette } from '../../../../types/template-types';
 import type { RichTextStyle } from '../../../../../../shared/types/text-layout';
 import { useCanvasCommand } from '../../../../hooks/useCanvasCommand';
+import { debugQna2Selection } from '../../../../utils/debug-qna2-selection';
 
 export interface CanvasItemProps {
   element: CanvasElement;
@@ -54,8 +55,9 @@ interface BaseCanvasItemProps extends CanvasItemProps {
   children: ReactNode;
   hitArea?: { x: number; y: number; width: number; height: number };
   onDoubleClick?: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  onMouseEnter?: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
+  onMouseLeave?: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
+  onMouseMove?: (e?: Konva.KonvaEventObject<MouseEvent>) => void;
   hoveredElementId?: string | null;
   interactive?: boolean; // If false, disables all interactions (for PDF export)
   isZoomingRef?: React.MutableRefObject<boolean>; // Ref to track zooming state
@@ -75,6 +77,7 @@ function BaseCanvasItem({
   onDoubleClick,
   onMouseEnter,
   onMouseLeave,
+  onMouseMove,
   hoveredElementId,
   interactive = true, // Default to interactive mode
   isZoomingRef,
@@ -166,8 +169,20 @@ function BaseCanvasItem({
   const canEditThisElement = canEditElement(element);
 
   const handleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (element.textType === 'qna2') {
+      debugQna2Selection('BaseCanvasItem handleClick', {
+        elementId: element.id,
+        interactive,
+        canEditThisElement,
+        isInsideGroup,
+        activeTool: state.activeTool
+      });
+    }
     if (!interactive) return;
-    if (!canEditThisElement) return;
+    if (!canEditThisElement) {
+      if (element.textType === 'qna2') debugQna2Selection('BaseCanvasItem handleClick BLOCKED: canEditThisElement=false');
+      return;
+    }
     if (isInsideGroup) return;
     if (state.activeTool === 'select') {
       if (e.evt.button === 0) {
@@ -392,25 +407,29 @@ function BaseCanvasItem({
         setIsDragging(false);
         handleDragEnd(e);
       } : undefined}
-      onMouseEnter={interactive && state.activeTool === 'select' ? () => {
+      onMouseEnter={interactive && state.activeTool === 'select' ? (e) => {
         setIsHovered(true);
-        onMouseEnter?.();
+        onMouseEnter?.(e);
         // Trigger hover on partner element for question-answer pairs
         if (element && (element.textType === 'question' || element.textType === 'answer')) {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: true } }));
         }
       } : undefined}
-      onMouseLeave={interactive && state.activeTool === 'select' ? () => {
+      onMouseLeave={interactive && state.activeTool === 'select' ? (e) => {
         setIsHovered(false);
-        onMouseLeave?.();
+        onMouseLeave?.(e);
         // Remove hover from partner element for question-answer pairs
         if (element && (element.textType === 'question' || element.textType === 'answer')) {
           window.dispatchEvent(new CustomEvent('hoverPartner', { detail: { elementId: element.id, hover: false } }));
         }
       } : undefined}
+      onMouseMove={interactive && state.activeTool === 'select' ? (e) => {
+        onMouseMove?.(e);
+      } : undefined}
     >
-      {/* Invisible hit area for easier selection */}
+      {/* Invisible hit area for easier selection – id verhindert, dass handleStageClick als Hintergrund-Klick wertet */}
       <Rect
+        id={`hit-area-${element.id}`}
         x={defaultHitArea.x}
         y={defaultHitArea.y}
         width={defaultHitArea.width}

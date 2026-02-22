@@ -2,13 +2,13 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const stickersService = require('../services/stickers')
-const { authenticateToken } = require('../middleware/auth')
+const { requireAppOrigin } = require('../middleware/require-app-origin')
 const { getUploadsDir, getUploadsSubdir, isPathWithinUploads } = require('../utils/uploads-path')
 
 const router = express.Router()
 
-// Protected: Serve sticker file (must be before /:identifier)
-router.get('/:identifier/file', authenticateToken, async (req, res) => {
+// Serve sticker file – requires Referer/Origin from app (no auth)
+router.get('/:identifier/file', requireAppOrigin, async (req, res) => {
   try {
     const sticker = await stickersService.getSticker(req.params.identifier)
     if (!sticker || !sticker.storage?.filePath) {
@@ -33,8 +33,8 @@ router.get('/:identifier/file', authenticateToken, async (req, res) => {
   }
 })
 
-// Protected: Serve sticker thumbnail
-router.get('/:identifier/thumbnail', authenticateToken, async (req, res) => {
+// Serve sticker thumbnail – requires Referer/Origin from app (no auth)
+router.get('/:identifier/thumbnail', requireAppOrigin, async (req, res) => {
   try {
     const sticker = await stickersService.getSticker(req.params.identifier)
     if (!sticker || !sticker.storage?.filePath) {

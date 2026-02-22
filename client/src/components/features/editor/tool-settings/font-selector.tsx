@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Type } from 'lucide-react';
+import { Input } from '../../../ui/primitives/input';
+import { ChevronLeft, Search, Type } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
 import { FONT_GROUPS, getFontFamily } from '../../../../utils/font-families';
@@ -17,6 +19,7 @@ interface FontSelectorProps {
 }
 
 export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBack, element, state }: FontSelectorProps) {
+  const [filterText, setFilterText] = useState('');
   let fontFamily = currentFont || element?.font?.fontFamily || element?.fontFamily;
   
   if (!fontFamily && element && state) {
@@ -32,6 +35,14 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
   }
   
   if (!fontFamily) fontFamily = "Arial, sans-serif";
+
+  const filterLower = filterText.trim().toLowerCase();
+  const filteredGroups = filterLower
+    ? FONT_GROUPS.map((group) => ({
+        ...group,
+        fonts: group.fonts.filter((f) => f.name.toLowerCase().includes(filterLower)),
+      })).filter((group) => group.fonts.length > 0)
+    : FONT_GROUPS;
   
   let currentFontName = "Arial";
   for (const group of FONT_GROUPS) {
@@ -49,7 +60,17 @@ export function FontSelector({ currentFont, isBold, isItalic, onFontSelect, onBa
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 p-2">
-        {FONT_GROUPS.map((group, groupIndex) => (
+        <div className="relative mb-2">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Nach Schriftart filtern..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="pl-8 h-5"
+          />
+        </div>
+        {filteredGroups.map((group, groupIndex) => (
           <div key={group.name}>
             {groupIndex > 0 && <Separator />}
             <Label variant="xs" className="text-muted-foreground mb-2 block">

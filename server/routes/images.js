@@ -118,6 +118,57 @@ router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 
   }
 });
 
+// Proxy: Serve image by ID when user has access to book (Editor-Kontext)
+// Ermöglicht allen Buch-Kollaborateuren, Bilder auf Buchseiten zu sehen (unabhängig vom Uploader)
+router.get('/file/:id/for-book/:bookId', authenticateToken, async (req, res) => {
+  try {
+    const imageId = parseInt(req.params.id, 10);
+    const bookId = parseInt(req.params.bookId, 10);
+    if (isNaN(imageId) || isNaN(bookId)) {
+      return res.status(400).json({ error: 'Invalid image or book ID' });
+    }
+
+    const userId = req.user.id;
+
+    // Prüfen: User hat Zugriff auf das Buch (Owner oder Book-Friend)
+    const bookAccess = await pool.query(
+      `SELECT 1 FROM public.books b
+       LEFT JOIN public.book_friends bf ON b.id = bf.book_id
+       WHERE b.id = $1 AND (b.owner_id = $2 OR bf.user_id = $2)`,
+      [bookId, userId]
+    );
+    if (bookAccess.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM public.images WHERE id = $1',
+      [imageId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const image = result.rows[0];
+    const fullPath = path.resolve(path.join(getUploadsDir(), image.file_path));
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
+    }
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Image file not found' });
+    }
+
+    const ext = path.extname(image.filename).toLowerCase();
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error serving image via book proxy:', error);
+    res.status(500).json({ error: 'Failed to load image' });
+  }
+});
+
 // Protected: Serve image by ID (requires Authorization header)
 // Access: eigene Bilder ODER Bilder zu Büchern, auf die der User Zugriff hat (Owner/Book-Friend)
 router.get('/file/:id', authenticateToken, async (req, res) => {

@@ -1082,7 +1082,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
         activePageIndex: state.activePageIndex,
         currentPage: state.currentBook?.pages?.[state.activePageIndex],
         bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
-        bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
+        bookLayoutId: state.currentBook?.layoutId,
         bookColorPaletteId: state.currentBook?.colorPaletteId,
       };
     }
@@ -1094,7 +1094,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
       activePageIndex: state.activePageIndex,
       currentPage: state.currentBook?.pages?.[state.activePageIndex],
       bookTheme: state.currentBook?.themeId || state.currentBook?.bookTheme,
-      bookLayoutTemplateId: state.currentBook?.layoutTemplateId,
+      bookLayoutId: state.currentBook?.layoutId,
       bookColorPaletteId: state.currentBook?.colorPaletteId,
     };
   }, [
@@ -1106,7 +1106,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     state.currentBook?.pages,
     state.currentBook?.themeId,
     state.currentBook?.bookTheme,
-    state.currentBook?.layoutTemplateId,
+    state.currentBook?.layoutId,
     state.currentBook?.colorPaletteId,
   ]);
   
@@ -1201,8 +1201,8 @@ function TextboxQnaComponent(props: CanvasItemProps) {
   const elementTheme = element.theme;
   const pageTheme = elementTheme || currentPage?.themeId || currentPage?.background?.pageTheme;
   const bookTheme = elementTheme || relevantState.bookTheme;
-  const pageLayoutTemplateId = currentPage?.layoutTemplateId;
-  const bookLayoutTemplateId = relevantState.bookLayoutTemplateId;
+  const pageLayoutId = currentPage?.layoutId;
+  const bookLayoutId = relevantState.bookLayoutId;
   const pageColorPaletteId = currentPage?.colorPaletteId;
   const bookColorPaletteId = relevantState.bookColorPaletteId;
 
@@ -2428,7 +2428,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
               const themeValue = qnaElement.borderTheme || element.theme || 'default';
               const theme = themeValue as Theme;
 
-              const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+              const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
               
               const borderElement = renderThemedBorder({
                 width: borderWidth,

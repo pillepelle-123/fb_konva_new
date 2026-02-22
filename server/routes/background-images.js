@@ -2,13 +2,13 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const backgroundImagesService = require('../services/background-images')
-const { authenticateToken } = require('../middleware/auth')
+const { requireAppOrigin } = require('../middleware/require-app-origin')
 const { getUploadsSubdir, isPathWithinUploads } = require('../utils/uploads-path')
 
 const router = express.Router()
 
-// Protected: Serve background image file (must be before /:identifier)
-router.get('/:identifier/file', authenticateToken, async (req, res) => {
+// Serve background image file – requires Referer/Origin from app (no auth)
+router.get('/:identifier/file', requireAppOrigin, async (req, res) => {
   try {
     const image = await backgroundImagesService.getBackgroundImage(req.params.identifier)
     if (!image || !image.storage?.filePath) {
@@ -33,8 +33,8 @@ router.get('/:identifier/file', authenticateToken, async (req, res) => {
   }
 })
 
-// Protected: Serve background image thumbnail
-router.get('/:identifier/thumbnail', authenticateToken, async (req, res) => {
+// Serve background image thumbnail – requires Referer/Origin from app (no auth)
+router.get('/:identifier/thumbnail', requireAppOrigin, async (req, res) => {
   try {
     const image = await backgroundImagesService.getBackgroundImage(req.params.identifier)
     if (!image || !image.storage?.filePath) {

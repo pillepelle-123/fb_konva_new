@@ -17,11 +17,11 @@ let themesData: Record<string, ThemeConfigRecord> = {};
 let colorPalettesData: ColorPalette[] = [];
 let pageTemplatesData: PageTemplate[] = [];
 
-export function setThemesData(themes: Array<{ id: string; name: string; description?: string; palette_id?: string; palette?: string; config?: { pageSettings?: unknown; elementDefaults?: unknown }; pageSettings?: unknown; elementDefaults?: unknown }>) {
+export function setThemesData(themes: Array<{ id: string | number; name: string; description?: string; palette_id?: string | number; palette?: string; config?: { pageSettings?: unknown; elementDefaults?: unknown }; pageSettings?: unknown; elementDefaults?: unknown }>) {
   const record: Record<string, ThemeConfigRecord> = {};
   for (const t of themes) {
     const config = t.config || {};
-    record[t.id] = {
+    record[String(t.id)] = {
       name: t.name || t.id,
       description: t.description,
       palette: t.palette_id ?? t.palette ?? 'default',

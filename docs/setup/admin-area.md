@@ -52,8 +52,7 @@ client/src/admin/
   - `GET /api/background-images/:identifier`
 
 > Migration ausführen: `psql < server/migrations/create_background_images_tables.sql` oder via bestehendem Migrationstool.
->
-> Altbestand importieren: `node server/scripts/import-background-images.js` (nutzt `client/src/data/templates/background-images.json` als Quelle). Import schreibt Metadaten **und** kopiert die SVG-/Pixel-Dateien aus `client/src/assets/background-images/**` nach `uploads/background-images/**`.
+
 
 ## Tests & QA
 

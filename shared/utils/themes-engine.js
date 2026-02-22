@@ -268,7 +268,7 @@ function generateRoughPath(element, options = {}) {
     : ((element.borderWidth || element.strokeWidth) ? (element.borderWidth || element.strokeWidth) * zoom : 0);
   const stroke = element.stroke || '#1f2937';
   const fill = element.fill || 'transparent';
-  const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  const seed = element.seed !== undefined ? element.seed : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
   
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const rc = roughInstance.svg(svg);

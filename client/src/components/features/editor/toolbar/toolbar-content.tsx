@@ -14,9 +14,11 @@ interface ToolbarContentProps {
   activeTool: string;
   isExpanded: boolean;
   onToolSelect: (toolId: string) => void;
+  /** Wenn true: nur Pan und Zoom aktiv, alle anderen Buttons deaktiviert (Autor auf nicht zugewiesener Seite) */
+  onlyPanZoomEnabled?: boolean;
 }
 
-export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, onToolSelect }, ref) {
+export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, onToolSelect, onlyPanZoomEnabled = false }, ref) {
   const { state, dispatch, canUseTool } = useEditor();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -27,6 +29,40 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
   const canUseSelect = canUseTool('select');
   const canUseTextbox = canUseTool('textbox');
   const canUseQnaTool = canUseTool('qna');
+
+  // Bei onlyPanZoomEnabled (Autor auf nicht zugewiesener Seite): nur Pan und Zoom anzeigen
+  if (onlyPanZoomEnabled) {
+    return (
+      <>
+        <div className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>
+          <div className="space-y-1">
+            <ToolButton
+              id="pan"
+              label="Pan"
+              icon={Hand}
+              isActive={activeTool === 'pan'}
+              isExpanded={false}
+              onClick={() => onToolSelect('pan')}
+            />
+            <ZoomPopover
+              activeTool={activeTool}
+              onToolSelect={onToolSelect}
+            >
+              <ToolButton
+                id="zoom"
+                label="Zoom"
+                icon={Search}
+                isActive={activeTool === 'zoom'}
+                isExpanded={false}
+                hasPopover={true}
+                onClick={() => {}}
+              />
+            </ZoomPopover>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   // Hide content if the user cannot access any tools
   if (!canUseSelect) {
@@ -220,34 +256,27 @@ export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarC
         <Separator/>
         <Tooltip content='Style Painter - Copy formatting from one element to another' side='right'>
           <Button
-            variant={state.stylePainterActive ? "default" : "ghost"}
-            size="xs"
+            variant={state.stylePainterActive ? "default" : "ghost_hover"}
+            size="sm"
             onClick={() => {
-              console.log('Style painter clicked', { selectedCount: state.selectedElementIds.length, active: state.stylePainterActive });
               if (state.selectedElementIds.length === 1) {
                 dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
               }
             }}
             disabled={state.selectedElementIds.length !== 1}
-            className={`w-full flex flex-col items-center gap-1 h-auto py-2 ${state.stylePainterActive ? 'bg-highlight text-white' : ''}`}
+            className={`w-full justify-center p-2 relative ${state.selectedElementIds.length !== 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <Paintbrush className="h-4 w-4" />
-            {isExpanded && (
-              <span className="text-xs">Style</span>
-            )}
+            <Paintbrush className="h-5 w-5" />
           </Button>
         </Tooltip>
         <Tooltip content='Magnetic snapping of elements' side='right'>
           <Button
-            variant={state.magneticSnapping ? "default" : "ghost"}
-            size="xs"
+            variant={state.magneticSnapping ? "default" : "ghost_hover"}
+            size="sm"
             onClick={() => dispatch({ type: 'TOGGLE_MAGNETIC_SNAPPING' })}
-            className="w-full flex flex-col items-center gap-1 h-auto py-2"
+            className="w-full justify-center p-2 relative"
           >
-            <Magnet className="h-4 w-4" />
-            {isExpanded && (
-              <span className="text-xs">Snap</span>
-            )}
+            <Magnet className="h-5 w-5" />
           </Button>
         </Tooltip>
         <Tooltip content='Show Keyboard Shortcuts' side='right'>

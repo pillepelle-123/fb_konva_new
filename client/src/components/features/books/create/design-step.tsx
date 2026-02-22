@@ -74,7 +74,7 @@ export function DesignStep({
   // Build palette list: 1) Theme's Default Palette (virtual), 2) Individuelle Paletten (alle)
   const paletteEntries = useMemo(() => {
     const themePalette = colorPalettes.find(p => p.id === currentThemePaletteId);
-    const entries: Array<{ id: string | null; kind: 'theme-default' | 'individual'; name: string; subtitle?: string; colors: Record<string, string> }> = [];
+    const entries: Array<{ id: string | number | null; kind: 'theme-default' | 'individual'; name: string; subtitle?: string; colors: Record<string, string> }> = [];
 
     if (themePalette) {
       entries.push({

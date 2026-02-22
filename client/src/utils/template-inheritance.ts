@@ -6,16 +6,16 @@ import type { Book, Page } from '../context/editor-context';
  *
  * @param page - The page object (can be undefined when no page context)
  * @param book - The book object (used as fallback when page is undefined, e.g. for new pages)
- * @returns Object with layoutTemplateId, themeId, and colorPaletteId
+ * @returns Object with layoutId, themeId, and colorPaletteId
  */
 export function getActiveTemplateIds(page: Page | undefined, book: Book | null): {
-  layoutTemplateId: string | null;
+  layoutId: string | null;
   themeId: string;
   colorPaletteId: string | null;
 } {
   if (!book) {
     return {
-      layoutTemplateId: null,
+      layoutId: null,
       themeId: 'default',
       colorPaletteId: null
     };
@@ -24,7 +24,7 @@ export function getActiveTemplateIds(page: Page | undefined, book: Book | null):
   // When no page is provided (e.g. new page creation), use book defaults
   if (!page) {
     return {
-      layoutTemplateId: book.layoutTemplateId || null,
+      layoutId: book.layoutId || null,
       themeId: book.themeId || book.bookTheme || 'default',
       colorPaletteId: book.colorPaletteId || null
     };
@@ -32,11 +32,11 @@ export function getActiveTemplateIds(page: Page | undefined, book: Book | null):
 
   // Page has its own theme, layout, and palette; fall back to book when page has none set
   const themeId = page.themeId ?? book.themeId ?? book.bookTheme ?? 'default';
-  const layoutTemplateId = page.layoutTemplateId ?? null;
+  const layoutId = page.layoutId ?? null;
   const colorPaletteId = page.colorPaletteId ?? book.colorPaletteId ?? null;
 
   return {
-    layoutTemplateId,
+    layoutId,
     themeId,
     colorPaletteId
   };

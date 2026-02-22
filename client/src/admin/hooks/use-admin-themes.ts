@@ -19,7 +19,7 @@ export function useAdminThemes() {
   })
 
   const updateThemeMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AdminTheme> }) =>
+    mutationFn: ({ id, data }: { id: string | number; data: Partial<AdminTheme> }) =>
       updateAdminTheme(token, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'themes'] })

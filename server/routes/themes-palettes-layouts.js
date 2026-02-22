@@ -1,5 +1,5 @@
 /**
- * Public API routes for themes, color palettes, and layout templates.
+ * Public API routes for themes, color palettes, and layouts.
  * Data is loaded from the database (no auth required for read).
  */
 const express = require('express');
@@ -27,20 +27,20 @@ colorPalettesRouter.get('/', async (_req, res) => {
   }
 });
 
-const layoutTemplatesRouter = express.Router();
-layoutTemplatesRouter.get('/', async (req, res) => {
+const layoutsRouter = express.Router();
+layoutsRouter.get('/', async (req, res) => {
   try {
     const { category } = req.query;
-    const templates = await service.listLayoutTemplates(category);
+    const templates = await service.listLayouts(category);
     res.json({ version: '1.0.0', templates });
   } catch (error) {
-    console.error('Layout templates list error:', error);
-    res.status(500).json({ error: 'Failed to fetch layout templates' });
+    console.error('Layouts list error:', error);
+    res.status(500).json({ error: 'Failed to fetch layouts' });
   }
 });
 
 module.exports = {
   themesRouter,
   colorPalettesRouter,
-  layoutTemplatesRouter,
+  layoutsRouter,
 };

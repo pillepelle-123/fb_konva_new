@@ -4,7 +4,7 @@ export type BackgroundImageCategory = string;
 export type StickerCategory = string;
 
 export interface ColorPalette {
-  id: string;
+  id: string | number;
   name: string;
   colors: {
     background: string;
@@ -98,7 +98,7 @@ export interface LayoutMeta {
 }
 
 export interface PageTemplate {
-  id: string;
+  id: string | number;
   name: string;
   category: TemplateCategory;
   thumbnail: string;
