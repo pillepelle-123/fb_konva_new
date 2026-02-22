@@ -11,6 +11,10 @@ import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE 
 import { getElementTheme } from '../../../../utils/theme-utils';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
+import { SlotSelector } from './slot-selector';
+import type { SandboxContextValue } from '../../../../context/sandbox-context';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
+import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
 
 interface ShapeSettingsFormProps {
   element: any;
@@ -19,6 +23,8 @@ interface ShapeSettingsFormProps {
   hasChanges?: boolean;
   onSave?: () => void;
   onDiscard?: () => void;
+  isSandboxMode?: boolean;
+  sandbox?: SandboxContextValue;
 }
 
 export function ShapeSettingsForm({
@@ -27,7 +33,9 @@ export function ShapeSettingsForm({
   setShowColorSelector,
   hasChanges,
   onSave,
-  onDiscard
+  onDiscard,
+  isSandboxMode = false,
+  sandbox
 }: ShapeSettingsFormProps) {
   const shouldShowFooter =
     hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
@@ -54,16 +62,28 @@ export function ShapeSettingsForm({
             max={100}
           />
           
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setShowColorSelector('element-brush-stroke')}
-            className="w-full"
-          >
-            <Palette className="h-4 w-4 mr-2" />
-            <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
-            Stroke Color
-          </Button>
+          {isSandboxMode && sandbox ? (
+            <SlotSelector
+              label="Stroke Color"
+              value={(sandbox.getPartSlot(element.id, 'brushStroke') ?? DEFAULT_PALETTE_PARTS.brushStroke) as PaletteColorSlot}
+              onChange={(slot) => {
+                sandbox.setPartSlotOverride(element.id, 'brushStroke', slot);
+                updateSetting('stroke', sandbox.getColorForSlot(slot));
+              }}
+              slotColors={sandbox.state.sandboxColors}
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('element-brush-stroke')}
+              className="w-full"
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
+              Stroke Color
+            </Button>
+          )}
           
           <Slider
             label="Stroke Opacity"
@@ -119,16 +139,28 @@ export function ShapeSettingsForm({
           <Separator />
           
           <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setShowColorSelector('element-line-stroke')}
-              className="w-full"
-            >
-              <Palette className="h-4 w-4 mr-2" />
-              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
-              Color
-            </Button>
+            {isSandboxMode && sandbox ? (
+              <SlotSelector
+                label="Color"
+                value={(sandbox.getPartSlot(element.id, 'lineStroke') ?? DEFAULT_PALETTE_PARTS.lineStroke) as PaletteColorSlot}
+                onChange={(slot) => {
+                  sandbox.setPartSlotOverride(element.id, 'lineStroke', slot);
+                  updateSetting('stroke', sandbox.getColorForSlot(slot));
+                }}
+                slotColors={sandbox.state.sandboxColors}
+              />
+            ) : (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setShowColorSelector('element-line-stroke')}
+                className="w-full"
+              >
+                <Palette className="h-4 w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
+                Color
+              </Button>
+            )}
           </div>
           
           <div>
@@ -228,16 +260,28 @@ export function ShapeSettingsForm({
               />
               
               <div>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setShowColorSelector('element-shape-stroke')}
-                  className="w-full"
-                >
-                  <Palette className="h-4 w-4 mr-2" />
-                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
-                  Stroke Color
-                </Button>
+                {isSandboxMode && sandbox ? (
+                  <SlotSelector
+                    label="Stroke Color"
+                    value={(sandbox.getPartSlot(element.id, 'shapeStroke') ?? DEFAULT_PALETTE_PARTS.shapeStroke) as PaletteColorSlot}
+                    onChange={(slot) => {
+                      sandbox.setPartSlotOverride(element.id, 'shapeStroke', slot);
+                      updateSetting('stroke', sandbox.getColorForSlot(slot));
+                    }}
+                    slotColors={sandbox.state.sandboxColors}
+                  />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowColorSelector('element-shape-stroke')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stroke || '#1f2937' }} />
+                    Stroke Color
+                  </Button>
+                )}
               </div>
               
               <Slider
@@ -275,16 +319,28 @@ export function ShapeSettingsForm({
           {(element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)) && (
             <IndentedSection>
               <div>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setShowColorSelector('element-shape-fill')}
-                  className="w-full"
-                >
-                  <Palette className="h-4 w-4 mr-2" />
-                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.fill || '#ffffff' }} />
-                  Background Color
-                </Button>
+                {isSandboxMode && sandbox ? (
+                  <SlotSelector
+                    label="Background Color"
+                    value={(sandbox.getPartSlot(element.id, 'shapeFill') ?? DEFAULT_PALETTE_PARTS.shapeFill) as PaletteColorSlot}
+                    onChange={(slot) => {
+                      sandbox.setPartSlotOverride(element.id, 'shapeFill', slot);
+                      updateSetting('fill', sandbox.getColorForSlot(slot));
+                    }}
+                    slotColors={sandbox.state.sandboxColors}
+                  />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setShowColorSelector('element-shape-fill')}
+                    className="w-full"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.fill || '#ffffff' }} />
+                    Background Color
+                  </Button>
+                )}
               </div>
               
               <Slider

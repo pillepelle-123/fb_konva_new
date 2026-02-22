@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { Layout, Filter } from 'lucide-react';
-import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
+import { getPageTemplates } from '../../../../data/templates/page-templates';
 import type { PageTemplate, TemplateCategory } from '../../../../types/template-types';
 import { SelectorBase } from './selector-base';
 import { getMirroredTemplateId, mirrorTemplate } from '../../../../utils/layout-mirroring';
@@ -29,10 +29,11 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
   const currentLayoutId = activeTemplateIds.layoutTemplateId;
   
   const currentLayout = currentLayoutId 
-    ? builtinPageTemplates.find((t: PageTemplate) => t.id === currentLayoutId) || null 
+    ? getPageTemplates().find((t: PageTemplate) => t.id === currentLayoutId) || null 
     : null;
 
   const [selectedLayout, setSelectedLayout] = useState<PageTemplate | null>(currentLayout);
+  const [hasUserClickedItem, setHasUserClickedItem] = useState(false);
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const mirroredCache = useRef<Record<string, PageTemplate>>({});
   const [mirroredFlags, setMirroredFlags] = useState<Record<string, boolean>>({});
@@ -68,7 +69,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
     const columns = new Set<number>();
     const categories = new Set<TemplateCategory>();
 
-    builtinPageTemplates.forEach((template) => {
+    getPageTemplates().forEach((template) => {
       categories.add(template.category);
       const meta = template.meta;
       if (meta) {
@@ -106,7 +107,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
   const hasActiveFilters = filters.qna !== 'any' || filters.images !== 'any' || filters.columns !== 'any' || filters.category !== 'any';
 
   const filteredTemplates = useMemo(() => {
-    return builtinPageTemplates.filter((template) => {
+    return getPageTemplates().filter((template) => {
       const meta = template.meta;
       const qnaInlineCount = meta?.qnaInlineCount ?? template.textboxes.length;
       const imageCount = meta?.imageCount ?? template.elements.filter((element) => element.type === 'image').length;
@@ -186,6 +187,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
       items={filteredTemplates}
       selectedItem={selectedLayout}
       onItemSelect={(template) => {
+        setHasUserClickedItem(true);
         const isMirrored = mirroredFlags[template.id] ?? false;
         const displayTemplate = getDisplayTemplate(template, isMirrored);
         setSelectedLayout(displayTemplate);
@@ -194,7 +196,7 @@ export const SelectorLayout = forwardRef<SelectorLayoutRef, SelectorLayoutProps>
       getItemKey={(template) => template.id}
       onCancel={handleCancel}
       onApply={handleApply}
-      canApply={selectedLayout !== currentLayout}
+      canApply={hasUserClickedItem || selectedLayout !== currentLayout}
       applyToEntireBook={applyToEntireBook}
       onApplyToEntireBookChange={canApplyToEntireBook ? setApplyToEntireBook : undefined}
       filterComponent={(

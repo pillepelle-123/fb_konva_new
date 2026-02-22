@@ -42,6 +42,10 @@ export interface QuestionSelectorContentProps {
   /** When provided (standalone Modal), use parent's view/navigate instead of internal state */
   view?: 'main' | 'manage' | 'pool';
   navigate?: (v: string) => void;
+  /** Override für highlightedQuestionId (z.B. null bei pendingRemoval) */
+  highlightedQuestionIdOverride?: string | null;
+  /** Zusätzliche Aktionen pro Frage (z.B. Remove-Button bei "Assigned to textbox") */
+  renderCustomActions?: (question: Question) => React.ReactNode;
 }
 
 export function QuestionSelectorContent({
@@ -55,6 +59,8 @@ export function QuestionSelectorContent({
   hideActions = false,
   view: externalView,
   navigate: externalNavigate,
+  highlightedQuestionIdOverride,
+  renderCustomActions,
 }: QuestionSelectorContentProps) {
   const { state, dispatch } = useEditor();
 
@@ -76,7 +82,7 @@ export function QuestionSelectorContent({
     [isControlled, onPendingQuestionChange]
   );
 
-  const highlightedQuestionId = useMemo(() => {
+  const highlightedQuestionIdFromElement = useMemo(() => {
     if (!elementId || !state.currentBook) return undefined;
     // Element auf allen Seiten suchen (kann auf Partner-Seite bei Spread sein)
     for (const page of state.currentBook.pages) {
@@ -85,6 +91,10 @@ export function QuestionSelectorContent({
     }
     return undefined;
   }, [elementId, state.currentBook]);
+
+  const highlightedQuestionId = highlightedQuestionIdOverride !== undefined
+    ? highlightedQuestionIdOverride ?? undefined
+    : highlightedQuestionIdFromElement;
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
@@ -441,6 +451,7 @@ export function QuestionSelectorContent({
           highlightedQuestionId={highlightedQuestionId}
           selectedQuestionId={effectiveHighlightedId}
           allowHighlightedClick={true}
+          renderCustomActions={renderCustomActions}
         />
       </div>
     </>

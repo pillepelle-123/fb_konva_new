@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { EditorContext } from '../../../../context/editor-context';
+import { AbilityProvider } from '../../../../abilities/ability-context';
 import type { PageTemplate } from '../../../../types/template-types';
-import themesData from '../../../../data/templates/themes';
+import { getThemesData } from '../../../../data/templates/templates-data';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
@@ -38,7 +39,8 @@ export function EditorPreviewProvider({
 }: PreviewProviderProps) {
   const state = useMemo(() => {
     // Resolve theme background for pages
-    const theme = (themesData as any)[themeId] || (themesData as any).default;
+    const themes = getThemesData() as Record<string, unknown>;
+    const theme = themes[themeId] || themes.default;
     const pageSettings = theme?.pageSettings || {};
     const backgroundImageCfg = pageSettings.backgroundImage || { enabled: false };
     const backgroundPatternCfg = pageSettings.backgroundPattern || { enabled: false };
@@ -167,7 +169,10 @@ export function EditorPreviewProvider({
       pageAssignments: {} as Record<number, any>,
       tempQuestions: {} as Record<string, string>,
       tempAnswers: {} as Record<string, Record<string, { text: string }>>,
-      userRole: 'viewer',
+      userRole: allowInteractions ? ('author' as const) : ('viewer' as const),
+      pageAccessLevel: 'all_pages',
+      editorInteractionLevel: allowInteractions ? ('answer_only' as const) : ('no_access' as const),
+      assignedPages: [],
       // Allow access for pan/zoom in modal, block for regular preview
       canAccessEditor: () => allowInteractions,
       canEditCanvas: () => false,
@@ -182,7 +187,9 @@ export function EditorPreviewProvider({
 
   return (
     <EditorContext.Provider value={{ state: state as any, dispatch: dispatch as any, undo, redo, getAnswerText: state.getAnswerText, getQuestionAssignmentsForUser: () => new Set(), canAccessEditor: state.canAccessEditor, canEditCanvas: state.canEditCanvas }}>
-      {children}
+      <AbilityProvider>
+        {children}
+      </AbilityProvider>
     </EditorContext.Provider>
   );
 }

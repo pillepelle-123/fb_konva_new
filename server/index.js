@@ -162,7 +162,10 @@ app.use('/api/user-question-assignments', require('./routes/user-question-assign
 app.use('/api/invitations', require('./routes/invitations'));
 app.use('/api/question-pool', require('./routes/question-pool'));
 app.use('/api/templates', require('./routes/templates'));
-app.use('/api/color-palettes', require('./routes/templates'));
+const { themesRouter, colorPalettesRouter, layoutTemplatesRouter } = require('./routes/themes-palettes-layouts');
+app.use('/api/themes', themesRouter);
+app.use('/api/color-palettes', colorPalettesRouter);
+app.use('/api/layout-templates', layoutTemplatesRouter);
 app.use('/api/pages', require('./routes/templates'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/background-images', require('./routes/background-images'));

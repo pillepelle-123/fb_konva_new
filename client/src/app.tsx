@@ -60,6 +60,7 @@ function AppContent() {
   const location = useLocation()
   const isEditorRoute = location.pathname.startsWith('/editor/')
   const isBookCreateRoute = location.pathname === '/books/create'
+  const isAdminRoute = location.pathname.startsWith('/admin')
   // Delay overflow-hidden when navigating to /books/create to avoid layout jump after entrance animation
   const [deferredHideOverflow, setDeferredHideOverflow] = useState(false)
   useEffect(() => {
@@ -69,7 +70,7 @@ function AppContent() {
     }
     setDeferredHideOverflow(false)
   }, [isBookCreateRoute])
-  const shouldHideOverflow = isEditorRoute || (isBookCreateRoute && deferredHideOverflow)
+  const shouldHideOverflow = isEditorRoute || (isBookCreateRoute && deferredHideOverflow) || isAdminRoute
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'

@@ -251,6 +251,19 @@ export const fetchColorPalettes = async () => {
   return response.json();
 };
 
+export const fetchThemes = async () => {
+  const response = await fetch(`${API_URL}/themes`);
+  if (!response.ok) throw new Error('Failed to fetch themes');
+  return response.json();
+};
+
+export const fetchLayoutTemplates = async (category?: string) => {
+  const url = category ? `${API_URL}/layout-templates?category=${encodeURIComponent(category)}` : `${API_URL}/layout-templates`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch layout templates');
+  return response.json();
+};
+
 export const createPageFromTemplate = async (templateId: string, paletteId: string, pageIndex: number, customizations: any) => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_URL}/pages/from-template`, {

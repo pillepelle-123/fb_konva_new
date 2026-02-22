@@ -4,6 +4,7 @@ import { useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 // Context & Hooks
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
+import { useSandboxOptional } from '../../../../context/sandbox-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { useSettingsFormState } from '../../../../hooks/useSettingsFormState';
 
@@ -93,6 +94,7 @@ interface ToolSettingsContentProps {
   showEditorSettings?: boolean;
   setShowEditorSettings?: (value: boolean) => void;
   generalSettingsRef?: React.RefObject<GeneralSettingsRef>;
+  isSandboxMode?: boolean;
 }
 
 export interface ToolSettingsContentRef {
@@ -143,8 +145,10 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
   setShowThemeSelector,
   showEditorSettings = false,
   setShowEditorSettings,
-  generalSettingsRef
+  generalSettingsRef,
+  isSandboxMode = false
 }, ref) {
+  const sandbox = useSandboxOptional();
   const { state, dispatch, canViewPageSettings } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
 
@@ -1119,6 +1123,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
               hasChanges={qnaFormState.hasChanges}
               onSave={qnaFormState.handleSave}
               onDiscard={qnaFormState.handleDiscard}
+              isSandboxMode={isSandboxMode}
+              sandbox={sandbox}
             />
           );
         }
@@ -1148,6 +1154,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           onApplyBackgroundImage={onApplyBackgroundImage}
           isBackgroundApplyDisabled={isBackgroundApplyDisabled}
           isBookChatAvailable={isBookChatAvailable}
+          isSandboxMode={isSandboxMode}
+          sandbox={sandbox}
           onOpenBookChat={onOpenBookChat}
           showPalette={showPalette}
           setShowPalette={setShowPalette}
@@ -1210,6 +1218,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}
+            isSandboxMode={isSandboxMode}
+            sandbox={sandbox}
           />
         );
 
@@ -1226,6 +1236,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}
+            isSandboxMode={isSandboxMode}
+            sandbox={sandbox}
           />
         );
 
@@ -1238,6 +1250,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}
+            isSandboxMode={isSandboxMode}
+            sandbox={sandbox}
           />
         );
 
@@ -1291,6 +1305,8 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}
+            isSandboxMode={isSandboxMode}
+            sandbox={sandbox}
           />
         );
       }

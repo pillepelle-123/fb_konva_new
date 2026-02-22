@@ -11,8 +11,8 @@ import { TogglePill } from './toggle-pill';
 import type { WizardState } from './types';
 
 import { colorPalettes } from '../../../../data/templates/color-palettes';
-import { pageTemplates as builtinPageTemplates } from '../../../../data/templates/page-templates';
-import themesData from '../../../../data/templates/themes';
+import { getPageTemplates } from '../../../../data/templates/page-templates';
+import { getThemesData } from '../../../../data/templates/templates-data';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 
 type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';
@@ -35,7 +35,7 @@ export function DesignStep({
   // Get all available categories
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
-    builtinPageTemplates.forEach(template => {
+    getPageTemplates().forEach(template => {
       if (template.category) {
         categories.add(template.category);
       }
@@ -45,14 +45,15 @@ export function DesignStep({
 
   // Filter templates by category
   const filteredTemplates = useMemo(() => {
+    const templates = getPageTemplates();
     if (categoryFilter === 'all') {
-      return builtinPageTemplates;
+      return templates;
     }
-    return builtinPageTemplates.filter(template => template.category === categoryFilter);
+    return templates.filter(template => template.category === categoryFilter);
   }, [categoryFilter]);
 
   const themeEntries = useMemo(() => {
-    return Object.entries(themesData as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => {
+    return Object.entries(getThemesData() as Record<string, { name: string; description: string; palette?: string }>).map(([id, theme]) => {
       const paletteId = theme.palette ?? 'default';
       const palette = colorPalettes.find(p => p.id === paletteId);
       return {
@@ -70,32 +71,33 @@ export function DesignStep({
     return getThemePaletteId(wizardState.design.themeId) ?? 'default';
   }, [wizardState.design.themeId]);
 
-  // Build palette list with "Theme's Default Palette" as first entry
+  // Build palette list: 1) Theme's Default Palette (virtual), 2) Individuelle Paletten (alle)
   const paletteEntries = useMemo(() => {
     const themePalette = colorPalettes.find(p => p.id === currentThemePaletteId);
-    const otherPalettes = colorPalettes.filter(p => p.id !== currentThemePaletteId);
-    
-    // First entry: "Theme's Default Palette" (virtual entry)
-    const themeDefaultEntry = {
-      id: null as string | null, // null indicates "Theme's Default Palette"
-      name: themePalette?.name || 'Default', // Show actual palette name
-      subtitle: "Theme's Default Palette", // Show as subtitle
-      colors: themePalette?.colors || colorPalettes[0].colors,
-      isThemeDefault: true,
-    };
-    
-    return [themeDefaultEntry, ...otherPalettes];
-  }, [currentThemePaletteId]);
+    const entries: Array<{ id: string | null; kind: 'theme-default' | 'individual'; name: string; subtitle?: string; colors: Record<string, string> }> = [];
 
-  // Function to select Theme's Default Palette and scroll to it
-  const handleSelectThemeDefaultPalette = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent theme selection when clicking the palette button
-    onChange({ paletteId: null });
-    // Scroll to first item (Theme's Default Palette) - index 0
-    if (paletteCarouselApi) {
-      paletteCarouselApi.scrollTo(0);
+    if (themePalette) {
+      entries.push({
+        id: null,
+        kind: 'theme-default',
+        name: "Theme's Default Palette",
+        subtitle: `(${themePalette.name})`,
+        colors: themePalette.colors,
+      });
     }
-  };
+
+    colorPalettes.forEach((p) => {
+      entries.push({
+        id: p.id,
+        kind: 'individual',
+        name: p.name,
+        subtitle: themePalette && p.id === themePalette.id ? '(Theme default)' : undefined,
+        colors: p.colors,
+      });
+    });
+
+    return entries;
+  }, [currentThemePaletteId]);
 
   // Scroll to selected theme when switching to carousel mode
   useEffect(() => {
@@ -487,13 +489,11 @@ export function DesignStep({
                 >
                   <CarouselContent className="-ml-2">
                     {paletteEntries.map((palette) => {
-                      // Check if this is the active palette
-                      // null paletteId means "Theme's Default Palette"
-                      const isActive = palette.id === null 
+                      const isActive = palette.id === null
                         ? wizardState.design.paletteId === null
                         : wizardState.design.paletteId === palette.id;
                       const colorValues = Object.values(palette.colors || {});
-                      const hasSubtitle = 'subtitle' in palette && palette.subtitle;
+                      const hasSubtitle = Boolean(palette.subtitle);
                       return (
                         <CarouselItem key={palette.id ?? 'theme-default'} className="pl-2 basis-full">
                           <button
@@ -502,7 +502,7 @@ export function DesignStep({
                             className={`w-full h-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
                               isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                             }`}
-                            title={palette.name}
+                            title={palette.kind === 'theme-default' ? `Theme's Default Palette ${palette.subtitle ?? ''}` : palette.name}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex flex-col">
@@ -533,11 +533,11 @@ export function DesignStep({
               ) : (
                 <div className="grid grid-cols-2 gap-2 pr-2">
                   {paletteEntries.map((palette) => {
-                    const isActive = palette.id === null 
+                    const isActive = palette.id === null
                       ? wizardState.design.paletteId === null
                       : wizardState.design.paletteId === palette.id;
                     const colorValues = Object.values(palette.colors || {});
-                    const hasSubtitle = 'subtitle' in palette && palette.subtitle;
+                    const hasSubtitle = Boolean(palette.subtitle);
                     return (
                       <button
                         key={palette.id ?? 'theme-default'}
@@ -546,7 +546,7 @@ export function DesignStep({
                         className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
                           isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                         }`}
-                        title={palette.name}
+                        title={palette.kind === 'theme-default' ? `Theme's Default Palette ${palette.subtitle ?? ''}` : palette.name}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">

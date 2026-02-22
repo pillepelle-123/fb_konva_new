@@ -1,17 +1,8 @@
 import { defineAbility } from '@casl/ability';
 import type { AppAbility } from './types';
+import type { AbilityUser, AbilityPage } from '../../../shared/permissions/types';
 
-export type AbilityUser = {
-  id?: number;
-  role?: 'owner' | 'publisher' | 'author' | null;
-  pageAccessLevel?: 'form_only' | 'own_page' | 'all_pages';
-  editorInteractionLevel?: 'no_access' | 'answer_only' | 'full_edit' | 'full_edit_with_settings';
-};
-
-export type AbilityPage = {
-  assignedUserId?: number | null;
-  pageType?: string | null;
-} | null;
+export type { AbilityUser, AbilityPage } from '../../../shared/permissions/types';
 
 export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: AbilityPage): AppAbility =>
   defineAbility((can, cannot) => {
@@ -22,6 +13,15 @@ export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: Abili
 
     if (userRole === 'owner' || userRole === 'publisher') {
       can('manage', 'all');
+      const isCoverPage = currentPage?.pageType === 'front-cover' || currentPage?.pageType === 'back-cover';
+      if (isCoverPage) {
+        cannot('create', 'Element', { textType: 'qna' });
+        cannot('create', 'Element', { textType: 'qna2' });
+        cannot('edit', 'Element', { textType: 'qna' });
+        cannot('edit', 'Element', { textType: 'qna2' });
+        cannot('delete', 'Element', { textType: 'qna' });
+        cannot('delete', 'Element', { textType: 'qna2' });
+      }
       return;
     }
 
@@ -43,6 +43,10 @@ export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: Abili
         can('edit', 'Answer', assignedElementCondition);
       }
 
+      // Allow navigation/selection tools for answer-only users
+      can('use', 'Tool', { toolId: 'pan' });
+      can('use', 'Tool', { toolId: 'zoom' });
+      can('use', 'Tool', { toolId: 'select' });
       cannot('use', 'Tool');
       cannot('view', 'ToolSettings');
       return;
@@ -64,6 +68,13 @@ export const defineAbilitiesFor = (user: AbilityUser | null, currentPage?: Abili
 
       if (editorInteractionLevel === 'full_edit_with_settings' && assignedElementCondition) {
         can('view', 'PageSettings', assignedElementCondition);
+      }
+
+      if (editorInteractionLevel === 'full_edit' || editorInteractionLevel === 'full_edit_with_settings') {
+        cannot('use', 'Tool', { toolId: 'qna' });
+        cannot('create', 'Element', { textType: 'qna' });
+        cannot('edit', 'Element', { textType: 'qna' });
+        cannot('delete', 'Element', { textType: 'qna' });
       }
 
       return;

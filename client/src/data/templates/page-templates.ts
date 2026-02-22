@@ -1,5 +1,5 @@
 import type { LayoutMeta, PageTemplate } from '../../types/template-types';
-import layoutData from './layout.json';
+import { getPageTemplatesData } from './templates-data';
 
 const extractColumnsFromId = (id: string): number => {
   const match = id.match(/qna-(\d)col/i);
@@ -37,6 +37,16 @@ const ensureMeta = (template: PageTemplate): PageTemplate => {
   };
 };
 
-export const pageTemplates: PageTemplate[] = (layoutData as PageTemplate[]).map(
-  ensureMeta
-);
+export function getPageTemplates(): PageTemplate[] {
+  return getPageTemplatesData().map(ensureMeta);
+}
+
+/** @deprecated Use getPageTemplates() - kept for compatibility during migration */
+export const pageTemplates = new Proxy([] as PageTemplate[], {
+  get(_, prop) {
+    const data = getPageTemplates();
+    if (prop === 'length') return data.length;
+    if (typeof prop === 'string' && /^\d+$/.test(prop)) return data[parseInt(prop, 10)];
+    return (data as Record<string, unknown>)[prop as string];
+  }
+});

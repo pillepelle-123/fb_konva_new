@@ -5421,6 +5421,7 @@ export const useEditor = () => {
         canDeleteElementType: () => false,
         canViewPageSettings: () => false,
         canEditBookSettings: () => false,
+        canViewAllPages: () => false,
       };
     }
     // In production, still throw to catch actual bugs
@@ -5507,6 +5508,8 @@ export const useEditor = () => {
 
   const canEditBookSettings = () => ability.can('edit', subject('BookSettings', {}));
 
+  const canViewAllPages = () => ability.can('view', subject('Page', {}));
+
   return {
     ...context,
     canEditCurrentPage,
@@ -5519,7 +5522,8 @@ export const useEditor = () => {
     canCreateElementType,
     canDeleteElementType,
     canViewPageSettings,
-    canEditBookSettings
+    canEditBookSettings,
+    canViewAllPages
   };
 };
 
@@ -5769,7 +5773,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const saveBook = async () => {
     if (!state.currentBook) return;
-    
+    if (state.currentBook.id === 'sandbox') return;
+
     // Prevent concurrent saves
     if (saveBook.isRunning) {
       return;

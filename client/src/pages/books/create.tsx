@@ -7,9 +7,10 @@ import { CheckCircle2, Book, PaintbrushVertical, BookCheck, Users, MessageCircle
 import { Button } from '../../components/ui/primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
 import { FormField } from '../../components/ui/layout/form-field';
-import { apiService } from '../../services/api';
-import { pageTemplates as builtinPageTemplates } from '../../data/templates/page-templates';
-import themesData from '../../data/templates/themes';
+import { apiService, fetchThemes, fetchLayoutTemplates, fetchColorPalettes } from '../../services/api';
+import { getPageTemplates } from '../../data/templates/page-templates';
+import { getThemesData } from '../../data/templates/templates-data';
+import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../data/templates/templates-data';
 import { StaticSpreadPreview } from '../../components/features/editor/preview/static-spread-preview';
 import { PreviewModal } from '../../components/features/editor/preview/preview-modal';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
@@ -40,9 +41,9 @@ const stepConfig = [
   { id: 'review', label: 'Review', description: 'Double-check and create' },
 ] as const;
 
-const featuredTemplates = builtinPageTemplates.slice(0, 6);
+const getFeaturedTemplates = () => getPageTemplates().slice(0, 6);
 
-const initialState: WizardState = {
+const getInitialState = (): WizardState => ({
   basic: {
     name: '',
     pageSize: 'A4',
@@ -52,7 +53,7 @@ const initialState: WizardState = {
     showPageNumbers: false,
   },
   design: {
-    layoutTemplate: featuredTemplates[0],
+    layoutTemplate: getFeaturedTemplates()[0] ?? null,
     leftLayoutTemplate: null,
     rightLayoutTemplate: null,
     mirrorLayout: false,
@@ -76,7 +77,7 @@ const initialState: WizardState = {
       custom: [],
       orderedQuestions: [],
     },
-};
+});
 
 // Vertikale Schiebefolien-Übergänge zwischen Steps (Framer Motion)
 const stepSlideVariants = {
@@ -101,7 +102,29 @@ const stepSlideTransition = {
 
 export default function BookCreatePage() {
   const { user } = useAuth();
-  const [wizardState, setWizardState] = useState<WizardState>(initialState);
+  const [templatesReady, setTemplatesReady] = useState(false);
+  const [wizardState, setWizardState] = useState<WizardState>(getInitialState);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [themesRes, layoutsRes, palettesRes] = await Promise.all([
+          fetchThemes(),
+          fetchLayoutTemplates(),
+          fetchColorPalettes()
+        ]);
+        setThemesData(themesRes.themes || []);
+        setColorPalettesData(palettesRes.palettes || []);
+        const templates = layoutsRes.templates || [];
+        setPageTemplatesData(templates);
+        setTemplatesReady(true);
+      } catch (error) {
+        console.error('Failed to load template data:', error);
+        setTemplatesReady(true);
+      }
+    };
+    load();
+  }, []);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [direction, setDirection] = useState(0); // 1 for forward, -1 for backward
   const [activeHalfStep, setActiveHalfStep] = useState<string | null>(null);
@@ -181,6 +204,16 @@ export default function BookCreatePage() {
     }));
   };
 
+  // Set layoutTemplate when templates load and it's still null (initial state had empty templates)
+  useEffect(() => {
+    if (templatesReady && !wizardState.design.layoutTemplate) {
+      const first = getFeaturedTemplates()[0];
+      if (first) {
+        updateWizard('design', { layoutTemplate: first });
+      }
+    }
+  }, [templatesReady, wizardState.design.layoutTemplate]);
+
   // summaryData previously fed a side card; no longer used in the new layout
 
   const handleBookWizard = () => {
@@ -198,7 +231,7 @@ export default function BookCreatePage() {
 
       // Helper: background object from theme pageSettings
       const buildBackground = (themeKey: string) => {
-        const themeDict = themesData as unknown as Record<string, unknown>;
+        const themeDict = getThemesData() as Record<string, unknown>;
         const themeEntry = (themeDict[themeKey] ?? themeDict['default']) as Record<string, unknown>;
         const pageSettings = (themeEntry?.pageSettings as Record<string, unknown>) || {};
         const bgImage = pageSettings?.['backgroundImage'] as Record<string, unknown> | undefined;
@@ -453,7 +486,7 @@ export default function BookCreatePage() {
 
       // Helper: background object from theme pageSettings
       const buildBackground = (themeKey: string) => {
-        const themeDict = themesData as unknown as Record<string, unknown>;
+        const themeDict = getThemesData() as Record<string, unknown>;
         const themeEntry = (themeDict[themeKey] ?? themeDict['default']) as Record<string, unknown>;
         const pageSettings = (themeEntry?.pageSettings as Record<string, unknown>) || {};
         const bgImage = pageSettings?.['backgroundImage'] as Record<string, unknown> | undefined;

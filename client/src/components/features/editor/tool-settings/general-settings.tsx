@@ -40,6 +40,8 @@ interface GeneralSettingsProps {
   onApplyBackgroundImage?: () => void;
   isBackgroundApplyDisabled?: boolean;
   isBookChatAvailable?: boolean;
+  isSandboxMode?: boolean;
+  sandbox?: import('../../../../context/sandbox-context').SandboxContextValue;
   onOpenBookChat?: () => void;
   showPalette?: boolean;
   setShowPalette?: (value: boolean) => void;
@@ -74,6 +76,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   onApplyBackgroundImage,
   isBackgroundApplyDisabled,
   isBookChatAvailable = false,
+  isSandboxMode = false,
+  sandbox,
   onOpenBookChat,
   showPalette: externalShowPalette = false,
   setShowPalette: externalSetShowPalette,
@@ -84,7 +88,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   showEditorSettings: externalShowEditorSettings = false,
   setShowEditorSettings: externalSetShowEditorSettings
   } = props;
-  const { state, dispatch, canViewPageSettings } = useEditor();
+  const { state, dispatch, canViewPageSettings, canViewToolSettings } = useEditor();
   // Use external state management if provided, otherwise fall back to local state
   const [localShowPalette, setLocalShowPalette] = useState(false);
   const [localShowLayout, setLocalShowLayout] = useState(false);
@@ -180,6 +184,8 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
         onBackgroundImageSelect={onBackgroundImageSelect}
         onApplyBackgroundImage={onApplyBackgroundImage}
         isBackgroundApplyDisabled={isBackgroundApplyDisabled}
+        isSandboxMode={isSandboxMode}
+        sandbox={sandbox}
       />
     );
   }
@@ -227,8 +233,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     );
   }
 
-  // Check if user can access any settings at all
-  const canAccessAnySettings = state.editorInteractionLevel === 'full_edit_with_settings';
+  const canAccessAnySettings = canViewToolSettings();
   const canAccessPageSettings = canViewPageSettings();
   const canShowBookChatButton = Boolean(isBookChatAvailable && onOpenBookChat && canAccessAnySettings);
 
@@ -250,7 +255,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
   return (
     <>
       <div className="space-y-3 p-2">
-        {state.editorInteractionLevel === 'full_edit_with_settings' && (
+        {canAccessAnySettings && (
           <>
             <div>
               <Label variant="xs" className="text-muted-foreground mb-2 block">General Settings</Label>

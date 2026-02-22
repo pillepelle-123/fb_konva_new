@@ -1,12 +1,13 @@
 import type { ColorPalette } from '../../types/template-types';
-import colorPalettesJson from '../../../../shared/data/templates/color-palettes.json';
+import { getColorPalettesData } from './templates-data';
 
 type PaletteColorSlot = keyof ColorPalette['colors'];
 
-const DEFAULT_PALETTE_PARTS: Record<string, PaletteColorSlot> = {
+export const DEFAULT_PALETTE_PARTS: Record<string, PaletteColorSlot> = {
   pageBackground: 'surface',
   pagePattern: 'primary',
   qnaBorder: 'primary',
+  imageBorder: 'primary',
   qnaBackground: 'surface',
   qnaQuestionText: 'text',
   qnaQuestionBackground: 'surface',
@@ -22,7 +23,8 @@ const DEFAULT_PALETTE_PARTS: Record<string, PaletteColorSlot> = {
   shapeStroke: 'primary',
   shapeFill: 'surface',
   lineStroke: 'primary',
-  brushStroke: 'primary'
+  brushStroke: 'primary',
+  stickerColor: 'primary',
 };
 
 export type PalettePartName = keyof typeof DEFAULT_PALETTE_PARTS | string;
@@ -32,8 +34,19 @@ const normalizePalette = (palette: ColorPalette): ColorPalette => ({
   parts: { ...DEFAULT_PALETTE_PARTS, ...(palette.parts || {}) }
 });
 
-// Load palettes from JSON file
-export const colorPalettes: ColorPalette[] = (colorPalettesJson.palettes as ColorPalette[]).map(normalizePalette);
+// Palettes loaded from API via templates-data. Use getColorPalettes() for current data.
+function getColorPalettes(): ColorPalette[] {
+  return getColorPalettesData().map(normalizePalette);
+}
+
+export const colorPalettes = {
+  get length() { return getColorPalettes().length; },
+  find: (f: (p: ColorPalette) => boolean) => getColorPalettes().find(f),
+  map: <T>(f: (p: ColorPalette) => T) => getColorPalettes().map(f),
+  filter: (f: (p: ColorPalette) => boolean) => getColorPalettes().filter(f),
+  forEach: (f: (p: ColorPalette) => void) => getColorPalettes().forEach(f),
+  [Symbol.iterator]: () => getColorPalettes()[Symbol.iterator](),
+} as ColorPalette[];
 
 export function getPalettePartColor(
   palette: ColorPalette | undefined,
@@ -174,7 +187,7 @@ export function applyPaletteToElement(palette: ColorPalette, elementType: string
 
 // Helper function to get palette by ID
 export function getColorPalette(id: string): ColorPalette | undefined {
-  return colorPalettes.find(p => p.id === id);
+  return getColorPalettes().find(p => p.id === id);
 }
 
 // Alias for compatibility
@@ -188,8 +201,8 @@ export function getAllCategories(): string[] {
 
 export function getPalettesByCategory(_category: string): ColorPalette[] {
   // Return all palettes for now - can be filtered by category if needed
-  return colorPalettes;
+  return getColorPalettes();
 }
 
-// Export all palettes as GLOBAL_PALETTES for backward compatibility
+// Export all palettes as GLOBAL_PALETTES for backward compatibility (dynamic)
 export const GLOBAL_PALETTES = colorPalettes;

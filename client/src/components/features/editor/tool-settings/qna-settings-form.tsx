@@ -18,6 +18,9 @@ import { useEditor } from '../../../../context/editor-context';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
+import { SlotSelector } from './slot-selector';
+import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
@@ -69,6 +72,8 @@ interface QnASettingsFormProps {
   hasChanges?: boolean;
   onSave?: () => void;
   onDiscard?: () => void;
+  isSandboxMode?: boolean;
+  sandbox?: import('../../../../context/sandbox-context').SandboxContextValue;
 }
 
 export function QnASettingsForm({
@@ -93,7 +98,9 @@ export function QnASettingsForm({
   showColorSelector,
   hasChanges,
   onSave,
-  onDiscard
+  onDiscard,
+  isSandboxMode = false,
+  sandbox
 }: QnASettingsFormProps) {
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
@@ -380,26 +387,68 @@ export function QnASettingsForm({
         </div>
         
         <div>
-          <Tooltip content="Font Color" side="left">
-            <Button
-              variant="outline"
-              size="xxs"
-              onClick={() => {
-                // When individualSettings is enabled, use setShowColorSelector to render at top level
-                // Otherwise, use localShowColorSelector for nested rendering
-                if (individualSettings) {
-                  setShowColorSelector('element-text-color');
+          {isSandboxMode && sandbox ? (
+            <SlotSelector
+              label="Font Color"
+              value={(
+                sandbox.getPartSlot(
+                  element.id,
+                  !individualSettings && sectionType === 'shared'
+                    ? 'qnaQuestionText'
+                    : activeSection === 'question'
+                      ? 'qnaQuestionText'
+                      : 'qnaAnswerText'
+                ) ?? DEFAULT_PALETTE_PARTS[(!individualSettings && sectionType === 'shared') || activeSection === 'question' ? 'qnaQuestionText' : 'qnaAnswerText']
+              ) as PaletteColorSlot}
+              onChange={(slot) => {
+                const partName = !individualSettings && sectionType === 'shared' ? 'qnaQuestionText' : activeSection === 'question' ? 'qnaQuestionText' : 'qnaAnswerText';
+                sandbox.setPartSlotOverride(element.id, partName, slot);
+                if (!individualSettings && sectionType === 'shared') {
+                  sandbox.setPartSlotOverride(element.id, 'qnaAnswerText', slot);
+                }
+                const color = sandbox.getColorForSlot(slot);
+                if (!individualSettings && sectionType === 'shared') {
+                  updateSharedSetting('fontColor', color);
+                } else if (activeSection === 'question') {
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { questionSettings: { ...element.questionSettings, fontColor: color } },
+                    },
+                  });
                 } else {
-                  setLocalShowColorSelector('element-text-color');
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: {
+                      id: element.id,
+                      updates: { answerSettings: { ...element.answerSettings, fontColor: color } },
+                    },
+                  });
                 }
               }}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: displayStyle.fontColor }} />
-              Font Color
-            </Button>
-          </Tooltip>
+              slotColors={sandbox.state.sandboxColors}
+            />
+          ) : (
+            <Tooltip content="Font Color" side="left">
+              <Button
+                variant="outline"
+                size="xxs"
+                onClick={() => {
+                  if (individualSettings) {
+                    setShowColorSelector('element-text-color');
+                  } else {
+                    setLocalShowColorSelector('element-text-color');
+                  }
+                }}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: displayStyle.fontColor }} />
+                Font Color
+              </Button>
+            </Tooltip>
+          )}
         </div>
         
         <div className='flex flex-row gap-2 py-2 w-full'>
@@ -1401,24 +1450,39 @@ export function QnASettingsForm({
           />
           
           <div>
-            <Tooltip content="Line Color" side="left">
-              <Button
-                variant="outline"
-                size="xxs"
-                onClick={() => {
-                  if (individualSettings) {
-                    setShowColorSelector('element-ruled-lines-color');
-                  } else {
-                    setLocalShowColorSelector('element-ruled-lines-color');
-                  }
+            {isSandboxMode && sandbox ? (
+              <SlotSelector
+                label="Line Color"
+                value={(sandbox.getPartSlot(element.id, 'qnaAnswerRuledLines') ?? DEFAULT_PALETTE_PARTS.qnaAnswerRuledLines) as PaletteColorSlot}
+                onChange={(slot) => {
+                  sandbox.setPartSlotOverride(element.id, 'qnaAnswerRuledLines', slot);
+                  dispatch({
+                    type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
+                    payload: { id: element.id, updates: { ruledLinesColor: sandbox.getColorForSlot(slot) } },
+                  });
                 }}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.ruledLinesColor || '#1f2937' }} />
-                Line Color
-              </Button>
-            </Tooltip>
+                slotColors={sandbox.state.sandboxColors}
+              />
+            ) : (
+              <Tooltip content="Line Color" side="left">
+                <Button
+                  variant="outline"
+                  size="xxs"
+                  onClick={() => {
+                    if (individualSettings) {
+                      setShowColorSelector('element-ruled-lines-color');
+                    } else {
+                      setLocalShowColorSelector('element-ruled-lines-color');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.ruledLinesColor || '#1f2937' }} />
+                  Line Color
+                </Button>
+              </Tooltip>
+            )}
           </div>
           
           <div className="min-w-0">
@@ -1555,24 +1619,36 @@ export function QnASettingsForm({
           />
           
           <div>
-            <Tooltip content="Border Color" side="left">
-              <Button
-                variant="outline"
-                size="xxs"
-                onClick={() => {
-                  if (individualSettings) {
-                    setShowColorSelector('element-border-color');
-                  } else {
-                    setLocalShowColorSelector('element-border-color');
-                  }
+            {isSandboxMode && sandbox ? (
+              <SlotSelector
+                label="Border Color"
+                value={(sandbox.getPartSlot(element.id, 'qnaBorder') ?? DEFAULT_PALETTE_PARTS.qnaBorder) as PaletteColorSlot}
+                onChange={(slot) => {
+                  sandbox.setPartSlotOverride(element.id, 'qnaBorder', slot);
+                  updateSharedSetting('borderColor', sandbox.getColorForSlot(slot));
                 }}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.borderColor || element.border?.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || '#000000' }} />
-                Border Color
-              </Button>
-            </Tooltip>
+                slotColors={sandbox.state.sandboxColors}
+              />
+            ) : (
+              <Tooltip content="Border Color" side="left">
+                <Button
+                  variant="outline"
+                  size="xxs"
+                  onClick={() => {
+                    if (individualSettings) {
+                      setShowColorSelector('element-border-color');
+                    } else {
+                      setLocalShowColorSelector('element-border-color');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.borderColor || element.border?.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || '#000000' }} />
+                  Border Color
+                </Button>
+              </Tooltip>
+            )}
           </div>
           
           <div className="min-w-0">
@@ -1638,24 +1714,36 @@ export function QnASettingsForm({
       })() && (
         <IndentedSection>
           <div>
-            <Tooltip content="Background Color" side="left">
-              <Button
-                variant="outline"
-                size="xxs"
-                onClick={() => {
-                  if (individualSettings) {
-                    setShowColorSelector('element-background-color');
-                  } else {
-                    setLocalShowColorSelector('element-background-color');
-                  }
+            {isSandboxMode && sandbox ? (
+              <SlotSelector
+                label="Background Color"
+                value={(sandbox.getPartSlot(element.id, 'qnaBackground') ?? DEFAULT_PALETTE_PARTS.qnaBackground) as PaletteColorSlot}
+                onChange={(slot) => {
+                  sandbox.setPartSlotOverride(element.id, 'qnaBackground', slot);
+                  updateSharedSetting('backgroundColor', sandbox.getColorForSlot(slot));
                 }}
-                className="w-full"
-              >
-                <Palette className="w-4 mr-2" />
-                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.backgroundColor || element.background?.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || '#ffffff' }} />
-                Background Color
-              </Button>
-            </Tooltip>
+                slotColors={sandbox.state.sandboxColors}
+              />
+            ) : (
+              <Tooltip content="Background Color" side="left">
+                <Button
+                  variant="outline"
+                  size="xxs"
+                  onClick={() => {
+                    if (individualSettings) {
+                      setShowColorSelector('element-background-color');
+                    } else {
+                      setLocalShowColorSelector('element-background-color');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Palette className="w-4 mr-2" />
+                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.backgroundColor || element.background?.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || '#ffffff' }} />
+                  Background Color
+                </Button>
+              </Tooltip>
+            )}
           </div>
           
           <div className="min-w-0">

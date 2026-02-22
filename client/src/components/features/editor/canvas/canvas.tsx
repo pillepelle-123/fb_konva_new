@@ -957,9 +957,10 @@ export default function Canvas() {
   const totalPages = state.pagePagination?.totalPages ?? state.currentBook?.pages.length ?? 0;
   const activePageNumber = currentPage?.pageNumber ?? state.activePageIndex;
   const lastPageNumber = totalPages > 0 ? totalPages - 1 : 0;
-  const hasPlaceholderLeft = activePageNumber === 1;
+  const isSandbox = state.currentBook?.id === 'sandbox';
+  const hasPlaceholderLeft = !isSandbox && activePageNumber === 1;
   // Vorletzte Seite (letzte Content-Seite) bekommt Platzhalter rechts; letzte Seite (Back Cover) nicht
-  const hasPlaceholderRight = totalPages > 2 && activePageNumber === totalPages - 2;
+  const hasPlaceholderRight = !isSandbox && totalPages > 2 && activePageNumber === totalPages - 2;
   const hasPartnerPage = Boolean(partnerPage) || hasPlaceholderLeft || hasPlaceholderRight;
   const partnerPageIndex = partnerInfo?.index ?? -1;
   const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);

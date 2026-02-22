@@ -12,7 +12,8 @@ import { StatusBar } from '../../components/features/editor/status-bar';
 import { AdminInfoPanel } from '../../components/features/editor/admin-info-panel';
 import { toast } from 'sonner';
 import QuestionSelectionHandler from '../../components/features/editor/question-selection-handler';
-import { fetchTemplates, fetchColorPalettes, apiService } from '../../services/api';
+import { fetchThemes, fetchLayoutTemplates, fetchColorPalettes, apiService } from '../../services/api';
+import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../data/templates/templates-data';
 import { getGlobalTheme, getThemePageBackgroundColors } from '../../utils/global-themes';
 import { applyBackgroundImageTemplate } from '../../utils/background-image-utils';
 import type { PageBackground } from '../../context/editor-context';
@@ -35,21 +36,25 @@ function EditorContent() {
     return normalized === '' || normalized === 'true' || normalized === '1' || normalized === 'yes';
   }, [location.search]);
 
-  // Load templates and palettes on mount
+  // Load themes, layout templates, and palettes from API on mount
   useEffect(() => {
     const loadTemplateData = async () => {
       try {
-        const [templatesData, palettesData] = await Promise.all([
-          fetchTemplates(),
+        const [themesRes, layoutsRes, palettesRes] = await Promise.all([
+          fetchThemes(),
+          fetchLayoutTemplates(),
           fetchColorPalettes()
         ]);
-        dispatch({ type: 'LOAD_TEMPLATES', payload: templatesData.templates });
-        dispatch({ type: 'LOAD_COLOR_PALETTES', payload: palettesData.palettes });
+        setThemesData(themesRes.themes || []);
+        setPageTemplatesData(layoutsRes.templates || []);
+        setColorPalettesData(palettesRes.palettes || []);
+        dispatch({ type: 'LOAD_TEMPLATES', payload: layoutsRes.templates || [] });
+        dispatch({ type: 'LOAD_COLOR_PALETTES', payload: palettesRes.palettes || [] });
       } catch (error) {
         console.error('Failed to load template data:', error);
       }
     };
-    
+
     loadTemplateData();
   }, [dispatch]);
   

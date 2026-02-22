@@ -8,6 +8,9 @@ import { Separator } from '../../../ui/primitives/separator';
 import { SettingsFormFooter } from './settings-form-footer';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
+import { SlotSelector } from './slot-selector';
+import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditor } from '../../../../context/editor-context';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
@@ -29,6 +32,8 @@ interface StickerSettingsFormProps {
   hasChanges?: boolean;
   onSave?: () => void;
   onDiscard?: () => void;
+  isSandboxMode?: boolean;
+  sandbox?: import('../../../../context/sandbox-context').SandboxContextValue;
 }
 
 export function StickerSettingsForm({
@@ -37,7 +42,9 @@ export function StickerSettingsForm({
   setShowColorSelector,
   hasChanges,
   onSave,
-  onDiscard
+  onDiscard,
+  isSandboxMode = false,
+  sandbox
 }: StickerSettingsFormProps) {
   const { state } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
@@ -131,16 +138,28 @@ export function StickerSettingsForm({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto space-y-3 p-2">
       <div>
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => setShowColorSelector('element-sticker-color')}
-          className="w-full"
-        >
-          <Palette className="h-4 w-4 mr-2" />
-          <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stickerColor || '#000000' }} />
-          Sticker Color
-        </Button>
+        {isSandboxMode && sandbox ? (
+          <SlotSelector
+            label="Sticker Color"
+            value={(sandbox.getPartSlot(element.id, 'stickerColor') ?? DEFAULT_PALETTE_PARTS.stickerColor) as PaletteColorSlot}
+            onChange={(slot) => {
+              sandbox.setPartSlotOverride(element.id, 'stickerColor', slot);
+              updateElementSettingLocal('stickerColor', sandbox.getColorForSlot(slot));
+            }}
+            slotColors={sandbox.state.sandboxColors}
+          />
+        ) : (
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setShowColorSelector('element-sticker-color')}
+            className="w-full"
+          >
+            <Palette className="h-4 w-4 mr-2" />
+            <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: element.stickerColor || '#000000' }} />
+            Sticker Color
+          </Button>
+        )}
       </div>
 
       <Slider
@@ -233,16 +252,28 @@ export function StickerSettingsForm({
             </div>
           </div>
           <div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setLocalShowColorSelector('sticker-text-color')}
-              className="w-full"
-            >
-              <Palette className="w-4 mr-2" />
-              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedTextStyle.fontColor }} />
-              Font Color
-            </Button>
+            {isSandboxMode && sandbox ? (
+              <SlotSelector
+                label="Font Color"
+                value={(sandbox.getPartSlot(element.id, 'freeTextText') ?? DEFAULT_PALETTE_PARTS.freeTextText) as PaletteColorSlot}
+                onChange={(slot) => {
+                  sandbox.setPartSlotOverride(element.id, 'freeTextText', slot);
+                  updateStickerTextSetting('fontColor', sandbox.getColorForSlot(slot));
+                }}
+                slotColors={sandbox.state.sandboxColors}
+              />
+            ) : (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setLocalShowColorSelector('sticker-text-color')}
+                className="w-full"
+              >
+                <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedTextStyle.fontColor }} />
+                Font Color
+              </Button>
+            )}
           </div>
           <div>
             <Slider

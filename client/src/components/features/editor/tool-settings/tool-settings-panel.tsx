@@ -19,9 +19,11 @@ export interface ToolSettingsPanelRef {
   openThemeSelector: () => void;
 }
 
-interface ToolSettingsPanelProps {}
+interface ToolSettingsPanelProps {
+  isSandboxMode?: boolean;
+}
 
-const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>((props, ref) => {
+const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProps>(({ isSandboxMode = false }, ref) => {
   const { state, dispatch, canViewToolSettings } = useEditor();
   const { token, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -414,6 +416,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
           showEditorSettings={showEditorSettings}
           setShowEditorSettings={setShowEditorSettings}
           generalSettingsRef={generalSettingsRef}
+          isSandboxMode={isSandboxMode}
           ref={contentRef}
           />
         )}

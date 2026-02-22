@@ -1,6 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
+const { requireBookPermission } = require('../middleware/require-book-permission');
 
 const router = express.Router();
 
@@ -17,6 +19,9 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
+const loadBookPermissionsFromParams = createLoadBookPermissionsMiddleware(pool, { bookIdParam: 'bookId' });
+const loadBookPermissionsFromBody = createLoadBookPermissionsMiddleware(pool, { bookIdParam: 'bookId', bookIdBodyKey: 'bookId' });
+
 // Helper: Check if user has access to book (owner or book_friend)
 async function checkBookAccess(bookId, userId) {
   const bookAccess = await pool.query(`
@@ -28,14 +33,9 @@ async function checkBookAccess(bookId, userId) {
 }
 
 // Get questions by book ID
-router.get('/book/:bookId', authenticateToken, async (req, res) => {
+router.get('/book/:bookId', authenticateToken, loadBookPermissionsFromParams, async (req, res) => {
   try {
     const bookId = req.params.bookId;
-    const userId = req.user.id;
-
-    if (!(await checkBookAccess(bookId, userId))) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     const result = await pool.query(
       'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
@@ -49,14 +49,10 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
 });
 
 // Get questions assigned to current user for a specific book
-router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
+router.get('/book/:bookId/user', authenticateToken, loadBookPermissionsFromParams, async (req, res) => {
   try {
     const bookId = req.params.bookId;
     const userId = req.user.id;
-
-    if (!(await checkBookAccess(bookId, userId))) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     // Get questions from pages assigned to the current user
     const result = await pool.query(`
@@ -76,14 +72,9 @@ router.get('/book/:bookId/user', authenticateToken, async (req, res) => {
 });
 
 // Get questions by book ID (legacy route)
-router.get('/:bookId', authenticateToken, async (req, res) => {
+router.get('/:bookId', authenticateToken, loadBookPermissionsFromParams, async (req, res) => {
   try {
     const bookId = req.params.bookId;
-    const userId = req.user.id;
-
-    if (!(await checkBookAccess(bookId, userId))) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     const result = await pool.query(
       'SELECT * FROM public.questions WHERE book_id = $1 ORDER BY display_order ASC NULLS LAST, created_at ASC',
@@ -97,28 +88,13 @@ router.get('/:bookId', authenticateToken, async (req, res) => {
 });
 
 // Add questions from pool to book
-router.post('/from-pool', authenticateToken, async (req, res) => {
+router.post('/from-pool', authenticateToken, loadBookPermissionsFromBody, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { bookId, questionPoolIds } = req.body;
     const userId = req.user.id;
     
-    // Check if user owns the book or is a publisher
-    const book = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, userId]);
-    
-    if (book.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
-    }
-    
-    const isOwner = book.rows[0].owner_id === userId;
-    const isPublisher = book.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Not authorized' });
+    if (!bookId || !questionPoolIds) {
+      return res.status(400).json({ error: 'bookId and questionPoolIds required' });
     }
     
     const createdQuestions = [];
@@ -159,28 +135,18 @@ router.post('/from-pool', authenticateToken, async (req, res) => {
 });
 
 // Create new question with UUID
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, loadBookPermissionsFromBody, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { id, bookId, questionText, questionPoolId, displayOrder } = req.body;
     const userId = req.user.id;
     
-    // Check if user owns the book or is a publisher
-    const book = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, userId]);
-    
-    if (book.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
+    if (!bookId) {
+      return res.status(400).json({ error: 'bookId required' });
     }
     
-    const isOwner = book.rows[0].owner_id === userId;
-    const isPublisher = book.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Not authorized' });
+    const book = await pool.query('SELECT id FROM public.books WHERE id = $1', [bookId]);
+    if (book.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
     }
     
     // If displayOrder is not provided, get next order
@@ -260,30 +226,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update question display order (bulk update)
-router.put('/book/:bookId/order', authenticateToken, async (req, res) => {
+router.put('/book/:bookId/order', authenticateToken, loadBookPermissionsFromParams, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.bookId;
     const { questionOrders } = req.body; // Array of { questionId, displayOrder }
-    const userId = req.user.id;
-    
-    // Check if user owns the book or is a publisher
-    const book = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, userId]);
-    
-    if (book.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
-    }
-    
-    const isOwner = book.rows[0].owner_id === userId;
-    const isPublisher = book.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
     
     // Update display_order for each question
     for (const { questionId, displayOrder } of questionOrders) {

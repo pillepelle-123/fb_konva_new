@@ -6,14 +6,14 @@ import { ToolbarContent } from './toolbar-content';
 import { TooltipProvider } from '../../../ui/composites/tooltip';
 
 export default function Toolbar() {
-  const { state, dispatch, canUseTools } = useEditor();
+  const { state, dispatch, canUseTool } = useEditor();
   const [isExpanded, setIsExpanded] = useState(true);
   const toolbarContentRef = useRef<{ closeSubmenus: () => void }>(null);
 
-  const toolAccessAllowed = canUseTools();
-  const isAnswerOnly = state.editorInteractionLevel === 'answer_only';
+  const toolAccessAllowed = canUseTool(state.activeTool);
+  const isAnswerOnly = canUseTool('select');
   
-  // Force collapsed state when tools are not available (except answer-only mode)
+  // Force collapsed state when tools are not available (except answer-only mode where select/pan/zoom work)
   useEffect(() => {
     if (!toolAccessAllowed && !isAnswerOnly) {
       setIsExpanded(false);

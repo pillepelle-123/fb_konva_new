@@ -1,6 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
+const { requireBookPermission } = require('../middleware/require-book-permission');
 
 const router = express.Router();
 
@@ -17,8 +19,11 @@ pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
 
+const loadBookPermissionsFromParams = createLoadBookPermissionsMiddleware(pool, { bookIdParam: 'bookId' });
+const loadBookPermissionsFromBody = createLoadBookPermissionsMiddleware(pool, { bookIdBodyKey: 'bookId' });
+
 // Get page assignments for a book
-router.get('/book/:bookId', authenticateToken, async (req, res) => {
+router.get('/book/:bookId', authenticateToken, loadBookPermissionsFromParams, async (req, res) => {
   try {
     const { bookId } = req.params;
     
@@ -39,28 +44,13 @@ router.get('/book/:bookId', authenticateToken, async (req, res) => {
 });
 
 // Assign user to page
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, loadBookPermissionsFromBody, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { pageNumber, userId, bookId } = req.body;
     const assignedBy = req.user.id;
     
-    // Check if user is owner or publisher
-    const bookCheck = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, req.user.id]);
-    
-    if (bookCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
-    }
-    
-    const isOwner = bookCheck.rows[0].owner_id === req.user.id;
-    const isPublisher = bookCheck.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Only book owners and publishers can assign pages' });
+    if (!bookId) {
+      return res.status(400).json({ error: 'bookId required' });
     }
     
     // Get page_id from page_number and book_id
@@ -90,7 +80,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Remove all assignments for a page
-router.delete('/page/:pageNumber/book/:bookId', authenticateToken, async (req, res) => {
+router.delete('/page/:pageNumber/book/:bookId', authenticateToken, loadBookPermissionsFromParams, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { pageNumber, bookId } = req.params;
     
@@ -117,27 +107,12 @@ router.delete('/page/:pageNumber/book/:bookId', authenticateToken, async (req, r
 });
 
 // Remove user from page
-router.delete('/', authenticateToken, async (req, res) => {
+router.delete('/', authenticateToken, loadBookPermissionsFromBody, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { pageNumber, userId, bookId } = req.body;
     
-    // Check if user is owner or publisher
-    const bookCheck = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, req.user.id]);
-    
-    if (bookCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
-    }
-    
-    const isOwner = bookCheck.rows[0].owner_id === req.user.id;
-    const isPublisher = bookCheck.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Only book owners and publishers can remove page assignments' });
+    if (!bookId) {
+      return res.status(400).json({ error: 'bookId required' });
     }
     
     // Get page_id from page_number and book_id
@@ -163,29 +138,10 @@ router.delete('/', authenticateToken, async (req, res) => {
 });
 
 // Bulk update page assignments
-router.put('/book/:bookId', authenticateToken, async (req, res) => {
+router.put('/book/:bookId', authenticateToken, loadBookPermissionsFromParams, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { bookId } = req.params;
     const { assignments } = req.body;
-    
-    // Check if user is owner or publisher
-    const bookCheck = await pool.query(`
-      SELECT b.owner_id, bf.book_role
-      FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1
-    `, [bookId, req.user.id]);
-    
-    if (bookCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
-    }
-    
-    const isOwner = bookCheck.rows[0].owner_id === req.user.id;
-    const isPublisher = bookCheck.rows[0].book_role === 'publisher';
-    
-    if (!isOwner && !isPublisher) {
-      return res.status(403).json({ error: 'Only book owners and publishers can update page assignments' });
-    }
     
     // Clear existing assignments for this book
     await pool.query(`

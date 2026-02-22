@@ -29,7 +29,8 @@
   "include": [
     "src", 
     "../shared/types", 
-    "../shared/utils"
+    "../shared/utils",
+    "../shared/permissions"
     /* Backup-Pfad entfernt, um File-Watcher zu entlasten */
   ],
   "exclude": [

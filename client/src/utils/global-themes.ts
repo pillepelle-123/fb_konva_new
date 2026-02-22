@@ -4,7 +4,7 @@ import type { ColorPalette } from '../types/template-types.ts';
 import { commonToActual } from './font-size-converter.ts';
 import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
 import { commonToActualRadius } from './corner-radius-converter.ts';
-import themesData from '../data/templates/themes';
+import { getThemesData } from '../data/templates/templates-data';
 import { getElementPaletteColors } from './global-palettes';
 
 // Get palette from color-palettes.ts (single source of truth)
@@ -44,6 +44,7 @@ export interface GlobalTheme {
     question: Partial<CanvasElement>;
     answer: Partial<CanvasElement>;
     image: Partial<CanvasElement>;
+    sticker: Partial<CanvasElement>;
     shape: Partial<CanvasElement>;
     brush: Partial<CanvasElement>;
   };
@@ -66,7 +67,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     // Convert strokeWidth if it exists directly in defaults (for shapes/brushes)
     const convertedDefaults = { ...defaults };
     if (convertedDefaults.strokeWidth !== undefined && typeof convertedDefaults.strokeWidth === 'number') {
-      const strokeTheme = convertedDefaults.inheritTheme || id;
+      const strokeTheme = convertedDefaults.inheritTheme || convertedDefaults.frameTheme || id;
       convertedDefaults.strokeWidth = themeJsonToActualStrokeWidth(convertedDefaults.strokeWidth, strokeTheme);
     }
     
@@ -194,6 +195,17 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       base.cornerRadius = commonToActualRadius(base.cornerRadius);
     }
 
+    // Sticker: convert stickerTextSettings.fontSize from common to actual
+    if (base.stickerTextSettings?.fontSize !== undefined) {
+      base.stickerTextSettings = { ...base.stickerTextSettings };
+      base.stickerTextSettings.fontSize = commonToActual(base.stickerTextSettings.fontSize);
+    }
+
+    // Image: use frameTheme for theme
+    if (elementType === 'image' && base.frameTheme) {
+      base.theme = base.frameTheme;
+    }
+
     // Apply palette colors automatically (overriding hardcoded colors)
     if (palette) {
       // Always use palette colors for stroke/fill (shapes, brushes, lines)
@@ -215,8 +227,19 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
         base.border.borderColor = palette.colors.secondary;
         base.borderColor = palette.colors.secondary;
         base.border.borderTheme = base.border.borderTheme || id;
+      } else if (elementType === 'image') {
+        base.borderColor = palette.colors.primary;
       } else {
         base.borderColor = palette.colors.secondary;
+      }
+
+      // Sticker: apply palette colors
+      if (elementType === 'sticker') {
+        base.stickerColor = palette.colors.primary;
+        if (base.stickerTextSettings) {
+          base.stickerTextSettings = { ...base.stickerTextSettings };
+          base.stickerTextSettings.fontColor = palette.colors.text || palette.colors.primary;
+        }
       }
       
       // Apply palette colors to background
@@ -280,6 +303,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       question: buildElement('question', config.elementDefaults.question || {}),
       answer: buildElement('answer', config.elementDefaults.answer || {}),
       image: buildElement('image', config.elementDefaults.image || {}),
+      sticker: buildElement('sticker', config.elementDefaults.sticker || {}),
       shape: buildElement('shape', config.elementDefaults.shape || {}),
       brush: buildElement('brush', config.elementDefaults.brush || {})
     }
@@ -306,7 +330,7 @@ export function getGlobalTheme(id: string): GlobalTheme | undefined {
     return processedThemeCache.get(id);
   }
   
-  const themeConfig = (themesData as Record<string, ThemeConfig>)[id];
+  const themeConfig = (getThemesData() as Record<string, ThemeConfig>)[id];
   if (!themeConfig) return undefined;
   
   const rawTheme = createTheme(id, themeConfig);
@@ -321,11 +345,13 @@ export function getGlobalTheme(id: string): GlobalTheme | undefined {
  * @returns The palette ID or undefined if theme not found
  */
 export function getThemePaletteId(themeId: string): string | undefined {
-  const themeConfig = (themesData as Record<string, ThemeConfig>)[themeId];
+  const themeConfig = (getThemesData() as Record<string, ThemeConfig>)[themeId];
   return themeConfig?.palette;
 }
 
-export const GLOBAL_THEMES: GlobalTheme[] = Object.keys(themesData).map(id => getGlobalTheme(id)!).filter(Boolean);
+export function getGlobalThemes(): GlobalTheme[] {
+  return Object.keys(getThemesData()).map(id => getGlobalTheme(id)!).filter(Boolean);
+}
 
 function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaults'] {
   switch (elementType) {
@@ -343,6 +369,8 @@ function getThemeCategory(elementType: string): keyof GlobalTheme['elementDefaul
     case 'placeholder':
     case 'qr_code':
       return 'image';
+    case 'sticker':
+      return 'sticker';
     case 'brush':
       return 'brush';
     case 'line':
@@ -571,6 +599,33 @@ function getBaseDefaultsForType(elementType: string): any {
       qrMargin: 1,
       qrDotsStyle: 'square',
       qrCornerStyle: 'default'
+    },
+    image: {
+      imageOpacity: 1,
+      cornerRadius: 0,
+      frameEnabled: false,
+      frameTheme: 'default',
+      strokeWidth: 0,
+      borderOpacity: 1
+    },
+    placeholder: {
+      imageOpacity: 1,
+      cornerRadius: 0,
+      frameEnabled: false,
+      frameTheme: 'default',
+      strokeWidth: 0,
+      borderOpacity: 1
+    },
+    sticker: {
+      imageOpacity: 1,
+      stickerTextSettings: {
+        fontSize: 50,
+        fontFamily: 'Arial, sans-serif',
+        fontBold: false,
+        fontItalic: false,
+        fontColor: '#1f2937',
+        fontOpacity: 1
+      }
     }
   };
 
@@ -585,8 +640,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
   const theme = getGlobalTheme(themeId);
   if (!theme) return baseDefaults; // Return base defaults, not empty object
 
-  // Use ONLY the provided paletteId, NOT the theme's default palette
-  const palette = paletteId ? getPalette(paletteId) : undefined;
+  // Use provided paletteId, or fall back to theme's default palette when null/undefined (Theme's Default Palette)
+  const effectivePaletteId = paletteId ?? getThemePaletteId(themeId);
+  const palette = effectivePaletteId ? getPalette(effectivePaletteId) : undefined;
   
   // For QnA elements (qna and qna2), convert fontSize in questionSettings and answerSettings from common to actual
   if (elementType === 'qna' || elementType === 'qna2') {
@@ -993,6 +1049,16 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
     } else if (elementType === 'qr_code') {
       paletteDefaults.qrForegroundColor = palette.colors.text || palette.colors.primary;
       paletteDefaults.qrBackgroundColor = palette.colors.background || palette.colors.surface;
+    } else if (elementType === 'image' || elementType === 'placeholder') {
+      paletteDefaults.borderColor = palette.colors.primary;
+    } else if (elementType === 'sticker') {
+      paletteDefaults.stickerColor = palette.colors.primary;
+      if (mergedDefaults.stickerTextSettings) {
+        paletteDefaults.stickerTextSettings = {
+          ...mergedDefaults.stickerTextSettings,
+          fontColor: palette.colors.text || palette.colors.primary
+        };
+      }
     }
     
     // Merge palette colors into merged defaults
@@ -1003,7 +1069,7 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
 }
 
 export function getQnAThemeDefaults(themeId: string, section: 'question' | 'answer'): any {
-  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const themeConfig = (getThemesData() as Record<string, any>)[themeId];
   if (!themeConfig?.elementDefaults?.text) return {};
   
   const textDefaults = themeConfig.elementDefaults.text;
@@ -1018,7 +1084,7 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   const textDefaults = theme.elementDefaults.text;
   
   // Get theme palette and apply colors automatically
-  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const themeConfig = (getThemesData() as Record<string, any>)[themeId];
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
   
   // Extract questionSettings and answerSettings from the theme if available
@@ -1466,6 +1532,10 @@ export function applyThemeToElementConsistent(
     updatedElement.textSettings = { ...(element.textSettings || {}), ...themeDefaults.textSettings };
   }
 
+  if (themeDefaults.stickerTextSettings) {
+    updatedElement.stickerTextSettings = { ...(element.stickerTextSettings || {}), ...themeDefaults.stickerTextSettings };
+  }
+
   return updatedElement;
 }
 
@@ -1487,7 +1557,7 @@ export function getThemePageBackgroundColors(
     };
   }
 
-  const themeConfig = (themesData as Record<string, any>)[themeId];
+  const themeConfig = (getThemesData() as Record<string, any>)[themeId];
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
   
   if (palette) {
@@ -1543,7 +1613,7 @@ export function applyThemeToPage(
 }
 
 export function getAllGlobalThemes(): GlobalTheme[] {
-  return GLOBAL_THEMES;
+  return getGlobalThemes();
 }
 
 export function logThemeStructure(themeData: any): void {

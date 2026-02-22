@@ -1,18 +1,26 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
+const { requireBookPermission } = require('../middleware/require-book-permission');
 const { sendInvitationEmail } = require('../services/email');
 const { syncGroupChatForBook } = require('../services/book-chats');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+const loadBookPermissionsFromBody = createLoadBookPermissionsMiddleware(pool, { bookIdBodyKey: 'bookId' });
+
 // Send invitation
-router.post('/send', authenticateToken, async (req, res) => {
+router.post('/send', authenticateToken, loadBookPermissionsFromBody, requireBookPermission('manage', 'Book'), async (req, res) => {
   const { name, email, bookId } = req.body;
   const inviterId = req.user.id;
 
   try {
+    if (!bookId) {
+      return res.status(400).json({ error: 'bookId required' });
+    }
+
     // Get inviter and book info
     const [inviterResult, bookResult] = await Promise.all([
       pool.query('SELECT name FROM public.users WHERE id = $1', [inviterId]),

@@ -10,6 +10,10 @@ import { ThemeSelect } from '../../../../utils/theme-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
+import { SlotSelector } from './slot-selector';
+import type { SandboxContextValue } from '../../../../context/sandbox-context';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
+import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
 
 interface ImageSettingsFormProps {
   element: any;
@@ -21,6 +25,8 @@ interface ImageSettingsFormProps {
   hasChanges?: boolean;
   onSave?: () => void;
   onDiscard?: () => void;
+  isSandboxMode?: boolean;
+  sandbox?: SandboxContextValue;
 }
 
 export function ImageSettingsForm({
@@ -32,7 +38,9 @@ export function ImageSettingsForm({
   setShowColorSelector,
   hasChanges,
   onSave,
-  onDiscard
+  onDiscard,
+  isSandboxMode = false,
+  sandbox
 }: ImageSettingsFormProps) {
   const shouldShowFooter =
     hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
@@ -87,6 +95,21 @@ export function ImageSettingsForm({
       />
       
       <Separator />
+      
+      {/* Frame/Border Color for placeholder in sandbox */}
+      {element.type === 'placeholder' && isSandboxMode && sandbox && (
+        <div>
+          <SlotSelector
+            label="Frame Color"
+            value={(sandbox.getPartSlot(element.id, 'imageBorder') ?? DEFAULT_PALETTE_PARTS.imageBorder) as PaletteColorSlot}
+            onChange={(slot) => {
+              sandbox.setPartSlotOverride(element.id, 'imageBorder', slot);
+              updateSetting('borderColor', sandbox.getColorForSlot(slot));
+            }}
+            slotColors={sandbox.state.sandboxColors}
+          />
+        </div>
+      )}
       
       {/* Frame Settings - only show for image elements, not placeholders */}
       {element.type === 'image' && (
@@ -156,7 +179,19 @@ export function ImageSettingsForm({
               />
               
               {/* Frame Color */}
-              {setShowColorSelector && (
+              {isSandboxMode && sandbox ? (
+                <div>
+                  <SlotSelector
+                    label="Frame Color"
+                    value={(sandbox.getPartSlot(element.id, 'imageBorder') ?? DEFAULT_PALETTE_PARTS.imageBorder) as PaletteColorSlot}
+                    onChange={(slot) => {
+                      sandbox.setPartSlotOverride(element.id, 'imageBorder', slot);
+                      updateSetting('borderColor', sandbox.getColorForSlot(slot));
+                    }}
+                    slotColors={sandbox.state.sandboxColors}
+                  />
+                </div>
+              ) : setShowColorSelector ? (
                 <div>
                   <Button
                     variant="outline"
@@ -169,7 +204,7 @@ export function ImageSettingsForm({
                     Frame Color
                   </Button>
                 </div>
-              )}
+              ) : null}
               
               {/* Frame Opacity */}
               <Slider

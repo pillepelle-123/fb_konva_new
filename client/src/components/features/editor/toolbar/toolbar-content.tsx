@@ -17,24 +17,25 @@ interface ToolbarContentProps {
 }
 
 export const ToolbarContent = forwardRef<{ closeSubmenus: () => void }, ToolbarContentProps>(function ToolbarContent({ activeTool, isExpanded, onToolSelect }, ref) {
-  const { state, dispatch, canUseTools, canUseTool } = useEditor();
+  const { state, dispatch, canUseTool } = useEditor();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useImperativeHandle(ref, () => ({
     closeSubmenus: () => {}
   }));
 
-  const toolAccessAllowed = canUseTools();
+  const canUseSelect = canUseTool('select');
+  const canUseTextbox = canUseTool('textbox');
   const canUseQnaTool = canUseTool('qna');
 
-  // Hide content if the user cannot access tools (except answer-only mode)
-  if (!toolAccessAllowed && state.editorInteractionLevel !== 'answer_only') {
+  // Hide content if the user cannot access any tools
+  if (!canUseSelect) {
     return null;
   }
 
-  // For answer_only users, only show Select, Pan, and Zoom tools
-  // console.log('Toolbar content - editorInteractionLevel:', state.editorInteractionLevel);
-  if (state.editorInteractionLevel === 'answer_only') {
+  // For answer_only users (can select/pan/zoom but not create elements), only show Select, Pan, and Zoom tools
+  const isAnswerOnly = canUseSelect && !canUseTextbox;
+  if (isAnswerOnly) {
     return (
       <>
         <div className={`p-2 overflow-y-auto scrollbar-hide flex-1 min-h-0 relative`}>

@@ -1,6 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
+const { requireBookPermission } = require('../middleware/require-book-permission');
 
 const router = express.Router();
 
@@ -16,6 +18,8 @@ const pool = new Pool({
 pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
+
+const loadBookPermissionsFromParams = createLoadBookPermissionsMiddleware(pool, { bookIdParam: 'bookId' });
 
 // Create or update answer
 router.post('/', authenticateToken, async (req, res) => {
@@ -384,22 +388,9 @@ router.delete('/:answerId', authenticateToken, async (req, res) => {
 });
 
 // Deactivate answers for a user when removed from book
-router.put('/deactivate-user/:userId/book/:bookId', authenticateToken, async (req, res) => {
+router.put('/deactivate-user/:userId/book/:bookId', authenticateToken, loadBookPermissionsFromParams, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const { userId: targetUserId, bookId } = req.params;
-    const requestUserId = req.user.id;
-
-    // Check if requesting user has permission (book owner or publisher)
-    const bookCheck = await pool.query(
-      `SELECT b.owner_id, bf.book_role FROM public.books b
-       LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $1
-       WHERE b.id = $2 AND (b.owner_id = $1 OR bf.book_role = 'publisher')`,
-      [requestUserId, bookId]
-    );
-
-    if (bookCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
 
     // Get all questions for this book
     const questions = await pool.query(

@@ -81,6 +81,24 @@
         "strokeWidth": 2,
         "strokeOpacity": 1,
         "inheritTheme": "default"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 0,
+        "frameEnabled": false,
+        "frameTheme": "default",
+        "strokeWidth": 0,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 12,
+          "fontFamily": "Century Gothic, sans-serif",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -160,6 +178,24 @@
         "inheritTheme": "vintage",
         "borderEnabled": true,
         "backgroundEnabled": true
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 4,
+        "frameEnabled": false,
+        "frameTheme": "rough",
+        "strokeWidth": 0,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 17,
+          "fontFamily": "'Mynerve', cursive",
+          "fontBold": false,
+          "fontItalic": true,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -251,6 +287,24 @@
         "strokeWidth": 4,
         "strokeOpacity": 1,
         "inheritTheme": "glow"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "glow",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -342,6 +396,24 @@
         "strokeWidth": 2,
         "strokeOpacity": 1,
         "inheritTheme": "wobbly"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "default",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -433,6 +505,24 @@
         "strokeWidth": 2,
         "strokeOpacity": 1,
         "inheritTheme": "zigzag"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "default",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -511,6 +601,24 @@
       "line": {
         "strokeWidth": 7,
         "inheritTheme": "rough"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "default",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -663,6 +771,24 @@
       "line": {
         "strokeWidth": 2,
         "inheritTheme": "rough"
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "default",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   },
@@ -738,6 +864,24 @@
         "inheritTheme": "rough",
         "borderEnabled": true,
         "backgroundEnabled": false
+      },
+      "image": {
+        "imageOpacity": 1,
+        "cornerRadius": 12,
+        "frameEnabled": true,
+        "frameTheme": "default",
+        "strokeWidth": 2,
+        "borderOpacity": 1
+      },
+      "sticker": {
+        "imageOpacity": 1,
+        "stickerTextSettings": {
+          "fontSize": 18,
+          "fontFamily": "'Knewave', cursive",
+          "fontBold": false,
+          "fontItalic": false,
+          "fontOpacity": 1
+        }
       }
     }
   }

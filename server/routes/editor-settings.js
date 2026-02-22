@@ -30,9 +30,15 @@ router.get('/:bookId', auth, async (req, res) => {
     const { bookId } = req.params;
     const userId = req.user.id;
 
+    // Sandbox and other non-integer book IDs have no persisted settings
+    const bookIdNum = parseInt(bookId, 10);
+    if (bookId === 'sandbox' || isNaN(bookIdNum)) {
+      return res.json({});
+    }
+
     const result = await pool.query(
       'SELECT setting_type, setting_key, setting_value FROM public.editor_settings WHERE user_id = $1 AND book_id = $2',
-      [userId, bookId]
+      [userId, bookIdNum]
     );
 
     const settings = {};
@@ -57,12 +63,17 @@ router.post('/:bookId', auth, async (req, res) => {
     const userId = req.user.id;
     const { settingType, settingKey, settingValue } = req.body;
 
+    const bookIdNum = parseInt(bookId, 10);
+    if (bookId === 'sandbox' || isNaN(bookIdNum)) {
+      return res.json({ success: true });
+    }
+
     await pool.query(
       `INSERT INTO public.editor_settings (user_id, book_id, setting_type, setting_key, setting_value, updated_at)
        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id, book_id, setting_type, setting_key)
        DO UPDATE SET setting_value = $5, updated_at = CURRENT_TIMESTAMP`,
-      [userId, bookId, settingType, settingKey, JSON.stringify(settingValue)]
+      [userId, bookIdNum, settingType, settingKey, JSON.stringify(settingValue)]
     );
 
     res.json({ success: true });
@@ -78,9 +89,14 @@ router.delete('/:bookId/:settingType/:settingKey', auth, async (req, res) => {
     const { bookId, settingType, settingKey } = req.params;
     const userId = req.user.id;
 
+    const bookIdNum = parseInt(bookId, 10);
+    if (bookId === 'sandbox' || isNaN(bookIdNum)) {
+      return res.json({ success: true });
+    }
+
     await pool.query(
       'DELETE FROM public.editor_settings WHERE user_id = $1 AND book_id = $2 AND setting_type = $3 AND setting_key = $4',
-      [userId, bookId, settingType, settingKey]
+      [userId, bookIdNum, settingType, settingKey]
     );
 
     res.json({ success: true });

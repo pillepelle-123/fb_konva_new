@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { Eye, Paintbrush2 } from 'lucide-react';
 import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
-import { GLOBAL_THEMES, getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../../utils/global-themes';
+import { getGlobalThemes, getGlobalTheme, getThemePageBackgroundColors, getThemePaletteId } from '../../../../utils/global-themes';
 import { SelectorBase } from './selector-base';
 import { Card } from '../../../ui/composites/card';
 import { Button } from '../../../ui/primitives/button';
@@ -31,6 +31,7 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
 
   const initialThemeRef = useRef<string>(currentTheme || 'default');
   const [selectedTheme, setSelectedTheme] = useState<string>(initialThemeRef.current);
+  const [hasUserClickedItem, setHasUserClickedItem] = useState(false);
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageStateRef = useRef<Page | null>(null);
   const hasAppliedRef = useRef(false);
@@ -42,7 +43,7 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
     }
   }, []);
 
-  const themes = GLOBAL_THEMES.map(theme => ({ id: theme.id, ...getGlobalTheme(theme.id)! }));
+  const themes = getGlobalThemes().map(theme => ({ id: theme.id, ...getGlobalTheme(theme.id)! }));
   const selectedThemeObj = themes.find(t => t.id === selectedTheme) || null;
   const activeThemeObj = getGlobalTheme(selectedTheme);
 
@@ -54,7 +55,7 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
     const activePaletteId = page?.colorPaletteId ?? null;
     const currentThemeId = page?.themeId ?? 'default';
     const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-    const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+    const isUsingThemeDefaultPalette = activePaletteId === null || activePaletteId === currentThemeDefaultPaletteId;
 
     let paletteToUse;
     if (isUsingThemeDefaultPalette) {
@@ -114,14 +115,21 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
       const activePaletteId = currentPage.colorPaletteId ?? null;
       const currentThemeId = currentPage.themeId ?? 'default';
       const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-      const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+      const isUsingThemeDefaultPalette = activePaletteId === null || activePaletteId === currentThemeDefaultPaletteId;
 
       if (isUsingThemeDefaultPalette) {
         const newThemeDefaultPaletteId = getThemePaletteId(themeId);
+        const newThemePalette = newThemeDefaultPaletteId ? colorPalettes.find(p => p.id === newThemeDefaultPaletteId) ?? null : null;
         dispatch({
           type: 'SET_PAGE_COLOR_PALETTE',
           payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
         });
+        if (newThemePalette) {
+          dispatch({
+            type: 'APPLY_COLOR_PALETTE',
+            payload: { palette: newThemePalette, pageIndex: state.activePageIndex, applyToAllPages: false, skipHistory: true }
+          });
+        }
       }
 
       const newBackground = buildBackground(themeId, state.activePageIndex);
@@ -165,14 +173,21 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
           const activePaletteId = page.colorPaletteId ?? null;
           const currentThemeId = page.themeId ?? 'default';
           const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-          const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+          const isUsingThemeDefaultPalette = activePaletteId === null || activePaletteId === currentThemeDefaultPaletteId;
 
           if (isUsingThemeDefaultPalette) {
             const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
+            const newThemePalette = newThemeDefaultPaletteId ? colorPalettes.find(p => p.id === newThemeDefaultPaletteId) ?? null : null;
             dispatch({
               type: 'SET_PAGE_COLOR_PALETTE',
               payload: { pageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
             });
+            if (newThemePalette) {
+              dispatch({
+                type: 'APPLY_COLOR_PALETTE',
+                payload: { palette: newThemePalette, pageIndex, applyToAllPages: false, skipHistory: true }
+              });
+            }
           }
 
           const newBackground = buildBackground(selectedTheme, pageIndex);
@@ -203,14 +218,21 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
       const activePaletteId = currentPage.colorPaletteId ?? null;
       const currentThemeId = currentPage.themeId ?? 'default';
       const currentThemeDefaultPaletteId = getThemePaletteId(currentThemeId);
-      const isUsingThemeDefaultPalette = activePaletteId === currentThemeDefaultPaletteId;
+      const isUsingThemeDefaultPalette = activePaletteId === null || activePaletteId === currentThemeDefaultPaletteId;
 
       if (isUsingThemeDefaultPalette) {
         const newThemeDefaultPaletteId = getThemePaletteId(selectedTheme);
+        const newThemePalette = newThemeDefaultPaletteId ? colorPalettes.find(p => p.id === newThemeDefaultPaletteId) ?? null : null;
         dispatch({
           type: 'SET_PAGE_COLOR_PALETTE',
           payload: { pageIndex: state.activePageIndex, colorPaletteId: newThemeDefaultPaletteId || null }
         });
+        if (newThemePalette) {
+          dispatch({
+            type: 'APPLY_COLOR_PALETTE',
+            payload: { palette: newThemePalette, pageIndex: state.activePageIndex, applyToAllPages: false, skipHistory: true }
+          });
+        }
       }
 
       const newBackground = buildBackground(selectedTheme, state.activePageIndex);
@@ -230,13 +252,14 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
       items={themes}
       selectedItem={selectedThemeObj}
       onItemSelect={(theme) => {
+        setHasUserClickedItem(true);
         setSelectedTheme(theme.id);
         handlePreview(theme.id);
       }}
       getItemKey={(theme) => theme.id}
       onCancel={handleCancel}
       onApply={handleApply}
-      canApply={selectedTheme !== initialThemeRef.current}
+      canApply={hasUserClickedItem || selectedTheme !== initialThemeRef.current}
       applyToEntireBook={applyToEntireBook}
       onApplyToEntireBookChange={canApplyToEntireBook ? setApplyToEntireBook : undefined}
       renderItem={(theme, isActive) => (

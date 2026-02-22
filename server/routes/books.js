@@ -1,6 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
+const { requireBookPermission } = require('../middleware/require-book-permission');
 const {
   createOrUpdateBookConversation,
   addUsersToBookConversation,
@@ -23,6 +25,8 @@ const pool = new Pool({
 pool.on('connect', (client) => {
   client.query(`SET search_path TO ${schema}`);
 });
+
+const loadBookPermissions = createLoadBookPermissionsMiddleware(pool, { bookIdParam: 'id' });
 
 const parseJsonField = (value) => {
   if (value === null || value === undefined) {
@@ -1538,16 +1542,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Add collaborator by email
-router.post('/:id/collaborators', authenticateToken, async (req, res) => {
+router.post('/:id/collaborators', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const { email } = req.body;
     const userId = req.user.id;
 
-    // Check if user is owner
-    const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
+    const book = await pool.query('SELECT * FROM public.books WHERE id = $1', [bookId]);
     if (book.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(404).json({ error: 'Book not found' });
     }
 
     // Find user by email
@@ -1594,22 +1597,16 @@ router.post('/:id/collaborators', authenticateToken, async (req, res) => {
 });
 
 // Add friend to book by friend ID
-router.post('/:id/friends', authenticateToken, async (req, res) => {
+router.post('/:id/friends', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const { friendId, userId: targetUserId, role = 'author', book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
     const userToAdd = friendId || targetUserId;
 
-    // Check if user has access to manage this book
-    const bookAccess = await pool.query(`
-      SELECT b.*, bf.book_role as user_book_role FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
-    `, [bookId, userId]);
-
+    const bookAccess = await pool.query('SELECT * FROM public.books WHERE id = $1', [bookId]);
     if (bookAccess.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(404).json({ error: 'Book not found' });
     }
 
     // User must already be a friend to add to book - no automatic friendship creation
@@ -1693,17 +1690,10 @@ router.post('/:id/friends', authenticateToken, async (req, res) => {
 });
 
 // Remove collaborator
-router.delete('/:id/collaborators/:userId', authenticateToken, async (req, res) => {
+router.delete('/:id/collaborators/:userId', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const collaboratorId = req.params.userId;
-    const userId = req.user.id;
-
-    // Check if user is owner
-    const book = await pool.query('SELECT * FROM public.books WHERE id = $1 AND owner_id = $2', [bookId, userId]);
-    if (book.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     await pool.query(
       'DELETE FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
@@ -1935,22 +1925,16 @@ router.get('/:id/friends', authenticateToken, async (req, res) => {
 });
 
 // Update friend role
-router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) => {
+router.put('/:id/friends/:friendId/role', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const friendId = req.params.friendId;
     const { role, book_role, page_access_level, editor_interaction_level } = req.body;
     const userId = req.user.id;
 
-    // Check if user is owner or publisher
-    const bookAccess = await pool.query(`
-      SELECT b.*, bf.book_role as user_book_role FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
-    `, [bookId, userId]);
-
+    const bookAccess = await pool.query('SELECT * FROM public.books WHERE id = $1', [bookId]);
     if (bookAccess.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(404).json({ error: 'Book not found' });
     }
 
     // Automatically set permissions for publishers
@@ -1974,22 +1958,10 @@ router.put('/:id/friends/:friendId/role', authenticateToken, async (req, res) =>
 });
 
 // Bulk update book friends permissions
-router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
+router.put('/:id/friends/bulk-update', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const { friends } = req.body;
-    const userId = req.user.id;
-
-    // Check if user is owner or publisher
-    const bookAccess = await pool.query(`
-      SELECT b.*, bf.book_role as user_book_role FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
-    `, [bookId, userId]);
-
-    if (bookAccess.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     // Update each friend's permissions
     for (const friend of friends) {
@@ -2015,22 +1987,10 @@ router.put('/:id/friends/bulk-update', authenticateToken, async (req, res) => {
 });
 
 // Remove friend from book
-router.delete('/:id/friends/:friendId', authenticateToken, async (req, res) => {
+router.delete('/:id/friends/:friendId', authenticateToken, loadBookPermissions, requireBookPermission('manage', 'Book'), async (req, res) => {
   try {
     const bookId = req.params.id;
     const friendId = req.params.friendId;
-    const userId = req.user.id;
-
-    // Check if user is owner or publisher
-    const bookAccess = await pool.query(`
-      SELECT b.*, bf.book_role as user_book_role FROM public.books b
-      LEFT JOIN public.book_friends bf ON b.id = bf.book_id AND bf.user_id = $2
-      WHERE b.id = $1 AND (b.owner_id = $2 OR bf.book_role = 'publisher')
-    `, [bookId, userId]);
-
-    if (bookAccess.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     // Remove page assignments first
     await pool.query(`

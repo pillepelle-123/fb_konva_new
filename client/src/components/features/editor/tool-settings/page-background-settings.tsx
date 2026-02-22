@@ -10,6 +10,9 @@ import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { ColorSelector } from './color-selector';
+import { SlotSelector } from './slot-selector';
+import type { SandboxContextValue } from '../../../../context/sandbox-context';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { Slider } from '../../../ui/primitives/slider';
 import { Label } from '../../../ui/primitives/label';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
@@ -33,6 +36,8 @@ interface PageBackgroundSettingsProps {
   onBackgroundImageSelect?: (imageId: string | null) => void;
   onApplyBackgroundImage?: () => void;
   isBackgroundApplyDisabled?: boolean;
+  isSandboxMode?: boolean;
+  sandbox?: SandboxContextValue;
 }
 
 export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
@@ -49,7 +54,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     selectedBackgroundImageId,
     onBackgroundImageSelect,
     onApplyBackgroundImage,
-    isBackgroundApplyDisabled
+    isBackgroundApplyDisabled,
+    isSandboxMode = false,
+    sandbox
   } = props;
 
   const { state, dispatch, canEditBookSettings } = useEditor();
@@ -322,6 +329,38 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   };
 
   const colorSelectorContent = showColorSelector && (() => {
+    if (isSandboxMode && sandbox) {
+      const partName = showColorSelector === 'background-color' ? 'pageBackground' : 'pagePattern';
+      const currentSlot = sandbox.getPageSlot(partName) ?? (partName === 'pageBackground' ? 'surface' : 'primary');
+      const slotColors = sandbox.state.sandboxColors;
+      const handleSlotChange = (slot: PaletteColorSlot) => {
+        sandbox.setPageSlotOverride(partName, slot);
+        const color = sandbox.getColorForSlot(slot);
+        if (showColorSelector === 'background-color') {
+          if (background.type === 'pattern') {
+            updateBackground({ patternForegroundColor: color });
+          } else {
+            updateBackground({ value: color });
+          }
+        } else {
+          updateBackground({ patternBackgroundColor: color });
+        }
+      };
+      return (
+        <div className="space-y-4 p-2">
+          <Button variant="ghost" size="sm" onClick={() => setShowColorSelector(null)} className="px-2 h-8">
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <SlotSelector
+            value={currentSlot}
+            onChange={handleSlotChange}
+            slotColors={slotColors}
+            label={showColorSelector === 'background-color' ? 'Page Background Color' : 'Page Background Pattern Color'}
+          />
+        </div>
+      );
+    }
     const getColorValue = () => {
       switch (showColorSelector) {
         case 'background-color':

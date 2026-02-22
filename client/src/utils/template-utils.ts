@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { PageTemplate, ColorPalette, TemplateCategory, TemplateMargins } from '../types/template-types';
 import type { CanvasElement } from '../context/editor-context';
-import { pageTemplates } from '../data/templates/page-templates';
+import { getPageTemplates } from '../data/templates/page-templates';
 import { commonToActual, actualToCommon } from './font-size-converter';
 
 // Pixel-Dimensionen für verschiedene Seitengrößen (in Pixel bei 300 DPI)
@@ -302,7 +302,7 @@ export function generateTemplatePreview(template: PageTemplate): string {
 }
 
 export function getTemplatesByCategory(category: TemplateCategory): PageTemplate[] {
-  return pageTemplates.filter(template => template.category === category);
+  return getPageTemplates().filter(template => template.category === category);
 }
 
 /**

@@ -1,5 +1,5 @@
-import { PropsWithChildren, useMemo } from 'react'
-import { Menu, Settings, Users, LibraryBig, FileText, Image, Sticker } from 'lucide-react'
+import { useMemo, type PropsWithChildren } from 'react'
+import { Menu, Settings, Users, LibraryBig, FileText, Image, Sticker, Palette, Droplets, LayoutTemplate, FlaskConical, PaintbrushVertical, LayoutPanelLeft } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Button, Sheet, SheetContent, SheetTrigger } from '../../components/ui'
 import { useAuth } from '../../context/auth-context'
@@ -40,6 +40,30 @@ export function AdminLayout({ children }: PropsWithChildren) {
         to: '/admin/stickers',
         icon: Sticker,
         description: 'Manage & upload stickers',
+      },
+      {
+        label: 'Themes',
+        to: '/admin/themes',
+        icon: PaintbrushVertical,
+        description: 'View & edit theme definitions',
+      },
+      {
+        label: 'Color Palettes',
+        to: '/admin/color-palettes',
+        icon: Palette,
+        description: 'View & edit color palettes',
+      },
+      {
+        label: 'Layouts',
+        to: '/admin/layouts',
+        icon: LayoutPanelLeft,
+        description: 'View & edit layout templates',
+      },
+      {
+        label: 'Sandbox',
+        to: '/admin/sandbox',
+        icon: FlaskConical,
+        description: 'Theme & palette export sandbox',
       },
     ],
     [],
@@ -86,10 +110,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
     </nav>
   )
 
+  const isSandbox = location.pathname.startsWith('/admin/sandbox');
+
   return (
-    <div className="min-h-screen bg-muted/30 text-foreground">
-      <div className="grid min-h-screen w-full lg:grid-cols-[260px_1fr]">
-        <aside className="hidden border-r bg-background/90 lg:flex lg:flex-col">
+    <div className="h-full min-h-0 overflow-hidden flex flex-col bg-muted/30 text-foreground">
+      <div className={cn('grid w-full lg:grid-cols-[260px_1fr] min-h-0', isSandbox ? 'flex-1' : 'flex-1')}>
+        <aside className="hidden border-r bg-background/90 lg:flex lg:flex-col lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Settings className="h-6 w-6" />
@@ -101,7 +127,7 @@ export function AdminLayout({ children }: PropsWithChildren) {
           </div>
           {renderNav('desktop')}
         </aside>
-        <div className="flex min-h-screen flex-col">
+        <div className="flex flex-col min-w-0 min-h-0 h-full">
           <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
             <div className="flex h-16 items-center justify-between gap-3 px-4">
               <div className="flex items-center gap-2">
@@ -131,7 +157,15 @@ export function AdminLayout({ children }: PropsWithChildren) {
                             ? 'Background Images'
                             : location.pathname.startsWith('/admin/stickers')
                               ? 'Stickers'
-                              : 'Overview'}
+                              : location.pathname.startsWith('/admin/themes')
+                                ? 'Themes'
+                                : location.pathname.startsWith('/admin/color-palettes')
+                                  ? 'Color Palettes'
+                                  : location.pathname.startsWith('/admin/layouts')
+                                    ? 'Layouts'
+                                    : location.pathname.startsWith('/admin/sandbox')
+                                      ? 'Sandbox'
+                                      : 'Overview'}
                   </span>
                   <span className="text-xs text-muted-foreground">System-wide administration & monitoring</span>
                 </div>
@@ -152,8 +186,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
               </div>
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto bg-muted/20">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">{children}</div>
+          <main className={`flex-1 flex flex-col min-h-0 min-w-0 ${location.pathname.startsWith('/admin/sandbox') ? 'overflow-hidden p-0' : 'overflow-y-auto bg-muted/20'}`}>
+            {location.pathname.startsWith('/admin/sandbox') ? (
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">{children}</div>
+            ) : (
+              <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">{children}</div>
+            )}
           </main>
         </div>
       </div>

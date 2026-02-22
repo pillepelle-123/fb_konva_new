@@ -24,10 +24,8 @@ const ICC_PROFILES = {
   }
 };
 
-// Load theme data files
-// Hinweis: Die JSON-Dateien liegen im gemeinsamen `shared`-Ordner, nicht mehr im Client
-const colorPalettesJson = require('../../shared/data/templates/color-palettes.json');
-const themesJson = require('../../shared/data/templates/themes.json');
+// Theme and palette data are loaded from the database via API when the client renders.
+// The PDF renderer uses Puppeteer to render the React app, which fetches themes/palettes from /api/themes and /api/color-palettes.
 
 // Load shared constants from shared/rendering/utils/constants.js
 const { PAGE_DIMENSIONS, CANVAS_DIMS, PATTERNS } = require('../../shared/utils/constants');

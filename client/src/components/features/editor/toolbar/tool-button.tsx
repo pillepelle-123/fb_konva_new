@@ -15,19 +15,15 @@ interface ToolButtonProps {
 }
 
 export function ToolButton({ id, label: _label, icon: Icon, isActive, isExpanded: _isExpanded, hasPopover, onClick }: ToolButtonProps) {
-  const { state, canUseTools } = useEditor();
+  const { state, canUseTool } = useEditor();
 
-  const toolAccessAllowed = canUseTools();
-  const alwaysAllowedTools = ['select', 'pan', 'zoom'];
-  
-  // Block tools for answer_only users (except select, pan, and zoom)
-  const isAnswerOnlyRestricted = state.editorInteractionLevel === 'answer_only' && !['select', 'pan', 'zoom'].includes(id);
+  const toolAccessAllowed = canUseTool(id);
   
   // Block tools that add elements if elements are locked (except select, pan, zoom, pipette)
   const lockElements = state.editorSettings?.editor?.lockElements;
   const isLockedRestricted = lockElements && !['select', 'pan', 'zoom', 'pipette'].includes(id);
   
-  const isDisabled = (!toolAccessAllowed && !alwaysAllowedTools.includes(id)) || isAnswerOnlyRestricted || isLockedRestricted;
+  const isDisabled = !toolAccessAllowed || isLockedRestricted;
   
   const displayName = getElementDisplayTitle(id);
   

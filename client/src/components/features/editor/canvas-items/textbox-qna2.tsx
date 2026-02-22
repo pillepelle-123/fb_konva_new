@@ -80,7 +80,7 @@ RichTextShape.displayName = 'RichTextShape';
 
 function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   const { element, isDragging, answerText: propsAnswerText, assignedUser: propsAssignedUser, questionStyle: propsQuestionStyle, answerStyle: propsAnswerStyle } = props;
-  const { state, dispatch, getQuestionText } = useEditor();
+  const { state, dispatch, getQuestionText, canEditElement } = useEditor();
   const { user } = useAuth();
   const elementWidth = element.width ?? 0;
   const elementHeight = element.height ?? 0;
@@ -122,9 +122,10 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     }
     return null;
   }, [state.currentBook?.pages, element.id]);
+  const canEditThisElement = canEditElement(element);
   const assignedUser = propsAssignedUser ?? (elementPageNumber !== null
     ? (state.pageAssignments[elementPageNumber] ?? (
-        state.userRole === 'author' && state.assignedPages?.includes(elementPageNumber) && user
+        canEditThisElement && element.textType === 'answer' && user
           ? { id: user.id }
           : null
       ))
@@ -302,9 +303,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
   }, [element.id, dispatch]);
 
   // Berechtigungen: Owner/Publisher → Question-Tab; pageAssignment → Answer-Tab
-  const isOwnerUser = Boolean(state.currentBook?.owner_id && user?.id === state.currentBook.owner_id);
-  const isPublisherUser = isOwnerUser || state.userRole === 'publisher';
-  const canShowQuestionTab = isPublisherUser;
+  const canShowQuestionTab = canEditElement({ textType: 'question' });
   const canShowAnswerTab = Boolean(assignedUser && user?.id === assignedUser.id);
   const canOpenQna2Editor = canShowQuestionTab || canShowAnswerTab;
 

@@ -15,6 +15,9 @@ import { FONT_GROUPS } from '../../../../utils/font-families';
 import { ThemeSelect } from '../../../../utils/theme-options';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
+import { SlotSelector } from './slot-selector';
+import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
+import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { ThemeSettingsRenderer } from './theme-settings-renderer';
@@ -41,6 +44,8 @@ interface FreeTextSettingsFormProps {
   hasChanges: boolean;
   onSave: () => void;
   onDiscard: () => void;
+  isSandboxMode?: boolean;
+  sandbox?: import('../../../../context/sandbox-context').SandboxContextValue;
 }
 
 export function FreeTextSettingsForm({
@@ -54,7 +59,9 @@ export function FreeTextSettingsForm({
   showColorSelector,
   hasChanges,
   onSave,
-  onDiscard
+  onDiscard,
+  isSandboxMode = false,
+  sandbox
 }: FreeTextSettingsFormProps) {
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
@@ -212,13 +219,25 @@ export function FreeTextSettingsForm({
         </div>
 
         <div>
-          <Tooltip content="Font Color" side="left">
-            <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
-              <Palette className="w-4 mr-2" />
-              <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
-              Font Color
-            </Button>
-          </Tooltip>
+          {isSandboxMode && sandbox ? (
+            <SlotSelector
+              label="Font Color"
+              value={(sandbox.getPartSlot(element.id, 'freeTextText') ?? DEFAULT_PALETTE_PARTS.freeTextText) as PaletteColorSlot}
+              onChange={(slot) => {
+                sandbox.setPartSlotOverride(element.id, 'freeTextText', slot);
+                updateTextSetting('fontColor', sandbox.getColorForSlot(slot));
+              }}
+              slotColors={sandbox.state.sandboxColors}
+            />
+          ) : (
+            <Tooltip content="Font Color" side="left">
+              <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
+                <Palette className="w-4 mr-2" />
+                <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
+                Font Color
+              </Button>
+            </Tooltip>
+          )}
         </div>
 
         <div className="flex flex-row gap-2 py-2 w-full">
@@ -294,13 +313,25 @@ export function FreeTextSettingsForm({
               updateSetting={(key, value) => updateTextSetting(key, value)}
             />
             <div>
-              <Tooltip content="Line Color" side="left">
-                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
-                  <Palette className="w-4 mr-2" />
-                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
-                  Line Color
-                </Button>
-              </Tooltip>
+              {isSandboxMode && sandbox ? (
+                <SlotSelector
+                  label="Line Color"
+                  value={(sandbox.getPartSlot(element.id, 'freeTextRuledLines') ?? DEFAULT_PALETTE_PARTS.freeTextRuledLines) as PaletteColorSlot}
+                  onChange={(slot) => {
+                    sandbox.setPartSlotOverride(element.id, 'freeTextRuledLines', slot);
+                    updateTextSetting('ruledLinesColor', sandbox.getColorForSlot(slot));
+                  }}
+                  slotColors={sandbox.state.sandboxColors}
+                />
+              ) : (
+                <Tooltip content="Line Color" side="left">
+                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
+                    <Palette className="w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
+                    Line Color
+                  </Button>
+                </Tooltip>
+              )}
             </div>
             <div className="min-w-0">
               <Tooltip content="Line Opacity" side="left" fullWidth={true}>
@@ -342,13 +373,25 @@ export function FreeTextSettingsForm({
               updateSetting={(key, value) => updateTextSetting(key, value)}
             />
             <div>
-              <Tooltip content="Border Color" side="left">
-                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
-                  <Palette className="w-4 mr-2" />
-                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
-                  Border Color
-                </Button>
-              </Tooltip>
+              {isSandboxMode && sandbox ? (
+                <SlotSelector
+                  label="Border Color"
+                  value={(sandbox.getPartSlot(element.id, 'freeTextBorder') ?? DEFAULT_PALETTE_PARTS.freeTextBorder) as PaletteColorSlot}
+                  onChange={(slot) => {
+                    sandbox.setPartSlotOverride(element.id, 'freeTextBorder', slot);
+                    updateTextSetting('borderColor', sandbox.getColorForSlot(slot));
+                  }}
+                  slotColors={sandbox.state.sandboxColors}
+                />
+              ) : (
+                <Tooltip content="Border Color" side="left">
+                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
+                    <Palette className="w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
+                    Border Color
+                  </Button>
+                </Tooltip>
+              )}
             </div>
             <div className="min-w-0">
               <Tooltip content="Border Opacity" side="left" fullWidth={true}>
@@ -370,13 +413,25 @@ export function FreeTextSettingsForm({
         {computedCurrentStyle.backgroundEnabled && (
           <IndentedSection>
             <div>
-              <Tooltip content="Background Color" side="left">
-                <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
-                  <Palette className="w-4 mr-2" />
-                  <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
-                  Background Color
-                </Button>
-              </Tooltip>
+              {isSandboxMode && sandbox ? (
+                <SlotSelector
+                  label="Background Color"
+                  value={(sandbox.getPartSlot(element.id, 'freeTextBackground') ?? DEFAULT_PALETTE_PARTS.freeTextBackground) as PaletteColorSlot}
+                  onChange={(slot) => {
+                    sandbox.setPartSlotOverride(element.id, 'freeTextBackground', slot);
+                    updateTextSetting('backgroundColor', sandbox.getColorForSlot(slot));
+                  }}
+                  slotColors={sandbox.state.sandboxColors}
+                />
+              ) : (
+                <Tooltip content="Background Color" side="left">
+                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
+                    <Palette className="w-4 mr-2" />
+                    <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
+                    Background Color
+                  </Button>
+                </Tooltip>
+              )}
             </div>
             <div className="min-w-0">
               <Tooltip content="Background Opacity" side="left" fullWidth={true}>

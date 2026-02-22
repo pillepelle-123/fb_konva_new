@@ -4,6 +4,7 @@ import { Button } from '../../ui/primitives/button';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/composites/tabs';
 import { QuestionSelectorContent, type PendingQuestionSelection } from './question-selector-content';
+import type { Question } from '../questions/question-list';
 import { useEditor } from '../../../context/editor-context';
 import { useAuth } from '../../../context/auth-context';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,7 @@ export function Qna2EditorModal({
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('question');
   const [pendingQuestionSelection, setPendingQuestionSelection] = useState<PendingQuestionSelection | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState(false);
   const [answerText, setAnswerText] = useState('');
 
   const element = useMemo(() => {
@@ -54,8 +56,8 @@ export function Qna2EditorModal({
     ? state.pageAssignments[elementPageNumber] ?? null
     : null;
 
-  // Effektive Frage: pending (noch nicht gespeichert) oder bereits am Element
-  const effectiveQuestionId = pendingQuestionSelection?.questionId ?? element?.questionId;
+  // Effektive Frage: pending (noch nicht gespeichert) oder bereits am Element; null wenn Entfernung ausstehend
+  const effectiveQuestionId = pendingRemoval ? null : (pendingQuestionSelection?.questionId ?? element?.questionId);
 
   const currentAnswerTextForQuestion = useCallback(
     (questionId: string | undefined) => {
@@ -79,7 +81,7 @@ export function Qna2EditorModal({
     [assignedUser, state.tempAnswers]
   );
 
-  const currentAnswerText = currentAnswerTextForQuestion(effectiveQuestionId);
+  const currentAnswerText = currentAnswerTextForQuestion(effectiveQuestionId ?? undefined);
 
   // Beim Wechsel der Frage (pending oder element) Answer-Textarea synchronisieren
   useEffect(() => {
@@ -89,6 +91,7 @@ export function Qna2EditorModal({
   useEffect(() => {
     if (isOpen) {
       setPendingQuestionSelection(null);
+      setPendingRemoval(false);
       setAnswerText(currentAnswerTextForQuestion(element?.questionId));
       setActiveTab(canShowQuestionTab ? 'question' : 'answer');
     }
@@ -96,16 +99,21 @@ export function Qna2EditorModal({
 
   const handleDiscard = useCallback(() => {
     setPendingQuestionSelection(null);
+    setPendingRemoval(false);
     setAnswerText(currentAnswerTextForQuestion(element?.questionId));
     onClose();
   }, [element?.questionId, currentAnswerTextForQuestion, onClose]);
 
   const handleRemoveQuestion = useCallback(() => {
-    if (!elementId || !canShowQuestionTab) return;
-    onQuestionSelect('', '', undefined, elementId);
+    if (!canShowQuestionTab) return;
+    setPendingRemoval(true);
     setPendingQuestionSelection(null);
-    onClose();
-  }, [elementId, canShowQuestionTab, onQuestionSelect, onClose]);
+  }, [canShowQuestionTab]);
+
+  const handlePendingQuestionChange = useCallback((selection: PendingQuestionSelection | null) => {
+    if (selection) setPendingRemoval(false);
+    setPendingQuestionSelection(selection);
+  }, []);
 
   const handleSaveAndClose = useCallback(() => {
     if (!elementId) {
@@ -113,14 +121,18 @@ export function Qna2EditorModal({
       return;
     }
 
-    // 1. Frage-Änderung anwenden (wenn canShowQuestionTab und pendingSelection)
-    if (canShowQuestionTab && pendingQuestionSelection) {
-      onQuestionSelect(
-        pendingQuestionSelection.questionId,
-        pendingQuestionSelection.questionText,
-        pendingQuestionSelection.questionPosition,
-        elementId
-      );
+    // 1. Frage-Änderung anwenden (wenn canShowQuestionTab)
+    if (canShowQuestionTab) {
+      if (pendingRemoval) {
+        onQuestionSelect('', '', undefined, elementId);
+      } else if (pendingQuestionSelection) {
+        onQuestionSelect(
+          pendingQuestionSelection.questionId,
+          pendingQuestionSelection.questionText,
+          pendingQuestionSelection.questionPosition,
+          elementId
+        );
+      }
     }
 
     // 2. Antwort-Änderung anwenden (wenn canShowAnswerTab und assignedUser)
@@ -140,11 +152,13 @@ export function Qna2EditorModal({
     }
 
     setPendingQuestionSelection(null);
+    setPendingRemoval(false);
     onClose();
   }, [
     elementId,
     canShowQuestionTab,
     canShowAnswerTab,
+    pendingRemoval,
     pendingQuestionSelection,
     element?.questionId,
     onQuestionSelect,
@@ -159,17 +173,6 @@ export function Qna2EditorModal({
   const modalActions = useMemo(
     () => (
       <div className="flex flex-wrap gap-2 justify-end">
-        {canShowQuestionTab && effectiveQuestionId && (
-          <Tooltip content="Remove question from this textbox">
-            <Button
-              variant="outline"
-              onClick={handleRemoveQuestion}
-              className="text-destructive hover:text-destructive"
-            >
-              Remove
-            </Button>
-          </Tooltip>
-        )}
         <Button variant="outline" onClick={handleDiscard}>
           Discard
         </Button>
@@ -178,7 +181,7 @@ export function Qna2EditorModal({
         </Button>
       </div>
     ),
-    [canShowQuestionTab, effectiveQuestionId, handleRemoveQuestion, handleDiscard, handleSaveAndClose]
+    [handleDiscard, handleSaveAndClose]
   );
 
   if (!elementId) return null;
@@ -215,9 +218,27 @@ export function Qna2EditorModal({
                 onQuestionSelect={onQuestionSelect}
                 onClose={onClose}
                 pendingQuestionSelection={pendingQuestionSelection}
-                onPendingQuestionChange={setPendingQuestionSelection}
+                onPendingQuestionChange={handlePendingQuestionChange}
                 hideActions={true}
                 embedded={true}
+                highlightedQuestionIdOverride={pendingRemoval ? null : undefined}
+                renderCustomActions={(question: Question) =>
+                  question.id === element?.questionId && !pendingRemoval ? (
+                    <Tooltip content="Remove question from this textbox">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveQuestion();
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    </Tooltip>
+                  ) : null
+                }
               />
             </TabsContent>
           )}

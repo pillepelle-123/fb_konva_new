@@ -4,17 +4,17 @@ const fs = require('fs').promises;
 const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
+const themesPalettesLayoutsService = require('../services/themes-palettes-layouts');
 
-// Load template and palette data
+// Load template data (server/data/templates.json - different from layout templates)
 async function loadTemplates() {
   const data = await fs.readFile(path.join(__dirname, '../data/templates.json'), 'utf8');
   return JSON.parse(data);
 }
 
 async function loadColorPalettes() {
-  // Load from client-side JSON file (single source of truth)
-  const data = await fs.readFile(path.join(__dirname, '../../client/src/data/templates/color-palettes.json'), 'utf8');
-  return JSON.parse(data);
+  const palettes = await themesPalettesLayoutsService.listColorPalettes();
+  return { version: '1.0.0', palettes };
 }
 
 // GET /api/templates - returns all templates with optional category filter
@@ -56,20 +56,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/color-palettes - returns all color palettes  
-router.get('/color-palettes', async (req, res) => {
-  try {
-    const paletteData = await loadColorPalettes();
-    res.json({
-      version: paletteData.version,
-      palettes: paletteData.palettes
-    });
-  } catch (error) {
-    console.error('Error loading color palettes:', error);
-    res.status(500).json({ error: 'Failed to load color palettes' });
-  }
-});
-
 // POST /api/pages/from-template - creates page from template (requires auth)
 router.post('/from-template', authenticateToken, async (req, res) => {
   try {
@@ -84,6 +70,7 @@ router.post('/from-template', authenticateToken, async (req, res) => {
     // Load template and palette data
     const templateData = await loadTemplates();
     const paletteData = await loadColorPalettes();
+    const palettes = paletteData.palettes || [];
     
     const template = templateData.templates.find(t => t.id === templateId);
     if (!template) {
@@ -92,7 +79,7 @@ router.post('/from-template', authenticateToken, async (req, res) => {
     
     let palette = null;
     if (paletteId) {
-      palette = paletteData.palettes.find(p => p.id === paletteId);
+      palette = palettes.find(p => p.id === paletteId);
       if (!palette) {
         return res.status(404).json({ error: 'Color palette not found' });
       }

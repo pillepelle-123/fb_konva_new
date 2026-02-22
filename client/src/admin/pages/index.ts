@@ -3,4 +3,8 @@ export { default as AdminBooksPage } from './books'
 export { default as AdminPageRecordsPage } from './page-records'
 export { default as AdminBackgroundImagesPage } from './background-images'
 export { default as AdminStickersPage } from './sticker'
+export { default as AdminThemesPage } from './themes'
+export { default as AdminColorPalettesPage } from './color-palettes'
+export { default as AdminLayoutsPage } from './layouts'
+export { default as SandboxEditorPage } from './sandbox'
 

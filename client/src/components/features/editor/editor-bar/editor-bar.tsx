@@ -44,9 +44,10 @@ function getPairPages(pages: Page[], index: number): Page[] {
 interface EditorBarProps {
   toolSettingsPanelRef: React.RefObject<{ openThemeSelector: () => void }>;
   initialPreviewOpen?: boolean;
+  isSandboxMode?: boolean;
 }
 
-export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = false }: EditorBarProps) {
+export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = false, isSandboxMode = false }: EditorBarProps) {
   const {
     state,
     dispatch,
@@ -55,7 +56,8 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
     getVisiblePages,
     getVisiblePageNumbers,
     ensurePagesLoaded,
-    canEditBookSettings
+    canEditBookSettings,
+    canViewAllPages
   } = useEditor();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -129,9 +131,11 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const visiblePageNumbers = getVisiblePageNumbers();
   const currentPage = state.currentBook.pages[state.activePageIndex]?.pageNumber ?? state.activePageIndex;
   
+  const isRestrictedView = !canViewAllPages();
+
   // For own_page access, calculate visible page index and total (0-based page numbers)
   const getVisiblePageInfo = () => {
-    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+    if (isRestrictedView && visiblePageNumbers.length > 0) {
       const visibleIndex = visiblePageNumbers.indexOf(currentPage);
       return {
         currentVisiblePage: visibleIndex >= 0 ? visibleIndex : 0,
@@ -200,7 +204,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   };
 
   const handlePrevPage = () => {
-    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+    if (isRestrictedView) {
       const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
       if (currentVisibleIndex > 0) {
         const prevPageNumber = visiblePageNumbers[currentVisibleIndex - 1];
@@ -226,7 +230,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   };
 
   const handleNextPage = () => {
-    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+    if (isRestrictedView) {
       const currentVisibleIndex = visiblePageNumbers.indexOf(currentPage);
       if (currentVisibleIndex < visiblePageNumbers.length - 1) {
         const nextPageNumber = visiblePageNumbers[currentVisibleIndex + 1];
@@ -296,7 +300,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   };
 
   const handleGoToPage = (page: number) => {
-    if (state.pageAccessLevel === 'own_page' && state.assignedPages.length > 0) {
+    if (isRestrictedView) {
       // For own_page access, page is 0-based index into visiblePageNumbers
       if (page >= 0 && page < visiblePageNumbers.length) {
         const actualPageNumber = visiblePageNumbers[page];
@@ -333,12 +337,12 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
         {showPagesSubmenu ? (
           <PagesSubmenu
             pages={visiblePages} // Always use visiblePages to exclude preview pages
-            activePageIndex={state.pageAccessLevel === 'own_page' ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p) => (p.pageNumber ?? -1) === currentPage)}
+            activePageIndex={isRestrictedView ? visiblePageNumbers.indexOf(currentPage) : visiblePages.findIndex((p) => (p.pageNumber ?? -1) === currentPage)}
             onClose={() => setShowPagesSubmenu(false)}
             onPageSelect={handleGoToPage}
             onReorderPages={handleReorderPages}
             bookId={state.currentBook.id}
-            isRestrictedView={state.pageAccessLevel === 'own_page'}
+            isRestrictedView={isRestrictedView}
             onShowAddPageDialog={handleShowAddPageDialog}
           />
         ) : (
@@ -404,18 +408,20 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
               
               <UndoRedoControls />
               
-              <BookActions
-                onSave={handleSave}
-                onExport={() => setShowPDFModal(true)}
-                isSaving={isSaving}
-                onPreview={() => setShowBookPreview(true)}
-              />
+              {!isSandboxMode && (
+                <BookActions
+                  onSave={handleSave}
+                  onExport={() => setShowPDFModal(true)}
+                  isSaving={isSaving}
+                  onPreview={() => setShowBookPreview(true)}
+                />
+              )}
               
-              <Tooltip content="Close Editor" side="bottom_editor_bar">
+              <Tooltip content={isSandboxMode ? 'Back to Admin' : 'Close Editor'} side="bottom_editor_bar">
                 <Button
                   variant="ghost"
                   size="xs"
-                  onClick={handleClose}
+                  onClick={isSandboxMode ? () => navigate('/admin') : handleClose}
                   className="h-7 w-7 p-0"
                 >
                   <X className="h-4 w-4" />

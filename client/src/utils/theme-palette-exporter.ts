@@ -183,17 +183,23 @@ export function extractThemeDefaults(
   text: any;
   shape: any;
   brush: any;
+  image?: any;
+  sticker?: any;
   line?: any;
 } {
   const defaults: any = {
     text: {},
     shape: {},
-    brush: {}
+    brush: {},
+    image: {},
+    sticker: {}
   };
   
-  // Find one of each element type
-  const qnaElement = elements.find(el => el.textType === 'qna' || el.type === 'qna');
+  // Find one of each element type (qna and qna2 share the same theme structure)
+  const qnaElement = elements.find(el => el.textType === 'qna' || el.textType === 'qna2' || el.type === 'qna');
   const textElement = elements.find(el => el.textType === 'free_text' || el.type === 'free_text');
+  const imageElement = elements.find(el => el.type === 'image' || el.type === 'placeholder');
+  const stickerElement = elements.find(el => el.type === 'sticker');
   const shapeElement = elements.find(el => 
     el.type === 'rect' || el.type === 'circle' || el.type === 'triangle' || 
     el.type === 'polygon' || el.type === 'heart' || el.type === 'star' ||
@@ -315,11 +321,11 @@ export function extractThemeDefaults(
       opacity: backgroundOpacity
     };
     
-    // Ruled lines (now only on element level)
-    const ruledLines = qnaElement.ruledLines ?? false;
-    const ruledLinesWidth = qnaElement.ruledLinesWidth ?? 0.8;
-    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? 'default';
-    const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 0.5;
+    // Ruled lines (element level: ruledLines.enabled or ruledLinesEnabled)
+    const ruledLines = qnaElement.ruledLines?.enabled ?? qnaElement.ruledLinesEnabled ?? false;
+    const ruledLinesWidth = qnaElement.ruledLinesWidth ?? qnaElement.ruledLines?.width ?? 0.8;
+    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? qnaElement.ruledLines?.theme ?? 'default';
+    const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? qnaElement.ruledLines?.opacity ?? 0.5;
     
     qnaDefaults.ruledLines = {
       enabled: ruledLines,
@@ -427,6 +433,56 @@ export function extractThemeDefaults(
     
     defaults.brush = brushDefaults;
   }
+
+  // Extract image defaults (image + placeholder)
+  if (imageElement) {
+    const imageDefaults: any = {};
+    if (imageElement.imageOpacity !== undefined) {
+      imageDefaults.imageOpacity = imageElement.imageOpacity;
+    }
+    if (imageElement.cornerRadius !== undefined) {
+      imageDefaults.cornerRadius = actualToCommonRadius(imageElement.cornerRadius);
+    }
+    const frameEnabled = imageElement.frameEnabled !== undefined
+      ? imageElement.frameEnabled
+      : ((imageElement.strokeWidth || 0) > 0);
+    imageDefaults.frameEnabled = frameEnabled;
+    const frameTheme = imageElement.frameTheme || imageElement.theme || pageTheme || 'default';
+    imageDefaults.frameTheme = frameTheme;
+    if (imageElement.strokeWidth !== undefined) {
+      imageDefaults.strokeWidth = actualToThemeJsonStrokeWidth(imageElement.strokeWidth, frameTheme);
+    }
+    if (imageElement.borderOpacity !== undefined) {
+      imageDefaults.borderOpacity = imageElement.borderOpacity;
+    }
+    if (Object.keys(imageDefaults).length > 0) {
+      defaults.image = imageDefaults;
+    }
+  }
+
+  // Extract sticker defaults
+  if (stickerElement) {
+    const stickerDefaults: any = {};
+    if (stickerElement.stickerColor) {
+      stickerDefaults.stickerColor = stickerElement.stickerColor;
+    }
+    if (stickerElement.imageOpacity !== undefined) {
+      stickerDefaults.imageOpacity = stickerElement.imageOpacity;
+    }
+    const ts = stickerElement.stickerTextSettings;
+    if (ts && (ts.fontSize !== undefined || ts.fontFamily !== undefined || ts.fontBold !== undefined || ts.fontItalic !== undefined || ts.fontOpacity !== undefined)) {
+      stickerDefaults.stickerTextSettings = {
+        fontSize: ts.fontSize !== undefined ? actualToCommon(ts.fontSize) : 12,
+        fontFamily: ts.fontFamily || 'Century Gothic, sans-serif',
+        fontBold: ts.fontBold ?? false,
+        fontItalic: ts.fontItalic ?? false,
+        fontOpacity: ts.fontOpacity ?? 1
+      };
+    }
+    if (Object.keys(stickerDefaults).length > 0) {
+      defaults.sticker = stickerDefaults;
+    }
+  }
   
   // Extract line defaults
   if (lineElement) {
@@ -446,6 +502,35 @@ export function extractThemeDefaults(
 }
 
 /**
+ * Builds pageSettings object from Page.background for theme config.
+ */
+export function buildPageSettingsFromBackground(background: { type?: string; value?: string; opacity?: number; patternSize?: number; patternStrokeWidth?: number; patternBackgroundOpacity?: number; backgroundImageTemplateId?: string; imageSize?: string; imageRepeat?: boolean; imagePosition?: string; imageContainWidthPercent?: number } | undefined): Record<string, unknown> {
+  return {
+    backgroundOpacity: background?.opacity ?? 1,
+    backgroundPattern: background?.type === 'pattern'
+      ? {
+          enabled: true,
+          style: background.value || 'dots',
+          size: background.patternSize || 20,
+          strokeWidth: background.patternStrokeWidth || 1,
+          patternBackgroundOpacity: background.patternBackgroundOpacity ?? 0.3
+        }
+      : { enabled: false, style: 'dots', size: 20, strokeWidth: 1, patternBackgroundOpacity: 0.3 },
+    backgroundImage: background?.backgroundImageTemplateId
+      ? {
+          enabled: true,
+          templateId: background.backgroundImageTemplateId,
+          size: background.imageSize || 'cover',
+          repeat: background.imageRepeat ?? false,
+          opacity: background.opacity ?? 1,
+          position: background.imagePosition || 'top-left',
+          width: background.imageContainWidthPercent ?? 100
+        }
+      : { enabled: false }
+  };
+}
+
+/**
  * Generates a theme ID from a name (lowercase, replace spaces with dashes).
  */
 export function generateThemeId(name: string): string {
@@ -462,14 +547,20 @@ export function generatePaletteId(name: string): string {
 /**
  * Creates JSON string for a color palette that can be pasted into color-palettes.json
  */
-export function generatePaletteJSON(paletteId: string, paletteName: string, colors: {
-  background: string;
-  primary: string;
-  secondary: string;
-  accent: string;
-  text: string;
-  surface: string;
-}, contrast: 'AA' | 'AAA' = 'AA'): string {
+export function generatePaletteJSON(
+  paletteId: string,
+  paletteName: string,
+  colors: {
+    background: string;
+    primary: string;
+    secondary: string;
+    accent: string;
+    text: string;
+    surface: string;
+  },
+  contrast: 'AA' | 'AAA' = 'AA',
+  parts?: Record<string, string>
+): string {
   const palette = {
     id: paletteId,
     name: paletteName,
@@ -481,9 +572,10 @@ export function generatePaletteJSON(paletteId: string, paletteName: string, colo
       text: colors.text,
       surface: colors.surface
     },
-    contrast: contrast
+    contrast,
+    ...(parts && Object.keys(parts).length > 0 ? { parts } : {})
   };
-  
+
   return JSON.stringify(palette, null, 2);
 }
 
@@ -539,6 +631,16 @@ export function generateThemeJSON(
   // Add brush defaults
   if (elementDefaults.brush && Object.keys(elementDefaults.brush).length > 0) {
     theme.elementDefaults.brush = elementDefaults.brush;
+  }
+
+  // Add image defaults
+  if (elementDefaults.image && Object.keys(elementDefaults.image).length > 0) {
+    theme.elementDefaults.image = elementDefaults.image;
+  }
+
+  // Add sticker defaults
+  if (elementDefaults.sticker && Object.keys(elementDefaults.sticker).length > 0) {
+    theme.elementDefaults.sticker = elementDefaults.sticker;
   }
   
   // Add line defaults
