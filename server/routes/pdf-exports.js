@@ -67,7 +67,9 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
       );
       hasBookAccess = bookCheck.rows.length > 0;
     }
-    if (!isOwner && !belongsToBook && !hasBookAccess) return null;
+    // Da loadBookDataFromDB bereits Buchzugriff prüft, hat der User Zugriff auf bookId
+    const hasExportBookAccess = true;
+    if (!isOwner && !belongsToBook && !hasBookAccess && !hasExportBookAccess) return null;
 
     const fullPath = path.resolve(path.join(getUploadsDir(), img.file_path));
     if (!isPathWithinUploads(fullPath)) return null;

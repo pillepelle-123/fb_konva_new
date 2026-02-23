@@ -45,7 +45,17 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
         const pictureField = size === 'lg' || size === 'md' ? 'profile_picture_192' : 'profile_picture_32';
         if (userData[pictureField]) {
           const sizeParam = size === 'lg' || size === 'md' ? '192' : '32';
-          setProfileImageUrl(`${apiUrl}/users/${userId}/profile-picture/${sizeParam}`);
+          const imageResponse = await fetch(`${apiUrl}/users/${userId}/profile-picture/${sizeParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: 'include'
+          });
+          if (imageResponse.ok) {
+            const blob = await imageResponse.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            setProfileImageUrl(objectUrl);
+          } else {
+            setProfileImageUrl(null);
+          }
         } else {
           setProfileImageUrl(null);
         }
@@ -61,6 +71,15 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
   useEffect(() => {
     fetchProfilePicture();
   }, [fetchProfilePicture]);
+
+  // Revoke object URL on unmount or when it changes (prevents memory leaks)
+  useEffect(() => {
+    return () => {
+      if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(profileImageUrl);
+      }
+    };
+  }, [profileImageUrl]);
 
   // Reset profile image URL when userId or name changes
   useEffect(() => {
@@ -85,10 +104,16 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
       });
 
       if (response.ok) {
-        const data = await response.json();
-        const newUrl = `${apiUrl}/users/${userId}/profile-picture/192?t=${Date.now()}`;
-        setProfileImageUrl(newUrl);
-        
+        const sizeParam = size === 'lg' || size === 'md' ? '192' : '32';
+        const imageResponse = await fetch(`${apiUrl}/users/${userId}/profile-picture/${sizeParam}?t=${Date.now()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include'
+        });
+        if (imageResponse.ok) {
+          const blob = await imageResponse.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          setProfileImageUrl(objectUrl);
+        }
         // Notify other components that profile picture was updated
         window.dispatchEvent(new CustomEvent('profilePictureUpdated'));
       }
@@ -110,7 +135,6 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
             className={`w-full h-full rounded-full object-cover ${className}`}
             src={imageUrl}
             alt={displayName}
-            crossOrigin={profileImageUrl ? 'use-credentials' : undefined}
           />
         </div>
         {canEdit && (
@@ -136,7 +160,6 @@ export default function ProfilePicture({ name, size = 'md', className = '', user
         className={`${sizeClass} rounded-full object-cover ${className}`}
         src={imageUrl}
         alt={displayName}
-        crossOrigin={profileImageUrl ? 'use-credentials' : undefined}
       />
       {canEdit && (
         <button
