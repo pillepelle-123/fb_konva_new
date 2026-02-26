@@ -159,6 +159,7 @@ export function getBackgroundImageUrl(
         return applyAutoPaletteToSvg(rawSvg, paletteColors, {
           cacheKey: `${template.id}::auto`,
           asDataUrl: true,
+          slotOpacities: template.paletteSlotOpacities,
         });
       }
     }
@@ -269,6 +270,7 @@ export function resolveBackgroundImageUrl(
               result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto`,
                 asDataUrl: true,
+                slotOpacities: template?.paletteSlotOpacities,
               });
             } else if (containsPaletteTokens) {
               appliedBranch = 'fallback-slots';
@@ -281,6 +283,7 @@ export function resolveBackgroundImageUrl(
               result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
                 asDataUrl: true,
+                slotOpacities: template?.paletteSlotOpacities,
               });
             }
             console.log('[PDF Debug] Palette applied via branch:', appliedBranch);

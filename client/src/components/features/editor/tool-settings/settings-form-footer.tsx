@@ -43,7 +43,6 @@ export function SettingsFormFooter({
             variant="outline"
             size="xs"
             onClick={onDiscard}
-            disabled={!hasChanges}
             className="flex-1"
           >
             <X className="h-3 w-3 mr-1" />

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, Search, Image as ImageIcon } from 'lucide-react';
+import { Search, Image as ImageIcon } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
 import { 
@@ -8,7 +8,7 @@ import {
   searchBackgroundImages,
   getBackgroundImagesWithUrl
 } from '../../../../data/templates/background-images';
-import type { BackgroundImageCategory, BackgroundImageWithUrl } from '../../../../types/template-types';
+import type { BackgroundImageCategory } from '../../../../types/template-types';
 import { useEditor } from '../../../../context/editor-context';
 import { ImageGrid, type ImageGridItem } from '../../../shared/image-grid';
 
@@ -19,7 +19,7 @@ interface BackgroundImageSelectorProps {
   onImageSelect?: (imageId: string | null) => void;
 }
 
-export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
+export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
   const { state } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<BackgroundImageCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<'vector' | 'pixel' | 'all'>('all');
@@ -63,15 +63,15 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const currentBackgroundImageId = currentPage?.background?.backgroundImageTemplateId;
 
-  const handleImageSelect = (image: BackgroundImageWithUrl) => {
-    setSelectedImage(image.id);
-    onImageSelect?.(image.id);
+  const handleImageSelect = (item: ImageGridItem) => {
+    setSelectedImage(item.id);
+    onImageSelect?.(item.id);
   };
 
   const selectedImageData = selectedImage ? allImages.find(img => img.id === selectedImage) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col min-h-0 h-full gap-4">
       {/* <div className="flex items-center gap-2 mb-4">
         <Button
           variant="ghost"
@@ -87,7 +87,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
 
       {/* Upload Button */}
       {onUpload && (
-        <div>
+        <div className="flex-shrink-0">
           <Button
             variant="outline"
             size="xs"
@@ -101,7 +101,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
       )}
 
       {/* Search */}
-      <div className="relative">
+      <div className="relative flex-shrink-0">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
           type="text"
@@ -113,7 +113,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap flex-shrink-0">
         {/* Category Filter */}
         <div className="flex-1 min-w-[150px]">
           <Label variant="xs" className="mb-1 block">Category</Label>
@@ -146,24 +146,26 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
 
       <Separator />
 
-      {/* Image Grid */}
-      <ImageGrid
-        items={filteredImages.map((image): ImageGridItem => ({
-          id: image.id,
-          thumbnailUrl: image.thumbnailUrl,
-          name: image.name,
-          category: image.category,
-          format: image.format,
-        }))}
-        selectedItemId={selectedImage}
-        activeItemId={currentBackgroundImageId}
-        onItemSelect={handleImageSelect}
-        emptyStateMessage="No images found"
-      />
+      {/* Image Grid – scrollbar */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1">
+        <ImageGrid
+          items={filteredImages.map((image): ImageGridItem => ({
+            id: image.id,
+            thumbnailUrl: image.thumbnailUrl,
+            name: image.name,
+            category: image.category,
+            format: image.format,
+          }))}
+          selectedItemId={selectedImage}
+          activeItemId={currentBackgroundImageId}
+          onItemSelect={handleImageSelect}
+          emptyStateMessage="No images found"
+        />
+      </div>
 
       {/* Preview & Settings */}
       {selectedImageData && (
-        <>
+        <div className="flex-shrink-0 space-y-3">
           <Separator />
           <div className="space-y-3">
             <div>
@@ -182,7 +184,7 @@ export function BackgroundImageSelector({ onBack, onUpload, selectedImageId, onI
 
             {/* Image Size and Apply Button are moved to tool-settings-panel.tsx */}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

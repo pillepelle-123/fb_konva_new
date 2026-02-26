@@ -123,14 +123,15 @@ export function applyAutoPaletteToSvg(
   const colorOccurrences = mergeColorOccurrences([
     extractHexColorOccurrences(svgContent),
     extractRgbColorOccurrences(svgContent),
+    extractGradientStopColors(svgContent),
   ]);
   if (colorOccurrences.size === 0) {
-    return svgStringToDataUrl(svgContent, encoding);
+    let processed = svgContent;
+    processed = replaceCurrentColor(processed, slotColors);
+    return svgStringToDataUrl(processed, encoding);
   }
 
-  const sortedColors = Array.from(colorOccurrences.keys()).sort((a, b) => {
-    return getRelativeLuminance(b) - getRelativeLuminance(a);
-  });
+  const sortedColors = sortColorsByDominanceAndLuminance(colorOccurrences);
 
   const slotCycle: PaletteSlot[] = ['background', 'surface', 'accent', 'secondary'];
   const colorToSlot = new Map<string, PaletteSlot>();
@@ -146,6 +147,8 @@ export function applyAutoPaletteToSvg(
   });
 
   let processed = svgContent;
+
+  processed = replaceCurrentColor(processed, slotColors);
 
   colorToSlot.forEach((slot, normalizedColor) => {
     const replacement = slotColors[slot];
@@ -308,6 +311,74 @@ function extractRgbColorOccurrences(svgContent: string): Map<string, Set<string>
   }
 
   return occurrences;
+}
+
+function extractGradientStopColors(svgContent: string): Map<string, Set<string>> {
+  const occurrences = new Map<string, Set<string>>();
+  const stopColorRegex = /stop-color:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/g;
+  const stopColorAttrRegex = /stop-color\s*=\s*["']([^"']+)["']/gi;
+
+  function addColor(original: string) {
+    let normalized: string | null = null;
+    if (original.startsWith('#')) {
+      normalized = normalizeHexColor(original);
+    } else if (original.startsWith('rgb')) {
+      const rgbMatch = original.match(/rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})/);
+      if (rgbMatch) {
+        const r = Number(rgbMatch[1]);
+        const g = Number(rgbMatch[2]);
+        const b = Number(rgbMatch[3]);
+        normalized = rgbToHex(r, g, b);
+      }
+    }
+    if (normalized) {
+      if (!occurrences.has(normalized)) {
+        occurrences.set(normalized, new Set());
+      }
+      occurrences.get(normalized)!.add(original);
+    }
+  }
+
+  let match: RegExpExecArray | null;
+  while ((match = stopColorRegex.exec(svgContent)) !== null) {
+    addColor(match[1]);
+  }
+  while ((match = stopColorAttrRegex.exec(svgContent)) !== null) {
+    addColor(match[1]);
+  }
+
+  return occurrences;
+}
+
+function sortColorsByDominanceAndLuminance(
+  colorOccurrences: Map<string, Set<string>>
+): string[] {
+  const colorsWithWeight = Array.from(colorOccurrences.entries()).map(([color, originals]) => ({
+    color,
+    count: originals.size,
+    luminance: getRelativeLuminance(color),
+  }));
+
+  return colorsWithWeight
+    .sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return b.luminance - a.luminance;
+    })
+    .map((c) => c.color);
+}
+
+function replaceCurrentColor(
+  svgContent: string,
+  slotColors: Record<PaletteSlot, string>
+): string {
+  const replacement = slotColors.accent || slotColors.primary || slotColors.secondary || '#000000';
+  return svgContent
+    .replace(/\bfill\s*=\s*["']currentColor["']/gi, `fill="${replacement}"`)
+    .replace(/\bstroke\s*=\s*["']currentColor["']/gi, `stroke="${replacement}"`)
+    .replace(/\bfill:\s*currentColor\b/gi, `fill:${replacement}`)
+    .replace(/\bstroke:\s*currentColor\b/gi, `stroke:${replacement}`);
 }
 
 function normalizeHexColor(value: string): string | null {

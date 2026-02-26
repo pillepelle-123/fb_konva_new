@@ -34,6 +34,11 @@ const apiStorageSchema = z.object({
   thumbnailUrl: z.string().nullable().optional(),
 })
 
+const paletteSlotOpacitiesSchema = z
+  .record(z.enum(['background', 'surface', 'primary', 'secondary', 'accent', 'text']), z.number())
+  .nullable()
+  .optional();
+
 const apiDefaultsSchema = z.object({
   size: z.string().nullable().optional(),
   position: z.string().nullable().optional(),
@@ -59,6 +64,7 @@ const apiRecordSchema = z.object({
   storage: apiStorageSchema,
   defaults: apiDefaultsSchema,
   paletteSlots: z.string().nullable().optional(),
+  paletteSlotOpacities: paletteSlotOpacitiesSchema,
   tags: z.array(z.string()).nullable().optional(),
 })
 
@@ -102,6 +108,8 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
   const paletteSlots =
     record.paletteSlots === 'standard' || record.paletteSlots === 'auto' ? record.paletteSlots : undefined
 
+  const paletteSlotOpacities = record.paletteSlotOpacities ?? undefined
+
   const filePath = storage.filePath ?? undefined
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
 
@@ -118,6 +126,7 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
     defaultPosition: (defaults.position as BackgroundImage['defaultPosition'] | undefined) ?? undefined,
     backgroundColor,
     paletteSlots,
+    paletteSlotOpacities,
     description: record.description ?? undefined,
     tags: record.tags ?? undefined,
   }
@@ -158,6 +167,7 @@ function transformJsonRecord(record: {
   defaultPosition?: string
   backgroundColor?: { enabled?: boolean; defaultValue?: string }
   paletteSlots?: string
+  paletteSlotOpacities?: Partial<Record<import('../../types/template-types').PaletteSlot, number>>
   description?: string
   tags?: string[]
 }): BackgroundImageWithUrl {
@@ -180,6 +190,7 @@ function transformJsonRecord(record: {
       ? { enabled: Boolean(record.backgroundColor.enabled), defaultValue: record.backgroundColor.defaultValue }
       : undefined,
     paletteSlots: record.paletteSlots === 'standard' || record.paletteSlots === 'auto' ? record.paletteSlots : undefined,
+    paletteSlotOpacities: record.paletteSlotOpacities,
     description: record.description,
     tags: record.tags,
     url,

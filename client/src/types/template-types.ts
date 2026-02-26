@@ -137,6 +137,8 @@ export interface PageTemplate {
   dynamicConstraints?: TemplateConstraints;
 }
 
+export type PaletteSlot = 'background' | 'surface' | 'primary' | 'secondary' | 'accent' | 'text';
+
 export interface BackgroundImage {
   id: string;
   name: string;
@@ -153,6 +155,7 @@ export interface BackgroundImage {
     defaultValue?: string;
   };
   paletteSlots?: 'standard' | 'auto';
+  paletteSlotOpacities?: Partial<Record<PaletteSlot, number>>;
   description?: string;
   tags?: string[];
 }
