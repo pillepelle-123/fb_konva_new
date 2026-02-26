@@ -12,7 +12,7 @@ import type { WizardState } from './types';
 
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import { getPageTemplates } from '../../../../data/templates/page-templates';
-import { getThemesData } from '../../../../data/templates/templates-data';
+import { getThemesData, getDefaultThemeId } from '../../../../data/templates/templates-data';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 
 type CategoryFilter = 'all' | 'structured' | 'playful' | 'creative' | 'minimal';
@@ -104,10 +104,15 @@ export function DesignStep({
     return entries;
   }, [currentThemePaletteId]);
 
-  // Ensure themeId is always set (never null/undefined) so "Theme's Default Palette" can be resolved
+  // Ensure themeId is always set and valid so "Theme's Default Palette" can be resolved.
+  // Use getDefaultThemeId() which prefers the theme with is_default=true from the API.
   useEffect(() => {
-    if (wizardState.design.themeId == null || wizardState.design.themeId === '') {
-      onChange({ themeId: 'default' });
+    const current = wizardState.design.themeId;
+    const themes = getThemesData();
+    const themeExists = current != null && current !== '' && themes[String(current)];
+    if (!themeExists && Object.keys(themes).length > 0) {
+      const defaultId = getDefaultThemeId();
+      onChange({ themeId: defaultId, paletteId: null });
     }
   }, [wizardState.design.themeId, onChange]);
 

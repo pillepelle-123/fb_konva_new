@@ -10,7 +10,7 @@ import { FormField } from '../../components/ui/layout/form-field';
 import { apiService, fetchThemes, fetchLayouts, fetchColorPalettes } from '../../services/api';
 import { getPageTemplates } from '../../data/templates/page-templates';
 import { getThemesData } from '../../data/templates/templates-data';
-import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../../data/templates/templates-data';
+import { setThemesData, setColorPalettesData, setPageTemplatesData, getDefaultThemeId } from '../../data/templates/templates-data';
 import { StaticSpreadPreview } from '../../components/features/editor/preview/static-spread-preview';
 import { PreviewModal } from '../../components/features/editor/preview/preview-modal';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
@@ -214,6 +214,18 @@ export default function BookCreatePage() {
       }
     }
   }, [templatesReady, wizardState.design.layoutTemplate]);
+
+  // Set default theme when templates load and themeId is missing or invalid (e.g. 'default' when API uses numeric ids)
+  useEffect(() => {
+    if (!templatesReady) return;
+    const themes = getThemesData();
+    const currentThemeId = wizardState.design.themeId;
+    const themeExists = currentThemeId != null && currentThemeId !== '' && themes[String(currentThemeId)];
+    if (!themeExists && Object.keys(themes).length > 0) {
+      const defaultId = getDefaultThemeId();
+      updateWizard('design', { themeId: defaultId, paletteId: null });
+    }
+  }, [templatesReady, wizardState.design.themeId]);
 
   // summaryData previously fed a side card; no longer used in the new layout
 

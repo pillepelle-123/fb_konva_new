@@ -23,6 +23,7 @@ function mapThemeRow(row) {
     description: row.description,
     palette: row.palette_id,
     palette_id: row.palette_id,
+    is_default: Boolean(row.is_default),
     pageSettings: row.config?.pageSettings || {},
     elementDefaults: row.config?.elementDefaults || {},
     config: row.config || {},
@@ -73,7 +74,7 @@ async function listThemes() {
 
 async function getThemeById(id) {
   const { rows } = await pool.query(
-    `SELECT id, name, description, palette_id, config, sort_order, created_at, updated_at
+    `SELECT id, name, description, palette_id, COALESCE(is_default, false) AS is_default, config, sort_order, created_at, updated_at
      FROM themes WHERE id = $1`,
     [id]
   );

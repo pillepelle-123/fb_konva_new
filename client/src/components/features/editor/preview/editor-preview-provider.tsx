@@ -7,6 +7,34 @@ import type { BookOrientation, BookPageSize } from '../../../../constants/book-f
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
 import type { CanvasElement } from '../../../../context/editor-context';
+
+/** Dummy Q&A-Paare für Freundebuch-Vorschau – kreative Fragen und Antworten */
+const SANDBOX_QNA_PAIRS: Array<{ question: string; answer: string }> = [
+  { question: 'Dein Lieblingsessen?', answer: 'Pizza! Am liebsten mit viel Käse und Oliven.' },
+  { question: 'Wie lautet dein Spitzname?', answer: 'Bei Freunden nenne ich mich "Sunny" – weil ich immer gut gelaunt bin!' },
+  { question: 'Was ist dein größter Traum?', answer: 'Einen Tag um die Welt reisen und alle Freunde besuchen.' },
+  { question: 'Deine Lieblingsfarbe?', answer: 'Blau – wie der Himmel und das Meer.' },
+  { question: 'Womit verbringst du am liebsten deine Zeit?', answer: 'Mit Freunden lachen, Musik hören und draußen spielen.' },
+  { question: 'Dein Lieblingstier?', answer: 'Hunde! Besonders unser Family Labrador Max.' },
+  { question: 'Welche Superkraft hättest du gern?', answer: 'Fliegen können – dann wäre ich in Sekunden bei dir!' },
+  { question: 'Dein Lieblingsbuch oder -film?', answer: 'Harry Potter! Ich habe alle Bücher schon dreimal gelesen.' },
+  { question: 'Was machst du am liebsten in den Ferien?', answer: 'Ausschlafen, Freunde treffen und Eis essen.' },
+  { question: 'Was möchtest du später mal werden?', answer: 'Astronautin oder Tierärztin – noch nicht ganz sicher!' },
+];
+
+function injectSandboxDummyQna(elements: CanvasElement[], startIndex = 0): CanvasElement[] {
+  let pairIndex = startIndex;
+  return elements.map((el) => {
+    if (el.type !== 'text' || el.textType !== 'qna2') return el;
+    const pair = SANDBOX_QNA_PAIRS[pairIndex % SANDBOX_QNA_PAIRS.length];
+    pairIndex += 1;
+    return {
+      ...el,
+      sandboxDummyQuestion: pair.question,
+      sandboxDummyAnswer: pair.answer,
+    } as CanvasElement & { sandboxDummyQuestion: string; sandboxDummyAnswer: string };
+  });
+}
 import {
   applyThemeToElementConsistent,
   getGlobalTheme,
@@ -121,8 +149,12 @@ export function EditorPreviewProvider({
       : [];
     
     // Apply theme defaults to elements
-    const leftElements = applyThemeToElements(leftElementsRaw);
-    const rightElements = applyThemeToElements(rightElementsRaw);
+    const leftElementsThemed = applyThemeToElements(leftElementsRaw);
+    const rightElementsThemed = applyThemeToElements(rightElementsRaw);
+    // Dummy Q&A für Freundebuch-Vorschau: qna2-Elemente mit Beispieltext füllen
+    const leftElements = injectSandboxDummyQna(leftElementsThemed, 0);
+    const rightStartIndex = leftElementsThemed.filter((e) => e.type === 'text' && e.textType === 'qna2').length;
+    const rightElements = injectSandboxDummyQna(rightElementsThemed, rightStartIndex);
 
     // Minimal book for editor
     const book = {

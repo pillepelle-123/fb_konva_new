@@ -555,6 +555,7 @@ CREATE TABLE IF NOT EXISTS themes (
   description TEXT,
   palette_id INT REFERENCES color_palettes(id),
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_default BOOLEAN DEFAULT FALSE,
   sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
