@@ -23,7 +23,7 @@ export function PreviewModal({ isOpen, onClose, wizardState }: PreviewModalProps
             pageSize={wizardState.basic.pageSize}
             orientation={wizardState.basic.orientation}
             themeId={wizardState.design.themeId}
-            paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+            paletteId={String(wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default')}
             baseTemplate={wizardState.design.layoutTemplate ?? null}
             pickLeftRight={wizardState.design.pickLeftRight}
             leftTemplate={wizardState.design.leftLayoutTemplate ?? null}

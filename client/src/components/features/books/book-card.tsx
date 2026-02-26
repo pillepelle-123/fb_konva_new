@@ -5,7 +5,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/overlays/popover';
-import { Users, FileText, Image, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis } from 'lucide-react';
+import { Users, FileText, Image, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis, CircleCheckBig, Circle } from 'lucide-react';
 import BookRoleBadge from './book-role-badge';
 
 interface Book {
@@ -24,6 +24,9 @@ interface Book {
 interface BookCardProps {
   book: Book;
   isArchived?: boolean;
+  multiSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (bookId: number) => void;
   onRestore?: (bookId: number) => void;
   onDelete?: (bookId: number) => void;
   onArchive?: (bookId: number) => void;
@@ -39,9 +42,12 @@ interface BookCardPreviewProps {
   setEditName: (name: string) => void;
   handleRename: () => void;
   setIsEditing: (editing: boolean) => void;
+  multiSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (bookId: number) => void;
 }
 
-function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, handleRename, setIsEditing }: BookCardPreviewProps) {
+function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, handleRename, setIsEditing, multiSelectMode, isSelected, onToggleSelection }: BookCardPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { token } = useAuth();
 
@@ -83,6 +89,26 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+      {multiSelectMode && (
+        <div className="absolute top-2 right-2 z-10">
+          <Tooltip content={isSelected ? 'Deselect' : 'Select'} side="bottom">
+            <Button
+              variant="secondary"
+              className="h-8 w-8 p-0 shrink-0 bg-white/40 hover:bg-white shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelection?.(book.id);
+              }}
+            >
+              {isSelected ? (
+                <CircleCheckBig className="h-5 w-5 text-ring" />
+              ) : (
+                <Circle className="h-5 w-5" />
+              )}
+            </Button>
+          </Tooltip>
+        </div>
+      )}
       <div className="absolute bottom-0 left-0 right-0 p-4">
         <div className="flex flex-start items-center gap-2">
           {isEditing ? (
@@ -128,7 +154,18 @@ type ActionButton = {
   action: () => void;
 };
 
-export default function BookCard({ book, isArchived = false, onRestore, onDelete, onArchive, onPageUserManager, hideActions = false }: BookCardProps) {
+export default function BookCard({
+  book,
+  isArchived = false,
+  multiSelectMode = false,
+  isSelected = false,
+  onToggleSelection,
+  onRestore,
+  onDelete,
+  onArchive,
+  onPageUserManager,
+  hideActions = false,
+}: BookCardProps) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(book.name);
@@ -201,15 +238,21 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
   };
 
   return (
-    <Card className="group border shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/20 overflow-hidden">
-      <BookCardPreview 
-        book={book} 
-        isArchived={isArchived} 
+    <Card
+      className={`group border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${multiSelectMode ? 'cursor-pointer' : 'hover:border-primary/20'} ${isSelected ? 'border-4 border-muted-foreground rounded-xl' : ''}`}
+      onClick={multiSelectMode ? () => onToggleSelection?.(book.id) : undefined}
+    >
+      <BookCardPreview
+        book={book}
+        isArchived={isArchived}
         isEditing={isEditing}
         editName={editName}
         setEditName={setEditName}
         handleRename={handleRename}
         setIsEditing={setIsEditing}
+        multiSelectMode={multiSelectMode}
+        isSelected={isSelected}
+        onToggleSelection={onToggleSelection}
       />
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -243,7 +286,7 @@ export default function BookCard({ book, isArchived = false, onRestore, onDelete
                 <BookRoleBadge userRole={book.userRole} variant='addressedToUser' />
         </div>
 
-        {!hideActions && (
+        {!hideActions && !multiSelectMode && (
         <div ref={actionsContainerRef} className="flex gap-2 pt-2 min-w-0">
           {isArchived ? (
             <>

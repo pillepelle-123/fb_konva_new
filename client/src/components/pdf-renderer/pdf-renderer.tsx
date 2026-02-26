@@ -30,6 +30,8 @@ interface PDFRendererProps {
   height: number;
   scale?: number;
   onRenderComplete?: () => void;
+  /** Pre-resolved palette colors for background image (from server), avoids timing issues */
+  paletteColorsForBackground?: Record<string, string>;
 }
 
 type QrDotsStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded';
@@ -302,6 +304,7 @@ export function PDFRenderer({
   height,
   scale = 1,
   onRenderComplete,
+  paletteColorsForBackground,
 }: PDFRendererProps) {
   // Access editor context - this should work with PDFExportEditorProvider
   const { state } = useEditor();
@@ -330,25 +333,41 @@ export function PDFRenderer({
     };
   }, [stageRef.current]);
 
-  // Get palette for page
-  const pagePaletteId = page.colorPaletteId || bookData.colorPaletteId;
-  const palette = pagePaletteId ? colorPalettes.find(p => p.id === pagePaletteId) : null;
+  // Get palette for page (use loose equality for server-sent numeric IDs)
+  const pagePaletteId = page.colorPaletteId ?? bookData.colorPaletteId;
+  const palette = pagePaletteId
+    ? colorPalettes.find((p) => p.id == pagePaletteId || String(p.id) === String(pagePaletteId))
+    : null;
   const normalizedPalette = palette || undefined;
   const palettePatternStroke =
     getPalettePartColor(normalizedPalette, 'pagePattern', 'primary', '#666666') || '#666666';
   const palettePatternFill =
     getPalettePartColor(normalizedPalette, 'pageBackground', 'background', 'transparent') || 'transparent';
 
-  // Load background image if needed
+  // Load background image if needed (prefer paletteColorsForBackground from server)
+  const bgPaletteColors = paletteColorsForBackground ?? palette?.colors;
   useEffect(() => {
     const background = page.background;
     if (background?.type === 'image') {
-      const imageUrl = resolveBackgroundImageUrl(background, {
+      const options = {
         paletteId: pagePaletteId || undefined,
-        paletteColors: palette?.colors,
+        paletteColors: bgPaletteColors,
+      };
+      console.log('[PDF Debug] resolveBackgroundImageUrl called with:', {
+        hasOptions: !!options,
+        hasPaletteColors: !!options.paletteColors,
+        paletteId: options.paletteId,
+        valuePrefix: background.value?.substring(0, 60),
       });
+      const imageUrl = resolveBackgroundImageUrl(background, options);
 
       if (imageUrl) {
+        const wasModified = imageUrl !== background.value;
+        console.log('[PDF Debug] Background image URL resolved:', {
+          wasModified,
+          resultPrefix: imageUrl?.substring(0, 60),
+        });
+
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -365,7 +384,7 @@ export function PDFRenderer({
     } else {
       setBackgroundImage(null);
     }
-  }, [page.background, pagePaletteId, palette]);
+  }, [page.background, pagePaletteId, palette, bgPaletteColors]);
 
   // Load pattern tile if needed
   useEffect(() => {

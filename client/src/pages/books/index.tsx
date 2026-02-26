@@ -8,8 +8,10 @@ import BooksGrid from '../../components/features/books/book-grid';
 import { Slider } from '../../components/ui/primitives/slider';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus } from 'lucide-react';
+import { Book, BookPlus, Archive, ChevronRight, Funnel, RotateCcw, Plus, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
 import FloatingActionButton from '../../components/ui/composites/floating-action-button';
+import { ButtonGroup } from '../../components/ui/composites/button-group';
+import { Tooltip } from '../../components/ui/composites/tooltip';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout } from '../../components/shared';
 
 interface Book {
@@ -48,7 +50,9 @@ export default function BooksList() {
   const [loading, setLoading] = useState(true);
 
   const [showAlert, setShowAlert] = useState<{ title: string; message: string } | null>(null);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | null>(null);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState<number | number[] | null>(null);
+  const [selectedBooks, setSelectedBooks] = useState<Set<number>>(new Set());
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   const [filterBarOpen, setFilterBarOpen] = useState(false);
   const filterBarRef = useRef<HTMLDivElement>(null);
@@ -146,20 +150,52 @@ export default function BooksList() {
     setShowArchiveConfirm(bookId);
   };
 
+  const handleArchiveSelected = () => {
+    if (selectedBooks.size > 0) {
+      setShowArchiveConfirm(Array.from(selectedBooks));
+    }
+  };
+
+  const toggleBookSelection = (bookId: number) => {
+    const newSelected = new Set(selectedBooks);
+    if (newSelected.has(bookId)) {
+      newSelected.delete(bookId);
+    } else {
+      newSelected.add(bookId);
+    }
+    setSelectedBooks(newSelected);
+  };
+
+  const selectAllBooks = () => {
+    setSelectedBooks(new Set(filteredBooks.map((b) => b.id)));
+  };
+
+  const deselectAllBooks = () => {
+    setSelectedBooks(new Set());
+  };
+
   const handleConfirmArchive = async () => {
     if (!showArchiveConfirm) return;
-    
+    const ids = Array.isArray(showArchiveConfirm) ? showArchiveConfirm : [showArchiveConfirm];
+
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/books/${showArchiveConfirm}/archive`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`${apiUrl}/books/${id}/archive`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      const allOk = results.every((r) => r.ok);
+      if (allOk) {
         fetchBooks();
+        setSelectedBooks(new Set());
+        setMultiSelectMode(false);
       }
     } catch (error) {
-      console.error('Error archiving book:', error);
+      console.error('Error archiving book(s):', error);
     }
     setShowArchiveConfirm(null);
   };
@@ -285,6 +321,63 @@ export default function BooksList() {
       icon={<Book className="h-6 w-6 text-foreground" />}
       actions={
         <>
+          {multiSelectMode ? (
+            <ButtonGroup>
+              <Tooltip content="Exit multi-select" side="bottom">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setMultiSelectMode(false);
+                    deselectAllBooks();
+                  }}
+                >
+                  <SquareX className="h-5 w-5" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Select all" side="bottom">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={selectAllBooks}
+                  disabled={selectedBooks.size === filteredBooks.length}
+                >
+                  <CopyCheck className="h-5 w-5" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Deselect all" side="bottom">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={deselectAllBooks}
+                  disabled={selectedBooks.size === 0}
+                >
+                  <Copy className="h-5 w-5" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Archive selected" side="bottom">
+                <Button
+                  variant="outline"
+                  onClick={handleArchiveSelected}
+                  disabled={selectedBooks.size === 0}
+                  className="space-x-2"
+                >
+                  <Archive className="h-5 w-5" />
+                  <span>({selectedBooks.size})</span>
+                </Button>
+              </Tooltip>
+            </ButtonGroup>
+          ) : (
+            <Tooltip content="Multi-select" side="bottom">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setMultiSelectMode(true)}
+              >
+                <SquareCheckBig className="h-5 w-5" />
+              </Button>
+            </Tooltip>
+          )}
           <Button
             variant={filterBarOpen ? 'secondary' : 'outline'}
             onClick={() => {
@@ -361,7 +454,14 @@ export default function BooksList() {
           }
         />
       ) : (
-        <BooksGrid books={filteredBooks} onArchive={handleArchive} onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)} />
+        <BooksGrid
+          books={filteredBooks}
+          multiSelectMode={multiSelectMode}
+          selectedBooks={selectedBooks}
+          onToggleSelection={toggleBookSelection}
+          onArchive={handleArchive}
+          onPageUserManager={(bookId) => navigate(`/books/${bookId}/page-users`)}
+        />
       )}
 
       {/* Collaborator Dialog */}
@@ -401,9 +501,11 @@ export default function BooksList() {
         <Dialog open={!!showArchiveConfirm} onOpenChange={() => setShowArchiveConfirm(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Archive Book</DialogTitle>
+              <DialogTitle>Archive Book{Array.isArray(showArchiveConfirm) && showArchiveConfirm.length > 1 ? 's' : ''}</DialogTitle>
               <DialogDescription>
-                Are you sure you want to archive this book? You can restore it later from the archive.
+                {Array.isArray(showArchiveConfirm) && showArchiveConfirm.length > 1
+                  ? `Are you sure you want to archive ${showArchiveConfirm.length} books? You can restore them later from the archive.`
+                  : 'Are you sure you want to archive this book? You can restore it later from the archive.'}
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2 pt-4">
@@ -411,7 +513,7 @@ export default function BooksList() {
                 Cancel
               </Button>
               <Button onClick={handleConfirmArchive} className="flex-1">
-                Archive Book
+                Archive {Array.isArray(showArchiveConfirm) && showArchiveConfirm.length > 1 ? `${showArchiveConfirm.length} Books` : 'Book'}
               </Button>
             </div>
           </DialogContent>

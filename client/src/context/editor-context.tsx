@@ -1015,12 +1015,12 @@ function getAllPageIndexes(state: EditorState): number[] {
   return state.currentBook ? state.currentBook.pages.map((_, index) => index) : [];
 }
 
-function isLayoutProtectedPage(page: Page | undefined, pageIndex: number): boolean {
+function isLayoutProtectedPage(page: Page | undefined, pageIndex: number, totalPages: number): boolean {
   if (!page) return false;
   const pageNumber = typeof page.pageNumber === 'number' && !Number.isNaN(page.pageNumber)
     ? page.pageNumber
-    : pageIndex + 1;
-  return pageNumber === 1 || pageNumber === 2;
+    : pageIndex;
+  return pageNumber === 0 || (totalPages > 0 && pageNumber === totalPages - 1);
 }
 
 function collectPageCacheIds(book: Book | null | undefined): number[] {
@@ -1197,8 +1197,6 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
 
     const activeThemeId = page.themeId ?? 'default';
 
-    const isInnerFrontOrBack = resolvedPageType === 'inner-front' || resolvedPageType === 'inner-back';
-
     let resolvedBackground = page.background;
     const isCustomImageBackground =
       page.background?.type === 'image' &&
@@ -1211,9 +1209,8 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
       isCustomImageBackground
     );
 
-    if (isInnerFrontOrBack) {
-      resolvedBackground = null;
-    } else if (!hasExplicitBackground && activeThemeId) {
+    // Inner Front/Back now get theme/background from Creation Wizard like other pages
+    if (!hasExplicitBackground && activeThemeId) {
       const theme = getGlobalTheme(activeThemeId);
       if (theme) {
         let effectivePaletteId: string | null = null;
@@ -4153,8 +4150,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const totalPages = book.pages.length;
 
       const updatedPages = book.pages.map((page, index) => {
-        const pageNumber = index + 1;
-        const isSpecial = pageNumber === 1 || pageNumber === 2 || pageNumber === 3 || pageNumber === totalPages;
+        // Nur Front Cover (0) und Back Cover (totalPages-1) ohne Seitennummer
+        const isSpecial = index === 0 || (totalPages > 0 && index === totalPages - 1);
         if (isSpecial) return page;
 
         const elements = page.elements || [];
@@ -4166,10 +4163,8 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
         const contentPageNumber = book.pages
           .slice(0, index)
-          .filter((_, i) => {
-            const pn = i + 1;
-            return pn !== 1 && pn !== 2 && pn !== 3 && pn !== totalPages;
-          }).length + 1;
+          .filter((_, i) => i !== 0 && !(totalPages > 0 && i === totalPages - 1))
+          .length + 1;
 
         const updates = {
           fontFamily: settings.fontFamily,
@@ -4608,7 +4603,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const { pageIndex, template, skipHistory: applyTemplateSkipHistory } = action.payload as any;
       const targetTemplateIndex = typeof pageIndex === 'number' ? pageIndex : state.activePageIndex;
       const targetPageTemplateOriginal = state.currentBook.pages[targetTemplateIndex];
-      if (!targetPageTemplateOriginal || isLayoutProtectedPage(targetPageTemplateOriginal, targetTemplateIndex)) {
+      if (!targetPageTemplateOriginal || isLayoutProtectedPage(targetPageTemplateOriginal, targetTemplateIndex, state.currentBook.pages.length)) {
         return state;
       }
       const savedTemplateState = applyTemplateSkipHistory
@@ -4654,7 +4649,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!applyToAllPages) {
         const targetIndex = applyPageIndex ?? state.activePageIndex;
         const targetPage = state.currentBook.pages[targetIndex];
-        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex)) {
+        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex, state.currentBook.pages.length)) {
           return state;
         }
       }
@@ -4668,9 +4663,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const updatedBookApplyTemplate = { ...baseState.currentBook! };
       
       if (applyToAllPages) {
-        // Apply to all pages except protected ones
+        // Apply to all pages except protected ones (Front/Back Cover)
+        const totalApplyPages = updatedBookApplyTemplate.pages.length;
         updatedBookApplyTemplate.pages = updatedBookApplyTemplate.pages.map((page, index) => {
-          if (isLayoutProtectedPage(page, index)) {
+          if (isLayoutProtectedPage(page, index, totalApplyPages)) {
             return page;
           }
           const newElements = convertTemplateToElements(applyTemplate);
@@ -4722,7 +4718,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       if (!layoutApplyToAll) {
         const targetIndex = layoutPageIndex ?? state.activePageIndex;
         const targetPage = state.currentBook.pages[targetIndex];
-        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex)) {
+        if (!targetPage || isLayoutProtectedPage(targetPage, targetIndex, state.currentBook.pages.length)) {
           return state;
         }
       }
@@ -4735,8 +4731,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           });
       const updatedBookLayout = { ...savedLayoutState.currentBook! };
       
+      const totalLayoutPages = updatedBookLayout.pages.length;
       const applyLayoutToPage = (page: Page, pageIdx: number) => {
-        if (isLayoutProtectedPage(page, pageIdx)) {
+        if (isLayoutProtectedPage(page, pageIdx, totalLayoutPages)) {
           return page;
         }
         // Berechne Canvas-Größe für diese Seite

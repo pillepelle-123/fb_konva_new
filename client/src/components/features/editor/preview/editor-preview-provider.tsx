@@ -2,13 +2,17 @@ import React, { useMemo } from 'react';
 import { EditorContext } from '../../../../context/editor-context';
 import { AbilityProvider } from '../../../../abilities/ability-context';
 import type { PageTemplate } from '../../../../types/template-types';
-import { getThemesData } from '../../../../data/templates/templates-data';
 import { mirrorTemplate } from '../../../../utils/layout-mirroring';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
 import { convertTemplateToElements } from '../../../../utils/template-to-elements';
 import { calculatePageDimensions } from '../../../../utils/template-utils';
 import type { CanvasElement } from '../../../../context/editor-context';
-import { applyThemeToElementConsistent } from '../../../../utils/global-themes';
+import {
+  applyThemeToElementConsistent,
+  getGlobalTheme,
+  getThemePageBackgroundColors,
+} from '../../../../utils/global-themes';
+import { applyBackgroundImageTemplate } from '../../../../utils/background-image-utils';
 
 type PreviewProviderProps = {
   children: React.ReactNode;
@@ -38,45 +42,48 @@ export function EditorPreviewProvider({
   allowInteractions = false,
 }: PreviewProviderProps) {
   const state = useMemo(() => {
-    // Resolve theme background for pages
-    const themes = getThemesData() as Record<string, unknown>;
-    const theme = themes[themeId] || themes.default;
-    const pageSettings = theme?.pageSettings || {};
-    const backgroundImageCfg = pageSettings.backgroundImage || { enabled: false };
-    const backgroundPatternCfg = pageSettings.backgroundPattern || { enabled: false };
+    // Build background using same logic as selector-theme (getThemePageBackgroundColors + applyBackgroundImageTemplate)
+    const theme = getGlobalTheme(themeId);
+    const pageColors = getThemePageBackgroundColors(themeId, paletteId);
+    const backgroundOpacity = theme?.pageSettings?.backgroundOpacity ?? 1;
 
     const buildBackground = () => {
-      if (backgroundImageCfg?.enabled) {
-        return {
-          type: 'image',
-          opacity: pageSettings.backgroundOpacity ?? 1,
-          value: undefined,
-          // map editor background fields
-          backgroundImageTemplateId: backgroundImageCfg.templateId,
-          imageSize: backgroundImageCfg.size === 'contain' ? 'contain' : backgroundImageCfg.size === 'cover' ? 'cover' : 'cover',
-          imageRepeat: Boolean(backgroundImageCfg.repeat),
-          imagePosition: backgroundImageCfg.position || 'top-left',
-          imageContainWidthPercent: backgroundImageCfg.width || 100,
-          applyPalette: true,
-        };
+      if (!theme) {
+        return { type: 'color' as const, value: pageColors.backgroundColor, opacity: 1 };
       }
-      if (backgroundPatternCfg?.enabled) {
+
+      const backgroundImageConfig = theme.pageSettings.backgroundImage;
+      if (backgroundImageConfig?.enabled && backgroundImageConfig.templateId) {
+        const imageBackground = applyBackgroundImageTemplate(backgroundImageConfig.templateId, {
+          imageSize: backgroundImageConfig.size,
+          imageRepeat: backgroundImageConfig.repeat,
+          imagePosition: backgroundImageConfig.position,
+          imageWidth: backgroundImageConfig.width,
+          opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
+          backgroundColor: pageColors.backgroundColor,
+        });
+        if (imageBackground) return { ...imageBackground, pageTheme: themeId };
+      }
+
+      if (theme.pageSettings.backgroundPattern?.enabled) {
         return {
           type: 'pattern',
-          value: backgroundPatternCfg.style || 'dots',
-          opacity: pageSettings.backgroundOpacity ?? 1,
-          patternBackgroundColor: undefined,
-          patternForegroundColor: undefined,
-          patternSize: backgroundPatternCfg.size ?? 20,
-          patternStrokeWidth: backgroundPatternCfg.strokeWidth ?? 1,
-          patternBackgroundOpacity: backgroundPatternCfg.patternBackgroundOpacity ?? 0.3,
+          value: theme.pageSettings.backgroundPattern.style || 'dots',
+          opacity: backgroundOpacity,
+          pageTheme: themeId,
+          patternSize: theme.pageSettings.backgroundPattern.size ?? 20,
+          patternStrokeWidth: theme.pageSettings.backgroundPattern.strokeWidth ?? 1,
+          patternBackgroundOpacity: theme.pageSettings.backgroundPattern.patternBackgroundOpacity ?? 0.3,
+          patternForegroundColor: pageColors.backgroundColor,
+          patternBackgroundColor: pageColors.patternBackgroundColor,
         };
       }
-      // fallback solid based on palette later
+
       return {
         type: 'color',
-        value: '#ffffff',
-        opacity: pageSettings.backgroundOpacity ?? 1,
+        value: pageColors.backgroundColor,
+        opacity: backgroundOpacity,
+        pageTheme: themeId,
       };
     };
 

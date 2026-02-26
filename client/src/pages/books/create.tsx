@@ -14,7 +14,8 @@ import { setThemesData, setColorPalettesData, setPageTemplatesData } from '../..
 import { StaticSpreadPreview } from '../../components/features/editor/preview/static-spread-preview';
 import { PreviewModal } from '../../components/features/editor/preview/preview-modal';
 import { mirrorTemplate } from '../../utils/layout-mirroring';
-import { getThemePaletteId } from '../../utils/global-themes';
+import { getThemePaletteId, getThemePageBackgroundColors } from '../../utils/global-themes';
+import { applyBackgroundImageTemplate } from '../../utils/background-image-utils';
 import { BasicInfoStep } from '../../components/features/books/create/basic-info-step';
 import { DesignStep } from '../../components/features/books/create/design-step';
 import { TeamStep } from '../../components/features/books/create/team-step';
@@ -334,7 +335,7 @@ export default function BookCreatePage() {
           pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
           isLocked: false,
-          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'first-page' || pageType === 'last-page',
+          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover',
           layoutVariation: 'normal',
           // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
           background: shouldHaveThemeAndBackground ? background : null,
@@ -484,33 +485,40 @@ export default function BookCreatePage() {
         ? (wizardState.design.rightLayoutTemplate || baseTemplate)
         : (wizardState.design.mirrorLayout && baseTemplate ? mirrorTemplate(baseTemplate) : baseTemplate || null);
 
-      // Helper: background object from theme pageSettings
-      const buildBackground = (themeKey: string) => {
+      // Helper: background object from theme pageSettings + palette colors (same logic as editor-preview-provider)
+      const themeId = wizardState.design.themeId || 'default';
+      const paletteId = wizardState.design.paletteId ?? getThemePaletteId(themeId) ?? undefined;
+      const pageColors = getThemePageBackgroundColors(themeId, paletteId);
+
+      const buildBackground = () => {
         const themeDict = getThemesData() as Record<string, unknown>;
-        const themeEntry = (themeDict[themeKey] ?? themeDict['default']) as Record<string, unknown>;
+        const themeEntry = (themeDict[themeId] ?? themeDict['default']) as Record<string, unknown>;
         const pageSettings = (themeEntry?.pageSettings as Record<string, unknown>) || {};
         const bgImage = pageSettings?.['backgroundImage'] as Record<string, unknown> | undefined;
         const bgPattern = pageSettings?.['backgroundPattern'] as Record<string, unknown> | undefined;
-        if ((bgImage?.['enabled'] as boolean) === true) {
-          return {
-            type: 'image',
-            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
-            value: undefined,
-            backgroundImageTemplateId: bgImage?.['templateId'],
-            imageSize: (bgImage?.['size'] === 'contain') ? 'contain' : (bgImage?.['size'] === 'cover' ? 'cover' : 'cover'),
-            imageRepeat: Boolean(bgImage?.['repeat']),
-            imagePosition: (bgImage?.['position'] as string) || 'top-left',
-            imageContainWidthPercent: (bgImage?.['width'] as number) || 100,
-            applyPalette: true,
-          };
+        const backgroundOpacity = (pageSettings['backgroundOpacity'] as number) ?? 1;
+
+        if ((bgImage?.['enabled'] as boolean) === true && bgImage?.['templateId']) {
+          const imageBackground = applyBackgroundImageTemplate(bgImage['templateId'] as string, {
+            imageSize: (bgImage['size'] === 'contain' ? 'contain' : bgImage['size'] === 'cover' ? 'cover' : 'cover') as 'contain' | 'cover',
+            imageRepeat: Boolean(bgImage['repeat']),
+            imagePosition: (bgImage['position'] as string) || 'top-left',
+            imageWidth: (bgImage['width'] as number) || 100,
+            opacity: backgroundOpacity,
+            backgroundColor: pageColors.backgroundColor,
+          });
+          if (imageBackground) {
+            return { ...imageBackground, pageTheme: themeId };
+          }
         }
         if ((bgPattern?.['enabled'] as boolean) === true) {
           return {
             type: 'pattern',
             value: (bgPattern?.['style'] as string) || 'dots',
-            opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
-            patternBackgroundColor: undefined,
-            patternForegroundColor: undefined,
+            opacity: backgroundOpacity,
+            pageTheme: themeId,
+            patternBackgroundColor: pageColors.patternBackgroundColor,
+            patternForegroundColor: pageColors.backgroundColor,
             patternSize: (bgPattern?.['size'] as number) ?? 20,
             patternStrokeWidth: (bgPattern?.['strokeWidth'] as number) ?? 1,
             patternBackgroundOpacity: (bgPattern?.['patternBackgroundOpacity'] as number) ?? 0.3,
@@ -518,48 +526,42 @@ export default function BookCreatePage() {
         }
         return {
           type: 'color',
-          value: '#ffffff',
-          opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
+          value: pageColors.backgroundColor,
+          opacity: backgroundOpacity,
+          pageTheme: themeId,
         };
       };
 
-      const background = buildBackground(wizardState.design.themeId);
+      const background = buildBackground();
       const pages: Array<Record<string, unknown>> = [];
       
-      for (let i = 1; i <= totalPages; i++) {
-        // Page mapping per requirement:
-        // 1: Back Cover (NO layout template, but can have theme/background)
-        // 2: Front Cover (NO layout template, but can have theme/background)
-        // 3: Inner Front (NO layout/theme/background - plain white)
-        // 4..(totalPages-1): Content (apply layout/theme/background)
-        // totalPages: Inner Back (NO layout/theme/background - plain white)
-        const isBackCover = i === 1;
-        const isFrontCover = i === 2;
-        const isInnerFront = i === 3;
-        const isInnerBack = i === totalPages;
+      // 0-based: 0=front cover, 1=first content, 2..n-2=content pairs, n-1=back cover
+      for (let i = 0; i < totalPages; i++) {
+        const isFrontCover = i === 0;
+        const isBackCover = i === totalPages - 1;
+        const isFirstPage = i === 1;
+        const isLastPage = totalPages > 2 && i === totalPages - 2;
 
-        const pageType = isBackCover
-          ? 'back-cover'
-          : isFrontCover
-            ? 'front-cover'
-            : isInnerFront
-              ? 'inner-front'
-              : isInnerBack
-                ? 'inner-back'
+        const pageType = isFrontCover
+          ? 'front-cover'
+          : isBackCover
+            ? 'back-cover'
+            : isFirstPage
+              ? 'first-page'
+              : isLastPage
+                ? 'last-page'
                 : 'content';
 
-        const isInnerPage = isInnerFront || isInnerBack;
-        const isPrintedPage = !isInnerPage;
+        const isCoverPage = isFrontCover || isBackCover;
+        const isPrintedPage = !isCoverPage;
 
-        // Back Cover and Front Cover: NO layout template (no elements), but can have theme/background
-        // Inner Front and Inner Back: NO layout, NO theme, NO background (plain white)
-        // All other pages (including page 4): apply layout/theme/background
-        const shouldHaveLayoutTemplate = !isBackCover && !isFrontCover && !isInnerFront && !isInnerBack;
-        const shouldHaveThemeAndBackground = !isInnerFront && !isInnerBack;
+        // Cover pages: Theme + Background, aber kein Layout (keine Textboxen). Content-Seiten: Layout + Theme + Background.
+        const shouldHaveLayoutTemplate = !isCoverPage;
+        const shouldHaveThemeAndBackground = true;
         
-        // In the editor UI odd-numbered pages render on the left, even on the right.
-        // Mirror logic must therefore treat even pages as right-hand pages.
-        const isRightPage = i % 2 === 0;
+        // Editor convention: odd pageNumbers (1,3,5) = right of spread, even (0,2,4) = left of spread.
+        // Right pages get rightResolved (LTR), left pages get leftResolved (LTL).
+        const isRightPage = i % 2 === 1;
         const templateForPage = shouldHaveLayoutTemplate ? (isRightPage ? rightResolved : leftResolved) : null;
 
         let pageElements = shouldHaveLayoutTemplate ? convertTemplateToElements(templateForPage, canvasSize) : [];
@@ -574,7 +576,6 @@ export default function BookCreatePage() {
           pageNumber: i,
           elements: pageElements,
           layoutId: templateForPage ? templateForPage.id : null,
-          // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? (wizardState.design.themeId || 'default') : null,
           colorPaletteId: shouldHaveThemeAndBackground 
             ? wizardState.design.paletteId // null means "Theme's Default Palette"
@@ -582,12 +583,10 @@ export default function BookCreatePage() {
           pageType,
           pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
-          isLocked: isInnerPage,
-          // Only mark back-cover, front-cover, inner-front, inner-back as special
-          // "content" pages (including page 4) are NOT special
-          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover' || pageType === 'inner-front' || pageType === 'inner-back',
+          isLocked: false,
+          // Mark front-cover, back-cover, first-page, last-page as special
+          isSpecialPage: pageType === 'back-cover' || pageType === 'front-cover',
           layoutVariation: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? 'mirrored' : 'normal',
-          // Explicitly set background to null (not undefined) for Inner Front and Inner Back to prevent inheritance
           background: shouldHaveThemeAndBackground ? background : null,
           backgroundTransform: shouldHaveLayoutTemplate && (wizardState.design.mirrorLayout && isRightPage && !wizardState.design.pickLeftRight) ? { mirror: true } : null,
         });
@@ -600,18 +599,18 @@ export default function BookCreatePage() {
       // Assign questions to qna textboxes in order
       const questionsToAssign = wizardState.questions.orderedQuestions || [];
       if (questionsToAssign.length > 0) {
-        // Collect all qna textboxes from content pages (page 4 to totalPages-1)
+        // Collect all qna textboxes from content pages (1 to totalPages-2, excluding front/back cover)
         const qnaInlineTextboxes: Array<{ pageIndex: number; elementIndex: number; pageNumber: number }> = [];
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as { pageNumber: number; elements: Array<{ textType?: string; questionId?: string }> };
-          // Only process content pages (page 4 to totalPages-1)
-          if (page.pageNumber >= 4 && page.pageNumber < totalPages) {
+          // Only process content pages (1 to totalPages-2)
+          if (page.pageNumber >= 1 && page.pageNumber <= totalPages - 2) {
             page.elements.forEach((element, elementIndex) => {
               if (element.textType === 'qna' || element.textType === 'qna2') {
                 qnaInlineTextboxes.push({
                   pageIndex: i,
                   elementIndex,
-                  pageNumber: page.pageNumber ?? (i + 1),
+                  pageNumber: page.pageNumber ?? i,
                 });
               }
             });
@@ -731,11 +730,12 @@ export default function BookCreatePage() {
       const hasManualAssignments = existingAssignments.length > 0;
 
       // Only create page assignments if they were manually assigned in the wizard
+      // Assignable pages: 1 to totalPages-2 (first-page, content, last-page; excludes front/back cover)
       if (hasManualAssignments) {
         const filteredAssignments = existingAssignments.filter(
           (assignment) =>
-            assignment.pageNumber > 2 &&
-            assignment.pageNumber < totalPages &&
+            assignment.pageNumber >= 1 &&
+            assignment.pageNumber <= totalPages - 2 &&
             validFriendIds.has(assignment.userId),
         );
 
@@ -1167,7 +1167,7 @@ ${user?.name || '[user name]'}`;
                                 pageSize={wizardState.basic.pageSize}
                                 orientation={wizardState.basic.orientation}
                                 themeId={wizardState.design.themeId}
-                                paletteId={wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default'}
+                                paletteId={String(wizardState.design.paletteId ?? getThemePaletteId(wizardState.design.themeId) ?? 'default')}
                                 baseTemplate={wizardState.design.layoutTemplate ?? null}
                                 pickLeftRight={wizardState.design.pickLeftRight}
                                 leftTemplate={wizardState.design.leftLayoutTemplate ?? null}

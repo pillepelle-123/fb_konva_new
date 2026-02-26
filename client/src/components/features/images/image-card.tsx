@@ -41,7 +41,9 @@ export default function ImageCard({
   getFileUrlForCanvas
 }: ImageCardProps) {
   const handleImageClick = () => {
-    if (mode === 'select') {
+    if (multiSelectMode) {
+      onToggleSelection?.(image.id);
+    } else if (mode === 'select') {
       const urlForCanvas = getFileUrlForCanvas ? getFileUrlForCanvas(image) : getImageUrl(image);
       onImageSelect?.(image.id, urlForCanvas);
     } else {
@@ -63,6 +65,26 @@ export default function ImageCard({
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+        {multiSelectMode && (
+          <div className="absolute top-2 right-2 z-10">
+            <Tooltip content={isSelected ? 'Deselect' : 'Select'} side="bottom">
+              <Button
+                variant="secondary"
+                className="h-8 w-8 p-0 shrink-0 bg-white/40 hover:bg-white shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelection?.(image.id);
+                }}
+              >
+                {isSelected ? (
+                  <CircleCheckBig className="h-5 w-5 text-ring" />
+                ) : (
+                  <Circle className="h-5 w-5" />
+                )}
+              </Button>
+            </Tooltip>
+          </div>
+        )}
         <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
           <h3 className="text-white font-medium text-sm line-clamp-2">
           </h3>
@@ -87,22 +109,6 @@ export default function ImageCard({
             <span className="hidden sm:inline">Delete</span>
           </Button>
         )}
-
-      {multiSelectMode && (
-        <Tooltip content={isSelected ? "Deselect" : "Select"} side="top">
-          <Button
-            variant="standard"
-            className="h-8 w-8 p-0"
-            onClick={() => onToggleSelection?.(image.id)}
-          >
-            {isSelected ? (
-              <CircleCheckBig className="h-5 w-5 text-ring" />
-            ) : (
-              <Circle className="h-5 w-5 " />
-            )}
-          </Button>
-        </Tooltip>
-      )}
 
         </div>
       </CardContent>

@@ -294,6 +294,22 @@ CREATE INDEX idx_page_assignments_page_id ON page_assignments(page_id);
 CREATE INDEX idx_page_assignments_user_id ON page_assignments(user_id);
 
 -- ###############################################################
+-- Friend Invitations Table
+-- ###############################################################
+
+CREATE TABLE IF NOT EXISTS public.friend_invitations (
+  id SERIAL PRIMARY KEY,
+  sender_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  receiver_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  responded_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(sender_id, receiver_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friend_invitations_receiver ON public.friend_invitations(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_friend_invitations_sender ON public.friend_invitations(sender_id);
+
+-- ###############################################################
 -- Friendships Table
 -- ###############################################################
 
@@ -301,7 +317,9 @@ CREATE TABLE friendships (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  invitation_id INTEGER REFERENCES public.friend_invitations(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  ended_at TIMESTAMPTZ,
   UNIQUE(user_id, friend_id)
 );
 
@@ -455,6 +473,7 @@ CREATE TABLE IF NOT EXISTS public.pdf_exports (
     end_page INTEGER,
     file_path VARCHAR(500),
     file_size BIGINT,
+    download_count INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP WITH TIME ZONE,
@@ -467,20 +486,9 @@ CREATE INDEX IF NOT EXISTS idx_pdf_exports_status ON public.pdf_exports(status);
 CREATE INDEX IF NOT EXISTS idx_pdf_exports_created_at ON public.pdf_exports(created_at);
 
 -- ###############################################################
--- Migration: Friend Invitations and User Blocks
+-- User Blocks
 -- ###############################################################
 
-CREATE TABLE IF NOT EXISTS public.friend_invitations (
-  id SERIAL PRIMARY KEY,
-  sender_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  receiver_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  responded_at TIMESTAMP WITH TIME ZONE,
-  UNIQUE(sender_id, receiver_id)
-);
-CREATE INDEX IF NOT EXISTS idx_friend_invitations_receiver ON public.friend_invitations(receiver_id);
-CREATE INDEX IF NOT EXISTS idx_friend_invitations_sender ON public.friend_invitations(sender_id);
 
 CREATE TABLE IF NOT EXISTS public.user_blocks (
   id SERIAL PRIMARY KEY,
@@ -582,12 +590,4 @@ CREATE TABLE IF NOT EXISTS public.sandbox_page (
 CREATE INDEX IF NOT EXISTS idx_sandbox_page_user_id ON public.sandbox_page(user_id);
 CREATE INDEX IF NOT EXISTS idx_sandbox_page_updated_at ON public.sandbox_page(updated_at DESC);
 
-
--- ###############################################################
--- Insert initial admin user (password: admin123)
--- ###############################################################
-
-INSERT INTO users (name, email, password_hash, role) 
-VALUES ('Admin User', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin')
-ON CONFLICT (email) DO NOTHING;
 

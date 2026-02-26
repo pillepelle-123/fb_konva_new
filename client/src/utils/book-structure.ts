@@ -26,10 +26,10 @@ export const SPECIAL_PAGE_CONFIG: Record<
   'inner-back': { locked: false, printable: true, spread: 'content', order: 99 }
 };
 
-/** Prüft, ob die Seite Teil eines regulären Content-Paars ist (2-3, 4-5, …) – löschbar/duplizierbar */
+/** Prüft, ob die Seite Teil eines regulären Content-Paars ist – löschbar/duplizierbar. Nur Front/Back Cover ausgeschlossen. */
 export function isContentPairPage(pageNumber: number, totalPages: number): boolean {
   if (totalPages < 4) return false;
-  if (pageNumber <= 1 || pageNumber >= totalPages - 1) return false;
+  if (pageNumber === 0 || (totalPages > 0 && pageNumber === totalPages - 1)) return false;
   return true;
 }
 
@@ -121,7 +121,7 @@ export function buildPageMetadataMap(
 export function computePageMetadataEntry(pageNumber: number, totalPages: number, page?: Page): PageMetadata {
   const fallbackType = deriveFallbackPageType(pageNumber, totalPages);
   const pageType = (page?.pageType as NonNullable<Page['pageType']>) ?? fallbackType;
-  const isSpecial = pageType === 'front-cover' || pageType === 'back-cover' || pageType === 'first-page' || pageType === 'last-page';
+  const isSpecial = pageType === 'front-cover' || pageType === 'back-cover';
   const isEditable = true; // Alle Seiten editierbar; Cover: kein qna/qna2, keine Zuweisung
   const isSelectable = isEditable;
   const pairId = page?.pagePairId ?? calculatePagePairId(pageNumber, totalPages, pageType);
@@ -209,7 +209,7 @@ function createSpecialPage(pageType: NonNullable<Page['pageType']>, pairId: stri
     colorPaletteId: undefined,
     pageType,
     pagePairId: pairId,
-    isSpecialPage: true,
+    isSpecialPage: pageType === 'front-cover' || pageType === 'back-cover',
     isLocked: config.locked,
     isPrintable: config.printable,
     layoutVariation: 'normal',
@@ -229,7 +229,7 @@ export function ensureSpecialPages(pages: Page[]): Page[] {
       pageNumber,
       pageType,
       pagePairId: pairId,
-      isSpecialPage: pageType === 'front-cover' || pageType === 'back-cover' || pageType === 'first-page' || pageType === 'last-page',
+      isSpecialPage: pageType === 'front-cover' || pageType === 'back-cover',
       isLocked: config.locked,
       isPrintable: config.printable
     };

@@ -74,7 +74,7 @@ describe('book-structure utilities', () => {
     specialTypes.forEach((page) => {
       if (!page.pageType) return;
       const config = SPECIAL_PAGE_CONFIG[page.pageType];
-      expect(page.isSpecialPage).toBe(true);
+      expect(page.isSpecialPage).toBe(page.pageType === 'front-cover' || page.pageType === 'back-cover');      
       expect(page.isLocked).toBe(config.locked);
       expect(page.isPrintable).toBe(config.printable);
     });

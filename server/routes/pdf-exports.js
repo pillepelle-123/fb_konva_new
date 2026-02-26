@@ -7,10 +7,90 @@ const { authenticateToken } = require('../middleware/auth');
 const { generatePDFFromBook } = require('../services/pdf-export');
 const PDFExportQueue = require('../services/pdf-export-queue');
 const { getUploadsDir, getUploadsSubdir, isPathWithinUploads } = require('../utils/uploads-path');
+const { formatLayoutIdForResponse } = require('../utils/layout-utils');
 const stickersService = require('../services/stickers');
 const backgroundImagesService = require('../services/background-images');
+const themesPalettesService = require('../services/themes-palettes-layouts');
 
 const router = express.Router();
+
+/** Apply palette colors to page backgrounds for PDF export (server-side, no client fetch) */
+async function applyPaletteToBookData(bookData) {
+  let palettes = [];
+  let themes = [];
+  try {
+    [palettes, themes] = await Promise.all([
+      themesPalettesService.listColorPalettes(),
+      themesPalettesService.listThemes()
+    ]);
+  } catch (err) {
+    console.warn('[pdf-exports] Failed to load palettes/themes:', err.message);
+    return bookData;
+  }
+
+  const themeById = Object.fromEntries((themes || []).map(t => [String(t.id), t]));
+  const paletteById = Object.fromEntries((palettes || []).map(p => [String(p.id), p]));
+
+  function getPalettePartColor(palette, partName, fallbackSlot, fallbackColor) {
+    if (!palette?.colors) return fallbackColor;
+    const slot = palette.parts?.[partName] || fallbackSlot;
+    return palette.colors[slot] || palette.colors[fallbackSlot] || fallbackColor;
+  }
+
+  const pages = (bookData.pages || []).map(page => {
+    const activeThemeId = page.themeId ?? page.background?.pageTheme ?? bookData.themeId ?? bookData.bookTheme ?? 'default';
+    const theme = themeById[String(activeThemeId)];
+    const themePaletteId = theme?.palette_id ?? theme?.palette;
+    const effectivePaletteId = page.colorPaletteId != null
+      ? page.colorPaletteId
+      : (bookData.colorPaletteId ?? themePaletteId);
+    const palette = effectivePaletteId ? paletteById[String(effectivePaletteId)] : null;
+
+    if (!palette || !page.background) {
+      if (!page.background && palette) {
+        const pageBgColor = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors?.background) ?? palette.colors?.background ?? '#ffffff';
+        return { ...page, background: { type: 'color', value: pageBgColor, opacity: 1 } };
+      }
+      return page;
+    }
+
+    const pageBgColor = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors?.background) ?? palette.colors?.background ?? '#ffffff';
+    const patternForeground = getPalettePartColor(palette, 'pagePattern', 'primary', palette.colors?.primary) ?? palette.colors?.primary ?? '#666666';
+    const patternBackground = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors?.background) ?? palette.colors?.background ?? '#ffffff';
+
+    let updatedBackground = page.background;
+    if (page.background.type === 'color') {
+      updatedBackground = { ...page.background, value: pageBgColor };
+    } else if (page.background.type === 'pattern') {
+      updatedBackground = {
+        ...page.background,
+        patternBackgroundColor: patternForeground,
+        patternForegroundColor: patternBackground
+      };
+    }
+
+    return { ...page, background: updatedBackground };
+  });
+
+  const result = {
+    ...bookData,
+    pages,
+    colorPalettes: palettes
+  };
+  const bgImagePages = pages.filter(p => p.background?.type === 'image');
+  if (bgImagePages.length > 0) {
+    console.log('[PDF Debug] applyPaletteToBookData: palettes count=', palettes.length, 'bgImagePages=', bgImagePages.length);
+    bgImagePages.forEach((p, i) => {
+      const bg = p.background;
+      console.log('[PDF Debug] Page', i, 'bg:', {
+        valuePrefix: bg.value?.substring?.(0, 60),
+        backgroundImageTemplateId: bg.backgroundImageTemplateId,
+        applyPalette: bg.applyPalette,
+      });
+    });
+  }
+  return result;
+}
 
 // Regex to match protected image URLs for replacement (relative or absolute)
 const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/(\d+)(?:\?.*)?$/;
@@ -100,7 +180,8 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
     if (bgImageCache.has(decoded)) return bgImageCache.get(decoded);
 
     const image = await backgroundImagesService.getBackgroundImage(decoded);
-    if (!image || image.storage?.type !== 'local' || !image.storage?.filePath) return null;
+    // Background images from DB use filePath (no storage.type – treat as local)
+    if (!image || !image.storage?.filePath) return null;
 
     const relPath = image.storage.filePath.replace(/^\/+/, '');
     const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relPath));
@@ -163,6 +244,9 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
       const dataUrl = await resolveUrl(bg.value);
       if (dataUrl) {
         page.background = { ...bg, value: dataUrl };
+        if (dataUrl.startsWith('data:image/svg')) {
+          console.log('[PDF Debug] resolveProtectedImageUrls: replaced bg with SVG data URL, prefix=', dataUrl.substring(0, 50));
+        }
       }
     }
   }
@@ -248,9 +332,12 @@ async function processExport(job) {
   // Replace protected image URLs with base64 data URLs (Puppeteer cannot send auth headers)
   await resolveProtectedImageUrls(bookData, bookId, userId);
 
+  // Apply palette to backgrounds and embed colorPalettes (no client fetch, avoids 403 in Puppeteer)
+  const bookDataWithPalette = await applyPaletteToBookData(bookData);
+
   // Generate PDF
   const pdfPath = await generatePDFFromBook(
-    bookData,
+    bookDataWithPalette,
     options,
     exportId,
     (progress) => {
@@ -456,6 +543,7 @@ async function loadBookDataFromDB(bookId, userId) {
         return element;
       });
 
+      const layoutVariation = pageData.layoutVariation ?? page.layout_variation ?? 'normal';
       const pageResult = {
         id: page.id,
         pageNumber: page.page_number,
@@ -464,7 +552,7 @@ async function loadBookDataFromDB(bookId, userId) {
           ...pageData.background,
           pageTheme: page.theme_id || null
         },
-        layoutId: page.layout_id,
+        layoutId: formatLayoutIdForResponse(page.layout_id, layoutVariation),
         ...(page.theme_id ? { themeId: page.theme_id } : {}),
         colorPaletteId: page.color_palette_id,
         pageType: page.page_type || 'content'

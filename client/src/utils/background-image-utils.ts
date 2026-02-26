@@ -211,12 +211,25 @@ export function resolveBackgroundImageUrl(
   // For SVG, still apply palette when requested so page color palette is respected
   if (background.value && background.value.startsWith('data:')) {
     const shouldApplyPalette = background.applyPalette !== false;
+    const isSvgDataUrl = background.value.startsWith('data:image/svg+xml');
+    console.log('[PDF Debug] resolveBackgroundImageUrl data URL branch:', {
+      valuePrefix: background.value.substring(0, 80),
+      shouldApplyPalette,
+      hasOptions: !!options,
+      isSvgDataUrl,
+    });
     if (
       shouldApplyPalette &&
       options &&
-      background.value.startsWith('data:image/svg+xml')
+      isSvgDataUrl
     ) {
-      const match = background.value.match(/^data:image\/svg\+xml;base64,(.+)$/);
+      const match = background.value.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
+      const urlEncodedMatch = background.value.match(/^data:image\/svg\+xml,(.+)$/);
+      console.log('[PDF Debug] SVG data URL format:', {
+        matchedBase64: !!match,
+        matchedUrlEncoded: !!urlEncodedMatch,
+        valueLength: background.value.length,
+      });
       if (match) {
         try {
           const binary = atob(match[1]);
@@ -224,34 +237,64 @@ export function resolveBackgroundImageUrl(
           for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
           const rawSvg = new TextDecoder().decode(bytes);
           const paletteColors = resolvePaletteColors(options);
+          const containsPaletteTokens = rawSvg ? /PALETTE_[A-Z_]+/.test(rawSvg) : false;
+          const template = background.backgroundImageTemplateId
+            ? getBackgroundImageById(background.backgroundImageTemplateId)
+            : null;
+          const paletteSlots = template?.paletteSlots;
+
+          console.log('[PDF Debug] SVG palette application:', {
+            rawSvgLength: rawSvg?.length ?? 0,
+            hasPaletteColors: !!paletteColors,
+            paletteColorsKeys: paletteColors ? Object.keys(paletteColors) : [],
+            containsPaletteTokens,
+            paletteSlots,
+            backgroundImageTemplateId: background.backgroundImageTemplateId,
+          });
 
           if (rawSvg && paletteColors) {
-            const template = background.backgroundImageTemplateId
-              ? getBackgroundImageById(background.backgroundImageTemplateId)
-              : null;
-            const paletteSlots = template?.paletteSlots;
-            const containsPaletteTokens = /PALETTE_[A-Z_]+/.test(rawSvg);
-
+            let appliedBranch: string;
+            let result: string | undefined;
             if (paletteSlots === 'standard' && containsPaletteTokens) {
-              return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+              appliedBranch = 'standard+slots';
+              result = applyPaletteSlotsToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data`,
                 asDataUrl: true,
               });
-            }
-            if (
+            } else if (
               paletteSlots === 'auto' ||
               (paletteSlots === 'standard' && !containsPaletteTokens)
             ) {
-              return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+              appliedBranch = 'auto';
+              result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto`,
                 asDataUrl: true,
               });
+            } else if (containsPaletteTokens) {
+              appliedBranch = 'fallback-slots';
+              result = applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+                cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::fallback`,
+                asDataUrl: true,
+              });
+            } else {
+              appliedBranch = 'fallback-auto';
+              result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
+                cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
+                asDataUrl: true,
+              });
             }
+            console.log('[PDF Debug] Palette applied via branch:', appliedBranch);
+            return result;
           }
+          console.log('[PDF Debug] Skipped palette: no rawSvg or no paletteColors');
         } catch (e) {
           console.warn('[resolveBackgroundImageUrl] Failed to apply palette to data URL:', e);
         }
+      } else {
+        console.log('[PDF Debug] SVG base64 regex did not match – returning original value');
       }
+    } else {
+      console.log('[PDF Debug] Skipping palette: shouldApplyPalette=', shouldApplyPalette, 'hasOptions=', !!options);
     }
     return background.value;
   }
@@ -370,9 +413,14 @@ export function createPreviewImage(
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
 
-  const preview = new window.Image();
-  preview.src = canvas.toDataURL('image/jpeg', quality);
-  return preview;
+  try {
+    const preview = new window.Image();
+    preview.src = canvas.toDataURL('image/jpeg', quality);
+    return preview;
+  } catch {
+    // Tainted canvas (cross-origin without CORS) – cannot export; use original
+    return source;
+  }
 }
 
 function isSvgSource(src: string): boolean {

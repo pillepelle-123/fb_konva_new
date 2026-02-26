@@ -71,9 +71,13 @@ export function DesignStep({
     return getThemePaletteId(wizardState.design.themeId) ?? 'default';
   }, [wizardState.design.themeId]);
 
-  // Build palette list: 1) Theme's Default Palette (virtual), 2) Individuelle Paletten (alle)
+  // Build palette list: 1) Theme's Default Palette (virtual, always first), 2) Individuelle Paletten (alle)
   const paletteEntries = useMemo(() => {
-    const themePalette = colorPalettes.find(p => p.id === currentThemePaletteId);
+    const themePalette =
+      colorPalettes.find(p => p.id === currentThemePaletteId) ??
+      colorPalettes.find(p => String(p.id) === String(currentThemePaletteId)) ??
+      colorPalettes.find(p => p.id === 'default') ??
+      colorPalettes[0];
     const entries: Array<{ id: string | number | null; kind: 'theme-default' | 'individual'; name: string; subtitle?: string; colors: Record<string, string> }> = [];
 
     if (themePalette) {
@@ -87,17 +91,25 @@ export function DesignStep({
     }
 
     colorPalettes.forEach((p) => {
+      const isThemeDefault = themePalette && (p.id === themePalette.id || String(p.id) === String(themePalette.id));
       entries.push({
         id: p.id,
         kind: 'individual',
         name: p.name,
-        subtitle: themePalette && p.id === themePalette.id ? '(Theme default)' : undefined,
+        subtitle: isThemeDefault ? '(Theme default)' : undefined,
         colors: p.colors,
       });
     });
 
     return entries;
   }, [currentThemePaletteId]);
+
+  // Ensure themeId is always set (never null/undefined) so "Theme's Default Palette" can be resolved
+  useEffect(() => {
+    if (wizardState.design.themeId == null || wizardState.design.themeId === '') {
+      onChange({ themeId: 'default' });
+    }
+  }, [wizardState.design.themeId, onChange]);
 
   // Scroll to selected theme when switching to carousel mode
   useEffect(() => {
@@ -118,7 +130,7 @@ export function DesignStep({
       const selectedIndex = paletteEntries.findIndex(palette => 
         palette.id === null 
           ? wizardState.design.paletteId === null
-          : wizardState.design.paletteId === palette.id
+          : wizardState.design.paletteId === String(palette.id)
       );
       if (selectedIndex !== -1) {
         // Use setTimeout to ensure carousel is fully rendered
@@ -491,14 +503,14 @@ export function DesignStep({
                     {paletteEntries.map((palette) => {
                       const isActive = palette.id === null
                         ? wizardState.design.paletteId === null
-                        : wizardState.design.paletteId === palette.id;
+                        : wizardState.design.paletteId === String(palette.id);
                       const colorValues = Object.values(palette.colors || {});
                       const hasSubtitle = Boolean(palette.subtitle);
                       return (
                         <CarouselItem key={palette.id ?? 'theme-default'} className="pl-2 basis-full">
                           <button
                             type="button"
-                            onClick={() => onChange({ paletteId: palette.id })}
+                            onClick={() => onChange({ paletteId: palette.id != null ? String(palette.id) : null })}
                             className={`w-full h-full rounded-xl border p-4 pl-10 text-left transition hover:shadow-sm ${
                               isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                             }`}
@@ -535,14 +547,14 @@ export function DesignStep({
                   {paletteEntries.map((palette) => {
                     const isActive = palette.id === null
                       ? wizardState.design.paletteId === null
-                      : wizardState.design.paletteId === palette.id;
+                      : wizardState.design.paletteId === String(palette.id);
                     const colorValues = Object.values(palette.colors || {});
                     const hasSubtitle = Boolean(palette.subtitle);
                     return (
                       <button
                         key={palette.id ?? 'theme-default'}
                         type="button"
-                        onClick={() => onChange({ paletteId: palette.id })}
+                        onClick={() => onChange({ paletteId: palette.id != null ? String(palette.id) : null })}
                         className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
                           isActive ? 'border-primary bg-primary/5' : 'border-border bg-card'
                         }`}

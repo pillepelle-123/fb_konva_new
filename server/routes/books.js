@@ -1,6 +1,25 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { authenticateToken } = require('../middleware/auth');
+const { parseLayoutIdForDb, formatLayoutIdForResponse } = require('../utils/layout-utils');
+
+/**
+ * Resolves themeId for database storage. The client may send "default" (themes.json key)
+ * but theme_id in the DB must be an integer. Looks up by name or uses numeric id.
+ */
+async function resolveThemeIdForDb(db, themeId) {
+  if (themeId === null || themeId === undefined) return null;
+  const num = parseInt(String(themeId), 10);
+  if (!Number.isNaN(num) && Number.isInteger(num)) return num;
+  const str = String(themeId).toLowerCase();
+  const byName = await db.query(
+    `SELECT id FROM public.themes WHERE LOWER(name) = $1 ORDER BY sort_order ASC NULLS LAST, id ASC LIMIT 1`,
+    [str]
+  );
+  if (byName.rows.length > 0) return byName.rows[0].id;
+  const first = await db.query(`SELECT id FROM public.themes ORDER BY sort_order ASC NULLS LAST, id ASC LIMIT 1`);
+  return first.rows.length > 0 ? first.rows[0].id : null;
+}
 const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
 const { requireBookPermission } = require('../middleware/require-book-permission');
 const {
@@ -446,7 +465,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
             ...pageData.background,
             pageTheme: page.theme_id || null
           },
-          layoutId: page.layout_id,
+          layoutId: formatLayoutIdForResponse(page.layout_id, pageMeta.layoutVariation),
           // Only set themeId if it's not null - if it's null, the page inherits the book theme
           // This way, pages that inherit the book theme won't have themeId property at all
           ...(page.theme_id ? { themeId: page.theme_id } : {}),
@@ -541,7 +560,8 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
           
           // Only set theme_id if themeId property exists in the page object
           // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
-          const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
+          const themeIdRaw = 'themeId' in page ? (page.themeId || null) : null;
+          const themeIdToSave = themeIdRaw ? await resolveThemeIdForDb(pool, themeIdRaw) : null;
           
           await pool.query(
             `UPDATE public.pages 
@@ -560,7 +580,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
              WHERE id = $13`,
             [
               JSON.stringify(completePageData), 
-              page.layoutId || null,
+              parseLayoutIdForDb(page.layoutId),
               themeIdToSave,
               page.colorPaletteId || null,
               pageMeta.pageType,
@@ -730,7 +750,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
         );
 
         // Update book metadata
-        const bookTheme = req.body.bookTheme || req.body.themeId || 'default';
+        const bookThemeRaw = req.body.bookTheme || req.body.themeId || 'default';
+        const bookTheme = await resolveThemeIdForDb(db, bookThemeRaw);
         await db.query(
         `UPDATE public.books 
          SET name = $1,
@@ -753,8 +774,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
           name, 
           pageSize, 
           orientation, 
-          req.body.layoutId || null,
-          req.body.themeId || bookTheme,
+          parseLayoutIdForDb(req.body.layoutId),
+          bookTheme,
           req.body.colorPaletteId || null,
           req.body.minPages ?? null,
           req.body.maxPages ?? null,
@@ -871,7 +892,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
           // Only set theme_id if themeId property exists in the page object
           // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
-          const themeIdToSave = 'themeId' in page ? (page.themeId || null) : null;
+          const themeIdRaw = 'themeId' in page ? (page.themeId || null) : null;
+          const themeIdToSave = themeIdRaw ? await resolveThemeIdForDb(db, themeIdRaw) : null;
           
           await db.query(
             `UPDATE public.pages 
@@ -892,7 +914,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             [
               page.pageNumber, 
               JSON.stringify(completePageData), 
-              page.layoutId || null,
+              parseLayoutIdForDb(page.layoutId),
               themeIdToSave,
               page.colorPaletteId || null,
               pageMeta.pageType,
@@ -976,8 +998,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
               [
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
-                page.layoutId || null,
-                page.themeId || null,
+                parseLayoutIdForDb(page.layoutId),
+                page.themeId ? await resolveThemeIdForDb(db, page.themeId) : null,
                 page.colorPaletteId || null,
                 pageMeta.pageType,
                 pageMeta.pagePairId,
@@ -1028,7 +1050,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
             
             // Only set theme_id if themeId property exists in the page object
             // If themeId doesn't exist, the page inherits the book theme, so set theme_id to null
-            const themeIdToInsert = 'themeId' in page ? (page.themeId || null) : null;
+            const themeIdRaw = 'themeId' in page ? (page.themeId || null) : null;
+            const themeIdToInsert = themeIdRaw ? await resolveThemeIdForDb(db, themeIdRaw) : null;
             
             const pageResult = await db.query(
               `INSERT INTO public.pages (
@@ -1051,7 +1074,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 bookId, 
                 page.pageNumber, 
                 JSON.stringify(completePageData), 
-                page.layoutId || null,
+                parseLayoutIdForDb(page.layoutId),
                 themeIdToInsert,
                 page.colorPaletteId || null,
                 pageMeta.pageType,
@@ -1384,7 +1407,8 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     const { name, pageSize, orientation, bookTheme, layoutId, themeId, colorPaletteId } = req.body;
     const userId = req.user.id;
-    const finalTheme = themeId || bookTheme || 'default';
+    const finalThemeRaw = themeId || bookTheme || 'default';
+    const finalTheme = await resolveThemeIdForDb(pool, finalThemeRaw);
 
     const result = await pool.query(
       `INSERT INTO public.books (
@@ -1409,7 +1433,7 @@ router.post('/', authenticateToken, async (req, res) => {
         userId,
         pageSize,
         orientation,
-        layoutId || null,
+        parseLayoutIdForDb(layoutId),
         finalTheme,
         colorPaletteId || null,
         req.body.minPages ?? null,

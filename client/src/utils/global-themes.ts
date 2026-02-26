@@ -8,8 +8,10 @@ import { getThemesData } from '../data/templates/templates-data';
 import { getElementPaletteColors } from './global-palettes';
 
 // Get palette from color-palettes.ts (single source of truth)
-function getPalette(paletteId: string): ColorPalette | undefined {
-  return colorPalettes.find(p => p.id === paletteId);
+// Use loose equality so string "1" matches numeric id 1 (API may return either)
+function getPalette(paletteId: string | number | undefined): ColorPalette | undefined {
+  if (paletteId == null) return undefined;
+  return colorPalettes.find(p => p.id == paletteId || String(p.id) === String(paletteId));
 }
 
 
@@ -361,6 +363,45 @@ export function getGlobalTheme(id: string): GlobalTheme | undefined {
 export function getThemePaletteId(themeId: string): string | undefined {
   const themeConfig = (getThemesData() as Record<string, ThemeConfig>)[themeId];
   return themeConfig?.palette;
+}
+
+/**
+ * Apply palette colors to page background (for PDF export and other server-side rendering).
+ * Updates color/pattern backgrounds with palette colors; image backgrounds use palette when resolving URL.
+ */
+export function applyPaletteToPageBackground<T extends { background?: any; themeId?: string; colorPaletteId?: string | number | null }>(
+  page: T,
+  book: { colorPaletteId?: string | number | null; themeId?: string }
+): T {
+  const activeThemeId = page.themeId ?? page.background?.pageTheme ?? book.themeId ?? 'default';
+  const effectivePaletteId: string | number | undefined =
+    page.colorPaletteId === null
+      ? (getThemePaletteId(activeThemeId) ?? book.colorPaletteId ?? undefined)
+      : (page.colorPaletteId ?? book.colorPaletteId ?? undefined);
+
+  const palette = effectivePaletteId ? getPalette(effectivePaletteId) : undefined;
+  if (!palette) return page;
+
+  const pageBgColor = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) ?? palette.colors.background;
+  const patternForeground = getPalettePartColor(palette, 'pagePattern', 'primary', palette.colors.primary) ?? palette.colors.primary;
+  const patternBackground = getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) ?? palette.colors.background;
+
+  if (!page.background) {
+    return { ...page, background: { type: 'color' as const, value: pageBgColor, opacity: 1 } };
+  }
+
+  let updatedBackground = page.background;
+
+  if (page.background.type === 'color') {
+    updatedBackground = { ...page.background, value: pageBgColor };
+  } else if (page.background.type === 'pattern') {
+    updatedBackground = {
+      ...page.background,
+      patternBackgroundColor: patternForeground,
+      patternForegroundColor: patternBackground,
+    };
+  }
+  return { ...page, background: updatedBackground };
 }
 
 export function getGlobalThemes(): GlobalTheme[] {
@@ -1582,20 +1623,24 @@ export function getThemePageBackgroundColors(
     resolvedPalette = typeof paletteOverride === 'string' ? getPalette(paletteOverride) : paletteOverride;
   }
 
-  if (resolvedPalette) {
+  if (resolvedPalette?.colors) {
+    const fallbackBg = resolvedPalette.colors.background ?? resolvedPalette.colors.surface ?? '#ffffff';
+    const fallbackPrimary = resolvedPalette.colors.primary ?? '#1f2937';
     return {
-      backgroundColor: getPalettePartColor(resolvedPalette, 'pageBackground', 'background', resolvedPalette.colors.background) || resolvedPalette.colors.background,
-      patternBackgroundColor: getPalettePartColor(resolvedPalette, 'pagePattern', 'primary', resolvedPalette.colors.primary) || resolvedPalette.colors.primary
+      backgroundColor: getPalettePartColor(resolvedPalette, 'pageBackground', 'background', fallbackBg) || fallbackBg,
+      patternBackgroundColor: getPalettePartColor(resolvedPalette, 'pagePattern', 'primary', fallbackPrimary) || fallbackPrimary
     };
   }
 
   const themeConfig = (getThemesData() as Record<string, any>)[themeId];
   const palette = themeConfig?.palette ? getPalette(themeConfig.palette) : undefined;
-  
-  if (palette) {
+
+  if (palette?.colors) {
+    const fallbackBg = palette.colors.background ?? palette.colors.surface ?? '#ffffff';
+    const fallbackPrimary = palette.colors.primary ?? '#1f2937';
     return {
-      backgroundColor: getPalettePartColor(palette, 'pageBackground', 'background', palette.colors.background) || palette.colors.background,
-      patternBackgroundColor: getPalettePartColor(palette, 'pagePattern', 'primary', palette.colors.primary) || palette.colors.primary
+      backgroundColor: getPalettePartColor(palette, 'pageBackground', 'background', fallbackBg) || fallbackBg,
+      patternBackgroundColor: getPalettePartColor(palette, 'pagePattern', 'primary', fallbackPrimary) || fallbackPrimary
     };
   }
   

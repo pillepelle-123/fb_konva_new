@@ -4,13 +4,15 @@ import { useEditor } from '../../../../context/editor-context';
 import { EditorPreviewProvider } from './editor-preview-provider';
 import { CanvasBackground } from '../canvas/CanvasBackground';
 import CanvasItemComponent from '../canvas-items';
-import { resolveBackgroundImageUrl } from '../../../../utils/background-image-utils';
+import { resolveBackgroundImageUrl, createPreviewImage } from '../../../../utils/background-image-utils';
 import { getThemePaletteId } from '../../../../utils/global-themes';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
 import type { ColorPalette } from '../../../../types/template-types';
 import { BOOK_PAGE_DIMENSIONS } from '../../../../constants/book-formats';
 import type { PageTemplate } from '../../../../types/template-types';
 import type { BookOrientation, BookPageSize } from '../../../../constants/book-formats';
+
+type BackgroundImageEntry = { full: HTMLImageElement; preview: HTMLImageElement };
 
 const SPREAD_GAP = 0.025; // 2.5% of page width between pages
 const MIN_PADDING = 20;
@@ -59,14 +61,119 @@ function StaticSpreadPreviewInner({ className }: { className?: string }) {
     const pageThemeId = page?.themeId ?? 'default';
     const themePaletteId = !pageColorPaletteId ? getThemePaletteId(pageThemeId) : null;
     const effectivePaletteId = pageColorPaletteId ?? themePaletteId;
-    if (effectivePaletteId === null) {
+    if (effectivePaletteId === null || effectivePaletteId === undefined) {
       return { paletteId: null as string | null, palette: null as ColorPalette | null };
     }
-    const palette = colorPalettes.find((p) => p.id === effectivePaletteId) ?? null;
+    // Use loose equality so string "1" matches numeric id 1 (API may return either)
+    const palette = colorPalettes.find((p) => p.id == effectivePaletteId || String(p.id) === String(effectivePaletteId)) ?? null;
     return { paletteId: effectivePaletteId, palette };
   }, []);
 
-  const backgroundImageCache = useMemo(() => new Map<string, any>(), []);
+  const [backgroundImageCache, setBackgroundImageCache] = useState<Map<string, BackgroundImageEntry>>(new Map());
+  const cacheRef = useRef<Map<string, BackgroundImageEntry>>(new Map());
+  const loadingUrlsRef = useRef<Set<string>>(new Set());
+
+  // Preload background images for theme backgrounds (same logic as main canvas)
+  useEffect(() => {
+    const cache = cacheRef.current;
+    const loadingUrls = loadingUrlsRef.current;
+    const pages = [leftPage, rightPage].filter(Boolean) as typeof leftPage[];
+
+    const preloadImage = (imageUrl: string) => {
+      if (!imageUrl || cache.has(imageUrl) || loadingUrls.has(imageUrl)) return;
+
+      loadingUrls.add(imageUrl);
+      const img = new window.Image();
+      const isDataUrl = imageUrl.startsWith('data:');
+      const isLocalUrl = imageUrl.startsWith('http://localhost') || imageUrl.startsWith('https://localhost') ||
+        imageUrl.startsWith('http://127.0.0.1') || imageUrl.startsWith('https://127.0.0.1') ||
+        (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'));
+      if (!isDataUrl && !isLocalUrl) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        const previewImage = createPreviewImage(img);
+        const storeEntry = () => {
+          cache.set(imageUrl, { full: img, preview: previewImage });
+          loadingUrls.delete(imageUrl);
+          setBackgroundImageCache(new Map(cache));
+        };
+        if (previewImage === img || previewImage.complete) {
+          storeEntry();
+        } else {
+          previewImage.onload = () => storeEntry();
+          previewImage.onerror = () => storeEntry();
+        }
+      };
+      img.onerror = () => {
+        loadingUrls.delete(imageUrl);
+      };
+      img.src = imageUrl;
+    };
+
+    for (const page of pages) {
+      const bg = page?.background;
+      if (bg?.type === 'image') {
+        const { paletteId, palette } = getPaletteForPage(page);
+        const imageUrl = resolveBackgroundImageUrl(bg, {
+          paletteId,
+          paletteColors: palette?.colors
+        }) || bg.value;
+        if (imageUrl) preloadImage(imageUrl);
+      }
+    }
+  }, [leftPage, rightPage, getPaletteForPage]);
+
+  // Re-preload when palette SVG loads (URL may change from API URL to data URL)
+  useEffect(() => {
+    const cache = cacheRef.current;
+    const loadingUrls = loadingUrlsRef.current;
+    const pages = [leftPage, rightPage].filter(Boolean) as typeof leftPage[];
+
+    const handleSvgLoaded = () => {
+      for (const [url] of cache) {
+        if (url.startsWith('data:')) cache.delete(url);
+      }
+      setBackgroundImageCache(new Map(cache));
+      for (const page of pages) {
+        const bg = page?.background;
+        if (bg?.type === 'image') {
+          const { paletteId, palette } = getPaletteForPage(page);
+          const imageUrl = resolveBackgroundImageUrl(bg, {
+            paletteId,
+            paletteColors: palette?.colors
+          }) || bg.value;
+          if (imageUrl && !cache.has(imageUrl) && !loadingUrls.has(imageUrl)) {
+            loadingUrls.add(imageUrl);
+            const img = new window.Image();
+            const isDataUrl = imageUrl.startsWith('data:');
+            const isLocalUrl = imageUrl.startsWith('http://localhost') || imageUrl.startsWith('https://localhost') ||
+              imageUrl.startsWith('http://127.0.0.1') || imageUrl.startsWith('https://127.0.0.1') ||
+              (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'));
+            if (!isDataUrl && !isLocalUrl) img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const previewImage = createPreviewImage(img);
+              const storeEntry = () => {
+                cache.set(imageUrl, { full: img, preview: previewImage });
+                loadingUrls.delete(imageUrl);
+                setBackgroundImageCache(new Map(cache));
+              };
+              if (previewImage === img || previewImage.complete) {
+                storeEntry();
+              } else {
+                previewImage.onload = () => storeEntry();
+                previewImage.onerror = () => storeEntry();
+              }
+            };
+            img.onerror = () => loadingUrls.delete(imageUrl);
+            img.src = imageUrl;
+          }
+        }
+      }
+    };
+    window.addEventListener('backgroundImageSvgLoaded', handleSvgLoaded as EventListener);
+    return () => window.removeEventListener('backgroundImageSvgLoaded', handleSvgLoaded as EventListener);
+  }, [leftPage, rightPage, getPaletteForPage]);
 
   useEffect(() => {
     const el = containerRef.current;
