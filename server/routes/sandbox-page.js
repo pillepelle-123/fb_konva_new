@@ -25,7 +25,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const userId = req.user.id;
     const result = await pool.query(
-      `SELECT id, name, updated_at FROM public.sandbox_page
+      `SELECT id, name, updated_at FROM public.sandbox_pages
        WHERE user_id = $1
        ORDER BY updated_at DESC`,
       [userId]
@@ -46,7 +46,7 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid sandbox page id' });
     }
     const result = await pool.query(
-      `SELECT id, name, page_data, updated_at FROM public.sandbox_page
+      `SELECT id, name, page_data, updated_at FROM public.sandbox_pages
        WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
@@ -84,7 +84,7 @@ router.post('/', auth, async (req, res) => {
       pageSlotOverrides: pageSlotOverrides ?? {}
     };
     const result = await pool.query(
-      `INSERT INTO public.sandbox_page (user_id, name, page_data, updated_at)
+      `INSERT INTO public.sandbox_pages (user_id, name, page_data, updated_at)
        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
        RETURNING id, name, updated_at`,
       [userId, (name && String(name).trim()) || 'Unbenannt', JSON.stringify(pageData)]
@@ -116,7 +116,7 @@ router.put('/:id', auth, async (req, res) => {
       pageSlotOverrides: pageSlotOverrides ?? {}
     };
     const result = await pool.query(
-      `UPDATE public.sandbox_page
+      `UPDATE public.sandbox_pages
        SET name = $1, page_data = $2, updated_at = CURRENT_TIMESTAMP
        WHERE id = $3 AND user_id = $4
        RETURNING id, name, updated_at`,

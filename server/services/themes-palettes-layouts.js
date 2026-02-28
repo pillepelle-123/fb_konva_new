@@ -17,16 +17,36 @@ pool.on('connect', (client) => {
 });
 
 function mapThemeRow(row) {
+  const basePageSettings = row.config?.pageSettings || {};
+  let backgroundImage = basePageSettings.backgroundImage || { enabled: false, applyPalette: true, paletteMode: 'palette' };
+
+  // If theme_page_backgrounds exists, build backgroundImage from tpb + bi
+  if (row.tpb_theme_id != null && row.bi_slug) {
+    backgroundImage = {
+      enabled: true,
+      templateId: row.bi_slug,
+      size: row.tpb_size || 'cover',
+      position: row.tpb_position || 'top-left',
+      repeat: Boolean(row.tpb_repeat),
+      width: row.tpb_width ?? 100,
+      opacity: row.tpb_opacity ?? 1,
+      applyPalette: Boolean(row.tpb_apply_palette),
+      paletteMode: row.tpb_palette_mode || 'palette',
+    };
+  }
+
+  const pageSettings = { ...basePageSettings, backgroundImage };
+
   return {
     id: row.id,
     name: row.name,
     description: row.description,
-    palette: row.palette_id,
-    palette_id: row.palette_id,
+    palette: row.color_color_palette_id,
+    color_palette_id: row.color_color_palette_id,
     is_default: Boolean(row.is_default),
-    pageSettings: row.config?.pageSettings || {},
+    pageSettings,
     elementDefaults: row.config?.elementDefaults || {},
-    config: row.config || {},
+    config: { ...row.config, pageSettings },
     sort_order: row.sort_order,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -66,38 +86,53 @@ function mapLayoutRow(row) {
 
 async function listThemes() {
   const { rows } = await pool.query(
-    `SELECT id, name, description, palette_id, config, sort_order, created_at, updated_at
-     FROM themes ORDER BY sort_order ASC, name ASC`
+    `SELECT t.id, t.name, t.description, t.color_color_palette_id, t.config, t.sort_order, t.created_at, t.updated_at,
+            tpb.theme_id AS tpb_theme_id, tpb.size AS tpb_size, tpb.position AS tpb_position,
+            tpb.repeat AS tpb_repeat, tpb.width AS tpb_width, tpb.opacity AS tpb_opacity,
+            tpb.apply_palette AS tpb_apply_palette, tpb.palette_mode AS tpb_palette_mode,
+            bi.slug AS bi_slug
+     FROM themes t
+     LEFT JOIN theme_page_backgrounds tpb ON tpb.theme_id = t.id
+     LEFT JOIN background_images bi ON bi.id = tpb.background_image_id
+     ORDER BY t.sort_order ASC, t.name ASC`
   );
   return rows.map(mapThemeRow);
 }
 
 async function getThemeById(id) {
   const { rows } = await pool.query(
-    `SELECT id, name, description, palette_id, COALESCE(is_default, false) AS is_default, config, sort_order, created_at, updated_at
-     FROM themes WHERE id = $1`,
+    `SELECT t.id, t.name, t.description, t.color_color_palette_id, COALESCE(t.is_default, false) AS is_default,
+            t.config, t.sort_order, t.created_at, t.updated_at,
+            tpb.theme_id AS tpb_theme_id, tpb.size AS tpb_size, tpb.position AS tpb_position,
+            tpb.repeat AS tpb_repeat, tpb.width AS tpb_width, tpb.opacity AS tpb_opacity,
+            tpb.apply_palette AS tpb_apply_palette, tpb.palette_mode AS tpb_palette_mode,
+            bi.slug AS bi_slug
+     FROM themes t
+     LEFT JOIN theme_page_backgrounds tpb ON tpb.theme_id = t.id
+     LEFT JOIN background_images bi ON bi.id = tpb.background_image_id
+     WHERE t.id = $1`,
     [id]
   );
   return rows.length ? mapThemeRow(rows[0]) : null;
 }
 
 async function createTheme(data) {
-  const { name, description, palette_id, palette, config } = data;
-  const paletteId = palette_id ?? palette ?? null;
+  const { name, description, palette_id, color_palette_id, palette, config } = data;
+  const paletteId = palette_id ?? color_palette_id ?? palette ?? null;
   const configJson = config || { pageSettings: {}, elementDefaults: {} };
 
   const { rows } = await pool.query(
-    `INSERT INTO themes (name, description, palette_id, config, sort_order)
+    `INSERT INTO themes (name, description, color_palette_id, config, sort_order)
      VALUES ($1, $2, $3, $4::jsonb, 0)
-     RETURNING id, name, description, palette_id, config, sort_order, created_at, updated_at`,
+     RETURNING id, name, description, color_palette_id, config, sort_order, created_at, updated_at`,
     [name ?? 'Theme', description ?? null, paletteId, JSON.stringify(configJson)]
   );
   return rows.length ? mapThemeRow(rows[0]) : null;
 }
 
 async function updateTheme(id, data) {
-  const { name, description, palette_id, palette, config, pageSettings, elementDefaults } = data;
-  const paletteId = palette_id ?? palette ?? null;
+  const { name, description, palette_id, color_palette_id, palette, config, pageSettings, elementDefaults } = data;
+  const paletteId = palette_id ?? color_palette_id ?? palette ?? null;
   let configJson = config;
   if (configJson === undefined && (pageSettings !== undefined || elementDefaults !== undefined)) {
     const existing = await getThemeById(id);
@@ -116,11 +151,11 @@ async function updateTheme(id, data) {
     `UPDATE themes
      SET name = COALESCE($2, name),
          description = COALESCE($3, description),
-         palette_id = COALESCE($4, palette_id),
+         color_palette_id = COALESCE($4, color_palette_id),
          config = COALESCE($5::jsonb, config),
          updated_at = NOW()
      WHERE id = $1
-     RETURNING id, name, description, palette_id, config, sort_order, created_at, updated_at`,
+     RETURNING id, name, description, color_palette_id, config, sort_order, created_at, updated_at`,
     [id, name ?? null, description ?? null, paletteId, JSON.stringify(configJson)]
   );
   return rows.length ? mapThemeRow(rows[0]) : null;
@@ -221,11 +256,70 @@ async function updateLayout(id, data) {
   return rows.length ? mapLayoutRow(rows[0]) : null;
 }
 
+async function getThemePageBackground(themeId) {
+  const { rows } = await pool.query(
+    `SELECT tpb.theme_id, tpb.background_image_id, tpb.size, tpb.position, tpb.repeat,
+            tpb.width, tpb.opacity, tpb.apply_palette, tpb.palette_mode,
+            bi.id AS background_image_id, bi.slug, bi.name
+     FROM theme_page_backgrounds tpb
+     JOIN background_images bi ON bi.id = tpb.background_image_id
+     WHERE tpb.theme_id = $1`,
+    [themeId]
+  );
+  return rows.length ? rows[0] : null;
+}
+
+async function upsertThemePageBackground(themeId, data) {
+  const {
+    background_image_id,
+    size = 'cover',
+    position = 'top-left',
+    repeat = false,
+    width = 100,
+    opacity = 1,
+    apply_palette = true,
+    palette_mode = 'palette',
+  } = data;
+
+  if (!background_image_id) {
+    throw new Error('background_image_id is required');
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO theme_page_backgrounds (theme_id, background_image_id, size, position, repeat, width, opacity, apply_palette, palette_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (theme_id) DO UPDATE SET
+       background_image_id = EXCLUDED.background_image_id,
+       size = EXCLUDED.size,
+       position = EXCLUDED.position,
+       repeat = EXCLUDED.repeat,
+       width = EXCLUDED.width,
+       opacity = EXCLUDED.opacity,
+       apply_palette = EXCLUDED.apply_palette,
+       palette_mode = EXCLUDED.palette_mode`,
+    [themeId, background_image_id, size, position, repeat, Math.min(200, Math.max(10, width)), opacity, apply_palette, palette_mode]
+  );
+
+  await pool.query(`UPDATE themes SET updated_at = NOW() WHERE id = $1`, [themeId]);
+  return getThemePageBackground(themeId);
+}
+
+async function deleteThemePageBackground(themeId) {
+  const result = await pool.query(`DELETE FROM theme_page_backgrounds WHERE theme_id = $1`, [themeId]);
+  if (result.rowCount > 0) {
+    await pool.query(`UPDATE themes SET updated_at = NOW() WHERE id = $1`, [themeId]);
+  }
+  return result.rowCount > 0;
+}
+
 module.exports = {
   listThemes,
   getThemeById,
   createTheme,
   updateTheme,
+  getThemePageBackground,
+  upsertThemePageBackground,
+  deleteThemePageBackground,
   listColorPalettes,
   getColorPaletteById,
   createColorPalette,

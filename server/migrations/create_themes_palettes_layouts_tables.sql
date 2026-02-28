@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS themes (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  palette_id TEXT,
+  color_palette_id TEXT REFERENCES color_palettes(id),
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
   sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),

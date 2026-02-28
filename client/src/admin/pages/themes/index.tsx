@@ -3,9 +3,10 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui'
 import { DataTable, DataTableColumnHeader } from '../../components/table'
 import { JsonEditor } from '../../components/JsonEditor'
+import { ThemeBackgroundImageDialog } from '../../components/forms/theme-background-image-dialog'
 import { useAdminThemes } from '../../hooks'
 import type { AdminTheme } from '../../services/themes-palettes-layouts'
-import { Edit2, Palette } from 'lucide-react'
+import { Edit2, Image as ImageIcon, Palette } from 'lucide-react'
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—'
@@ -19,6 +20,7 @@ function formatDate(value: string | null | undefined) {
 export default function AdminThemesPage() {
   const [editingTheme, setEditingTheme] = useState<AdminTheme | null>(null)
   const [editData, setEditData] = useState<Record<string, unknown>>({})
+  const [backgroundImageTheme, setBackgroundImageTheme] = useState<AdminTheme | null>(null)
 
   const { themesQuery, themes, updateTheme, isUpdating } = useAdminThemes()
 
@@ -53,9 +55,26 @@ export default function AdminThemesPage() {
         id: 'actions',
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <Button variant="ghost" size="icon" onClick={() => { setEditingTheme(row.original); setEditData(row.original as unknown as Record<string, unknown>); }}>
-            <Edit2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setBackgroundImageTheme(row.original)}
+              title="Background image"
+            >
+              <ImageIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setEditingTheme(row.original)
+                setEditData(row.original as unknown as Record<string, unknown>)
+              }}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          </div>
         ),
       },
     ],
@@ -87,6 +106,13 @@ export default function AdminThemesPage() {
         data={themes}
         isLoading={themesQuery.isLoading}
         enableRowSelection={false}
+      />
+
+      <ThemeBackgroundImageDialog
+        open={!!backgroundImageTheme}
+        theme={backgroundImageTheme}
+        onOpenChange={(open) => !open && setBackgroundImageTheme(null)}
+        onSuccess={() => themesQuery.refetch()}
       />
 
       <Dialog open={!!editingTheme} onOpenChange={(open) => !open && setEditingTheme(null)}>

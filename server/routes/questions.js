@@ -102,7 +102,7 @@ router.post('/from-pool', authenticateToken, loadBookPermissionsFromBody, requir
     for (const poolId of questionPoolIds) {
       // Get question from pool
       const poolQuestion = await pool.query(
-        'SELECT * FROM public.question_pool WHERE id = $1',
+        'SELECT * FROM public.question_pools WHERE id = $1',
         [poolId]
       );
       

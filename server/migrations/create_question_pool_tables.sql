@@ -1,5 +1,5 @@
--- Create question_pool table
-CREATE TABLE IF NOT EXISTS public.question_pool (
+-- Create question_pools table
+CREATE TABLE IF NOT EXISTS public.question_pools (
   id SERIAL PRIMARY KEY,
   question_text TEXT NOT NULL,
   category VARCHAR(100),
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.question_pool (
 CREATE TABLE IF NOT EXISTS public.book_questions (
   id SERIAL PRIMARY KEY,
   book_id INTEGER NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
-  question_pool_id INTEGER NOT NULL REFERENCES public.question_pool(id) ON DELETE CASCADE,
+  question_pool_id INTEGER NOT NULL REFERENCES public.question_pools(id) ON DELETE CASCADE,
   question_id UUID NOT NULL,
   added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(book_id, question_pool_id)
@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS public.book_questions (
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_book_questions_book_id ON public.book_questions(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_questions_question_pool_id ON public.book_questions(question_pool_id);
-CREATE INDEX IF NOT EXISTS idx_question_pool_category ON public.question_pool(category);
-CREATE INDEX IF NOT EXISTS idx_question_pool_is_active ON public.question_pool(is_active);
+CREATE INDEX IF NOT EXISTS idx_question_pools_category ON public.question_pools(category);
+CREATE INDEX IF NOT EXISTS idx_question_pools_is_active ON public.question_pools(is_active);
 
 -- Insert some sample questions
-INSERT INTO public.question_pool (question_text, category, language) VALUES
+INSERT INTO public.question_pools (question_text, category, language) VALUES
 ('What is your favorite memory from childhood?', 'Personal', 'en'),
 ('What makes you laugh the most?', 'Personal', 'en'),
 ('What is your biggest dream?', 'Personal', 'en'),

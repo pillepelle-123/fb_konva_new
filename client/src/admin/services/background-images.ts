@@ -29,7 +29,7 @@ const adminBackgroundImageCategorySchema = z.object({
 })
 
 const adminBackgroundImageSchema = z.object({
-  id: z.string(),
+  id: z.union([z.string(), z.number()]),
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),

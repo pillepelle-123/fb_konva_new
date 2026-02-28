@@ -14,7 +14,7 @@ DROP TABLE IF EXISTS sticker_categories CASCADE;
 DROP TABLE IF EXISTS background_images CASCADE;
 DROP TABLE IF EXISTS background_image_categories CASCADE;
 DROP TABLE IF EXISTS user_question_assignments CASCADE;
-DROP TABLE IF EXISTS question_pool CASCADE;
+DROP TABLE IF EXISTS question_pools CASCADE;
 DROP TABLE IF EXISTS answers CASCADE;
 DROP TABLE IF EXISTS question_pages CASCADE;
 DROP TABLE IF EXISTS questions CASCADE;
@@ -33,7 +33,7 @@ DROP TABLE IF EXISTS conversation_invitations CASCADE;
 DROP TABLE IF EXISTS color_palettes CASCADE;
 DROP TABLE IF EXISTS themes CASCADE;
 DROP TABLE IF EXISTS layouts CASCADE;
-DROP TABLE IF EXISTS sandbox_page CASCADE;
+DROP TABLE IF EXISTS sandbox_pages CASCADE;
 
 -- Drop types
 DROP TYPE IF EXISTS page_access_level CASCADE;
@@ -141,7 +141,7 @@ CREATE INDEX idx_book_friends_user_id ON book_friends(user_id);
 -- ###############################################################
 
 -- Create question_pool table
-CREATE TABLE IF NOT EXISTS public.question_pool (
+CREATE TABLE IF NOT EXISTS public.question_pools (
   id SERIAL PRIMARY KEY,
   question_text TEXT NOT NULL,
   category VARCHAR(100),
@@ -151,12 +151,12 @@ CREATE TABLE IF NOT EXISTS public.question_pool (
   updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_question_pool_category ON public.question_pool(category);
-CREATE INDEX IF NOT EXISTS idx_question_pool_is_active ON public.question_pool(is_active);
+CREATE INDEX IF NOT EXISTS idx_question_pools_category ON public.question_pools(category);
+CREATE INDEX IF NOT EXISTS idx_question_pools_is_active ON public.question_pools(is_active);
 
 
 -- Insert some sample questions
-INSERT INTO public.question_pool (question_text, category, language) VALUES
+INSERT INTO public.question_pools (question_text, category, language) VALUES
 ('What is your favorite memory from childhood?', 'Personal', 'en'),
 ('What makes you laugh the most?', 'Personal', 'en'),
 ('What is your biggest dream?', 'Personal', 'en'),
@@ -183,7 +183,7 @@ CREATE TABLE questions (
     book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
     question_text TEXT NOT NULL,
     display_order INTEGER,
-    question_pool_id INTEGER REFERENCES public.question_pool(id) ON DELETE SET NULL,
+    question_pool_id INTEGER REFERENCES public.question_pools(id) ON DELETE SET NULL,
     created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -553,7 +553,7 @@ CREATE TABLE IF NOT EXISTS themes (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  palette_id INT REFERENCES color_palettes(id),
+  color_palette_id INT REFERENCES color_palettes(id),
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
   is_default BOOLEAN DEFAULT FALSE,
   sort_order INT DEFAULT 0,
@@ -581,14 +581,14 @@ CREATE INDEX IF NOT EXISTS idx_layouts_category ON layouts(category);
 -- Sandbox Pages (for Theme- and Palette- Creation)
 -- ###############################################################
 
-CREATE TABLE IF NOT EXISTS public.sandbox_page (
+CREATE TABLE IF NOT EXISTS public.sandbox_pages (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL DEFAULT 'Unbenannt',
   page_data JSONB NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_sandbox_page_user_id ON public.sandbox_page(user_id);
-CREATE INDEX IF NOT EXISTS idx_sandbox_page_updated_at ON public.sandbox_page(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sandbox_pages_user_id ON public.sandbox_pages(user_id);
+CREATE INDEX IF NOT EXISTS idx_sandbox_pages_updated_at ON public.sandbox_pages(updated_at DESC);
 
 

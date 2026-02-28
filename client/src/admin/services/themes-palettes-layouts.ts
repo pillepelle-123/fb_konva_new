@@ -58,6 +58,61 @@ export async function updateAdminTheme(token: string | null, id: string | number
   return res.theme
 }
 
+export interface ThemePageBackground {
+  theme_id: number
+  background_image_id: number
+  size: string
+  position: string
+  repeat: boolean
+  width: number
+  opacity: number
+  apply_palette: boolean
+  palette_mode: string
+  slug?: string
+  name?: string
+}
+
+export interface ThemePageBackgroundInput {
+  background_image_id: number
+  size?: string
+  position?: string
+  repeat?: boolean
+  width?: number
+  opacity?: number
+  apply_palette?: boolean
+  palette_mode?: string
+}
+
+export async function fetchAdminThemePageBackground(token: string | null, themeId: string | number) {
+  const res = await apiFetch<{ pageBackground: ThemePageBackground | null }>(
+    token,
+    `/admin/themes/${encodeURIComponent(themeId)}/page-background`
+  )
+  return res.pageBackground
+}
+
+export async function updateAdminThemePageBackground(
+  token: string | null,
+  themeId: string | number,
+  data: ThemePageBackgroundInput
+) {
+  const res = await apiFetch<{ pageBackground: ThemePageBackground }>(
+    token,
+    `/admin/themes/${encodeURIComponent(themeId)}/page-background`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }
+  )
+  return res.pageBackground
+}
+
+export async function deleteAdminThemePageBackground(token: string | null, themeId: string | number) {
+  await apiFetch(token, `/admin/themes/${encodeURIComponent(themeId)}/page-background`, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchAdminColorPalettes(token: string | null) {
   const res = await apiFetch<{ items: AdminColorPalette[] }>(token, '/admin/color-palettes')
   return res.items

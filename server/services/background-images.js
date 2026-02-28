@@ -251,6 +251,11 @@ async function listBackgroundImages({
 
 async function getBackgroundImage(identifier) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(identifier)
+  const isNumericId = /^\d+$/.test(String(identifier))
+  let whereClause = 'bi.slug = $1'
+  if (isUuid || isNumericId) {
+    whereClause = 'bi.id = $1'
+  }
   const { rows } = await pool.query(
     `
       SELECT
@@ -261,10 +266,10 @@ async function getBackgroundImage(identifier) {
         c.updated_at AS category_updated_at
       FROM background_images bi
       JOIN background_image_categories c ON c.id = bi.category_id
-      WHERE ${isUuid ? 'bi.id = $1' : 'bi.slug = $1'}
+      WHERE ${whereClause}
       LIMIT 1
     `,
-    [identifier],
+    [isNumericId ? parseInt(identifier, 10) : identifier],
   )
   return rows.length ? mapImageRow(rows[0]) : null
 }
