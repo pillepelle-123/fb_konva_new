@@ -5,9 +5,10 @@ import {
   loadBackgroundImageSvg,
   svgRawImports
 } from '../data/templates/background-images.ts';
-import { colorPalettes } from '../data/templates/color-palettes.ts';
-import { applyAutoPaletteToSvg, applyPaletteSlotsToSvg } from './svg-palette.ts';
+import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes.ts';
+import { applyAutoPaletteToSvg, applyMonochromeToneToSvg, applyPaletteSlotsToSvg } from './svg-palette.ts';
 import type { PaletteSlot } from './svg-palette.ts';
+import type { BackgroundPaletteMode } from '../context/editor-context.tsx';
 
 /**
  * Optional palette context for palette-aware SVG backgrounds.
@@ -15,6 +16,10 @@ import type { PaletteSlot } from './svg-palette.ts';
 export interface BackgroundImagePaletteOptions {
   paletteId?: string | null;
   paletteColors?: Partial<Record<PaletteSlot | string, string>>;
+  /** 'palette' = multi-color, 'monochrome' = single-tone (Color Toning) */
+  paletteMode?: BackgroundPaletteMode;
+  /** Palette object for tone color resolution (monochrome uses background) */
+  palette?: { colors: Record<string, string>; parts?: Record<string, string> };
 }
 
 /**
@@ -29,6 +34,8 @@ export function applyBackgroundImageTemplate(
     imageWidth?: number; // width in % of page width (0-200, default 100)
     backgroundColor?: string;
     opacity?: number;
+    applyPalette?: boolean;
+    paletteMode?: BackgroundPaletteMode;
   }
 ): PageBackground | null {
   const template = getBackgroundImageWithUrlInternal(templateId);
@@ -81,7 +88,8 @@ export function applyBackgroundImageTemplate(
     imageSize,
     imageRepeat,
     backgroundImageTemplateId: templateId,
-    applyPalette: true
+    applyPalette: customSettings?.applyPalette ?? true,
+    paletteMode: customSettings?.paletteMode ?? 'palette'
   };
 
   // Always set position (resolvedPosition already handles customSettings, template default, or fallback)
@@ -139,6 +147,7 @@ export function getBackgroundImageUrl(
   if (template.format === 'vector') {
     let rawSvg = svgRawImports[template.filePath];
     const paletteColors = resolvePaletteColors(options);
+    const paletteMode = options?.paletteMode ?? 'palette';
 
     // Trigger on-demand load when SVG not yet cached (fire-and-forget)
     if (!rawSvg && template.url) {
@@ -146,6 +155,18 @@ export function getBackgroundImageUrl(
     }
 
     if (rawSvg && paletteColors) {
+      if (paletteMode === 'monochrome') {
+        const toneColor = getToneColorFromPalette(options);
+        const edgeBgColor = getPageBackgroundColor(options);
+        if (toneColor) {
+          return applyMonochromeToneToSvg(rawSvg, toneColor, {
+            cacheKey: template.id,
+            asDataUrl: true,
+            edgeBackgroundColor: edgeBgColor,
+          });
+        }
+      }
+
       const containsPaletteTokens = /PALETTE_[A-Z_]+/.test(rawSvg);
 
       if (template.paletteSlots === 'standard' && containsPaletteTokens) {
@@ -254,9 +275,29 @@ export function resolveBackgroundImageUrl(
           });
 
           if (rawSvg && paletteColors) {
+            const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'palette';
             let appliedBranch: string;
             let result: string | undefined;
-            if (paletteSlots === 'standard' && containsPaletteTokens) {
+
+            if (paletteMode === 'monochrome') {
+              const toneColor = getToneColorFromPalette(options);
+              const edgeBgColor = getPageBackgroundColor(options);
+              if (toneColor) {
+                appliedBranch = 'monochrome';
+                result = applyMonochromeToneToSvg(rawSvg, toneColor, {
+                  cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::mono`,
+                  asDataUrl: true,
+                  edgeBackgroundColor: edgeBgColor,
+                });
+              } else {
+                appliedBranch = 'monochrome-fallback-auto';
+                result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
+                  cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
+                  asDataUrl: true,
+                  slotOpacities: template?.paletteSlotOpacities,
+                });
+              }
+            } else if (paletteSlots === 'standard' && containsPaletteTokens) {
               appliedBranch = 'standard+slots';
               result = applyPaletteSlotsToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data`,
@@ -306,7 +347,11 @@ export function resolveBackgroundImageUrl(
   if (background.backgroundImageTemplateId) {
     const shouldApplyPalette = background.applyPalette !== false;
     if (shouldApplyPalette) {
-      return getBackgroundImageUrl(background.backgroundImageTemplateId, options, true);
+      const mergedOptions: BackgroundImagePaletteOptions = {
+        ...options,
+        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+      };
+      return getBackgroundImageUrl(background.backgroundImageTemplateId, mergedOptions, true);
     }
     try {
       const template = getBackgroundImageWithUrlInternal(background.backgroundImageTemplateId);
@@ -327,6 +372,34 @@ export { getBackgroundImageWithUrl } from '../data/templates/background-images.t
  */
 export function isTemplateBackground(background: PageBackground): boolean {
   return background.type === 'image' && !!background.backgroundImageTemplateId;
+}
+
+/** Monochrome tone uses palette background color (per shadcn: "chosen tone" from background) */
+function getToneColorFromPalette(options?: BackgroundImagePaletteOptions): string | undefined {
+  if (options?.palette) {
+    return (
+      options.palette.colors?.background ??
+      options.palette.colors?.surface ??
+      options.palette.colors?.primary ??
+      '#ffffff'
+    );
+  }
+  const paletteColors = resolvePaletteColors(options);
+  return paletteColors?.background ?? paletteColors?.surface ?? paletteColors?.primary;
+}
+
+/** Page background color for edge-blending in monochrome mode (matches pageBackground part) */
+function getPageBackgroundColor(options?: BackgroundImagePaletteOptions): string | undefined {
+  if (options?.palette) {
+    return (
+      getPalettePartColor(options.palette, 'pageBackground', 'background', options.palette.colors?.background) ??
+      options.palette.colors?.background ??
+      options.palette.colors?.surface ??
+      options.palette.colors?.primary
+    );
+  }
+  const paletteColors = resolvePaletteColors(options);
+  return paletteColors?.background ?? paletteColors?.surface ?? paletteColors?.primary;
 }
 
 function resolvePaletteColors(

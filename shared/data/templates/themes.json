@@ -13,7 +13,9 @@
         "patternBackgroundOpacity": 0.3
       },
       "backgroundImage": {
-        "enabled": false
+        "enabled": false,
+        "applyPalette": true,
+        "paletteMode": "palette"
       }
     },
     "elementDefaults": {
@@ -218,6 +220,8 @@
         "enabled": false,
         "templateId": "colorful-geometric-01",
         "size": "cover",
+        "applyPalette": true,
+        "paletteMode": "palette",
         "repeat": false,
         "opacity": 1,
         "position": "top-left",
@@ -327,6 +331,8 @@
         "enabled": true,
         "templateId": "abstract-floral-aesthetic-var-01",
         "size": "cover",
+        "applyPalette": true,
+        "paletteMode": "palette",
         "repeat": false,
         "opacity": 1,
         "position": "top-left",
@@ -436,6 +442,8 @@
         "enabled": true,
         "templateId": "leopard-pattern-01",
         "size": "cover",
+        "applyPalette": true,
+        "paletteMode": "palette",
         "repeat": false,
         "opacity": 0.85,
         "position": "top-left",
@@ -642,6 +650,8 @@
         "enabled": true,
         "templateId": "abstract-floral-aesthetic-01",
         "size": "cover",
+        "applyPalette": true,
+        "paletteMode": "palette",
         "repeat": true,
         "opacity": 0.75,
         "position": "top-left",
@@ -711,6 +721,8 @@
         "enabled": true,
         "templateId": "aesthetic-minimalist-background-01",
         "size": "contain",
+        "applyPalette": true,
+        "paletteMode": "palette",
         "repeat": false,
         "opacity": 0.65,
         "position": "bottom-right",
@@ -808,7 +820,9 @@
         "patternBackgroundOpacity": 0.3
       },
       "backgroundImage": {
-        "enabled": false
+        "enabled": false,
+        "applyPalette": true,
+        "paletteMode": "palette"
       }
     },
     "elementDefaults": {

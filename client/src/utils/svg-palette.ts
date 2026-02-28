@@ -172,6 +172,86 @@ export function applyAutoPaletteToSvg(
   return result;
 }
 
+export type MonochromeToneOptions = RenderOptions & {
+  /**
+   * When set: the dominant/lightest color (large area touching image edge) is replaced
+   * with this instead of the monochrome tone. Creates seamless blend with page background.
+   */
+  edgeBackgroundColor?: string;
+};
+
+/**
+ * Apply monochrome color tone to SVG: shift every color to the target hue
+ * while keeping original brightness. Matches shadcn SVG Illustration Color Toning:
+ * "Every color shifts to your chosen tone while keeping original brightness."
+ *
+ * When edgeBackgroundColor is provided: the dominant/lightest color (typically the
+ * large background area touching the image edge) is replaced with it for a seamless
+ * blend with the page background.
+ */
+export function applyMonochromeToneToSvg(
+  svgContent: string,
+  targetColor: string,
+  options: MonochromeToneOptions = {}
+): string {
+  if (!svgContent || !targetColor) {
+    return svgContent;
+  }
+
+  const encoding = options.encoding ?? 'base64';
+  const normalizedTarget = ensureHash(normalizeColor(targetColor) ?? targetColor);
+  const normalizedEdgeBg = options.edgeBackgroundColor
+    ? ensureHash(normalizeColor(options.edgeBackgroundColor) ?? options.edgeBackgroundColor)
+    : undefined;
+  const cacheId = `${options.cacheKey || svgContent}::mono::${encoding}::${normalizedTarget}::${normalizedEdgeBg ?? 'none'}`;
+  const cached = svgRenderCache.get(cacheId);
+  if (cached) {
+    return cached;
+  }
+
+  const targetHsl = hexToHsl(normalizedTarget);
+
+  const colorOccurrences = mergeColorOccurrences([
+    extractHexColorOccurrences(svgContent),
+    extractRgbColorOccurrences(svgContent),
+    extractGradientStopColors(svgContent),
+  ]);
+
+  let processed = svgContent;
+  processed = replaceCurrentColor(processed, {
+    background: normalizedTarget,
+    surface: normalizedTarget,
+    accent: normalizedTarget,
+    secondary: normalizedTarget,
+    primary: normalizedTarget,
+    text: normalizedTarget,
+  });
+
+  // Identify dominant/lightest color (large area touching edge) for edgeBackgroundColor replacement
+  const edgeColorToReplace =
+    normalizedEdgeBg && colorOccurrences.size > 0
+      ? sortColorsByDominanceAndLuminance(colorOccurrences)[0]
+      : undefined;
+
+  colorOccurrences.forEach((originals, normalizedColor) => {
+    const replacement =
+      edgeColorToReplace &&
+      normalizedColor === edgeColorToReplace &&
+      getRelativeLuminance(normalizedColor) >= 0.15
+        ? normalizedEdgeBg!
+        : hslToHex(targetHsl.h, targetHsl.s, hexToHsl(normalizedColor).l);
+
+    originals.forEach((originalColor) => {
+      const colorPattern = new RegExp(escapeForRegex(originalColor), 'gi');
+      processed = processed.replace(colorPattern, replacement);
+    });
+  });
+
+  const result = svgStringToDataUrl(processed, encoding);
+  svgRenderCache.set(cacheId, result);
+  return result;
+}
+
 /**
  * Ensures the supplied color has a hash prefix when it is a hex color.
  */
@@ -423,6 +503,61 @@ function hexToRgb(hexColor: string): { r: number; g: number; b: number } {
     g: (bigint >> 8) & 255,
     b: bigint & 255
   };
+}
+
+function hexToHsl(hexColor: string): { h: number; s: number; l: number } {
+  const { r, g, b } = hexToRgb(hexColor);
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rn:
+        h = (gn - bn) / d + (gn < bn ? 6 : 0);
+        break;
+      case gn:
+        h = (bn - rn) / d + 2;
+        break;
+      default:
+        h = (rn - gn) / d + 4;
+    }
+    h /= 6;
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  h /= 360;
+  s /= 100;
+  l /= 100;
+  let r: number;
+  let g: number;
+  let b: number;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return rgbToHex(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
 }
 
 function mixHexColors(colorA: string, colorB: string, factor: number): string {

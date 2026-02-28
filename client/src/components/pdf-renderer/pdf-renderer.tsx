@@ -352,6 +352,7 @@ export function PDFRenderer({
       const options = {
         paletteId: pagePaletteId || undefined,
         paletteColors: bgPaletteColors,
+        palette: normalizedPalette,
       };
       console.log('[PDF Debug] resolveBackgroundImageUrl called with:', {
         hasOptions: !!options,

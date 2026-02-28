@@ -312,7 +312,9 @@ function EditorContent() {
                           imageSize: themeBackgroundImage.size,
                           imageRepeat: themeBackgroundImage.repeat,
                           opacity: themeBackgroundImage.opacity ?? backgroundOpacity,
-                          backgroundColor: themeColors.backgroundColor || wizardPalette?.colors.background || '#ffffff'
+                          backgroundColor: themeColors.backgroundColor || wizardPalette?.colors.background || '#ffffff',
+                          applyPalette: themeBackgroundImage.applyPalette ?? true,
+                          paletteMode: themeBackgroundImage.paletteMode ?? 'palette',
                         });
                         
                         if (imageBackground && imageBackground.value) {

@@ -117,7 +117,8 @@ function StaticSpreadPreviewInner({ className }: { className?: string }) {
         const { paletteId, palette } = getPaletteForPage(page);
         const imageUrl = resolveBackgroundImageUrl(bg, {
           paletteId,
-          paletteColors: palette?.colors
+          paletteColors: palette?.colors,
+          palette: palette ?? undefined,
         }) || bg.value;
         if (imageUrl) preloadImage(imageUrl);
       }
@@ -141,7 +142,8 @@ function StaticSpreadPreviewInner({ className }: { className?: string }) {
           const { paletteId, palette } = getPaletteForPage(page);
           const imageUrl = resolveBackgroundImageUrl(bg, {
             paletteId,
-            paletteColors: palette?.colors
+            paletteColors: palette?.colors,
+            palette: palette ?? undefined,
           }) || bg.value;
           if (imageUrl && !cache.has(imageUrl) && !loadingUrls.has(imageUrl)) {
             loadingUrls.add(imageUrl);

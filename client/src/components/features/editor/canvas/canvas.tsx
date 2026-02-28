@@ -3777,7 +3777,8 @@ export default function Canvas() {
       const imageUrl =
         resolveBackgroundImageUrl(background, {
           paletteId: activePaletteId,
-          paletteColors: activePalette?.colors
+          paletteColors: activePalette?.colors,
+          palette: activePalette ?? undefined,
         }) || background.value;
       if (imageUrl) {
         preloadImage(imageUrl);
@@ -3800,7 +3801,8 @@ export default function Canvas() {
             const imageUrl =
               resolveBackgroundImageUrl(pageBackground, {
                 paletteId,
-                paletteColors: palette?.colors
+                paletteColors: palette?.colors,
+                palette: palette ?? undefined,
               }) || pageBackground.value;
             if (imageUrl) {
               preloadImage(imageUrl);
@@ -3823,6 +3825,7 @@ export default function Canvas() {
     JSON.stringify({
       templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
       applyPalette: (currentPage?.background as any)?.applyPalette,
+      paletteMode: (currentPage?.background as any)?.paletteMode,
     }),
     backgroundSvgLoadedVersion,
   ]);
@@ -3861,7 +3864,8 @@ export default function Canvas() {
           const currentImageUrl =
             resolveBackgroundImageUrl(page.background, {
               paletteId,
-              paletteColors: palette?.colors
+              paletteColors: palette?.colors,
+              palette: palette ?? undefined,
             }) || page.background.value;
           
           if (currentImageUrl && !urlsToRemove.includes(currentImageUrl)) {
@@ -3933,13 +3937,23 @@ export default function Canvas() {
         const pageBackground = page.background;
         if (pageBackground?.type === 'image') {
           const { paletteId, palette } = getPaletteForPage(page);
+          const opts = {
+            paletteId,
+            paletteColors: palette?.colors,
+            palette: palette ?? undefined,
+          };
           const imageUrl =
-            resolveBackgroundImageUrl(pageBackground, {
-              paletteId,
-              paletteColors: palette?.colors
-            }) || pageBackground.value;
-          if (imageUrl) {
-            urlsToKeep.add(imageUrl);
+            resolveBackgroundImageUrl(pageBackground, opts) || pageBackground.value;
+          if (imageUrl) urlsToKeep.add(imageUrl);
+          // Für die aktive Seite: Beide Modus-URLs behalten, damit beim Wechsel
+          // Palette↔Monochrom keine Lücke entsteht (neue URL lädt asynchron)
+          if (distance === 0 && pageBackground.applyPalette && pageBackground.backgroundImageTemplateId) {
+            const otherMode = (pageBackground.paletteMode ?? 'palette') === 'palette' ? 'monochrome' : 'palette';
+            const altUrl = resolveBackgroundImageUrl(
+              { ...pageBackground, paletteMode: otherMode },
+              opts
+            );
+            if (altUrl) urlsToKeep.add(altUrl);
           }
         }
       }

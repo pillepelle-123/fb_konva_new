@@ -469,11 +469,16 @@ export interface BackgroundTransform {
   scale?: number;
 }
 
+/** How to apply color palette to SVG background images */
+export type BackgroundPaletteMode = 'palette' | 'monochrome';
+
 export interface PageBackground {
   type: 'color' | 'pattern' | 'image';
   value: string; // color hex, pattern name, or image URL
   opacity?: number;
   applyPalette?: boolean;
+  /** When applyPalette: 'palette' = multi-color mapping, 'monochrome' = single-tone (Color Toning) */
+  paletteMode?: BackgroundPaletteMode;
   imageSize?: 'cover' | 'contain' | 'stretch';
   imageRepeat?: boolean; // for contain mode
   imagePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // for contain mode without repeat
@@ -1231,7 +1236,9 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             imagePosition: backgroundImageConfig.position,
             imageWidth: backgroundImageConfig.width,
             opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-            backgroundColor: pageColors.backgroundColor
+            backgroundColor: pageColors.backgroundColor,
+            applyPalette: backgroundImageConfig.applyPalette ?? true,
+            paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
           });
 
           if (imageBackground) {
@@ -2073,7 +2080,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               imagePosition: backgroundImageConfig.position,
               imageWidth: backgroundImageConfig.width,
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-              backgroundColor: pageColors.backgroundColor
+              backgroundColor: pageColors.backgroundColor,
+              applyPalette: backgroundImageConfig.applyPalette ?? true,
+              paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
             });
 
             if (imageBackground) {
@@ -3329,7 +3338,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               imagePosition: backgroundImageConfig.position, // Pass directly - will use template default if undefined
               imageWidth: backgroundImageConfig.width, // Pass directly - will use template default if undefined
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-              backgroundColor: pageColors.backgroundColor
+              backgroundColor: pageColors.backgroundColor,
+              applyPalette: backgroundImageConfig.applyPalette ?? true,
+              paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
             });
             
             if (imageBackground) {
@@ -3735,7 +3746,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             imagePosition: backgroundImageConfig.position, // CRITICAL: Pass position from theme
             imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
             opacity: backgroundImageConfig.opacity ?? themeBackgroundOpacity,
-            backgroundColor: resolvedBaseColor
+            backgroundColor: resolvedBaseColor,
+            applyPalette: backgroundImageConfig.applyPalette ?? true,
+            paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
           });
 
           if (imageBackground) {
@@ -5060,7 +5073,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           };
         } else {
           // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
-          updatedBackground = currentBackground;
+          // WICHTIG: Immer Kopie erstellen, damit Seiten nicht dieselbe Referenz teilen.
+          // Sonst würde z.B. paletteMode-Änderung auf einer Seite alle Seiten betreffen.
+          updatedBackground = typeof structuredClone === 'function'
+            ? structuredClone(currentBackground)
+            : JSON.parse(JSON.stringify(currentBackground));
         }
         
         return {

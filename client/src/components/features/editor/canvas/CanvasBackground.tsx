@@ -65,6 +65,8 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     getPalettePartColor(normalizedPalette, 'pagePattern', 'primary', '#666666') || '#666666';
   const palettePatternFill =
     getPalettePartColor(normalizedPalette, 'pageBackground', 'background', 'transparent') || 'transparent';
+  const pageBackgroundColor =
+    getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
 
   if (!background) return null;
 
@@ -129,11 +131,13 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
 
   if (background.type === 'image') {
     // Resolve image URL (handles both template and direct URLs)
-    // First try with palette if available
-    let imageUrl = resolveBackgroundImageUrl(background, {
+    const opts = {
       paletteId,
-      paletteColors: palette?.colors
-    });
+      paletteColors: palette?.colors,
+      palette: palette ?? undefined,
+      pageBackgroundColor,
+    };
+    let imageUrl = resolveBackgroundImageUrl(background, opts);
 
     // If URL is undefined and we have a template ID, try without palette as fallback
     if (!imageUrl && background.backgroundImageTemplateId) {
@@ -159,8 +163,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       ? (background as any).backgroundColor || paletteBackgroundColor
       : paletteBackgroundColor;
 
-    const cacheEntry =
-      imageUrl ? backgroundImageCache.get(imageUrl) || null : null;
+    const cacheEntry = imageUrl ? backgroundImageCache.get(imageUrl) || null : null;
 
     const displayImage =
       backgroundQuality === 'full'

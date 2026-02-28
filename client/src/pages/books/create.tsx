@@ -293,7 +293,7 @@ export default function BookCreatePage() {
           orientation: wizardState.basic.orientation,
           bookTheme: 'default',
           themeId: 'default',
-          colorPaletteId: 'default',
+          colorPaletteId: null,
           layoutId: null,
           pagePairingEnabled: true,
           specialPagesConfig: {
@@ -342,7 +342,7 @@ export default function BookCreatePage() {
           layoutId: null,
           // Explicitly set themeId to null for Inner Front and Inner Back to prevent inheritance
           themeId: shouldHaveThemeAndBackground ? undefined : null,
-          colorPaletteId: shouldHaveThemeAndBackground ? 'default' : null,
+          colorPaletteId: null,
           pageType,
           pagePairId: calculatePagePairId(i, totalPages, pageType),
           isPrintable: isPrintedPage,
@@ -373,7 +373,7 @@ export default function BookCreatePage() {
           orientation: wizardState.basic.orientation,
           bookTheme: 'default',
           themeId: 'default',
-          colorPaletteId: 'default',
+          colorPaletteId: null,
           layoutId: null,
           pagePairingEnabled: true,
           specialPagesConfig: {
@@ -518,6 +518,8 @@ export default function BookCreatePage() {
             imageWidth: (bgImage['width'] as number) || 100,
             opacity: backgroundOpacity,
             backgroundColor: pageColors.backgroundColor,
+            applyPalette: (bgImage['applyPalette'] as boolean) ?? true,
+            paletteMode: (bgImage['paletteMode'] as 'palette' | 'monochrome') ?? 'palette',
           });
           if (imageBackground) {
             return { ...imageBackground, pageTheme: themeId };

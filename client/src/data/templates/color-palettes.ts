@@ -6,6 +6,8 @@ type PaletteColorSlot = keyof ColorPalette['colors'];
 export const DEFAULT_PALETTE_PARTS: Record<string, PaletteColorSlot> = {
   pageBackground: 'surface',
   pagePattern: 'primary',
+  /** Color slot for monochrome tone when applying palette to background images (Color Toning) */
+  backgroundImageTone: 'primary',
   qnaBorder: 'primary',
   imageBorder: 'primary',
   qnaBackground: 'surface',

@@ -38,6 +38,10 @@ export interface GlobalTheme {
       opacity?: number;
       position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
       width?: number; // width in % of page width (0-200, default 100)
+      /** Apply color palette to SVG background image */
+      applyPalette?: boolean;
+      /** 'palette' = multi-color mapping, 'monochrome' = single-tone (Color Toning) */
+      paletteMode?: 'palette' | 'monochrome';
     };
     cornerRadius: number;
   };
@@ -310,6 +314,8 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
         enabled: false,
         size: 'cover',
         repeat: false,
+        applyPalette: true,
+        paletteMode: 'palette',
         ...config.pageSettings.backgroundImage
       }
     },

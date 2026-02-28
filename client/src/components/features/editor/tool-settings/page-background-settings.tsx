@@ -631,30 +631,58 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               Select Image
             </Button>
             {background?.type === 'image' && background.backgroundImageTemplateId && (
-              <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
-                <Checkbox
-                  id="paint-with-palette"
-                  checked={paintWithPalette}
-                  onCheckedChange={(checked) => {
-                    const usePalette = checked !== false;
-                    if (background?.type === 'image' && background.backgroundImageTemplateId) {
-                      if (!usePalette) {
-                        const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
-                        updateBackground({
-                          applyPalette: false,
-                          value: template?.url ?? background.value,
-                        });
+              <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="paint-with-palette"
+                    checked={paintWithPalette}
+                    onCheckedChange={(checked) => {
+                      const usePalette = checked !== false;
+                      if (background?.type === 'image' && background.backgroundImageTemplateId) {
+                        if (!usePalette) {
+                          const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
+                          updateBackground({
+                            applyPalette: false,
+                            value: template?.url ?? background.value,
+                          });
+                        } else {
+                          updateBackground({
+                            applyPalette: true,
+                            paletteMode: background.paletteMode ?? 'palette',
+                          });
+                        }
                       } else {
-                        updateBackground({ applyPalette: true });
+                        updateBackground({ applyPalette: usePalette });
                       }
-                    } else {
-                      updateBackground({ applyPalette: usePalette });
-                    }
-                  }}
-                />
-                <label htmlFor="paint-with-palette" className="text-xs text-muted-foreground">
-                  Paint with Color Palette
-                </label>
+                    }}
+                  />
+                  <label htmlFor="paint-with-palette" className="text-xs text-muted-foreground">
+                    Paint with Color Palette
+                  </label>
+                </div>
+                {paintWithPalette && (
+                  <div className="pl-6">
+                    <Label variant="xs" className="mb-1 block text-muted-foreground">Palette Mode</Label>
+                    <div className="flex gap-1">
+                      <Button
+                        variant={(background.paletteMode ?? 'palette') === 'palette' ? 'default' : 'outline'}
+                        size="xs"
+                        onClick={() => updateBackground({ paletteMode: 'palette' })}
+                        className="text-xs"
+                      >
+                        Palette
+                      </Button>
+                      <Button
+                        variant={(background.paletteMode ?? 'palette') === 'monochrome' ? 'default' : 'outline'}
+                        size="xs"
+                        onClick={() => updateBackground({ paletteMode: 'monochrome' })}
+                        className="text-xs"
+                      >
+                        Monochrom
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

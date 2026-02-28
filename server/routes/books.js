@@ -20,6 +20,19 @@ async function resolveThemeIdForDb(db, themeId) {
   const first = await db.query(`SELECT id FROM public.themes ORDER BY sort_order ASC NULLS LAST, id ASC LIMIT 1`);
   return first.rows.length > 0 ? first.rows[0].id : null;
 }
+
+/**
+ * Parses colorPaletteId for database storage. The client may send "default" (string)
+ * but color_palette_id in the DB must be an integer. Returns null for "default" or invalid values.
+ */
+function parseColorPaletteIdForDb(colorPaletteId) {
+  if (colorPaletteId === null || colorPaletteId === undefined) return null;
+  const str = String(colorPaletteId).toLowerCase();
+  if (str === 'default') return null;
+  const num = parseInt(String(colorPaletteId), 10);
+  return (!Number.isNaN(num) && Number.isInteger(num)) ? num : null;
+}
+
 const { createLoadBookPermissionsMiddleware } = require('../middleware/load-book-permissions');
 const { requireBookPermission } = require('../middleware/require-book-permission');
 const {
@@ -582,7 +595,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
               JSON.stringify(completePageData), 
               parseLayoutIdForDb(page.layoutId),
               themeIdToSave,
-              page.colorPaletteId || null,
+              parseColorPaletteIdForDb(page.colorPaletteId),
               pageMeta.pageType,
               pageMeta.pagePairId,
               pageMeta.isSpecialPage,
@@ -776,7 +789,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           orientation, 
           parseLayoutIdForDb(req.body.layoutId),
           bookTheme,
-          req.body.colorPaletteId || null,
+          parseColorPaletteIdForDb(req.body.colorPaletteId),
           req.body.minPages ?? null,
           req.body.maxPages ?? null,
           req.body.pagePairingEnabled ?? false,
@@ -916,7 +929,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               JSON.stringify(completePageData), 
               parseLayoutIdForDb(page.layoutId),
               themeIdToSave,
-              page.colorPaletteId || null,
+              parseColorPaletteIdForDb(page.colorPaletteId),
               pageMeta.pageType,
               pageMeta.pagePairId,
               pageMeta.isSpecialPage,
@@ -1000,7 +1013,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 JSON.stringify(completePageData), 
                 parseLayoutIdForDb(page.layoutId),
                 page.themeId ? await resolveThemeIdForDb(db, page.themeId) : null,
-                page.colorPaletteId || null,
+                parseColorPaletteIdForDb(page.colorPaletteId),
                 pageMeta.pageType,
                 pageMeta.pagePairId,
                 pageMeta.isSpecialPage,
@@ -1076,7 +1089,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 JSON.stringify(completePageData), 
                 parseLayoutIdForDb(page.layoutId),
                 themeIdToInsert,
-                page.colorPaletteId || null,
+                parseColorPaletteIdForDb(page.colorPaletteId),
                 pageMeta.pageType,
                 pageMeta.pagePairId,
                 pageMeta.isSpecialPage,
@@ -1409,6 +1422,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const finalThemeRaw = themeId || bookTheme || 'default';
     const finalTheme = await resolveThemeIdForDb(pool, finalThemeRaw);
+    const finalColorPaletteId = parseColorPaletteIdForDb(colorPaletteId);
 
     const result = await pool.query(
       `INSERT INTO public.books (
@@ -1435,7 +1449,7 @@ router.post('/', authenticateToken, async (req, res) => {
         orientation,
         parseLayoutIdForDb(layoutId),
         finalTheme,
-        colorPaletteId || null,
+        finalColorPaletteId,
         req.body.minPages ?? null,
         req.body.maxPages ?? null,
         req.body.pagePairingEnabled ?? false,
@@ -1473,7 +1487,7 @@ router.post('/', authenticateToken, async (req, res) => {
         JSON.stringify([]),
         null,
         null,
-        colorPaletteId || null,
+        finalColorPaletteId,
         'content',
         null,
         false,
