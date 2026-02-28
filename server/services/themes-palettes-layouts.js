@@ -41,8 +41,8 @@ function mapThemeRow(row) {
     id: row.id,
     name: row.name,
     description: row.description,
-    palette: row.color_color_palette_id,
-    color_palette_id: row.color_color_palette_id,
+    palette: row.color_palette_id,
+    color_palette_id: row.color_palette_id,
     is_default: Boolean(row.is_default),
     pageSettings,
     elementDefaults: row.config?.elementDefaults || {},
@@ -86,7 +86,7 @@ function mapLayoutRow(row) {
 
 async function listThemes() {
   const { rows } = await pool.query(
-    `SELECT t.id, t.name, t.description, t.color_color_palette_id, t.config, t.sort_order, t.created_at, t.updated_at,
+    `SELECT t.id, t.name, t.description, t.color_palette_id, t.config, t.sort_order, t.created_at, t.updated_at,
             tpb.theme_id AS tpb_theme_id, tpb.size AS tpb_size, tpb.position AS tpb_position,
             tpb.repeat AS tpb_repeat, tpb.width AS tpb_width, tpb.opacity AS tpb_opacity,
             tpb.apply_palette AS tpb_apply_palette, tpb.palette_mode AS tpb_palette_mode,
@@ -101,7 +101,7 @@ async function listThemes() {
 
 async function getThemeById(id) {
   const { rows } = await pool.query(
-    `SELECT t.id, t.name, t.description, t.color_color_palette_id, COALESCE(t.is_default, false) AS is_default,
+    `SELECT t.id, t.name, t.description, t.color_palette_id, COALESCE(t.is_default, false) AS is_default,
             t.config, t.sort_order, t.created_at, t.updated_at,
             tpb.theme_id AS tpb_theme_id, tpb.size AS tpb_size, tpb.position AS tpb_position,
             tpb.repeat AS tpb_repeat, tpb.width AS tpb_width, tpb.opacity AS tpb_opacity,
