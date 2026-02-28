@@ -55,7 +55,7 @@ const apiDefaultsSchema = z.object({
 })
 
 const apiRecordSchema = z.object({
-  id: z.string().optional(),
+  id: z.union([z.string(), z.number()]).optional(),
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable().optional(),
@@ -114,7 +114,7 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
 
   const backgroundImage: BackgroundImage = {
-    id: record.slug ?? record.id ?? record.name,
+    id: record.slug ?? (record.id != null ? String(record.id) : undefined) ?? record.name,
     name: record.name,
     category: record.category.slug ?? record.category.name,
     format: record.format,
