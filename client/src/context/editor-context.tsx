@@ -488,6 +488,12 @@ export interface PageBackground {
   patternForegroundColor?: string; // color of the space between patterns
   patternBackgroundColor?: string; // color of the pattern itself (dots, lines)
   patternBackgroundOpacity?: number; // opacity of the pattern itself (dots, lines)
+  /** For image type: explicit background color behind the image (visible in transparent SVG areas). When set, overrides palette pageBackground. */
+  backgroundColor?: string;
+  /** For image type: when true, use backgroundColor instead of palette pageBackground. */
+  backgroundColorEnabled?: boolean;
+  /** For image type: opacity of the background color layer behind the image (pageSettings.backgroundOpacity). */
+  backgroundColorOpacity?: number;
   pageTheme?: string; // page-specific theme ID
   backgroundImageTemplateId?: string; // Reference to background image template
   ruledLines?: {
@@ -1237,6 +1243,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             imageWidth: backgroundImageConfig.width,
             opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
             backgroundColor: pageColors.backgroundColor,
+            backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
             applyPalette: backgroundImageConfig.applyPalette ?? true,
             paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
           });
@@ -2081,6 +2088,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               imageWidth: backgroundImageConfig.width,
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
               backgroundColor: pageColors.backgroundColor,
+              backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
               applyPalette: backgroundImageConfig.applyPalette ?? true,
               paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
             });
@@ -3339,6 +3347,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               imageWidth: backgroundImageConfig.width, // Pass directly - will use template default if undefined
               opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
               backgroundColor: pageColors.backgroundColor,
+              backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
               applyPalette: backgroundImageConfig.applyPalette ?? true,
               paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
             });
@@ -3747,6 +3756,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             imageWidth: backgroundImageConfig.width, // CRITICAL: Pass width from theme
             opacity: backgroundImageConfig.opacity ?? themeBackgroundOpacity,
             backgroundColor: resolvedBaseColor,
+            backgroundColorOpacity: pageThemeResolved?.pageSettings?.backgroundOpacity ?? 1,
             applyPalette: backgroundImageConfig.applyPalette ?? true,
             paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
           });

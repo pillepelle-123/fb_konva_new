@@ -311,8 +311,11 @@ function EditorContent() {
                         const imageBackground = applyBackgroundImageTemplate(themeBackgroundImage.templateId, {
                           imageSize: themeBackgroundImage.size,
                           imageRepeat: themeBackgroundImage.repeat,
+                          imagePosition: themeBackgroundImage.position,
+                          imageWidth: themeBackgroundImage.width,
                           opacity: themeBackgroundImage.opacity ?? backgroundOpacity,
                           backgroundColor: themeColors.backgroundColor || wizardPalette?.colors.background || '#ffffff',
+                          backgroundColorOpacity: theme?.pageSettings?.backgroundOpacity ?? 1,
                           applyPalette: themeBackgroundImage.applyPalette ?? true,
                           paletteMode: themeBackgroundImage.paletteMode ?? 'palette',
                         });

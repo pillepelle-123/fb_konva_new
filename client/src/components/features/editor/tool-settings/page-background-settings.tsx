@@ -288,6 +288,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           imagePosition: savedImagePosition || background.imagePosition, // Preserve existing position
           imageWidth: background.imageContainWidthPercent, // Preserve existing width
           opacity: currentOpacity,
+          backgroundColor: (background as any).backgroundColor,
+          backgroundColorOpacity: (background as any).backgroundColorOpacity ?? 1,
         });
         if (imageBackground) {
           // CRITICAL: Ensure position and width are preserved even if applyBackgroundImageTemplate doesn't set them
@@ -303,10 +305,16 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       } else if (savedImageValue || (background as any)?._savedImageValue) {
         // Restore saved image URL value (direct image, not template)
         const imageUrl = savedImageValue || (background as any)?._savedImageValue;
+        const colorValue = background?.type === 'color' && typeof background?.value === 'string'
+          ? background.value
+          : getDefaultBackgroundColor();
         updateBackground({
           type: 'image',
           value: imageUrl,
           opacity: currentOpacity,
+          backgroundColor: (background as any).backgroundColor ?? colorValue,
+          backgroundColorEnabled: (background as any).backgroundColorEnabled ?? true,
+          backgroundColorOpacity: (background as any).backgroundColorOpacity ?? 1,
           imageSize: savedImageSize || 'cover',
           imageRepeat: savedImageRepeat || false,
           imagePosition: savedImagePosition || 'top-left',
@@ -315,12 +323,18 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         setShowBackgroundImageTemplateSelector(false);
       } else {
         // No image template ID yet - keep current color/background but set type to image
-        // Preserve opacity when switching to image mode
+        // Preserve opacity when switching to image mode; use current color as backgroundColor when switching from color
+        const colorValue = background?.type === 'color' && typeof background?.value === 'string'
+          ? background.value
+          : getDefaultBackgroundColor();
         updateBackground({
           ...background,
           type: 'image',
           value: background.type === 'color' ? background.value : '#ffffff',
           opacity: currentOpacity,
+          backgroundColor: colorValue,
+          backgroundColorEnabled: true,
+          backgroundColorOpacity: 1,
           imageContainWidthPercent: background?.imageContainWidthPercent || 100
         });
         setShowBackgroundImageTemplateSelector(false);
@@ -330,13 +344,17 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
 
   const colorSelectorContent = showColorSelector && (() => {
     if (isSandboxMode && sandbox) {
-      const partName = showColorSelector === 'background-color' ? 'pageBackground' : 'pagePattern';
+      const partName = showColorSelector === 'image-background-color'
+        ? 'pageBackground'
+        : (showColorSelector === 'background-color' ? 'pageBackground' : 'pagePattern');
       const currentSlot = sandbox.getPageSlot(partName) ?? (partName === 'pageBackground' ? 'surface' : 'primary');
       const slotColors = sandbox.state.sandboxColors;
       const handleSlotChange = (slot: PaletteColorSlot) => {
         sandbox.setPageSlotOverride(partName, slot);
         const color = sandbox.getColorForSlot(slot);
-        if (showColorSelector === 'background-color') {
+        if (showColorSelector === 'image-background-color') {
+          updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
+        } else if (showColorSelector === 'background-color') {
           if (background.type === 'pattern') {
             updateBackground({ patternForegroundColor: color });
           } else {
@@ -356,7 +374,11 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
             value={currentSlot}
             onChange={handleSlotChange}
             slotColors={slotColors}
-            label={showColorSelector === 'background-color' ? 'Page Background Color' : 'Page Background Pattern Color'}
+            label={
+              showColorSelector === 'image-background-color'
+                ? 'Page Background Color (behind image)'
+                : (showColorSelector === 'background-color' ? 'Page Background Color' : 'Page Background Pattern Color')
+            }
           />
         </div>
       );
@@ -367,6 +389,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           return background.type === 'pattern' ? (background.patternForegroundColor || 'transparent') : background.value;
         case 'pattern-background':
           return background.patternBackgroundColor || '#666666';
+        case 'image-background-color':
+          return (background.backgroundColorEnabled && background.backgroundColor) ? background.backgroundColor : getDefaultBackgroundColor();
         default:
           return '#ffffff';
       }
@@ -383,13 +407,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         case 'pattern-background':
           updateBackground({ patternBackgroundColor: color });
           break;
+        case 'image-background-color':
+          updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
+          break;
       }
     };
+    const colorSelectorOpacity = showColorSelector === 'image-background-color'
+      ? (background.backgroundColorOpacity ?? 1)
+      : (background.opacity ?? 1);
     return (
       <ColorSelector
         value={getColorValue()}
         onChange={handleColorChange}
-        opacity={background.opacity ?? 1}
+        opacity={colorSelectorOpacity}
         onOpacityChange={undefined}
         favoriteColors={favoriteStrokeColors}
         onAddFavorite={addFavoriteStrokeColor}
@@ -581,8 +611,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         />
         
         {/* Color Button */}
-        {(backgroundMode === 'color' || backgroundMode === 'pattern') && ( 
-          
+        {(backgroundMode === 'color' || backgroundMode === 'pattern') && (
           <div>
             <Button
               variant="outline"
@@ -595,7 +624,31 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               Color
             </Button>
           </div>
-          )}
+        )}
+
+        {/* Color Button for Image mode - background color behind the image */}
+        {backgroundMode === 'image' && (
+          <div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setShowColorSelector('image-background-color')}
+              className="w-full"
+            >
+              <Palette className="h-4 w-4 mr-2" />
+              <div
+                className="w-4 h-4 mr-2 rounded border border-border"
+                style={{
+                  backgroundColor:
+                    background?.type === 'image' && !!(background as any).backgroundColorEnabled && (background as any).backgroundColor
+                      ? (background as any).backgroundColor
+                      : getDefaultBackgroundColor()
+                }}
+              />
+              Color
+            </Button>
+          </div>
+        )}
 
         {/* Pattern Settings Button */}
         {backgroundMode === 'pattern' && (
@@ -688,23 +741,63 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           </div>
         )}
         
-        <div>
-          <Label variant="xs" className="mt-2 block">Opacity</Label>
-          <Slider
-            label="Opacity"
-            value={Math.round((background.opacity ?? 1) * 100)}
-            displayValue={Math.round((background.opacity ?? 1) * 100)}
-            onChange={(value) => {
-              const opacityValue = value / 100;
-              updateBackground({ opacity: opacityValue });
-            }}
-            min={0}
-            max={100}
-            step={5}
-            unit="%"
-            hasLabel={false}
-          />
-        </div>
+        {/* Opacity: for image mode show two sliders (background color + image), otherwise single slider */}
+        {backgroundMode === 'image' ? (
+          <>
+            <div>
+              <Label variant="xs" className="mt-2 block">Background Color Opacity</Label>
+              <Slider
+                label="Background Color Opacity"
+                value={Math.round((background.backgroundColorOpacity ?? 1) * 100)}
+                displayValue={Math.round((background.backgroundColorOpacity ?? 1) * 100)}
+                onChange={(value) => {
+                  const opacityValue = value / 100;
+                  updateBackground({ backgroundColorOpacity: opacityValue });
+                }}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+                hasLabel={false}
+              />
+            </div>
+            <div>
+              <Label variant="xs" className="mt-2 block">Image Opacity</Label>
+              <Slider
+                label="Image Opacity"
+                value={Math.round((background.opacity ?? 1) * 100)}
+                displayValue={Math.round((background.opacity ?? 1) * 100)}
+                onChange={(value) => {
+                  const opacityValue = value / 100;
+                  updateBackground({ opacity: opacityValue });
+                }}
+                min={0}
+                max={100}
+                step={5}
+                unit="%"
+                hasLabel={false}
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <Label variant="xs" className="mt-2 block">Opacity</Label>
+            <Slider
+              label="Opacity"
+              value={Math.round((background.opacity ?? 1) * 100)}
+              displayValue={Math.round((background.opacity ?? 1) * 100)}
+              onChange={(value) => {
+                const opacityValue = value / 100;
+                updateBackground({ opacity: opacityValue });
+              }}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+              hasLabel={false}
+            />
+          </div>
+        )}
 
         {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
         {backgroundMode === 'image' && background && background.type === 'image' && (

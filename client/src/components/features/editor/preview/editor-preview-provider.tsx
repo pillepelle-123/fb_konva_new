@@ -89,6 +89,7 @@ export function EditorPreviewProvider({
           imageWidth: backgroundImageConfig.width,
           opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
           backgroundColor: pageColors.backgroundColor,
+          backgroundColorOpacity: theme?.pageSettings?.backgroundOpacity ?? 1,
           applyPalette: backgroundImageConfig.applyPalette ?? true,
           paletteMode: backgroundImageConfig.paletteMode ?? 'palette',
         });

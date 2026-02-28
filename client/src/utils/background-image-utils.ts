@@ -33,7 +33,8 @@ export function applyBackgroundImageTemplate(
     imagePosition?: PageBackground['imagePosition'];
     imageWidth?: number; // width in % of page width (0-200, default 100)
     backgroundColor?: string;
-    opacity?: number;
+    backgroundColorOpacity?: number; // opacity of background color layer (pageSettings.backgroundOpacity)
+    opacity?: number; // image opacity (backgroundImage.opacity)
     applyPalette?: boolean;
     paletteMode?: BackgroundPaletteMode;
   }
@@ -104,12 +105,13 @@ export function applyBackgroundImageTemplate(
   }
 
   // Apply background color if enabled and provided
+  type BackgroundWithColor = PageBackground & {
+    backgroundColor?: string;
+    backgroundColorEnabled?: boolean;
+    backgroundColorOpacity?: number;
+  };
+  const backgroundWithColor = background as BackgroundWithColor;
   if (template.backgroundColor?.enabled) {
-    type BackgroundWithColor = PageBackground & {
-      backgroundColor?: string;
-      backgroundColorEnabled?: boolean;
-    };
-    const backgroundWithColor = background as BackgroundWithColor;
     if (customSettings?.backgroundColor) {
       backgroundWithColor.backgroundColor = customSettings.backgroundColor;
       backgroundWithColor.backgroundColorEnabled = true;
@@ -117,6 +119,14 @@ export function applyBackgroundImageTemplate(
       backgroundWithColor.backgroundColor = template.backgroundColor.defaultValue;
       backgroundWithColor.backgroundColorEnabled = true;
     }
+  }
+  // Always set backgroundColor when provided (e.g. from theme pageColors)
+  if (customSettings?.backgroundColor) {
+    backgroundWithColor.backgroundColor = customSettings.backgroundColor;
+    backgroundWithColor.backgroundColorEnabled = true;
+  }
+  if (customSettings?.backgroundColorOpacity !== undefined) {
+    backgroundWithColor.backgroundColorOpacity = customSettings.backgroundColorOpacity;
   }
 
   return background;
@@ -448,13 +458,14 @@ function withSlotFallbacks(
 /**
  * Create a downscaled preview image for heavy assets to improve runtime performance.
  * Falls back to the original image when scaling is unnecessary.
+ * @param mimeType - When loading via blob URL, pass blob.type (e.g. 'image/svg+xml') so SVG is not converted to JPEG (which loses transparency).
  */
 export function createPreviewImage(
   source: HTMLImageElement,
-  { maxDimension = 1600, quality = 0.85 }: { maxDimension?: number; quality?: number } = {}
+  { maxDimension = 1600, quality = 0.85, mimeType }: { maxDimension?: number; quality?: number; mimeType?: string } = {}
 ): HTMLImageElement {
   const src = source.currentSrc || source.src || '';
-  if (isSvgSource(src)) {
+  if (isSvgSource(src) || mimeType === 'image/svg+xml') {
     return source;
   }
 

@@ -525,6 +525,8 @@ export function PDFRenderer({
       const baseBackgroundColor = hasBackgroundColor
         ? (background as any).backgroundColor || paletteBackgroundColor
         : paletteBackgroundColor;
+      const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
+      const imageOpacity = background.opacity ?? 1;
 
       // Calculate scaling based on image size mode
       let fillPatternScaleX = 1;
@@ -578,7 +580,7 @@ export function PDFRenderer({
                 width={width}
                 height={height}
                 fill={baseBackgroundColor}
-                opacity={opacity}
+                opacity={backgroundColorOpacity}
                 listening={false}
               />
         <KonvaImage
@@ -587,7 +589,7 @@ export function PDFRenderer({
                 y={imageY + transformOffsetY}
                 width={finalWidth}
                 height={finalHeight}
-                opacity={opacity}
+                opacity={imageOpacity}
                 listening={false}
                 scaleX={mirrorBackground ? -1 : 1}
                 scaleY={1}
@@ -618,7 +620,7 @@ export function PDFRenderer({
           width={width}
           height={height}
             fill={baseBackgroundColor}
-          opacity={opacity}
+          opacity={backgroundColorOpacity}
           listening={false}
         />
           <Rect
@@ -632,7 +634,7 @@ export function PDFRenderer({
             fillPatternOffsetX={fillPatternOffsetX}
             fillPatternOffsetY={fillPatternOffsetY}
             fillPatternRepeat={fillPatternRepeat}
-            opacity={opacity}
+            opacity={imageOpacity}
             listening={false}
           />
         </Group>
@@ -852,6 +854,8 @@ export function PDFRenderer({
         const baseBackgroundColor = hasBackgroundColor
           ? (background as any).backgroundColor || paletteBackgroundColor
           : paletteBackgroundColor;
+        const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
+        const imageOpacity = background.opacity ?? 1;
 
         // Calculate scaling based on image size mode
         let fillPatternScaleX = 1;
@@ -906,7 +910,7 @@ export function PDFRenderer({
               width: width,
               height: height,
               fill: baseBackgroundColor,
-              opacity: opacity,
+              opacity: backgroundColorOpacity,
               listening: false,
             });
             bgLayer.add(bgRect);
@@ -917,7 +921,7 @@ export function PDFRenderer({
               y: imageY + transformOffsetY,
               width: finalWidth,
               height: finalHeight,
-              opacity: opacity,
+              opacity: imageOpacity,
               listening: false,
               scaleX: mirrorBackground ? -1 : 1,
               scaleY: 1,
@@ -947,7 +951,7 @@ export function PDFRenderer({
             width: width,
             height: height,
             fill: baseBackgroundColor,
-            opacity: opacity,
+            opacity: backgroundColorOpacity,
             listening: false,
           });
           bgLayer.add(bgRect);
@@ -963,7 +967,7 @@ export function PDFRenderer({
             fillPatternOffsetX: fillPatternOffsetX,
             fillPatternOffsetY: fillPatternOffsetY,
             fillPatternRepeat: fillPatternRepeat,
-            opacity: opacity,
+            opacity: imageOpacity,
             listening: false,
           });
           bgLayer.add(bgImage);

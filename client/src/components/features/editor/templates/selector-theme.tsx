@@ -76,7 +76,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
         imagePosition: backgroundImageConfig.position,
         imageWidth: backgroundImageConfig.width,
         opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
-        backgroundColor: pageColors.backgroundColor
+        backgroundColor: pageColors.backgroundColor,
+        backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
       });
       if (imageBackground) return { ...imageBackground, pageTheme: themeId };
     }

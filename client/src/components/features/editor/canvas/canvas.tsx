@@ -3723,7 +3723,7 @@ export default function Canvas() {
 
       loadingImages.add(imageUrl);
 
-      const loadImageFromUrl = (url: string, loadSource: 'fetch' | 'direct') => {
+      const loadImageFromUrl = (url: string, loadSource: 'fetch' | 'direct', mimeType?: string) => {
         const img = new window.Image();
         const isDataUrl = url.startsWith('data:');
         const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
@@ -3740,7 +3740,7 @@ export default function Canvas() {
           setBackgroundImageCache(new Map(cache));
         };
         img.onload = () => {
-          const previewImage = createPreviewImage(img);
+          const previewImage = createPreviewImage(img, { mimeType });
           if (previewImage === img || previewImage.complete) {
             storeEntry({ full: img, preview: previewImage });
           } else {
@@ -3762,7 +3762,8 @@ export default function Canvas() {
             return res.blob();
           })
           .then((blob) => {
-            loadImageFromUrl(URL.createObjectURL(blob), 'fetch');
+            const mimeType = blob.type;
+            loadImageFromUrl(URL.createObjectURL(blob), 'fetch', mimeType);
           })
           .catch(() => {
             loadingImages.delete(imageUrl);

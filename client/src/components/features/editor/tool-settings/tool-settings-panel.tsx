@@ -218,9 +218,9 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     const allImages = getBackgroundImagesWithUrl();
     const selectedImageData = allImages.find((img) => img.id === selectedBackgroundImageId) ?? null;
 
+    // Manual apply: use template defaults (default_size, default_position, default_repeat, default_width from DB)
+    // Do NOT pass imageSize/imageRepeat/imagePosition/imageWidth so applyBackgroundImageTemplate uses template defaults
     const background = applyBackgroundImageTemplate(selectedBackgroundImageId, {
-      imageSize: currentPage.background?.imageSize || 'cover',
-      imageRepeat: currentPage.background?.imageRepeat || false,
       backgroundColor:
         selectedImageData?.backgroundColor?.enabled && selectedImageData.backgroundColor.defaultValue
           ? selectedImageData.backgroundColor.defaultValue
@@ -229,13 +229,6 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
 
     if (!background) {
       return;
-    }
-
-    if (currentPage.background) {
-      background.imageSize = currentPage.background.imageSize || 'cover';
-      background.imageRepeat = currentPage.background.imageRepeat || false;
-      background.imagePosition = currentPage.background.imagePosition || 'top-left';
-      background.opacity = currentPage.background.opacity ?? 0.15;
     }
 
     dispatch({

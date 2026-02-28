@@ -162,6 +162,8 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     const baseBackgroundColor = hasBackgroundColor
       ? (background as any).backgroundColor || paletteBackgroundColor
       : paletteBackgroundColor;
+    const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
+    const imageOpacity = background.opacity ?? 1;
 
     const cacheEntry = imageUrl ? backgroundImageCache.get(imageUrl) || null : null;
 
@@ -178,7 +180,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           width={canvasWidth}
           height={canvasHeight}
           fill={baseBackgroundColor}
-          opacity={opacity}
+          opacity={backgroundColorOpacity}
           listening={false}
         />
       );
@@ -236,14 +238,14 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
             y={imageY + transformOffsetY}
             width={finalWidth}
             height={finalHeight}
-            opacity={opacity}
+            opacity={imageOpacity}
             listening={false}
             scaleX={mirrorBackground ? -1 : 1}
             scaleY={1}
           />
         );
 
-        // If background color is enabled, wrap in Group with background color
+        // Background color layer behind the image (visible in transparent SVG areas)
         return (
           <Group listening={false}>
             <Rect
@@ -252,7 +254,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
               width={canvasWidth}
               height={canvasHeight}
               fill={baseBackgroundColor}
-              opacity={opacity}
+              opacity={backgroundColorOpacity}
               listening={false}
             />
             {imageElement}
@@ -274,7 +276,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       fillPatternOffsetX -= canvasWidth * transformScale;
     }
 
-    // If background color is enabled, render it behind the image
+    // Background color layer behind the image (visible in transparent SVG areas)
     return (
       <Group listening={false}>
         <Rect
@@ -283,7 +285,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           width={canvasWidth}
           height={canvasHeight}
           fill={baseBackgroundColor}
-          opacity={opacity}
+          opacity={backgroundColorOpacity}
           listening={false}
         />
         <Rect
@@ -297,7 +299,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           fillPatternOffsetX={fillPatternOffsetX}
           fillPatternOffsetY={fillPatternOffsetY}
           fillPatternRepeat={fillPatternRepeat}
-          opacity={opacity}
+          opacity={imageOpacity}
           listening={false}
         />
       </Group>

@@ -516,8 +516,9 @@ export default function BookCreatePage() {
             imageRepeat: Boolean(bgImage['repeat']),
             imagePosition: (bgImage['position'] as string) || 'top-left',
             imageWidth: (bgImage['width'] as number) || 100,
-            opacity: backgroundOpacity,
+            opacity: (bgImage['opacity'] as number) ?? backgroundOpacity,
             backgroundColor: pageColors.backgroundColor,
+            backgroundColorOpacity: backgroundOpacity,
             applyPalette: (bgImage['applyPalette'] as boolean) ?? true,
             paletteMode: (bgImage['paletteMode'] as 'palette' | 'monochrome') ?? 'palette',
           });

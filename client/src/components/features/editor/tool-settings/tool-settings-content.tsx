@@ -664,10 +664,12 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
 
   const renderToolSettings = () => {
     if (showColorSelector && !showColorSelector.startsWith('element-')) {
-      // When background-color or pattern-background is opened from PageBackgroundSettings,
+      // When background-color, pattern-background, or image-background-color is opened from PageBackgroundSettings,
       // let GeneralSettings > PageBackgroundSettings render it so Back returns to PageBackgroundSettings
       const isBackgroundColorFromPageSettings =
-        (showColorSelector === 'background-color' || showColorSelector === 'pattern-background') &&
+        (showColorSelector === 'background-color' ||
+          showColorSelector === 'pattern-background' ||
+          showColorSelector === 'image-background-color') &&
         showBackgroundSettings;
       if (!isBackgroundColorFromPageSettings) {
         return renderColorSelectorForTool(showColorSelector);
