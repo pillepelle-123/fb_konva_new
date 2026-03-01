@@ -435,7 +435,7 @@ CREATE TABLE IF NOT EXISTS background_image_categories (
 );
 
 CREATE TABLE IF NOT EXISTS background_images (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id SERIAL PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   category_id INTEGER NOT NULL REFERENCES background_image_categories(id) ON DELETE RESTRICT,
@@ -591,4 +591,20 @@ CREATE TABLE IF NOT EXISTS public.sandbox_pages (
 CREATE INDEX IF NOT EXISTS idx_sandbox_pages_user_id ON public.sandbox_pages(user_id);
 CREATE INDEX IF NOT EXISTS idx_sandbox_pages_updated_at ON public.sandbox_pages(updated_at DESC);
 
+-- ###############################################################
+-- Theme Page Backgrounds
+-- ###############################################################
 
+CREATE TABLE IF NOT EXISTS theme_page_backgrounds (
+  theme_id INTEGER PRIMARY KEY REFERENCES themes(id) ON DELETE CASCADE,
+  background_image_id INTEGER NOT NULL REFERENCES background_images(id) ON DELETE RESTRICT,
+  size TEXT NOT NULL DEFAULT 'cover' CHECK (size IN ('cover', 'contain', 'stretch', 'contain-repeat')),
+  position TEXT NOT NULL DEFAULT 'top-left' CHECK (position IN ('top-left', 'top-right', 'bottom-left', 'bottom-right', 'center')),
+  repeat BOOLEAN NOT NULL DEFAULT false,
+  width INTEGER NOT NULL DEFAULT 100 CHECK (width >= 10 AND width <= 200),
+  opacity NUMERIC NOT NULL DEFAULT 1 CHECK (opacity >= 0 AND opacity <= 1),
+  apply_palette BOOLEAN NOT NULL DEFAULT true,
+  palette_mode TEXT NOT NULL DEFAULT 'palette' CHECK (palette_mode IN ('palette', 'monochrome', 'auto', 'standard'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_theme_page_backgrounds_image ON theme_page_backgrounds(background_image_id);

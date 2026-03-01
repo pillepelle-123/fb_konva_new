@@ -218,13 +218,21 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
     const allImages = getBackgroundImagesWithUrl();
     const selectedImageData = allImages.find((img) => img.id === selectedBackgroundImageId) ?? null;
 
+    // Preserve current background settings when switching images (color, palette mode, etc.)
+    const currentBg = currentPage.background;
+    const hasUserColor = currentBg?.type === 'image' && (currentBg as any).backgroundColorEnabled && (currentBg as any).backgroundColor;
+
     // Manual apply: use template defaults (default_size, default_position, default_repeat, default_width from DB)
     // Do NOT pass imageSize/imageRepeat/imagePosition/imageWidth so applyBackgroundImageTemplate uses template defaults
     const background = applyBackgroundImageTemplate(selectedBackgroundImageId, {
-      backgroundColor:
-        selectedImageData?.backgroundColor?.enabled && selectedImageData.backgroundColor.defaultValue
-          ? selectedImageData.backgroundColor.defaultValue
-          : undefined,
+      backgroundColor: hasUserColor
+        ? (currentBg as any).backgroundColor
+        : (selectedImageData?.backgroundColor?.enabled && selectedImageData.backgroundColor.defaultValue
+            ? selectedImageData.backgroundColor.defaultValue
+            : undefined),
+      backgroundColorOpacity: (currentBg as any)?.backgroundColorOpacity,
+      applyPalette: currentBg?.type === 'image' ? (currentBg as any).applyPalette : undefined,
+      paletteMode: currentBg?.type === 'image' ? (currentBg as any).paletteMode : undefined,
     });
 
     if (!background) {

@@ -20,6 +20,8 @@ export interface BackgroundImagePaletteOptions {
   paletteMode?: BackgroundPaletteMode;
   /** Palette object for tone color resolution (monochrome uses background) */
   palette?: { colors: Record<string, string>; parts?: Record<string, string> };
+  /** When set (e.g. user's backgroundColor): overrides palette for SVG coloring - image adapts to this color */
+  backgroundColorOverride?: string;
 }
 
 /**
@@ -167,13 +169,22 @@ export function getBackgroundImageUrl(
     if (rawSvg && paletteColors) {
       if (paletteMode === 'monochrome') {
         const toneColor = getToneColorFromPalette(options);
-        const edgeBgColor = getPageBackgroundColor(options);
         if (toneColor) {
-          return applyMonochromeToneToSvg(rawSvg, toneColor, {
-            cacheKey: template.id,
-            asDataUrl: true,
-            edgeBackgroundColor: edgeBgColor,
-          });
+          try {
+            // When user set backgroundColorOverride: skip edge replacement so the image stays visible.
+            const edgeBgColor = options?.backgroundColorOverride
+              ? undefined
+              : getPageBackgroundColor(options);
+            const result = applyMonochromeToneToSvg(rawSvg, toneColor, {
+              cacheKey: template.id,
+              asDataUrl: true,
+              edgeBackgroundColor: edgeBgColor,
+            });
+            if (result?.startsWith('data:')) return result;
+          } catch (e) {
+            console.warn('[getBackgroundImageUrl] Monochrome processing failed, using original:', e);
+          }
+          return template.url;
         }
       }
 
@@ -255,6 +266,13 @@ export function resolveBackgroundImageUrl(
       options &&
       isSvgDataUrl
     ) {
+      const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
+      const dataUrlOptions: BackgroundImagePaletteOptions = {
+        ...options,
+        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+        backgroundColorOverride:
+          bg.backgroundColorEnabled && bg.backgroundColor ? bg.backgroundColor : undefined,
+      };
       const match = background.value.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
       const urlEncodedMatch = background.value.match(/^data:image\/svg\+xml,(.+)$/);
       console.log('[PDF Debug] SVG data URL format:', {
@@ -268,7 +286,7 @@ export function resolveBackgroundImageUrl(
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
           const rawSvg = new TextDecoder().decode(bytes);
-          const paletteColors = resolvePaletteColors(options);
+          const paletteColors = resolvePaletteColors(dataUrlOptions);
           const containsPaletteTokens = rawSvg ? /PALETTE_[A-Z_]+/.test(rawSvg) : false;
           const template = background.backgroundImageTemplateId
             ? getBackgroundImageById(background.backgroundImageTemplateId)
@@ -290,16 +308,30 @@ export function resolveBackgroundImageUrl(
             let result: string | undefined;
 
             if (paletteMode === 'monochrome') {
-              const toneColor = getToneColorFromPalette(options);
-              const edgeBgColor = getPageBackgroundColor(options);
+              const toneColor = getToneColorFromPalette(dataUrlOptions);
+              const edgeBgColor = dataUrlOptions?.backgroundColorOverride
+                ? undefined
+                : getPageBackgroundColor(dataUrlOptions);
               if (toneColor) {
-                appliedBranch = 'monochrome';
-                result = applyMonochromeToneToSvg(rawSvg, toneColor, {
-                  cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::mono`,
-                  asDataUrl: true,
-                  edgeBackgroundColor: edgeBgColor,
-                });
-              } else {
+                try {
+                  appliedBranch = 'monochrome';
+                  const monoResult = applyMonochromeToneToSvg(rawSvg, toneColor, {
+                    cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::mono`,
+                    asDataUrl: true,
+                    edgeBackgroundColor: edgeBgColor,
+                  });
+                  if (monoResult?.startsWith('data:')) result = monoResult;
+                } catch (e) {
+                  console.warn('[resolveBackgroundImageUrl] Monochrome processing failed, using auto fallback:', e);
+                  appliedBranch = 'monochrome-fallback-auto';
+                  result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
+                    cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
+                    asDataUrl: true,
+                    slotOpacities: template?.paletteSlotOpacities,
+                  });
+                }
+              }
+              if (!result) {
                 appliedBranch = 'monochrome-fallback-auto';
                 result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                   cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
@@ -357,9 +389,13 @@ export function resolveBackgroundImageUrl(
   if (background.backgroundImageTemplateId) {
     const shouldApplyPalette = background.applyPalette !== false;
     if (shouldApplyPalette) {
+      const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
       const mergedOptions: BackgroundImagePaletteOptions = {
         ...options,
         paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+        // When user set a background color: image adapts to it (Palette/Monochrome logic)
+        backgroundColorOverride:
+          bg.backgroundColorEnabled && bg.backgroundColor ? bg.backgroundColor : undefined,
       };
       return getBackgroundImageUrl(background.backgroundImageTemplateId, mergedOptions, true);
     }
@@ -386,6 +422,9 @@ export function isTemplateBackground(background: PageBackground): boolean {
 
 /** Monochrome tone uses palette background color (per shadcn: "chosen tone" from background) */
 function getToneColorFromPalette(options?: BackgroundImagePaletteOptions): string | undefined {
+  if (options?.backgroundColorOverride) {
+    return ensureHashForOverride(options.backgroundColorOverride);
+  }
   if (options?.palette) {
     return (
       options.palette.colors?.background ??
@@ -400,6 +439,9 @@ function getToneColorFromPalette(options?: BackgroundImagePaletteOptions): strin
 
 /** Page background color for edge-blending in monochrome mode (matches pageBackground part) */
 function getPageBackgroundColor(options?: BackgroundImagePaletteOptions): string | undefined {
+  if (options?.backgroundColorOverride) {
+    return ensureHashForOverride(options.backgroundColorOverride);
+  }
   if (options?.palette) {
     return (
       getPalettePartColor(options.palette, 'pageBackground', 'background', options.palette.colors?.background) ??
@@ -412,6 +454,12 @@ function getPageBackgroundColor(options?: BackgroundImagePaletteOptions): string
   return paletteColors?.background ?? paletteColors?.surface ?? paletteColors?.primary;
 }
 
+function ensureHashForOverride(color: string): string {
+  if (!color?.trim()) return '#ffffff';
+  const trimmed = color.trim();
+  return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+}
+
 function resolvePaletteColors(
   options?: BackgroundImagePaletteOptions
 ): Partial<Record<PaletteSlot | string, string>> | undefined {
@@ -420,6 +468,12 @@ function resolvePaletteColors(
 
   if (!options) {
     return fallbackPalette ? withSlotFallbacks(fallbackPalette.colors) : undefined;
+  }
+
+  // User's background color override: derive palette from this color (Palette + Monochrome modes)
+  if (options.backgroundColorOverride) {
+    const base = ensureHashForOverride(options.backgroundColorOverride);
+    return withSlotFallbacks(derivePaletteFromBaseColor(base));
   }
 
   if (options.paletteColors) {
@@ -433,6 +487,29 @@ function resolvePaletteColors(
 
   const palette = colorPalettes.find((paletteEntry) => paletteEntry.id === paletteId) ?? fallbackPalette;
   return palette ? withSlotFallbacks(palette.colors) : undefined;
+}
+
+/** Derive palette slot colors from a single base color (for Palette mode with user's backgroundColor) */
+function derivePaletteFromBaseColor(baseHex: string): Partial<Record<PaletteSlot | string, string>> {
+  const mix = (a: string, b: string, factor: number) => {
+    const parse = (hex: string) => {
+      const h = hex.replace(/^#/, '');
+      return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+    };
+    const toHex = (r: number, g: number, b: number) =>
+      '#' + [r, g, b].map((c) => Math.round(Math.min(255, Math.max(0, c))).toString(16).padStart(2, '0')).join('');
+    const pa = parse(a);
+    const pb = parse(b);
+    return toHex(pa.r * (1 - factor) + pb.r * factor, pa.g * (1 - factor) + pb.g * factor, pa.b * (1 - factor) + pb.b * factor);
+  };
+  return {
+    background: baseHex,
+    surface: mix(baseHex, '#ffffff', 0.25),
+    primary: baseHex,
+    accent: mix(baseHex, '#000000', 0.15),
+    secondary: mix(baseHex, '#ffffff', 0.4),
+    text: mix(baseHex, '#000000', 0.3),
+  };
 }
 
 function withSlotFallbacks(
@@ -518,5 +595,46 @@ function isSvgSource(src: string): boolean {
     return /\.svg$/i.test(url.pathname);
   } catch {
     return /\.svg(\?|$)/i.test(src);
+  }
+}
+
+/**
+ * Composite an SVG (or any image with transparency) onto a solid background color.
+ * Fixes the issue where transparent pixels render as black when used as canvas fill pattern.
+ * Returns a Promise that resolves with the composited image when loaded, or null if compositing fails.
+ */
+export function compositeImageOntoBackground(
+  source: HTMLImageElement,
+  backgroundColor: string,
+  mimeType?: string
+): Promise<HTMLImageElement | null> {
+  const src = source.currentSrc || source.src || '';
+  const isSvg = isSvgSource(src) || mimeType === 'image/svg+xml';
+  if (!isSvg) return Promise.resolve(null);
+
+  const w = source.naturalWidth || source.width || 1;
+  const h = source.naturalHeight || source.height || 1;
+  if (w <= 0 || h <= 0) return Promise.resolve(null);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return Promise.resolve(null);
+
+  ctx.fillStyle = backgroundColor.startsWith('#') ? backgroundColor : `#${backgroundColor}`;
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0);
+
+  try {
+    const dataUrl = canvas.toDataURL('image/png');
+    const composite = new window.Image();
+    return new Promise((resolve) => {
+      composite.onload = () => resolve(composite);
+      composite.onerror = () => resolve(null);
+      composite.src = dataUrl;
+    });
+  } catch {
+    return Promise.resolve(null);
   }
 }

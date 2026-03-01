@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Rect, Group, Image as KonvaImage } from 'react-konva';
 import { createPatternTile } from './canvas-utils';
 
@@ -53,6 +53,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
   getPaletteForPage,
   resolveBackgroundImageUrl
 }) => {
+  const lastDisplayedImageRef = useRef<HTMLImageElement | null>(null);
   const background = page?.background;
   const backgroundTransform = page?.backgroundTransform;
   const transformScale = backgroundTransform?.scale ?? 1;
@@ -161,7 +162,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
     const baseBackgroundColor = hasBackgroundColor
       ? (background as any).backgroundColor || paletteBackgroundColor
-      : paletteBackgroundColor;
+      : '#ffffff';
     const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
     const imageOpacity = background.opacity ?? 1;
 
@@ -172,7 +173,68 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
         ? cacheEntry?.full
         : cacheEntry?.preview || cacheEntry?.full;
 
+    if (displayImage?.complete) {
+      lastDisplayedImageRef.current = displayImage;
+    }
+    const fallbackImage = (!displayImage || !displayImage.complete) ? lastDisplayedImageRef.current : null;
+
     if (!displayImage || !displayImage.complete) {
+      if (fallbackImage?.complete) {
+        const img = fallbackImage;
+        const imageWidth = img.naturalWidth || img.width || 1;
+        const imageHeight = img.naturalHeight || img.height || 1;
+        let fillPatternScaleX = 1;
+        let fillPatternScaleY = 1;
+        let fillPatternOffsetX = transformOffsetX;
+        let fillPatternOffsetY = transformOffsetY;
+        let fillPatternRepeat: 'no-repeat' | 'repeat' = 'no-repeat';
+        if (background.imageSize === 'cover') {
+          const scaleX = canvasWidth / imageWidth;
+          const scaleY = canvasHeight / imageHeight;
+          const scale = Math.max(scaleX, scaleY);
+          fillPatternScaleX = fillPatternScaleY = scale * transformScale;
+        } else if (background.imageSize === 'contain') {
+          const widthPercent = background.imageContainWidthPercent ?? 100;
+          const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
+          const desiredScale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);
+          fillPatternScaleX = fillPatternScaleY = desiredScale * transformScale;
+          fillPatternRepeat = background.imageRepeat ? 'repeat' : 'no-repeat';
+        } else if (background.imageSize === 'stretch') {
+          fillPatternScaleX = (canvasWidth / imageWidth) * transformScale;
+          fillPatternScaleY = (canvasHeight / imageHeight) * transformScale;
+        }
+        if (mirrorBackground) {
+          fillPatternScaleX = -fillPatternScaleX;
+          fillPatternOffsetX -= canvasWidth * transformScale;
+        }
+        return (
+          <Group listening={false}>
+            <Rect
+              x={offsetX}
+              y={pageOffsetY}
+              width={canvasWidth}
+              height={canvasHeight}
+              fill={baseBackgroundColor}
+              opacity={backgroundColorOpacity}
+              listening={false}
+            />
+            <Rect
+              x={offsetX}
+              y={pageOffsetY}
+              width={canvasWidth}
+              height={canvasHeight}
+              fillPatternImage={img}
+              fillPatternScaleX={fillPatternScaleX}
+              fillPatternScaleY={fillPatternScaleY}
+              fillPatternOffsetX={fillPatternOffsetX}
+              fillPatternOffsetY={fillPatternOffsetY}
+              fillPatternRepeat={fillPatternRepeat}
+              opacity={imageOpacity}
+              listening={false}
+            />
+          </Group>
+        );
+      }
       return (
         <Rect
           x={offsetX}
@@ -202,8 +264,6 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       const scale = Math.max(scaleX, scaleY);
       fillPatternScaleX = fillPatternScaleY = scale;
     } else if (background.imageSize === 'contain') {
-      const scaleX = canvasWidth / imageWidth;
-      const scaleY = canvasHeight / imageHeight;
       const widthPercent = background.imageContainWidthPercent ?? 100;
       const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
       const desiredScale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);

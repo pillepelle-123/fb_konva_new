@@ -43,12 +43,12 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
   const currentPaletteId = activeTemplateIds.colorPaletteId;
-  const currentPalette = currentPaletteId ? colorPalettes.find(p => p.id === currentPaletteId) || null : null;
+  const currentPalette = currentPaletteId ? colorPalettes.find(p => p.id == currentPaletteId || String(p.id) === String(currentPaletteId)) || null : null;
   const paletteOverrideId = currentPage?.colorPaletteId || null;
 
   const effectiveThemeId = themeId || activeTemplateIds.themeId;
   const themePaletteId = effectiveThemeId ? getThemePaletteId(effectiveThemeId) : undefined;
-  const themePalette = themePaletteId ? colorPalettes.find(p => p.id === themePaletteId) || null : null;
+  const themePalette = themePaletteId ? colorPalettes.find(p => p.id == themePaletteId || String(p.id) === String(themePaletteId)) || null : null;
   
   const shouldUseThemePalette = paletteOverrideId === null && !!themePalette;
   const [selectedPalette, setSelectedPalette] = useState<ColorPalette | null>(
@@ -71,12 +71,14 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   }, []);
 
   useEffect(() => {
+    const matchPalette = (pid: string | null | undefined) =>
+      pid ? colorPalettes.find((p) => p.id == pid || String(p.id) === String(pid)) ?? null : null;
     if (paletteOverrideId === null) {
       setUseThemePalette(true);
-      setSelectedPalette(themePaletteId ? colorPalettes.find((p) => p.id === themePaletteId) ?? null : null);
+      setSelectedPalette(matchPalette(themePaletteId ?? undefined));
     } else {
       setUseThemePalette(false);
-      setSelectedPalette(currentPaletteId ? colorPalettes.find((p) => p.id === currentPaletteId) ?? null : null);
+      setSelectedPalette(matchPalette(currentPaletteId ?? undefined));
     }
   }, [paletteOverrideId, currentPaletteId, themePaletteId]);
 
@@ -178,10 +180,11 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   const selectedItem = useMemo((): PaletteListItem | null => {
     const effective = getEffectivePalette();
     if (!effective) return null;
-    if (useThemePalette && themePalette && effective.id === themePalette.id) {
+    const matchId = (a: string | number, b: string | number) => a == b || String(a) === String(b);
+    if (useThemePalette && themePalette && matchId(effective.id, themePalette.id)) {
       return paletteItems.find((i) => i.kind === 'theme-default') ?? null;
     }
-    return paletteItems.find((i) => i.kind === 'individual' && i.palette.id === effective.id) ?? null;
+    return paletteItems.find((i) => i.kind === 'individual' && matchId(i.palette.id, effective!.id)) ?? null;
   }, [paletteItems, useThemePalette, themePalette, selectedPalette]);
 
   return (
@@ -220,7 +223,7 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
               ) : (
                 <>
                   {item.palette.name}
-                  {themePalette && item.palette.id === themePalette.id && (
+                  {themePalette && item.palette.id == themePalette.id && (
                     <span className="text-muted-foreground ml-1 text-[10px]">(Theme default)</span>
                   )}
                 </>

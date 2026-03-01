@@ -5082,12 +5082,19 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             patternForegroundColor: getPalettePartColor(appliedPalette, 'pageBackground', 'background', appliedPalette.colors.background)
           };
         } else {
-          // For 'image' type, preserve everything - color palette doesn't affect image backgrounds
+          // For 'image' type: update backgroundColor (Color layer behind image) from palette, same as type 'color'
           // WICHTIG: Immer Kopie erstellen, damit Seiten nicht dieselbe Referenz teilen.
-          // Sonst würde z.B. paletteMode-Änderung auf einer Seite alle Seiten betreffen.
           updatedBackground = typeof structuredClone === 'function'
             ? structuredClone(currentBackground)
             : JSON.parse(JSON.stringify(currentBackground));
+          if ((updatedBackground as any).backgroundColorEnabled) {
+            (updatedBackground as any).backgroundColor = getPalettePartColor(
+              appliedPalette,
+              'pageBackground',
+              'background',
+              appliedPalette.colors.background
+            );
+          }
         }
         
         return {
@@ -6816,6 +6823,11 @@ function applyThemeAndPaletteToPage(
         ...page.background,
         patternBackgroundColor: patternForeground,
         patternForegroundColor: patternBackground
+      };
+    } else if (page.background.type === 'image' && (page.background as any).backgroundColorEnabled) {
+      updatedBackground = {
+        ...page.background,
+        backgroundColor: pageBgColor
       };
     }
   }

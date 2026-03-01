@@ -65,6 +65,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const [applyToEntireBook, setApplyToEntireBook] = useState(false);
   const originalPageStateRef = useRef<{ background?: PageBackground } | null>(null);
   const isApplyingRef = useRef(false);
+  const [pendingImageBackgroundColor, setPendingImageBackgroundColor] = useState<string | null>(null);
+  const imageBgColorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -78,6 +80,27 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       };
     }
   }, [state.currentBook?.id, state.activePageIndex]);
+
+  useEffect(() => {
+    if (showColorSelector !== 'image-background-color') {
+      if (imageBgColorDebounceRef.current) {
+        clearTimeout(imageBgColorDebounceRef.current);
+        imageBgColorDebounceRef.current = null;
+      }
+      setPendingImageBackgroundColor((pending) => {
+        if (pending) {
+          updateBackground({ backgroundColor: pending, backgroundColorEnabled: true });
+          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+        }
+        return null;
+      });
+    }
+    return () => {
+      if (imageBgColorDebounceRef.current) {
+        clearTimeout(imageBgColorDebounceRef.current);
+      }
+    };
+  }, [showColorSelector]);
 
   const updateBackground = (updates: Partial<PageBackground>, skipHistory = true) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
@@ -115,7 +138,26 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   );
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
+  // Get default background color from current palette or existing background
+  const getDefaultBackgroundColor = (): string => {
+    const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId;
+    if (activePaletteId) {
+      const palette = colorPalettes.find(p => p.id === activePaletteId);
+      if (palette) return palette.colors.background;
+    }
+    if (currentPage?.background && typeof currentPage.background.value === 'string') {
+      return currentPage.background.value;
+    }
+    return '#ffffff';
+  };
+
   let background = currentPage?.background;
+  // Fallback for render when background not yet initialized (useEffect will persist to state)
+  if (!background) {
+    background = { type: 'color' as const, value: getDefaultBackgroundColor(), opacity: 0.15 };
+  } else if (background.opacity === undefined) {
+    background = { ...background, opacity: 0.15 };
+  }
 
   const handleApply = () => {
     isApplyingRef.current = true;
@@ -135,37 +177,20 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     }
     setShowBackgroundSettings(false);
   };
-  
-  // Get default background color from current palette or existing background
-  const getDefaultBackgroundColor = (): string => {
-    const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId;
-    if (activePaletteId) {
-      const palette = colorPalettes.find(p => p.id === activePaletteId);
-      if (palette) {
-        return palette.colors.background;
-      }
-    }
 
-    if (currentPage?.background && typeof currentPage.background.value === 'string') {
-      return currentPage.background.value;
+  // Initialize background if not set, or ensure opacity – must run in useEffect to avoid setState during render
+  useEffect(() => {
+    if (!currentPage) return;
+    const bg = currentPage.background;
+    if (!bg) {
+      const defaultColor = getDefaultBackgroundColor();
+      updateBackground({ type: 'color', value: defaultColor, opacity: 0.15 });
+    } else if (bg.opacity === undefined) {
+      updateBackground({ opacity: 0.15 });
     }
+  }, [currentPage, currentPage?.background, currentPage?.colorPaletteId, state.currentBook?.colorPaletteId]);
 
-    return '#ffffff';
-  };
-  
-  // Initialize background if not set, with default color and opacity 15 (0.15)
-  if (!background) {
-    const defaultColor = getDefaultBackgroundColor();
-    background = { type: 'color', value: defaultColor, opacity: 0.15 };
-    updateBackground(background);
-  }
   const paintWithPalette = background.type === 'image' ? background.applyPalette !== false : true;
-  
-  // Ensure opacity is always set (default to 0.15 if not set)
-  if (background.opacity === undefined) {
-    background.opacity = 0.15;
-    updateBackground({ opacity: 0.15 });
-  }
   
   const isPattern = background.type === 'pattern';
   const isImage = background.type === 'image';
@@ -390,7 +415,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         case 'pattern-background':
           return background.patternBackgroundColor || '#666666';
         case 'image-background-color':
-          return (background.backgroundColorEnabled && background.backgroundColor) ? background.backgroundColor : getDefaultBackgroundColor();
+          return pendingImageBackgroundColor ?? ((background.backgroundColorEnabled && background.backgroundColor) ? background.backgroundColor : getDefaultBackgroundColor());
         default:
           return '#ffffff';
       }
@@ -407,9 +432,17 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         case 'pattern-background':
           updateBackground({ patternBackgroundColor: color });
           break;
-        case 'image-background-color':
-          updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
+        case 'image-background-color': {
+          setPendingImageBackgroundColor(color);
+          if (imageBgColorDebounceRef.current) clearTimeout(imageBgColorDebounceRef.current);
+          imageBgColorDebounceRef.current = setTimeout(() => {
+            imageBgColorDebounceRef.current = null;
+            updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
+            setPendingImageBackgroundColor(null);
+            window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+          }, 200);
           break;
+        }
       }
     };
     const colorSelectorOpacity = showColorSelector === 'image-background-color'
@@ -697,12 +730,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                           updateBackground({
                             applyPalette: false,
                             value: template?.url ?? background.value,
+                            backgroundColorEnabled: false,
                           });
+                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
                         } else {
+                          const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
+                          const defaultColor = (template as any)?.backgroundColor?.defaultValue ?? getDefaultBackgroundColor();
                           updateBackground({
                             applyPalette: true,
                             paletteMode: background.paletteMode ?? 'palette',
+                            backgroundColorEnabled: true,
+                            backgroundColor: defaultColor,
                           });
+                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
                         }
                       } else {
                         updateBackground({ applyPalette: usePalette });

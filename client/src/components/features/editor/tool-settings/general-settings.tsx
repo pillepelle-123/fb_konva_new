@@ -249,7 +249,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
     ? paletteOverrideId
     : (activeTemplates.themeId ? (getThemePaletteId(activeTemplates.themeId) ?? null) : null);
   const palette = effectivePaletteId
-    ? (colorPalettes.find(p => p.id === effectivePaletteId) || null)
+    ? (colorPalettes.find(p => p.id == effectivePaletteId || String(p.id) === String(effectivePaletteId)) || null)
     : null;
 
   return (

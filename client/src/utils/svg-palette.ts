@@ -234,12 +234,19 @@ export function applyMonochromeToneToSvg(
       : undefined;
 
   colorOccurrences.forEach((originals, normalizedColor) => {
-    const replacement =
+    let replacement: string;
+    if (
       edgeColorToReplace &&
       normalizedColor === edgeColorToReplace &&
       getRelativeLuminance(normalizedColor) >= 0.15
-        ? normalizedEdgeBg!
-        : hslToHex(targetHsl.h, targetHsl.s, hexToHsl(normalizedColor).l);
+    ) {
+      replacement = normalizedEdgeBg!;
+    } else {
+      const origHsl = hexToHsl(normalizedColor);
+      replacement = hslToHex(targetHsl.h, targetHsl.s, origHsl.l);
+    }
+    // Skip replace if result is invalid (e.g. NaN from edge cases)
+    if (!replacement || !/^#[0-9a-fA-F]{6}$/.test(replacement)) return;
 
     originals.forEach((originalColor) => {
       const colorPattern = new RegExp(escapeForRegex(originalColor), 'gi');
@@ -573,10 +580,11 @@ function mixHexColors(colorA: string, colorB: string, factor: number): string {
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (c: number) => Math.min(255, Math.max(0, Math.round(c)));
   return (
     '#' +
     [r, g, b]
-      .map((channel) => channel.toString(16).padStart(2, '0'))
+      .map((channel) => clamp(channel).toString(16).padStart(2, '0'))
       .join('')
   ).toLowerCase();
 }

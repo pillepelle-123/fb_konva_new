@@ -9,19 +9,6 @@ CREATE TABLE IF NOT EXISTS public.question_pools (
   updated_at TIMESTAMP
 );
 
--- Create book_questions junction table
-CREATE TABLE IF NOT EXISTS public.book_questions (
-  id SERIAL PRIMARY KEY,
-  book_id INTEGER NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
-  question_pool_id INTEGER NOT NULL REFERENCES public.question_pools(id) ON DELETE CASCADE,
-  question_id UUID NOT NULL,
-  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(book_id, question_pool_id)
-);
-
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_book_questions_book_id ON public.book_questions(book_id);
-CREATE INDEX IF NOT EXISTS idx_book_questions_question_pool_id ON public.book_questions(question_pool_id);
 CREATE INDEX IF NOT EXISTS idx_question_pools_category ON public.question_pools(category);
 CREATE INDEX IF NOT EXISTS idx_question_pools_is_active ON public.question_pools(is_active);
 

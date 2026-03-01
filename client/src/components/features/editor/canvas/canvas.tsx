@@ -3750,7 +3750,9 @@ export default function Canvas() {
         };
         img.onerror = () => {
           loadingImages.delete(imageUrl);
-          failedBackgroundUrlsRef.current.add(imageUrl);
+          if (!imageUrl.startsWith('data:')) {
+            failedBackgroundUrlsRef.current.add(imageUrl);
+          }
         };
         img.src = url;
       };
@@ -3827,6 +3829,7 @@ export default function Canvas() {
       templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
       applyPalette: (currentPage?.background as any)?.applyPalette,
       paletteMode: (currentPage?.background as any)?.paletteMode,
+      backgroundColor: (currentPage?.background as any)?.backgroundColor,
     }),
     backgroundSvgLoadedVersion,
   ]);
