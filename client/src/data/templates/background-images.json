@@ -94,6 +94,7 @@
         "defaultValue": "#ffffff"
       },
       "paletteSlots": "auto",
+      "useBackgroundSlots": false,
       "description": "Abstract floral aesthetic pattern variant",
       "tags": ["floral", "abstract", "aesthetic", "decorative"]
     },

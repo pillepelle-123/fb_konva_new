@@ -66,6 +66,7 @@ const apiRecordSchema = z.object({
   paletteSlots: z.string().nullable().optional(),
   paletteSlotOpacities: paletteSlotOpacitiesSchema,
   tags: z.array(z.string()).nullable().optional(),
+  metadata: z.record(z.unknown()).nullable().optional(),
 })
 
 const apiListResponseSchema = z.object({
@@ -110,6 +111,12 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
 
   const paletteSlotOpacities = record.paletteSlotOpacities ?? undefined
 
+  const metadata = (record as { metadata?: Record<string, unknown> }).metadata ?? {}
+  const useBackgroundSlots =
+    typeof (metadata as { useBackgroundSlots?: boolean }).useBackgroundSlots === 'boolean'
+      ? (metadata as { useBackgroundSlots: boolean }).useBackgroundSlots
+      : undefined
+
   const filePath = storage.filePath ?? undefined
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
 
@@ -127,6 +134,7 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
     backgroundColor,
     paletteSlots,
     paletteSlotOpacities,
+    useBackgroundSlots,
     description: record.description ?? undefined,
     tags: record.tags ?? undefined,
   }
@@ -168,6 +176,7 @@ function transformJsonRecord(record: {
   backgroundColor?: { enabled?: boolean; defaultValue?: string }
   paletteSlots?: string
   paletteSlotOpacities?: Partial<Record<import('../../types/template-types').PaletteSlot, number>>
+  useBackgroundSlots?: boolean
   description?: string
   tags?: string[]
 }): BackgroundImageWithUrl {
@@ -191,6 +200,7 @@ function transformJsonRecord(record: {
       : undefined,
     paletteSlots: record.paletteSlots === 'standard' || record.paletteSlots === 'auto' ? record.paletteSlots : undefined,
     paletteSlotOpacities: record.paletteSlotOpacities,
+    useBackgroundSlots: typeof record.useBackgroundSlots === 'boolean' ? record.useBackgroundSlots : undefined,
     description: record.description,
     tags: record.tags,
     url,

@@ -86,11 +86,19 @@ export function applyPaletteSlotsToSvg(
 
 type AutoPaletteRenderOptions = RenderOptions & {
   slotOpacities?: Partial<Record<PaletteSlot, number>>;
+  /** true = use background/surface for large areas, false = only primary/secondary/accent, undefined = heuristic */
+  useBackgroundSlots?: boolean;
+  /** Page background color – used to adjust image colors for contrast (light bg → darken, dark bg → lighten) */
+  pageBackgroundColor?: string;
 };
 
 /**
  * Automatically map existing SVG colors to light palette slots (background/surface/accent/secondary)
  * and apply alpha blending to create layered effects.
+ *
+ * Heuristic: When useBackgroundSlots is undefined, uses luminance + count to decide:
+ * - Light dominant (luminance >= 0.25) or dark with few refs (count <= 3) → background/surface
+ * - Dark dominant with many refs (e.g. small outlines) → primary/secondary/accent only
  */
 export function applyAutoPaletteToSvg(
   svgContent: string,
@@ -103,21 +111,14 @@ export function applyAutoPaletteToSvg(
 
   const encoding = options.encoding ?? 'base64';
 
-  const slotColors = buildAutoSlotColors(paletteColors, options.slotOpacities);
+  let slotColors = buildAutoSlotColors(paletteColors, options.slotOpacities);
   if (!slotColors) {
     return svgContent;
   }
 
-  const cacheId = buildCacheKey(
-    svgContent,
-    slotColors,
-    encoding,
-    `${options.cacheKey || ''}::auto`,
-    PALETTE_SLOT_TOKENS
-  );
-  const cached = svgRenderCache.get(cacheId);
-  if (cached) {
-    return cached;
+  // Contrast adjustment: darken on light background, lighten on dark background
+  if (options.pageBackgroundColor && options.pageBackgroundColor.startsWith('#')) {
+    slotColors = applySlotContrast(slotColors, options.pageBackgroundColor);
   }
 
   const colorOccurrences = mergeColorOccurrences([
@@ -125,6 +126,34 @@ export function applyAutoPaletteToSvg(
     extractRgbColorOccurrences(svgContent),
     extractGradientStopColors(svgContent),
   ]);
+
+  let useBackgroundSlots = options.useBackgroundSlots;
+  if (useBackgroundSlots === undefined && colorOccurrences.size > 0) {
+    const sortedColors = sortColorsByDominanceAndLuminance(colorOccurrences);
+    const dominantColor = sortedColors[0];
+    const dominantCount = colorOccurrences.get(dominantColor)?.size ?? 0;
+    const dominantLuminance = getRelativeLuminance(dominantColor);
+    useBackgroundSlots = dominantLuminance >= 0.25 || dominantCount <= 3;
+  } else if (useBackgroundSlots === undefined) {
+    useBackgroundSlots = true;
+  }
+
+  const slotCycle: PaletteSlot[] = useBackgroundSlots
+    ? ['background', 'surface', 'accent', 'secondary']
+    : ['primary', 'secondary', 'accent', 'primary'];
+
+  const cacheId = buildCacheKey(
+    svgContent,
+    slotColors,
+    encoding,
+    `${options.cacheKey || ''}::auto::${useBackgroundSlots ? 'bg' : 'fg'}::${options.pageBackgroundColor ?? 'none'}`,
+    PALETTE_SLOT_TOKENS
+  );
+  const cached = svgRenderCache.get(cacheId);
+  if (cached) {
+    return cached;
+  }
+
   if (colorOccurrences.size === 0) {
     let processed = svgContent;
     processed = replaceCurrentColor(processed, slotColors);
@@ -133,7 +162,6 @@ export function applyAutoPaletteToSvg(
 
   const sortedColors = sortColorsByDominanceAndLuminance(colorOccurrences);
 
-  const slotCycle: PaletteSlot[] = ['background', 'surface', 'accent', 'secondary'];
   const colorToSlot = new Map<string, PaletteSlot>();
   sortedColors.forEach((color, idx) => {
     let slot: PaletteSlot;
@@ -178,6 +206,11 @@ export type MonochromeToneOptions = RenderOptions & {
    * with this instead of the monochrome tone. Creates seamless blend with page background.
    */
   edgeBackgroundColor?: string;
+  /**
+   * Page background color – when dark (luminance <= 0.15), inverts brightness so finer
+   * elements appear lighter against the dark background.
+   */
+  pageBackgroundColor?: string;
 };
 
 /**
@@ -188,6 +221,9 @@ export type MonochromeToneOptions = RenderOptions & {
  * When edgeBackgroundColor is provided: the dominant/lightest color (typically the
  * large background area touching the image edge) is replaced with it for a seamless
  * blend with the page background.
+ *
+ * When pageBackgroundColor is provided and the background is dark (luminance <= 0.15):
+ * brightness is inverted so finer elements appear lighter against the dark background.
  */
 export function applyMonochromeToneToSvg(
   svgContent: string,
@@ -203,7 +239,7 @@ export function applyMonochromeToneToSvg(
   const normalizedEdgeBg = options.edgeBackgroundColor
     ? ensureHash(normalizeColor(options.edgeBackgroundColor) ?? options.edgeBackgroundColor)
     : undefined;
-  const cacheId = `${options.cacheKey || svgContent}::mono::${encoding}::${normalizedTarget}::${normalizedEdgeBg ?? 'none'}`;
+  const cacheId = `${options.cacheKey || svgContent}::mono::${encoding}::${normalizedTarget}::${normalizedEdgeBg ?? 'none'}::${options.pageBackgroundColor ?? 'none'}`;
   const cached = svgRenderCache.get(cacheId);
   if (cached) {
     return cached;
@@ -233,6 +269,10 @@ export function applyMonochromeToneToSvg(
       ? sortColorsByDominanceAndLuminance(colorOccurrences)[0]
       : undefined;
 
+  const invertBrightness =
+    options.pageBackgroundColor?.startsWith('#') &&
+    getRelativeLuminance(options.pageBackgroundColor) <= 0.15;
+
   colorOccurrences.forEach((originals, normalizedColor) => {
     let replacement: string;
     if (
@@ -243,7 +283,8 @@ export function applyMonochromeToneToSvg(
       replacement = normalizedEdgeBg!;
     } else {
       const origHsl = hexToHsl(normalizedColor);
-      replacement = hslToHex(targetHsl.h, targetHsl.s, origHsl.l);
+      const lightness = invertBrightness ? 100 - origHsl.l : origHsl.l;
+      replacement = hslToHex(targetHsl.h, targetHsl.s, lightness);
     }
     // Skip replace if result is invalid (e.g. NaN from edge cases)
     if (!replacement || !/^#[0-9a-fA-F]{6}$/.test(replacement)) return;
@@ -565,6 +606,44 @@ function hslToHex(h: number, s: number, l: number): string {
     b = hue2rgb(p, q, h - 1 / 3);
   }
   return rgbToHex(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
+}
+
+/**
+ * Adjusts a color's lightness for contrast against the page background.
+ * Light background (luminance >= 0.85) → darken; dark background (<= 0.15) → lighten.
+ */
+function applyContrastToColor(hexColor: string, pageBgLuminance: number): string {
+  const rgbPart = hexColor.slice(0, 7);
+  const alphaPart = hexColor.length === 9 ? hexColor.slice(7) : '';
+  const normalized = normalizeHexColor(rgbPart);
+  if (!normalized) {
+    return hexColor;
+  }
+  const hsl = hexToHsl(normalized);
+  let newL = hsl.l;
+  if (pageBgLuminance >= 0.85) {
+    newL = hsl.l * 0.65;
+  } else if (pageBgLuminance <= 0.15) {
+    newL = hsl.l + (50 - hsl.l) * 0.4;
+  }
+  const result = hslToHex(hsl.h, hsl.s, Math.min(100, Math.max(0, newL)));
+  return alphaPart ? `${result}${alphaPart}` : result;
+}
+
+/**
+ * Applies contrast adjustment to all slot colors based on page background.
+ */
+function applySlotContrast(
+  slotColors: Record<PaletteSlot, string>,
+  pageBackgroundColor: string
+): Record<PaletteSlot, string> {
+  const pageBgLuminance = getRelativeLuminance(pageBackgroundColor);
+  const result: Record<PaletteSlot, string> = {} as Record<PaletteSlot, string>;
+  (Object.keys(slotColors) as PaletteSlot[]).forEach((slot) => {
+    const color = slotColors[slot];
+    result[slot] = color ? applyContrastToColor(color, pageBgLuminance) : color;
+  });
+  return result;
 }
 
 function mixHexColors(colorA: string, colorB: string, factor: number): string {

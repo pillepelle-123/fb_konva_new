@@ -113,6 +113,7 @@ export function AdminBackgroundImageEditDialog({
   const [backgroundColorEnabled, setBackgroundColorEnabled] = useState(false)
   const [backgroundColorValue, setBackgroundColorValue] = useState('#ffffff')
   const [paletteSlots, setPaletteSlots] = useState<string | null>(null)
+  const [useBackgroundSlots, setUseBackgroundSlots] = useState<string>('auto')
   const [tagsInput, setTagsInput] = useState('')
   const [metadata, setMetadata] = useState<Record<string, unknown>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -137,8 +138,11 @@ export function AdminBackgroundImageEditDialog({
         typeof bgColor?.defaultValue === 'string' && bgColor.defaultValue ? bgColor.defaultValue : '#ffffff',
       )
       setPaletteSlots(image.paletteSlots ?? null)
+      const meta = image.metadata ?? {}
+      const ubs = (meta as { useBackgroundSlots?: boolean }).useBackgroundSlots
+      setUseBackgroundSlots(typeof ubs === 'boolean' ? (ubs ? 'true' : 'false') : 'auto')
       setTagsInput(image.tags?.join(', ') ?? '')
-      setMetadata(image.metadata ?? {})
+      setMetadata(meta)
     } else if (!open) {
       setIsSubmitting(false)
     }
@@ -187,7 +191,10 @@ export function AdminBackgroundImageEditDialog({
           .split(',')
           .map((tag) => tag.trim())
           .filter((tag) => tag.length > 0),
-        metadata,
+        metadata: {
+          ...Object.fromEntries(Object.entries(metadata).filter(([k]) => k !== 'useBackgroundSlots')),
+          ...(useBackgroundSlots !== 'auto' ? { useBackgroundSlots: useBackgroundSlots === 'true' } : {}),
+        },
       }
 
       await onSubmit(image.slug, input)
@@ -405,6 +412,22 @@ export function AdminBackgroundImageEditDialog({
                 />
               </div>
               <div className="flex flex-col gap-2">
+                <Label htmlFor="bg-edit-use-bg-slots">Background slots (Palette mode)</Label>
+                <Select value={useBackgroundSlots} onValueChange={setUseBackgroundSlots}>
+                  <SelectTrigger id="bg-edit-use-bg-slots">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Automatisch (Heuristik)</SelectItem>
+                    <SelectItem value="true">Ja (große Hintergrundflächen)</SelectItem>
+                    <SelectItem value="false">Nein (nur Vordergrund/Umrisse)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Steuert, ob background/surface der Palette für große Flächen genutzt werden. „Nein“ für überwiegend transparente Bilder mit kleinen deckenden Bereichen (z. B. Blumenumrisse).
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 md:col-span-2">
                 <Label htmlFor="bg-edit-tags">Tags (comma-separated)</Label>
                 <Input
                   id="bg-edit-tags"

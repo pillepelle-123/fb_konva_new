@@ -179,6 +179,7 @@ export function getBackgroundImageUrl(
               cacheKey: template.id,
               asDataUrl: true,
               edgeBackgroundColor: edgeBgColor,
+              pageBackgroundColor: getPageBackgroundColor(options),
             });
             if (result?.startsWith('data:')) return result;
           } catch (e) {
@@ -202,6 +203,8 @@ export function getBackgroundImageUrl(
           cacheKey: `${template.id}::auto`,
           asDataUrl: true,
           slotOpacities: template.paletteSlotOpacities,
+          useBackgroundSlots: template.useBackgroundSlots,
+          pageBackgroundColor: getPageBackgroundColor(options),
         });
       }
     }
@@ -319,6 +322,7 @@ export function resolveBackgroundImageUrl(
                     cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::mono`,
                     asDataUrl: true,
                     edgeBackgroundColor: edgeBgColor,
+                    pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
                   });
                   if (monoResult?.startsWith('data:')) result = monoResult;
                 } catch (e) {
@@ -328,6 +332,8 @@ export function resolveBackgroundImageUrl(
                     cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
                     asDataUrl: true,
                     slotOpacities: template?.paletteSlotOpacities,
+                    useBackgroundSlots: template?.useBackgroundSlots,
+                    pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
                   });
                 }
               }
@@ -337,6 +343,8 @@ export function resolveBackgroundImageUrl(
                   cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
                   asDataUrl: true,
                   slotOpacities: template?.paletteSlotOpacities,
+                  useBackgroundSlots: template?.useBackgroundSlots,
+                  pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
                 });
               }
             } else if (paletteSlots === 'standard' && containsPaletteTokens) {
@@ -354,6 +362,8 @@ export function resolveBackgroundImageUrl(
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto`,
                 asDataUrl: true,
                 slotOpacities: template?.paletteSlotOpacities,
+                useBackgroundSlots: template?.useBackgroundSlots,
+                pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
               });
             } else if (containsPaletteTokens) {
               appliedBranch = 'fallback-slots';
@@ -367,6 +377,7 @@ export function resolveBackgroundImageUrl(
                 cacheKey: `${background.backgroundImageTemplateId || 'bg'}::data::auto::fallback`,
                 asDataUrl: true,
                 slotOpacities: template?.paletteSlotOpacities,
+                useBackgroundSlots: template?.useBackgroundSlots,
               });
             }
             console.log('[PDF Debug] Palette applied via branch:', appliedBranch);

@@ -4,7 +4,7 @@ import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { useSettingsPanel } from '../../../../hooks/useSettingsPanel';
 import { Button } from '../../../ui/primitives/button';
 import { ChevronLeft, Image, Palette, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from 'lucide-react';
-import { RadioGroup } from '../../../ui/primitives/radio-group';
+import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites/tabs';
 import { ButtonGroup } from '../../../ui/composites/button-group';
 import { PATTERNS, createPatternDataUrl } from '../../../../utils/patterns';
 import type { PageBackground } from '../../../../context/editor-context';
@@ -15,8 +15,9 @@ import type { SandboxContextValue } from '../../../../context/sandbox-context';
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { Slider } from '../../../ui/primitives/slider';
 import { Label } from '../../../ui/primitives/label';
-import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
+import { getGlobalThemeDefaults, getThemePaletteId } from '../../../../utils/global-themes';
 import { applyBackgroundImageTemplate, getBackgroundImageWithUrl } from '../../../../utils/background-image-utils';
+import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Modal } from '../../../ui/overlays/modal';
 import { BackgroundImageSelector } from './background-image-selector';
 import { colorPalettes } from '../../../../data/templates/color-palettes';
@@ -138,15 +139,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   );
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  // Get default background color from current palette or existing background
+  // Get default background color from current palette or theme's default palette
   const getDefaultBackgroundColor = (): string => {
-    const activePaletteId = currentPage?.colorPaletteId || state.currentBook?.colorPaletteId;
-    if (activePaletteId) {
-      const palette = colorPalettes.find(p => p.id === activePaletteId);
+    const activeTemplateIds = getActiveTemplateIds(currentPage, state.currentBook);
+    const paletteOverrideId = currentPage?.colorPaletteId ?? null;
+    const effectivePaletteId = paletteOverrideId ?? (activeTemplateIds.themeId ? getThemePaletteId(activeTemplateIds.themeId) ?? null : null);
+    if (effectivePaletteId) {
+      const palette = colorPalettes.find(p => p.id == effectivePaletteId || String(p.id) === String(effectivePaletteId));
       if (palette) return palette.colors.background;
     }
-    if (currentPage?.background && typeof currentPage.background.value === 'string') {
-      return currentPage.background.value;
+    // Only use background.value when it's a color (hex or rgb), not a URL
+    const bgValue = currentPage?.background?.value;
+    if (typeof bgValue === 'string' && (bgValue.startsWith('#') || bgValue.startsWith('rgb'))) {
+      return bgValue;
     }
     return '#ffffff';
   };
@@ -632,16 +637,14 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const mainContent = (
     <>
       <div className="flex-1 overflow-y-auto space-y-4 p-2">
-        {/* Radio Group for Color/Pattern/Image */}
-        <RadioGroup
-          value={backgroundMode}
-          onChange={(value) => handleBackgroundModeChange(value as 'color' | 'pattern' | 'image')}
-          options={[
-            { value: 'color', label: 'Color' },
-            { value: 'pattern', label: 'Pattern' },
-            { value: 'image', label: 'Image' }
-          ]}
-        />
+        {/* Tabs for Color/Pattern/Image */}
+        <Tabs value={backgroundMode} onValueChange={(value) => handleBackgroundModeChange(value as 'color' | 'pattern' | 'image')}>
+          <TabsList variant="bootstrap" className="w-full h-5">
+            <TabsTrigger variant="bootstrap" value="color" className="h-5">Color</TabsTrigger>
+            <TabsTrigger variant="bootstrap" value="pattern" className="h-5">Pattern</TabsTrigger>
+            <TabsTrigger variant="bootstrap" value="image" className="h-5">Image</TabsTrigger>
+          </TabsList>
+        </Tabs>
         
         {/* Color Button */}
         {(backgroundMode === 'color' || backgroundMode === 'pattern') && (

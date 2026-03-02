@@ -156,6 +156,8 @@ export interface BackgroundImage {
   };
   paletteSlots?: 'standard' | 'auto';
   paletteSlotOpacities?: Partial<Record<PaletteSlot, number>>;
+  /** true = use background/surface for large areas, false = only primary/secondary/accent, undefined = heuristic */
+  useBackgroundSlots?: boolean;
   description?: string;
   tags?: string[];
 }
