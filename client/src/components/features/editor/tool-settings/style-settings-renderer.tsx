@@ -5,17 +5,17 @@ import { Slider } from '../../../ui/primitives/slider';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
-import { getThemeSettings, getThemeSettingValue, type ThemeSetting } from '../../../../utils/theme-settings';
+import { getStyleSettings, getStyleSettingValue, type StyleSetting } from '../../../../utils/style-settings';
 import type { CanvasElement } from '../../../../context/editor-context';
 
-interface ThemeSettingsRendererProps {
+interface StyleSettingsRendererProps {
   element: CanvasElement;
-  theme: string;
+  style: string;
   updateSetting: (key: string, value: any) => void;
 }
 
-export function ThemeSettingsRenderer({ element, theme, updateSetting }: ThemeSettingsRendererProps) {
-  const settings = getThemeSettings(theme);
+export function StyleSettingsRenderer({ element, style, updateSetting }: StyleSettingsRendererProps) {
+  const settings = getStyleSettings(style);
   
   if (settings.length === 0) {
     return null;
@@ -25,28 +25,27 @@ export function ThemeSettingsRenderer({ element, theme, updateSetting }: ThemeSe
     <>
       <Separator />
       {settings.map((setting) => {
-        // Check if this setting depends on another setting
         if (setting.dependsOn) {
-          const dependsOnValue = getThemeSettingValue(element, setting.dependsOn);
+          const dependsOnValue = getStyleSettingValue(element, setting.dependsOn);
           if (!dependsOnValue) {
             return null;
           }
         }
         
-        return <ThemeSettingControl key={setting.key} setting={setting} element={element} updateSetting={updateSetting} />;
+        return <StyleSettingControl key={setting.key} setting={setting} element={element} updateSetting={updateSetting} />;
       })}
     </>
   );
 }
 
-interface ThemeSettingControlProps {
-  setting: ThemeSetting;
+interface StyleSettingControlProps {
+  setting: StyleSetting;
   element: CanvasElement;
   updateSetting: (key: string, value: any) => void;
 }
 
-function ThemeSettingControl({ setting, element, updateSetting }: ThemeSettingControlProps) {
-  const currentValue = getThemeSettingValue(element, setting.key) ?? setting.defaultValue;
+function StyleSettingControl({ setting, element, updateSetting }: StyleSettingControlProps) {
+  const currentValue = getStyleSettingValue(element, setting.key) ?? setting.defaultValue;
   
   switch (setting.type) {
     case 'checkbox': {
@@ -67,15 +66,16 @@ function ThemeSettingControl({ setting, element, updateSetting }: ThemeSettingCo
       if (!setting.options) return null;
       
       return (
-        <div>
+        <div className="w-full min-w-0">
           <Label variant="xs">{setting.label}</Label>
-          <ButtonGroup className="mt-1">
+          <ButtonGroup className="mt-1 flex w-full flex-row">
             {setting.options.map((option) => (
               <Button
                 key={option.value}
                 variant={currentValue === option.value ? 'default' : 'outline'}
                 size="xs"
                 onClick={() => updateSetting(setting.key, option.value)}
+                className="flex-1"
               >
                 {option.label}
               </Button>
@@ -101,8 +101,6 @@ function ThemeSettingControl({ setting, element, updateSetting }: ThemeSettingCo
     }
     
     case 'color': {
-      // Color selector would need to be handled differently
-      // For now, return null - can be extended later
       return null;
     }
     
@@ -110,4 +108,3 @@ function ThemeSettingControl({ setting, element, updateSetting }: ThemeSettingCo
       return null;
   }
 }
-

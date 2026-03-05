@@ -136,8 +136,8 @@ export function StickerSettingsForm({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-3 p-2">
-      <div>
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-3 p-2">
+      <div className="w-full min-w-0">
         {isSandboxMode && sandbox ? (
           <SlotSelector
             label="Sticker Color"
@@ -204,8 +204,8 @@ export function StickerSettingsForm({
 
       {isStickerTextEnabled && (
         <>
-          <div>
-            <div className="flex gap-2">
+          <div className="w-full min-w-0">
+            <div className="flex gap-2 w-full">
               <Button
                 variant={computedTextStyle.fontBold ? 'default' : 'outline'}
                 size="xs"
@@ -251,7 +251,7 @@ export function StickerSettingsForm({
               </div>
             </div>
           </div>
-          <div>
+          <div className="w-full min-w-0">
             {isSandboxMode && sandbox ? (
               <SlotSelector
                 label="Font Color"

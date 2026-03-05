@@ -122,10 +122,10 @@ const apiService = {
   }
 };
 import { actualToCommon } from '../utils/font-size-converter';
-import { actualToCommonStrokeWidth, commonToActualStrokeWidth, THEME_STROKE_RANGES } from '../utils/stroke-width-converter';
+import { actualToCommonStrokeWidth, commonToActualStrokeWidth, STYLE_STROKE_RANGES } from '../utils/stroke-width-converter';
 import { actualToCommonRadius } from '../utils/corner-radius-converter';
 import { getRuledLinesOpacity } from '../utils/ruled-lines-utils';
-import { getBorderTheme } from '../utils/theme-utils';
+import { getBorderStyle } from '../utils/border-utils';
 import { convertTemplateToElements } from '../utils/template-to-elements';
 import { applyLayoutTemplateWithPreservation, validateTemplateCompatibility } from '../utils/content-preservation';
 import { calculatePageDimensions } from '../utils/template-utils';
@@ -252,10 +252,10 @@ function logThemeStructure(book: Book | null) {
         if (borderWidth) {
           themeElement.border = {
             enabled: element.border?.enabled !== false && borderWidth > 0,
-            borderWidth: actualToCommonStrokeWidth(borderWidth, element.border?.borderTheme || element.theme || 'default'),
+            borderWidth: actualToCommonStrokeWidth(borderWidth, element.border?.borderStyle || element.border?.style || 'default'),
             borderColor: element.border?.borderColor || element.borderColor,
             borderOpacity: element.border?.borderOpacity || element.borderOpacity,
-            borderTheme: getBorderTheme(element)
+            borderStyle: getBorderStyle(element)
           };
         }
         
@@ -289,7 +289,7 @@ function logThemeStructure(book: Book | null) {
             lineWidth: ruledLinesWidth,
             lineColor: ruledLinesColor,
             lineOpacity: getRuledLinesOpacity(element),
-            ruledLinesTheme: element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme
+            ruledLinesStyle: element.ruledLines?.ruledLinesStyle || element.ruledLines?.inheritStyle || element.ruledLinesStyle
           };
         }
       }
@@ -306,7 +306,7 @@ function logThemeStructure(book: Book | null) {
         if (element.stroke) themeElement.stroke = element.stroke;
         if (element.fill) themeElement.fill = element.fill;
         if (element.opacity) themeElement.opacity = element.opacity;
-        if (element.inheritTheme || element.theme) themeElement.inheritTheme = element.inheritTheme || element.theme;
+        if (element.inheritStyle) themeElement.inheritStyle = element.inheritStyle;
         if (element.borderEnabled !== undefined) themeElement.borderEnabled = element.borderEnabled;
         if (element.backgroundEnabled !== undefined) themeElement.backgroundEnabled = element.backgroundEnabled;
       }
@@ -316,7 +316,7 @@ function logThemeStructure(book: Book | null) {
         if (element.strokeWidth) themeElement.strokeWidth = actualToCommonStrokeWidth(element.strokeWidth, element.theme || 'default');
         if (element.stroke) themeElement.stroke = element.stroke;
         if (element.strokeOpacity) themeElement.strokeOpacity = element.strokeOpacity;
-        if (element.inheritTheme || element.theme) themeElement.inheritTheme = element.inheritTheme || element.theme;
+        if (element.inheritStyle) themeElement.inheritStyle = element.inheritStyle;
       }
       
       // Only update if we don't have this element type yet or if this element has more properties
@@ -434,11 +434,84 @@ export interface CanvasElement {
   rotation?: number;
   borderWidth?: number;
   borderColor?: string;
+  borderOpacity?: number;
   backgroundColor?: string;
   backgroundOpacity?: number;
   cornerRadius?: number;
   padding?: number;
+  /** @deprecated Use style for line/border style */
   theme?: 'rough' | 'default' | 'chalk' | 'watercolor' | 'crayon' | 'candy' | 'zigzag' | 'multi-strokes' | 'glow';
+  /** Line/border style (rough, glow, candy, zigzag, wobbly, dashed, default) */
+  style?: string;
+  /** Image frame style */
+  frameStyle?: string;
+  /** Image frame enabled */
+  frameEnabled?: boolean;
+  /** Shape/brush line style (inherit from design theme) */
+  inheritStyle?: string;
+  /** Border style for text elements */
+  borderStyle?: string;
+  /** Ruled lines style */
+  ruledLinesStyle?: string;
+  /** Nested border config */
+  border?: {
+    enabled?: boolean;
+    borderWidth?: number;
+    borderColor?: string;
+    borderOpacity?: number;
+    borderStyle?: string;
+    style?: string;
+  };
+  /** Nested ruled lines config */
+  ruledLines?: {
+    enabled?: boolean;
+    width?: number;
+    lineWidth?: number;
+    lineColor?: string;
+    lineOpacity?: number;
+    ruledLinesStyle?: string;
+    style?: string;
+    inheritStyle?: string;
+  };
+  ruledLinesWidth?: number;
+  ruledLinesColor?: string;
+  ruledLinesOpacity?: number;
+  /** Nested format config */
+  format?: {
+    textAlign?: string;
+    paragraphSpacing?: string;
+    padding?: number;
+  };
+  /** Text settings (free_text, qna2) */
+  textSettings?: {
+    fontSize?: number;
+    fontFamily?: string;
+    fontColor?: string;
+    fontBold?: boolean;
+    fontItalic?: boolean;
+    fontOpacity?: number;
+    align?: string;
+    paragraphSpacing?: string;
+    padding?: number;
+    border?: { enabled?: boolean; borderWidth?: number; borderColor?: string; borderOpacity?: number; borderStyle?: string };
+    background?: { enabled?: boolean; backgroundColor?: string; backgroundOpacity?: number };
+    ruledLines?: boolean | { enabled?: boolean };
+    ruledLinesWidth?: number;
+    ruledLinesColor?: string;
+    ruledLinesOpacity?: number;
+    ruledLinesStyle?: string;
+    borderEnabled?: boolean;
+    borderWidth?: number;
+    borderColor?: string;
+    borderOpacity?: number;
+    borderStyle?: string;
+    backgroundEnabled?: boolean;
+    backgroundColor?: string;
+    backgroundOpacity?: number;
+    cornerRadius?: number;
+  };
+  borderEnabled?: boolean;
+  backgroundEnabled?: boolean;
   candyRandomness?: number;
   candyIntensity?: number;
   // Backward compatibility
@@ -4028,7 +4101,6 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           'borderStyle',
           'borderWidth',
           'borderRadius',
-          'borderTheme',
           'borderOpacity',
           // Background properties (non-color)
           'backgroundEnabled',
@@ -4036,7 +4108,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // Ruled lines properties (non-color)
           'ruledLines',
           'ruledLinesWidth',
-          'ruledLinesTheme',
+          'ruledLinesStyle',
           'ruledLinesOpacity',
           'ruledLinesTarget',
           // Layout properties (QnA)
@@ -4469,7 +4541,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           ruledLines: selectedElement.ruledLines ? { ...selectedElement.ruledLines } : undefined,
           ruledLinesWidth: selectedElement.ruledLinesWidth,
           ruledLinesColor: selectedElement.ruledLinesColor,
-          ruledLinesTheme: selectedElement.ruledLinesTheme,
+          ruledLinesStyle: selectedElement.ruledLinesStyle,
           // QnA specific styles
           questionSettings: selectedElement.questionSettings ? { ...selectedElement.questionSettings } : undefined,
           answerSettings: selectedElement.answerSettings ? { ...selectedElement.answerSettings } : undefined,
@@ -4533,7 +4605,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               borderWidth: qnaSettings.borderWidth || targetElement.textSettings?.borderWidth,
               borderColor: qnaSettings.borderColor || targetElement.textSettings?.borderColor,
               borderOpacity: qnaSettings.borderOpacity ?? targetElement.textSettings?.borderOpacity,
-              borderTheme: qnaSettings.borderTheme || targetElement.textSettings?.borderTheme,
+              borderStyle: qnaSettings.borderStyle || targetElement.textSettings?.borderStyle,
               background: qnaSettings.background || targetElement.textSettings?.background,
               backgroundColor: qnaSettings.backgroundColor || targetElement.textSettings?.backgroundColor,
               backgroundOpacity: qnaSettings.backgroundOpacity ?? targetElement.textSettings?.backgroundOpacity,
@@ -4585,14 +4657,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           if (textSettings.borderWidth !== undefined) styleToApply.borderWidth = textSettings.borderWidth || targetElement.borderWidth;
           if (textSettings.borderColor !== undefined) styleToApply.borderColor = textSettings.borderColor || targetElement.borderColor;
           if (textSettings.borderOpacity !== undefined) styleToApply.borderOpacity = textSettings.borderOpacity ?? targetElement.borderOpacity;
-          if (textSettings.borderTheme !== undefined) styleToApply.borderTheme = textSettings.borderTheme || targetElement.borderTheme;
+          if (textSettings.borderStyle !== undefined) styleToApply.borderStyle = textSettings.borderStyle || targetElement.borderStyle;
           if (textSettings.backgroundColor !== undefined) styleToApply.backgroundColor = textSettings.backgroundColor || targetElement.backgroundColor;
           if (textSettings.backgroundOpacity !== undefined) styleToApply.backgroundOpacity = textSettings.backgroundOpacity ?? targetElement.backgroundOpacity;
           if (textSettings.ruledLines !== undefined) styleToApply.ruledLines = textSettings.ruledLines || targetElement.ruledLines;
           if (textSettings.ruledLinesWidth !== undefined) styleToApply.ruledLinesWidth = textSettings.ruledLinesWidth || targetElement.ruledLinesWidth;
           if (textSettings.ruledLinesColor !== undefined) styleToApply.ruledLinesColor = textSettings.ruledLinesColor || targetElement.ruledLinesColor;
           if (textSettings.ruledLinesOpacity !== undefined) styleToApply.ruledLinesOpacity = textSettings.ruledLinesOpacity ?? targetElement.ruledLinesOpacity;
-          if (textSettings.ruledLinesTheme !== undefined) styleToApply.ruledLinesTheme = textSettings.ruledLinesTheme || targetElement.ruledLinesTheme;
+          if (textSettings.ruledLinesStyle !== undefined) styleToApply.ruledLinesStyle = textSettings.ruledLinesStyle || targetElement.ruledLinesStyle;
           // Remove textSettings as it doesn't apply to qna
           delete styleToApply.textSettings;
         }

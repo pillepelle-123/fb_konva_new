@@ -31,11 +31,11 @@ import { ColorSelector } from './color-selector';
 // Utils
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getBorderWidth, getBorderTheme } from '../../../../utils/border-utils';
+import { getBorderWidth, getBorderStyle } from '../../../../utils/border-utils';
 import { getFontSize, getFontColor, getFontFamily } from '../../../../utils/font-utils';
 import { getBackgroundEnabled } from '../../../../utils/background-utils';
 import { getTextAlign, getParagraphSpacing, getPadding } from '../../../../utils/format-utils';
-import { getRuledLinesTheme } from '../../../../utils/theme-utils';
+import { getRuledLinesStyle } from '../../../../utils/style-utils';
 import { TOOL_ICONS } from './tool-settings-utils';
 import { getCurrentMenu, getParentMenu, getMenuTitle } from './settings-navigation';
 
@@ -1281,14 +1281,14 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           paragraphSpacing: getParagraphSpacing(element),
           ruledLines: element.ruledLines?.enabled !== undefined ? element.ruledLines.enabled : (element.ruledLines || false),
           ruledLinesWidth: element.ruledLinesWidth || 0.8,
-          ruledLinesTheme: getRuledLinesTheme(element),
+          ruledLinesStyle: getRuledLinesStyle(element),
           background: {
             enabled: getBackgroundEnabled(element)
           },
           border: {
             enabled: element.border?.enabled !== undefined ? element.border.enabled : getBorderWidth(element) > 0,
             width: getBorderWidth(element),
-            theme: getBorderTheme(element)
+            style: getBorderStyle(element)
           },
           cornerRadius: element.cornerRadius || 0,
           padding: getPadding(element)

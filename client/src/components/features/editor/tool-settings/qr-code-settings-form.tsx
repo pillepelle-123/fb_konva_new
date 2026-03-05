@@ -80,7 +80,7 @@ export function QrCodeSettingsForm({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-2 p-2">
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
         <div className="space-y-1">
           <Label variant="xs">URL</Label>
           <Input
@@ -131,7 +131,7 @@ export function QrCodeSettingsForm({
 
         <Separator />
 
-        <div>
+        <div className="w-full min-w-0">
           <Button
             variant="outline"
             size="xs"
@@ -144,7 +144,7 @@ export function QrCodeSettingsForm({
           </Button>
         </div>
 
-        <div>
+        <div className="w-full min-w-0">
           <Button
             variant="outline"
             size="xs"

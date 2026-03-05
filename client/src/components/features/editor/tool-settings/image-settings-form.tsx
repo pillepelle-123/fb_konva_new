@@ -6,9 +6,9 @@ import { Label } from '../../../ui/primitives/label';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { ThemeSelect } from '../../../../utils/theme-options';
+import { StyleSelect } from '../../../../utils/style-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
-import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
 import { SlotSelector } from './slot-selector';
 import type { SandboxContextValue } from '../../../../context/sandbox-context';
@@ -48,7 +48,7 @@ export function ImageSettingsForm({
     ? element.frameEnabled 
     : (element.strokeWidth || 0) > 0;
   
-  const frameTheme = element.frameTheme || element.theme || 'default';
+  const frameStyle = element.frameStyle || element.theme || 'default';
   const imageOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
 
   const handleRemoveImage = () => {
@@ -71,7 +71,7 @@ export function ImageSettingsForm({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-2 p-2">
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
       {/* Image Opacity */}
       <Slider
         label="Image Opacity"
@@ -144,17 +144,15 @@ export function ImageSettingsForm({
           
           {frameEnabled && (
             <IndentedSection>
-              {/* Frame Theme */}
-              <div>
-                <Label variant="xs">Frame Theme</Label>
-                <ThemeSelect 
-                  value={frameTheme}
+              {/* Frame Style */}
+              <div className="w-full min-w-0">
+                <Label variant="xs">Frame Style</Label>
+                <StyleSelect 
+                  value={frameStyle}
                   onChange={(value) => {
-                    // When frame theme changes, set strokeWidth to minimum value of new theme
                     const minWidth = getMinActualStrokeWidth(value);
-                    updateSetting('frameTheme', value);
+                    updateSetting('frameStyle', value);
                     updateSetting('theme', value);
-                    // Only update strokeWidth if frame is enabled (strokeWidth > 0)
                     if ((element.strokeWidth || 0) > 0) {
                       updateSetting('strokeWidth', minWidth);
                     }
@@ -162,18 +160,18 @@ export function ImageSettingsForm({
                 />
               </div>
               
-              {/* Theme-specific settings for Frame */}
-              <ThemeSettingsRenderer
+              {/* Style-specific settings for Frame */}
+              <StyleSettingsRenderer
                 element={element}
-                theme={frameTheme}
+                style={frameStyle}
                 updateSetting={updateSetting}
               />
               
               {/* Frame Width */}
               <Slider
                 label="Frame Width"
-                value={actualToCommonStrokeWidth(element.strokeWidth || 2, frameTheme)}
-                onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, frameTheme))}
+                value={actualToCommonStrokeWidth(element.strokeWidth || 2, frameStyle)}
+                onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, frameStyle))}
                 min={1}
                 max={getMaxStrokeWidth()}
               />
@@ -192,7 +190,7 @@ export function ImageSettingsForm({
                   />
                 </div>
               ) : setShowColorSelector ? (
-                <div>
+                <div className="w-full min-w-0">
                   <Button
                     variant="outline"
                     size="xs"

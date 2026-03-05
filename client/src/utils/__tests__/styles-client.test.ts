@@ -1,34 +1,35 @@
 /**
- * Unit-Tests für Theme Utilities
+ * Unit-Tests für Styles Client (getStyleRenderer, styles, StyleRenderer)
  */
 
 import { describe, it, expect } from 'vitest';
-import { getThemeRenderer, themes } from '../themes-client';
-import type { Theme, ThemeRenderer } from '../themes-client';
+import { getStyleRenderer, styles } from '../styles-client';
+import type { Style, StyleRenderer } from '../styles-client';
 import type { CanvasElement } from '../../context/editor-context';
 
-describe('Theme Utilities', () => {
-  const createMockElement = (overrides: Partial<CanvasElement> = {}): CanvasElement => ({
-    id: 'test-element-1',
-    type: 'rect',
-    x: 0,
-    y: 0,
-    width: 100,
-    height: 50,
-    stroke: '#1f2937',
-    strokeWidth: 2,
-    fill: '#ffffff',
-    ...overrides
-  });
+describe('Styles Client', () => {
+  const createMockElement = (overrides: Partial<CanvasElement> = {}): CanvasElement =>
+    ({
+      id: 'test-element-1',
+      type: 'rect',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50,
+      stroke: '#1f2937',
+      strokeWidth: 2,
+      fill: '#ffffff',
+      ...overrides
+    }) as CanvasElement;
 
-  describe('themes', () => {
-    it('should have all required themes', () => {
-      expect(themes.rough).toBeDefined();
-      expect(themes.default).toBeDefined();
+  describe('styles', () => {
+    it('should have all required styles', () => {
+      expect(styles.rough).toBeDefined();
+      expect(styles.default).toBeDefined();
     });
 
-    it('should have ThemeRenderer interface for all themes', () => {
-      Object.values(themes).forEach((renderer: ThemeRenderer) => {
+    it('should have StyleRenderer interface for all styles', () => {
+      Object.values(styles).forEach((renderer: StyleRenderer) => {
         expect(renderer.generatePath).toBeDefined();
         expect(renderer.getStrokeProps).toBeDefined();
         expect(typeof renderer.generatePath).toBe('function');
@@ -37,36 +38,36 @@ describe('Theme Utilities', () => {
     });
   });
 
-  describe('getThemeRenderer', () => {
-    it('should return rough theme renderer for rough theme', () => {
-      const renderer = getThemeRenderer('rough');
+  describe('getStyleRenderer', () => {
+    it('should return rough style renderer for rough style', () => {
+      const renderer = getStyleRenderer('rough');
       expect(renderer).toBeDefined();
-      expect(renderer).toBe(themes.rough);
+      expect(renderer).toBe(styles.rough);
     });
 
-    it('should return default theme renderer for default theme', () => {
-      const renderer = getThemeRenderer('default');
+    it('should return default style renderer for default style', () => {
+      const renderer = getStyleRenderer('default');
       expect(renderer).toBeDefined();
-      expect(renderer).toBe(themes.default);
+      expect(renderer).toBe(styles.default);
     });
 
-    it('should return rough theme as fallback for unknown theme', () => {
-      const renderer = getThemeRenderer('unknown' as Theme);
+    it('should return default style as fallback for unknown style', () => {
+      const renderer = getStyleRenderer('unknown' as Style);
       expect(renderer).toBeDefined();
-      expect(renderer).toBe(themes.rough);
+      expect(renderer).toBe(styles.default);
     });
 
-    it('should return rough theme as default when no theme specified', () => {
-      const renderer = getThemeRenderer();
+    it('should return default style when no style specified', () => {
+      const renderer = getStyleRenderer();
       expect(renderer).toBeDefined();
-      expect(renderer).toBe(themes.rough);
+      expect(renderer).toBe(styles.default);
     });
   });
 
-  describe('Theme Renderer - generatePath', () => {
-    it('should generate path for rect element with default theme', () => {
+  describe('Style Renderer - generatePath', () => {
+    it('should generate path for rect element with default style', () => {
       const element = createMockElement({ type: 'rect', width: 100, height: 50 });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const path = renderer.generatePath(element);
       expect(path).toBeDefined();
       expect(typeof path).toBe('string');
@@ -75,7 +76,7 @@ describe('Theme Utilities', () => {
 
     it('should generate path for circle element', () => {
       const element = createMockElement({ type: 'circle', width: 100, height: 100 });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const path = renderer.generatePath(element);
       expect(path).toBeDefined();
       expect(typeof path).toBe('string');
@@ -89,7 +90,7 @@ describe('Theme Utilities', () => {
         height: 50,
         cornerRadius: 10
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const path = renderer.generatePath(element);
       expect(path).toBeDefined();
       expect(path).toContain('Q'); // Should contain quadratic curves for rounded corners
@@ -101,54 +102,52 @@ describe('Theme Utilities', () => {
         width: 100,
         height: 50
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const path = renderer.generatePath(element);
       expect(path).toBeDefined();
       expect(path).toMatch(/^M \d+ \d+ L \d+ \d+$/);
     });
 
-    it('should handle zoom parameter in rough theme', () => {
+    it('should handle zoom parameter in rough style', () => {
       const element = createMockElement({ type: 'rect' });
-      const renderer = getThemeRenderer('rough');
+      const renderer = getStyleRenderer('rough');
       const path = renderer.generatePath(element, 2);
       expect(path).toBeDefined();
       expect(typeof path).toBe('string');
     });
 
-    it('should generate different paths for different themes', () => {
+    it('should generate different paths for different styles', () => {
       const element = createMockElement({ type: 'rect' });
-      const defaultPath = getThemeRenderer('default').generatePath(element);
-      const roughPath = getThemeRenderer('rough').generatePath(element);
-      
-      // Paths should be different (rough uses SVG paths, default uses simple paths)
-      // Note: This might fail if both generate similar paths, but they should generally differ
+      const defaultPath = getStyleRenderer('default').generatePath(element);
+      const roughPath = getStyleRenderer('rough').generatePath(element);
+
       expect(defaultPath).toBeDefined();
       expect(roughPath).toBeDefined();
     });
   });
 
-  describe('Theme Renderer - getStrokeProps', () => {
-    it('should return stroke properties for default theme', () => {
+  describe('Style Renderer - getStrokeProps', () => {
+    it('should return stroke properties for default style', () => {
       const element = createMockElement({
         stroke: '#FF0000',
         strokeWidth: 3
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props).toBeDefined();
       expect(props.stroke).toBe('#FF0000');
       expect(props.strokeWidth).toBeGreaterThanOrEqual(0);
     });
 
-    it('should return stroke properties for rough theme', () => {
+    it('should return stroke properties for rough style', () => {
       const element = createMockElement({
         stroke: '#00FF00',
         strokeWidth: 2
       });
-      const renderer = getThemeRenderer('rough');
+      const renderer = getStyleRenderer('rough');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props).toBeDefined();
       expect(props.stroke).toBe('#00FF00');
       expect(props.strokeWidth).toBeGreaterThanOrEqual(0);
@@ -159,9 +158,9 @@ describe('Theme Utilities', () => {
         fill: 'transparent',
         type: 'rect'
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props.fill).toBeUndefined(); // Transparent fill should not be set
     });
 
@@ -170,9 +169,9 @@ describe('Theme Utilities', () => {
         fill: '#FFFFFF',
         type: 'rect'
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props.fill).toBe('#FFFFFF');
     });
 
@@ -181,9 +180,9 @@ describe('Theme Utilities', () => {
         fill: '#FFFFFF',
         type: 'line'
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props.fill).toBeUndefined(); // Lines should not have fill
     });
 
@@ -192,52 +191,58 @@ describe('Theme Utilities', () => {
         stroke: undefined,
         strokeWidth: 2
       });
-      const renderer = getThemeRenderer('default');
+      const renderer = getStyleRenderer('default');
       const props = renderer.getStrokeProps(element);
-      
+
       expect(props.stroke).toBeDefined();
       expect(typeof props.stroke).toBe('string');
     });
 
     it('should handle zoom parameter', () => {
       const element = createMockElement({ strokeWidth: 2 });
-      const renderer = getThemeRenderer('rough');
+      const renderer = getStyleRenderer('rough');
       const propsNormal = renderer.getStrokeProps(element, 1);
       const propsZoomed = renderer.getStrokeProps(element, 2);
-      
+
       expect(propsNormal).toBeDefined();
       expect(propsZoomed).toBeDefined();
-      // Zoom might affect strokeWidth in some themes
     });
   });
 
-  describe('Theme Integration', () => {
-    it('should work with element theme property', () => {
+  describe('Style Integration', () => {
+    it('should work with element inheritStyle property', () => {
       const element = createMockElement({
-        theme: 'rough'
+        inheritStyle: 'rough'
       });
-      const renderer = getThemeRenderer(element.theme || 'default');
+      const renderer = getStyleRenderer((element as any).inheritStyle || 'default');
       expect(renderer).toBeDefined();
-      
+
       const path = renderer.generatePath(element);
       expect(path).toBeDefined();
     });
 
-    it('should handle all available theme types', () => {
-      const availableThemes: Theme[] = ['rough', 'default', 'glow', 'candy', 'zigzag', 'wobbly'];
-      
-      availableThemes.forEach(theme => {
-        const renderer = getThemeRenderer(theme);
+    it('should handle all available style types', () => {
+      const availableStyles: Style[] = [
+        'rough',
+        'default',
+        'glow',
+        'candy',
+        'zigzag',
+        'wobbly',
+        'dashed'
+      ];
+
+      availableStyles.forEach((style) => {
+        const renderer = getStyleRenderer(style);
         expect(renderer).toBeDefined();
-        
-        const element = createMockElement({ theme });
+
+        const element = createMockElement({ inheritStyle: style });
         const path = renderer.generatePath(element);
         expect(path).toBeDefined();
-        
+
         const props = renderer.getStrokeProps(element);
         expect(props).toBeDefined();
       });
     });
   });
 });
-

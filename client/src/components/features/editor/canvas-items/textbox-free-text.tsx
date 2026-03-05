@@ -3,14 +3,14 @@ import { Shape, Rect, Text as KonvaText, Group } from 'react-konva';
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
+import { renderStyledBorder, createRectPath, createLinePath } from '../../../../utils/styled-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import type { RichTextStyle, TextRun } from '../../../../../../shared/types/text-layout';
 import type { LinePosition, LayoutResult } from '../../../../../../shared/types/layout';
 import { buildFont, getLineHeight, measureText, calculateTextX, wrapText } from '../../../../../../shared/utils/text-layout';
 import { createInlineTextEditorForFreeText } from './inline-text-editor';
-import type { Theme } from '../../../../utils/themes-client';
+import type { Style } from '../../../../utils/styles-client';
 
 const RULED_LINE_BASELINE_OFFSET = 12;
 
@@ -148,7 +148,7 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
 
   const ruledLines = element.textSettings?.ruledLines ?? freeTextDefaults.textSettings?.ruledLines ?? false;
   const ruledLinesWidth = element.textSettings?.ruledLinesWidth ?? freeTextDefaults.textSettings?.ruledLinesWidth ?? 0.8;
-  const ruledLinesTheme = element.textSettings?.ruledLinesTheme || freeTextDefaults.textSettings?.ruledLinesTheme || 'rough';
+  const ruledLinesStyle = element.textSettings?.ruledLinesStyle || freeTextDefaults.textSettings?.ruledLinesStyle || 'rough';
   const ruledLinesColor = element.textSettings?.ruledLinesColor || freeTextDefaults.textSettings?.ruledLinesColor || '#1f2937';
   const ruledLinesOpacity = element.textSettings?.ruledLinesOpacity ?? freeTextDefaults.textSettings?.ruledLinesOpacity ?? 1;
 
@@ -156,19 +156,19 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
     if (!ruledLines || !layout.linePositions?.length) return [];
     const elements: React.ReactElement[] = [];
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-    const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
-    const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
+    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+    const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
+    const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;
 
     layout.linePositions.forEach((linePos: LinePosition) => {
       if (linePos.y >= 0 && linePos.y <= elementHeight) {
-        const lineElement = renderThemedBorder({
+        const lineElement = renderStyledBorder({
           width: ruledLinesWidth,
           color: ruledLinesColor,
           opacity: ruledLinesOpacity,
           path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
-          theme,
-          themeSettings: { seed: seed + linePos.y, roughness: theme === 'rough' ? 2 : 1 },
+          style: lineStyle,
+          styleSettings: { seed: seed + linePos.y, roughness: lineStyle === 'rough' ? 2 : 1 },
           strokeScaleEnabled: true,
           listening: false,
           key: `ruled-line-${linePos.y}`
@@ -177,7 +177,7 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
       }
     });
     return elements;
-  }, [ruledLines, layout.linePositions, padding, elementWidth, elementHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id]);
+  }, [ruledLines, layout.linePositions, padding, elementWidth, elementHeight, ruledLinesWidth, ruledLinesStyle, ruledLinesColor, ruledLinesOpacity, element.id]);
 
   const showBackground = element.textSettings?.backgroundEnabled && element.textSettings?.backgroundColor;
   const showBorder = element.textSettings?.borderEnabled && element.textSettings?.borderColor && element.textSettings?.borderWidth !== undefined;
@@ -452,16 +452,16 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
         const borderWidth = element.textSettings?.borderWidth ?? freeTextDefaults.textSettings?.borderWidth ?? 1;
         const borderOpacity = element.textSettings?.borderOpacity ?? freeTextDefaults.textSettings?.borderOpacity ?? 1;
         const cornerRadius = element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
-        const theme = (element.textSettings?.borderTheme || freeTextDefaults.textSettings?.borderTheme || 'default') as Theme;
-        const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-        const borderElement = renderThemedBorder({
+        const borderStyle = (element.textSettings?.borderStyle || freeTextDefaults.textSettings?.borderStyle || 'default') as Style;
+        const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+        const borderElement = renderStyledBorder({
           width: borderWidth,
           color: borderColor,
           opacity: borderOpacity,
           cornerRadius,
           path: createRectPath(0, 0, elementWidth, elementHeight),
-          theme,
-          themeSettings: { roughness: theme === 'rough' ? 8 : undefined, seed },
+          style: borderStyle,
+          styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
           strokeScaleEnabled: true,
           listening: false
         });

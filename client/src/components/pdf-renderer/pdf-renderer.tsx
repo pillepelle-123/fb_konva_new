@@ -9,8 +9,8 @@ import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
 import { getGlobalThemeDefaults } from '../../utils/global-themes';
-import { getThemeRenderer, generateLinePath, type Theme } from '../../utils/themes-client.ts';
-import { renderThemedBorderKonvaWithFallback, createLinePath, createRectPath, createCirclePath } from '../../utils/themed-border.ts';
+import { getStyleRenderer, generateLinePath, type Style } from '../../utils/styles-client.ts';
+import { renderStyledBorderKonvaWithFallback, createLinePath, createRectPath, createCirclePath } from '../../utils/styled-border.ts';
 import { getCrop } from '../features/editor/canvas-items/image.tsx';
 import type { PageBackground } from '../../context/editor-context.tsx';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
@@ -1390,7 +1390,7 @@ export function PDFRenderer({
             console.log('[DEBUG PDFRenderer] Starting ruled lines rendering (first path):');
             console.log('  elementId:', element.id);
             console.log('  layoutVariant:', layoutVariant);
-            const aTheme = element.ruledLinesTheme || 'rough';
+            const aStyle = element.ruledLinesStyle || 'rough';
             const aColor = element.ruledLinesColor || '#1f2937';
             const aWidth = element.ruledLinesWidth || 0.8;
             const aOpacity = getStandardizedOpacity(element, 'ruledLines', 0.6);
@@ -1510,8 +1510,8 @@ export function PDFRenderer({
                 if (linePos.y >= relativeAnswerAreaY && linePos.y <= relativeAnswerAreaY + answerArea.height) {
                   // Generate ruled line using shared theme engine
                 const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
-                const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+                const lineStyle = (supportedStyles.includes(aStyle as Style) ? aStyle : 'default') as Style;
                 
                 // Create a temporary element for theme-specific settings
                 const tempElement: CanvasElement = {
@@ -1524,19 +1524,19 @@ export function PDFRenderer({
                   height: 0,
                   strokeWidth: aWidth,
                   stroke: aColor,
-                  theme: theme as CanvasElement['theme']
+                  style: lineStyle as Style
                 };
                 
                 // Use centralized border rendering with fallback
-                const lineNode = renderThemedBorderKonvaWithFallback({
+                const lineNode = renderStyledBorderKonvaWithFallback({
                   width: aWidth,
                   color: aColor,
                   opacity: aOpacity,
                   path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
-                  theme: theme,
-                  themeSettings: {
+                  style: lineStyle,
+                  styleSettings: {
                     seed: seed + lineY,
-                    roughness: theme === 'rough' ? 2 : 1,
+                    roughness: lineStyle === 'rough' ? 2 : 1,
                     // Pass through theme-specific settings from element
                     candyRandomness: tempElement.candyRandomness,
                     candyIntensity: tempElement.candyIntensity,
@@ -1554,15 +1554,15 @@ export function PDFRenderer({
                     y2: lineY,
                     strokeWidth: aWidth,
                     stroke: aColor,
-                    theme: theme,
+                    style: lineStyle,
                     seed: seed + lineY,
-                    roughness: theme === 'rough' ? 2 : 1,
+                    roughness: lineStyle === 'rough' ? 2 : 1,
                     element: tempElement
                   });
                   
                   if (pathData) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    const styleRenderer = getStyleRenderer(lineStyle);
+                    const strokeProps = styleRenderer.getStrokeProps(tempElement);
                     
                     const fallbackNode = new Konva.Path({
                       data: pathData,
@@ -1602,8 +1602,8 @@ export function PDFRenderer({
                   lineNode.visible(true);
                   // Ensure shadow properties are set (for Glow theme)
                   if (lineNode instanceof Konva.Path) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                    const styleRenderer = getStyleRenderer(lineStyle);
+                    const strokeProps = styleRenderer.getStrokeProps(tempElement);
                     if (strokeProps.shadowColor) {
                       lineNode.shadowColor(strokeProps.shadowColor);
                       lineNode.shadowBlur(strokeProps.shadowBlur || 0);
@@ -1641,8 +1641,8 @@ export function PDFRenderer({
                   
                   // Generate ruled line using shared theme engine
                       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
-                      const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+                      const lineStyle = (supportedStyles.includes(aStyle as Style) ? aStyle : 'default') as Style;
                       
                   // Create a temporary element for theme-specific settings
                       const tempElement: CanvasElement = {
@@ -1655,19 +1655,19 @@ export function PDFRenderer({
                         height: 0,
                         strokeWidth: aWidth,
                         stroke: aColor,
-                        theme: theme as CanvasElement['theme']
+                        style: lineStyle as Style
                       };
                       
                       // Use centralized border rendering with fallback
-                      const lineNode = renderThemedBorderKonvaWithFallback({
+                      const lineNode = renderStyledBorderKonvaWithFallback({
                         width: aWidth,
                         color: aColor,
                         opacity: aOpacity,
                     path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
-                        theme: theme,
-                        themeSettings: {
+                        style: lineStyle,
+                        styleSettings: {
                       seed: seed + lineY,
-                          roughness: theme === 'rough' ? 2 : 1,
+                          roughness: lineStyle === 'rough' ? 2 : 1,
                           candyRandomness: tempElement.candyRandomness,
                           candyIntensity: tempElement.candyIntensity,
                           candySpacingMultiplier: tempElement.candySpacingMultiplier,
@@ -1684,15 +1684,15 @@ export function PDFRenderer({
                       y2: lineY,
                           strokeWidth: aWidth,
                           stroke: aColor,
-                          theme: theme,
+                          style: lineStyle,
                       seed: seed + lineY,
-                          roughness: theme === 'rough' ? 2 : 1,
+                          roughness: lineStyle === 'rough' ? 2 : 1,
                           element: tempElement
                         });
                         
                         if (pathData) {
-                          const themeRenderer = getThemeRenderer(theme);
-                          const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                          const styleRenderer = getStyleRenderer(lineStyle);
+                          const strokeProps = styleRenderer.getStrokeProps(tempElement);
                           
                       const fallbackNode = new Konva.Path({
                             data: pathData,
@@ -1731,8 +1731,8 @@ export function PDFRenderer({
                         // rotation removed - inherited from Group
                         lineNode.visible(true);
                         if (lineNode instanceof Konva.Path) {
-                          const themeRenderer = getThemeRenderer(theme);
-                          const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                          const styleRenderer = getStyleRenderer(lineStyle);
+                          const strokeProps = styleRenderer.getStrokeProps(tempElement);
                           if (strokeProps.shadowColor) {
                             lineNode.shadowColor(strokeProps.shadowColor);
                             lineNode.shadowBlur(strokeProps.shadowBlur || 0);
@@ -1789,8 +1789,8 @@ export function PDFRenderer({
                   
                   // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
-                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+                  const lineStyle = (supportedStyles.includes(aStyle as Style) ? aStyle : 'default') as Style;
                   
                   const tempElement: CanvasElement = {
                     ...element,
@@ -1802,19 +1802,19 @@ export function PDFRenderer({
                     height: 0,
                     strokeWidth: aWidth,
                     stroke: aColor,
-                    theme: theme as CanvasElement['theme']
+                    style: lineStyle as Style
                   };
                   
                   // Use centralized border rendering with fallback
-                  const lineNode = renderThemedBorderKonvaWithFallback({
+                  const lineNode = renderStyledBorderKonvaWithFallback({
                     width: aWidth,
                     color: aColor,
                     opacity: aOpacity,
                     path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
-                    theme: theme,
-                    themeSettings: {
+                    style: lineStyle,
+                    styleSettings: {
                       seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
+                      roughness: lineStyle === 'rough' ? 2 : 1,
                       candyRandomness: tempElement.candyRandomness,
                       candyIntensity: tempElement.candyIntensity,
                       candySpacingMultiplier: tempElement.candySpacingMultiplier,
@@ -1831,15 +1831,15 @@ export function PDFRenderer({
                       y2: lineY,
                       strokeWidth: aWidth,
                       stroke: aColor,
-                      theme: theme,
+                      style: lineStyle,
                       seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
+                      roughness: lineStyle === 'rough' ? 2 : 1,
                       element: tempElement
                     });
                     
                     if (pathData) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      const styleRenderer = getStyleRenderer(lineStyle);
+                      const strokeProps = styleRenderer.getStrokeProps(tempElement);
                       
                       return new Konva.Path({
                         data: pathData,
@@ -1877,8 +1877,8 @@ export function PDFRenderer({
                     // rotation removed - inherited from Group
                     lineNode.visible(true);
                     if (lineNode instanceof Konva.Path) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      const styleRenderer = getStyleRenderer(lineStyle);
+                      const strokeProps = styleRenderer.getStrokeProps(tempElement);
                       if (strokeProps.shadowColor) {
                         lineNode.shadowColor(strokeProps.shadowColor);
                         lineNode.shadowBlur(strokeProps.shadowBlur || 0);
@@ -1925,8 +1925,8 @@ export function PDFRenderer({
                     
                     // Generate ruled line using shared theme engine
                   const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-                  const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
-                  const theme = (supportedThemes.includes(aTheme as Theme) ? aTheme : 'default') as Theme;
+                  const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+                  const lineStyle = (supportedStyles.includes(aStyle as Style) ? aStyle : 'default') as Style;
                   
                     // Create a temporary element for theme-specific settings
                   const tempElement: CanvasElement = {
@@ -1939,19 +1939,19 @@ export function PDFRenderer({
                     height: 0,
                     strokeWidth: aWidth,
                     stroke: aColor,
-                    theme: theme as CanvasElement['theme']
+                    style: lineStyle as Style
                   };
                   
                   // Use centralized border rendering with fallback
-                  const lineNode = renderThemedBorderKonvaWithFallback({
+                  const lineNode = renderStyledBorderKonvaWithFallback({
                     width: aWidth,
                     color: aColor,
                     opacity: aOpacity,
                       path: createLinePath(relativeStartX, lineY, relativeEndX, lineY),
-                    theme: theme,
-                    themeSettings: {
+                    style: lineStyle,
+                    styleSettings: {
                         seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
+                      roughness: lineStyle === 'rough' ? 2 : 1,
                       candyRandomness: tempElement.candyRandomness,
                       candyIntensity: tempElement.candyIntensity,
                       candySpacingMultiplier: tempElement.candySpacingMultiplier,
@@ -1968,15 +1968,15 @@ export function PDFRenderer({
                         y2: lineY,
                       strokeWidth: aWidth,
                       stroke: aColor,
-                      theme: theme,
+                      style: lineStyle,
                         seed: seed + lineY,
-                      roughness: theme === 'rough' ? 2 : 1,
+                      roughness: lineStyle === 'rough' ? 2 : 1,
                       element: tempElement
                     });
                     
                     if (pathData) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      const styleRenderer = getStyleRenderer(lineStyle);
+                      const strokeProps = styleRenderer.getStrokeProps(tempElement);
                       
                       return new Konva.Path({
                         data: pathData,
@@ -2014,8 +2014,8 @@ export function PDFRenderer({
                     // rotation removed - inherited from Group
                     lineNode.visible(true);
                     if (lineNode instanceof Konva.Path) {
-                      const themeRenderer = getThemeRenderer(theme);
-                      const strokeProps = themeRenderer.getStrokeProps(tempElement);
+                      const styleRenderer = getStyleRenderer(lineStyle);
+                      const strokeProps = styleRenderer.getStrokeProps(tempElement);
                       if (strokeProps.shadowColor) {
                         lineNode.shadowColor(strokeProps.shadowColor);
                         lineNode.shadowBlur(strokeProps.shadowBlur || 0);
@@ -2081,17 +2081,17 @@ export function PDFRenderer({
           }
           
           // Render border if enabled (after background, ruled lines, and text - matching client-side order)
-          const borderTheme = element.borderTheme || qnaDefaults.borderTheme || 'default';
+          const borderStyle = element.borderStyle || qnaDefaults.borderStyle || 'default';
           const borderColor = element.borderColor || qnaDefaults.borderColor || '#1f2937';
           const borderWidth = element.borderWidth || qnaDefaults.borderWidth || 0;
           const borderOpacity = getStandardizedOpacity(element, 'border', 1);
           const cornerRadius = element.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
           
           if (element.borderEnabled && borderWidth > 0) {
-            const themeRenderer = getThemeRenderer(borderTheme);
-            const useTheme = themeRenderer && borderTheme !== 'default';
+            const styleRenderer = getStyleRenderer(borderStyle);
+            const useStyle = styleRenderer && borderStyle !== 'default';
             
-            if (useTheme) {
+            if (useStyle) {
               // Use themed border rendering
               const borderElement = {
                 type: 'rect' as any,
@@ -2104,15 +2104,15 @@ export function PDFRenderer({
                 stroke: borderColor,
               strokeWidth: borderWidth,
                 fill: 'transparent',
-                roughness: borderTheme === 'rough' ? 8 : undefined,
+                roughness: borderStyle === 'rough' ? 8 : undefined,
               candyRandomness: (element as any).candyRandomness,
               candyIntensity: (element as any).candyIntensity,
               candySpacingMultiplier: (element as any).candySpacingMultiplier,
               candyHoled: (element as any).candyHoled
               } as CanvasElement;
               
-              const borderPathData = themeRenderer.generatePath(borderElement);
-              const borderStrokeProps = themeRenderer.getStrokeProps(borderElement);
+              const borderPathData = styleRenderer.generatePath(borderElement);
+              const borderStrokeProps = styleRenderer.getStrokeProps(borderElement);
               
               if (borderPathData) {
                 let pathStroke = borderStrokeProps.stroke || borderColor;
@@ -2128,14 +2128,14 @@ export function PDFRenderer({
                 }
                 
                 const borderPathConfig = createRectPath(0, 0, elementWidth, dynamicHeight);
-            const borderPath = renderThemedBorderKonvaWithFallback({
+            const borderPath = renderStyledBorderKonvaWithFallback({
               width: borderWidth,
                   color: pathStroke,
                   opacity: borderOpacity < 1 ? 1 : elementOpacity,
                   path: borderPathConfig,
-              theme: borderTheme,
-              themeSettings: {
-                    roughness: borderTheme === 'rough' ? 8 : undefined,
+              style: borderStyle,
+              styleSettings: {
+                    roughness: borderStyle === 'rough' ? 8 : undefined,
                 candyRandomness: (borderElement as any).candyRandomness,
                 candyIntensity: (borderElement as any).candyIntensity,
                 candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
@@ -2320,7 +2320,7 @@ export function PDFRenderer({
             ? (ruledLinesConfig as { enabled?: boolean }).enabled ?? false
             : !!ruledLinesConfig;
           const ruledLinesWidth = element.ruledLinesWidth ?? element.textSettings?.ruledLinesWidth ?? qna2Defaults.textSettings?.ruledLinesWidth ?? 0.8;
-          const ruledLinesTheme = element.ruledLinesTheme || element.textSettings?.ruledLinesTheme || qna2Defaults.textSettings?.ruledLinesTheme || 'rough';
+          const ruledLinesStyle = element.ruledLinesStyle || element.textSettings?.ruledLinesStyle || qna2Defaults.textSettings?.ruledLinesStyle || 'rough';
           const ruledLinesColor = element.ruledLinesColor ?? element.textSettings?.ruledLinesColor ?? qna2Defaults.textSettings?.ruledLinesColor ?? '#1f2937';
           const ruledLinesOpacity = element.ruledLinesOpacity ?? element.textSettings?.ruledLinesOpacity ?? qna2Defaults.textSettings?.ruledLinesOpacity ?? 1;
           const RULED_LINE_BASELINE_OFFSET = 12;
@@ -2348,18 +2348,18 @@ export function PDFRenderer({
               }
             }
             const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-            const theme = (['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'].includes(String(ruledLinesTheme).toLowerCase().trim())
-              ? ruledLinesTheme as Theme
-              : 'default') as Theme;
+            const lineStyle = (['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'].includes(String(ruledLinesStyle).toLowerCase().trim())
+              ? ruledLinesStyle as Style
+              : 'default') as Style;
             for (const linePos of extendedPositions) {
               if (linePos.y >= topLimit && linePos.y <= bottomLimit) {
-                const lineNode = renderThemedBorderKonvaWithFallback({
+                const lineNode = renderStyledBorderKonvaWithFallback({
                   width: ruledLinesWidth,
                   color: ruledLinesColor,
                   opacity: ruledLinesOpacity,
                   path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
-                  theme,
-                  themeSettings: { seed: seed + linePos.y, roughness: theme === 'rough' ? 2 : 1 },
+                  style: lineStyle,
+                  styleSettings: { seed: seed + linePos.y, roughness: lineStyle === 'rough' ? 2 : 1 },
                   strokeScaleEnabled: true,
                   listening: false
                 }, () => {
@@ -2370,14 +2370,14 @@ export function PDFRenderer({
                     y2: linePos.y,
                     strokeWidth: ruledLinesWidth,
                     stroke: ruledLinesColor,
-                    theme,
+                    style: lineStyle,
                     seed: seed + linePos.y,
-                    roughness: theme === 'rough' ? 2 : 1,
+                    roughness: lineStyle === 'rough' ? 2 : 1,
                     element: { ...element, strokeWidth: ruledLinesWidth, stroke: ruledLinesColor } as CanvasElement
                   });
                   if (pathData) {
-                    const themeRenderer = getThemeRenderer(theme);
-                    const strokeProps = themeRenderer.getStrokeProps({ ...element, strokeWidth: ruledLinesWidth, stroke: ruledLinesColor } as CanvasElement);
+                    const styleRenderer = getStyleRenderer(lineStyle);
+                    const strokeProps = styleRenderer.getStrokeProps({ ...element, strokeWidth: ruledLinesWidth, stroke: ruledLinesColor } as CanvasElement);
                     return new Konva.Path({
                       data: pathData,
                       stroke: strokeProps.stroke ?? ruledLinesColor,
@@ -2411,7 +2411,7 @@ export function PDFRenderer({
             const borderWidth = element.borderWidth ?? element.textSettings?.borderWidth ?? qna2Defaults.textSettings?.borderWidth ?? 1;
             const borderOpacity = element.borderOpacity ?? element.textSettings?.borderOpacity ?? qna2Defaults.textSettings?.borderOpacity ?? 1;
             const cornerRadius = element.cornerRadius ?? element.textSettings?.cornerRadius ?? qna2Defaults.cornerRadius ?? 0;
-            const borderTheme = (element.borderTheme ?? element.textSettings?.borderTheme ?? qna2Defaults.textSettings?.borderTheme ?? 'default') as Theme;
+            const borderStyle = (element.borderStyle ?? element.textSettings?.borderStyle ?? qna2Defaults.textSettings?.borderStyle ?? 'default') as Style;
             const borderSeed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
             const borderPathConfig = createRectPath(0, 0, elementWidth, elementHeight);
             const borderElement = {
@@ -2425,23 +2425,23 @@ export function PDFRenderer({
               stroke: borderColor,
               strokeWidth: borderWidth,
               fill: 'transparent',
-              roughness: borderTheme === 'rough' ? 8 : undefined,
+              roughness: borderStyle === 'rough' ? 8 : undefined,
               candyRandomness: (element as any).candyRandomness,
               candyIntensity: (element as any).candyIntensity,
               candySpacingMultiplier: (element as any).candySpacingMultiplier,
               candyHoled: (element as any).candyHoled
             } as CanvasElement;
-            const themeRenderer = getThemeRenderer(borderTheme);
-            const borderPathData = themeRenderer.generatePath(borderElement);
-            const borderStrokeProps = themeRenderer.getStrokeProps(borderElement);
-            const borderPath = renderThemedBorderKonvaWithFallback({
+            const styleRenderer = getStyleRenderer(borderStyle);
+            const borderPathData = styleRenderer.generatePath(borderElement);
+            const borderStrokeProps = styleRenderer.getStrokeProps(borderElement);
+            const borderPath = renderStyledBorderKonvaWithFallback({
               width: borderWidth,
               color: borderColor,
               opacity: borderOpacity,
               cornerRadius,
               path: borderPathConfig,
-              theme: borderTheme,
-              themeSettings: { roughness: borderTheme === 'rough' ? 8 : undefined, seed: borderSeed },
+              style: borderStyle,
+              styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed: borderSeed },
               strokeScaleEnabled: true,
               listening: false
             }, () => {
@@ -3120,7 +3120,7 @@ export function PDFRenderer({
 
                   const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
                 const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
-                const frameTheme = element.frameTheme || element.theme || 'default';
+                const frameStyle = element.frameStyle || element.style || 'default';
                 const cornerRadius = element.cornerRadius || 0;
                 
                 // Debug: Log frame rendering details
@@ -3132,12 +3132,12 @@ export function PDFRenderer({
                   elementOpacity: elementOpacity,
                   finalOpacity: borderOpacity * elementOpacity,
                   stroke: stroke,
-                  frameTheme: frameTheme,
+                  frameStyle: frameStyle,
                   cornerRadius: cornerRadius
                 });
                 
                 // Use centralized border rendering for frames
-                    const frameRoughness = frameTheme === 'rough' ? 8 : (frameTheme === 'sketchy' ? 2 : (frameTheme === 'wobbly' ? 3 : undefined));
+                    const frameRoughness = frameStyle === 'rough' ? 8 : (frameStyle === 'sketchy' ? 2 : (frameStyle === 'wobbly' ? 3 : undefined));
                     const frameElement = {
                       type: 'rect' as const,
                       id: element.id + '-frame',
@@ -3149,7 +3149,7 @@ export function PDFRenderer({
                       stroke: stroke,
                       strokeWidth: strokeWidth,
                       fill: 'transparent',
-                      theme: frameTheme,
+                      style: frameStyle,
                   roughness: frameRoughness,
                   // Pass through theme-specific settings
                   candyRandomness: (element as any).candyRandomness,
@@ -3159,13 +3159,13 @@ export function PDFRenderer({
                     } as CanvasElement;
                     
                 // Use centralized border rendering with fallback
-                const frameNode = renderThemedBorderKonvaWithFallback({
+                const frameNode = renderStyledBorderKonvaWithFallback({
                   width: strokeWidth,
                   color: stroke,
                   opacity: borderOpacity * elementOpacity,
                   path: createRectPath(0, 0, elementWidth, elementHeight),
-                  theme: frameTheme,
-                  themeSettings: {
+                  style: frameStyle,
+                  styleSettings: {
                     roughness: frameRoughness,
                     candyRandomness: (frameElement as any).candyRandomness,
                     candyIntensity: (frameElement as any).candyIntensity,
@@ -3177,11 +3177,11 @@ export function PDFRenderer({
                   listening: false
                 }, () => {
                   // Fallback: use existing manual implementation
-                  if (frameTheme !== 'default') {
-                    const themeRenderer = getThemeRenderer(frameTheme);
-                    if (themeRenderer) {
-                    const pathData = themeRenderer.generatePath(frameElement);
-                    const strokeProps = themeRenderer.getStrokeProps(frameElement);
+                  if (frameStyle !== 'default') {
+                    const styleRenderer = getStyleRenderer(frameStyle);
+                    if (styleRenderer) {
+                    const pathData = styleRenderer.generatePath(frameElement);
+                    const strokeProps = styleRenderer.getStrokeProps(frameElement);
                     
                     if (pathData) {
                         return new Konva.Path({
@@ -3247,8 +3247,8 @@ export function PDFRenderer({
                   
                   // Ensure shadow properties are set (for Glow theme)
                   if (frameNode instanceof Konva.Path) {
-                    const themeRenderer = getThemeRenderer(frameTheme);
-                    const strokeProps = themeRenderer.getStrokeProps(frameElement);
+                    const styleRenderer = getStyleRenderer(frameStyle);
+                    const strokeProps = styleRenderer.getStrokeProps(frameElement);
                     if (strokeProps.shadowColor) {
                       frameNode.shadowColor(strokeProps.shadowColor);
                       frameNode.shadowBlur(strokeProps.shadowBlur || 0);
@@ -3273,7 +3273,7 @@ export function PDFRenderer({
                   
                   console.log('[PDFRenderer] Frame added to layer:', {
                     elementId: element.id,
-                    frameTheme: frameTheme,
+                    frameStyle: frameStyle,
                     frameOpacity: borderOpacity * elementOpacity,
                     layerChildrenCount: layer.getChildren().length
                   });
@@ -3428,7 +3428,7 @@ export function PDFRenderer({
             ? (element.strokeWidth || 0)
             : (element.borderWidth || element.strokeWidth || 0);
           const strokeWidth = borderWidth; // Use borderWidth for all shapes
-          const theme = element.theme || element.borderTheme || 'default';
+          const shapeStyle = element.style || element.borderStyle || 'default';
           
           // For rect elements, use backgroundOpacity if available, otherwise use elementOpacity
           // For other shapes, use elementOpacity
@@ -3442,21 +3442,21 @@ export function PDFRenderer({
             : 1;
           
           // Check if theme renderer should be used
-          const themeRenderer = getThemeRenderer(theme);
+          const styleRenderer = getStyleRenderer(shapeStyle);
           const hasBorder = borderWidth > 0;
           const hasFill = fill !== 'transparent' && fill !== undefined;
-          const useTheme = themeRenderer && theme !== 'default' && (hasBorder || hasFill);
+          const useStyle = styleRenderer && shapeStyle !== 'default' && (hasBorder || hasFill);
 
           console.log('[PDFRenderer] Shape analysis:',
             'elementId:', String(element.id),
-            'theme:', String(theme),
+            'style:', String(shapeStyle),
             'borderWidth:', Number(borderWidth),
             'strokeWidth:', Number(strokeWidth),
             'fill:', String(fill),
             'hasBorder:', Boolean(hasBorder),
             'hasFill:', Boolean(hasFill),
             'useTheme:', Boolean(useTheme),
-            'hasThemeRenderer:', Boolean(!!themeRenderer),
+            'hasStyleRenderer:', Boolean(!!styleRenderer),
             'elementType:', String(element.type),
             'elementRotation:', Number(elementRotation),
             'needsRotation:', Boolean(elementRotation !== 0 && elementRotation !== undefined)
@@ -3465,10 +3465,10 @@ export function PDFRenderer({
           console.log('[PDFRenderer] Shape rendering:',
             'elementId:', String(element.id),
             'elementType:', String(element.type),
-            'theme:', String(theme),
+            'style:', String(shapeStyle),
             'borderWidth:', Number(borderWidth),
             'useTheme:', Boolean(useTheme),
-            'hasThemeRenderer:', Boolean(!!themeRenderer)
+            'hasStyleRenderer:', Boolean(!!styleRenderer)
           );
           
           // For shapes, always calculate offset based on scaled size (matching base-canvas-item.tsx)
@@ -3521,7 +3521,7 @@ export function PDFRenderer({
             'willEnterElseBlock:', Boolean(!useTheme)
           );
           
-          if (useTheme) {
+            if (useStyle) {
             // Use theme renderer for themed borders
             // Theme engine generates coordinates relative to (0, 0), regardless of element.x/y
             // So we always use (0, 0) for shapeElement - positioning is handled separately
@@ -3537,18 +3537,18 @@ export function PDFRenderer({
               strokeWidth: element.type === 'line' ? borderWidth : borderWidth, // For line use strokeWidth, for shapes use borderWidth (mapped to strokeWidth for theme renderer)
               borderWidth: element.type === 'line' ? undefined : borderWidth, // Only set for shapes
               fill: fill !== 'transparent' ? fill : 'transparent',
-              theme: theme,
+              style: shapeStyle,
               // For rough theme, ensure high roughness value like QnA borders
-              roughness: theme === 'rough' ? 8 : element.roughness
+              roughness: shapeStyle === 'rough' ? 8 : element.roughness
             } as CanvasElement;
 
-            const pathData = themeRenderer.generatePath(shapeElement);
-            const strokeProps = themeRenderer.getStrokeProps(shapeElement);
+            const pathData = styleRenderer.generatePath(shapeElement);
+            const strokeProps = styleRenderer.getStrokeProps(shapeElement);
             
             // DEBUG: Log pathData
             console.log('[PDFRenderer] Theme renderer result:',
               'elementId:', String(element.id),
-              'useTheme:', Boolean(useTheme),
+              'useStyle:', Boolean(useStyle),
               'hasPathData:', Boolean(pathData),
               'pathDataPreview:', pathData ? String(pathData).substring(0, 100) : 'null'
             );
@@ -3581,10 +3581,10 @@ export function PDFRenderer({
             if (pathData) {
               console.log('[PDFRenderer] pathData exists, entering themed rendering block:',
                 'elementId:', String(element.id),
-                'theme:', String(theme)
+                'style:', String(shapeStyle)
               );
               // Special handling for Candy and Wobbly themes - use borderElement exactly like textbox-qna.tsx
-              if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
+              if ((shapeStyle === 'candy' || shapeStyle === 'wobbly') && strokeProps.strokeWidth > 0) {
                 // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
                 const borderWidth = element.borderWidth || element.strokeWidth || 1;
                 
@@ -3601,7 +3601,7 @@ export function PDFRenderer({
                   stroke: stroke,
                   strokeWidth: borderWidth, // Use raw borderWidth value, not converted strokeProps.strokeWidth
                   fill: 'transparent',
-                  roughness: theme === 'rough' ? 8 : undefined,
+                  roughness: shapeStyle === 'rough' ? 8 : undefined,
                   // Pass through theme-specific settings (e.g., for Candy theme)
                   candyRandomness: (element as any).candyRandomness,
                   candyIntensity: (element as any).candyIntensity,
@@ -3610,8 +3610,8 @@ export function PDFRenderer({
                 } as CanvasElement;
 
                 // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx
-                const borderPathData = themeRenderer.generatePath(borderElement);
-                const borderStrokeProps = themeRenderer.getStrokeProps(borderElement);
+                const borderPathData = styleRenderer.generatePath(borderElement);
+                const borderStrokeProps = styleRenderer.getStrokeProps(borderElement);
 
                 if (borderPathData) {
                   // Fill layer
@@ -3729,14 +3729,14 @@ export function PDFRenderer({
                     borderPathConfig = createRectPath(0, 0, elementWidth, elementHeight);
                   }
 
-                  const borderPath = renderThemedBorderKonvaWithFallback({
+                  const borderPath = renderStyledBorderKonvaWithFallback({
                     width: borderWidth,
                     color: pathStroke,
                     opacity: element.type === 'rect' && borderOpacity < 1 ? 1 : elementOpacity,
                     path: borderPathConfig,
-                    theme: theme,
-                    themeSettings: {
-                      roughness: theme === 'rough' ? 8 : undefined,
+                    style: shapeStyle,
+                    styleSettings: {
+                      roughness: shapeStyle === 'rough' ? 8 : undefined,
                       candyRandomness: (borderElement as any).candyRandomness,
                       candyIntensity: (borderElement as any).candyIntensity,
                       candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,

@@ -12,7 +12,7 @@ import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE 
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
 import { FONT_GROUPS } from '../../../../utils/font-families';
-import { ThemeSelect } from '../../../../utils/theme-options';
+import { StyleSelect } from '../../../../utils/style-options';
 import { FontSelector } from './font-selector';
 import { ColorSelector } from './color-selector';
 import { SlotSelector } from './slot-selector';
@@ -20,7 +20,7 @@ import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
 import { Tooltip } from '../../../ui';
 
@@ -87,12 +87,12 @@ export function FreeTextSettingsForm({
       ruledLinesColor: tStyle.ruledLinesColor || freeTextDefaults?.textSettings?.ruledLinesColor || '#1f2937',
       ruledLinesOpacity: tStyle.ruledLinesOpacity ?? freeTextDefaults?.textSettings?.ruledLinesOpacity ?? 1,
       ruledLinesWidth: tStyle.ruledLinesWidth ?? freeTextDefaults?.textSettings?.ruledLinesWidth ?? 0.8,
-      ruledLinesTheme: tStyle.ruledLinesTheme || freeTextDefaults?.textSettings?.ruledLinesTheme || 'rough',
+      ruledLinesStyle: tStyle.ruledLinesStyle || freeTextDefaults?.textSettings?.ruledLinesStyle || 'rough',
       borderEnabled: tStyle.borderEnabled ?? freeTextDefaults?.textSettings?.border?.enabled ?? false,
       borderColor: tStyle.borderColor || freeTextDefaults?.textSettings?.border?.borderColor || '#000000',
       borderOpacity: tStyle.borderOpacity ?? freeTextDefaults?.textSettings?.border?.borderOpacity ?? 1,
       borderWidth: tStyle.borderWidth ?? freeTextDefaults?.textSettings?.border?.borderWidth ?? 1,
-      borderTheme: tStyle.borderTheme || freeTextDefaults?.textSettings?.border?.borderTheme || 'default',
+      borderStyle: tStyle.borderStyle || freeTextDefaults?.textSettings?.border?.borderStyle || 'default',
       backgroundEnabled: tStyle.backgroundEnabled ?? freeTextDefaults?.textSettings?.background?.enabled ?? false,
       backgroundColor: tStyle.backgroundColor || freeTextDefaults?.textSettings?.background?.backgroundColor || '#ffffff',
       backgroundOpacity: tStyle.backgroundOpacity ?? freeTextDefaults?.textSettings?.background?.backgroundOpacity ?? 1,
@@ -185,7 +185,7 @@ export function FreeTextSettingsForm({
   
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-2 p-2">
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
         <div>
           <div className="flex gap-2">
             <Tooltip content="Bold" side="left">
@@ -199,7 +199,7 @@ export function FreeTextSettingsForm({
               </Button>
             </Tooltip>
             <div className="flex-1">
-              <Tooltip content={`Font: ${getCurrentFontName(computedCurrentStyle.fontFamily)}`} side="left">
+              <Tooltip content={`Font: ${getCurrentFontName(computedCurrentStyle.fontFamily)}`} side="left" fullWidth>
                 <Button variant="outline" size="xxs" onClick={() => setShowFontSelector(true)} className="w-full justify-start" style={{ fontFamily: computedCurrentStyle.fontFamily }}>
                   <Type className="h-4 w-4 mr-2" />
                   <span className="truncate">{getCurrentFontName(computedCurrentStyle.fontFamily)}</span>
@@ -230,7 +230,7 @@ export function FreeTextSettingsForm({
               slotColors={sandbox.state.sandboxColors}
             />
           ) : (
-            <Tooltip content="Font Color" side="left">
+            <Tooltip content="Font Color" side="left" fullWidth>
               <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
                 <Palette className="w-4 mr-2" />
                 <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
@@ -302,14 +302,14 @@ export function FreeTextSettingsForm({
                 <Slider label="Line Width" value={computedCurrentStyle.ruledLinesWidth ?? 0.8} onChange={(value) => updateTextSetting('ruledLinesWidth', value)} min={1} max={30} step={0.3} className="w-full" />
               </Tooltip>
             </div>
-            <div>
-              <Tooltip content="Ruled Lines Theme" side="left">
-                <ThemeSelect value={computedCurrentStyle.ruledLinesTheme} onChange={(value) => updateTextSetting('ruledLinesTheme', value)} />
+            <div className="w-full min-w-0">
+              <Tooltip content="Ruled Lines Style" side="left" fullWidth>
+                <StyleSelect value={computedCurrentStyle.ruledLinesStyle} onChange={(value) => updateTextSetting('ruledLinesStyle', value)} />
               </Tooltip>
             </div>
-            <ThemeSettingsRenderer
+            <StyleSettingsRenderer
               element={element}
-              theme={computedCurrentStyle.ruledLinesTheme}
+              style={computedCurrentStyle.ruledLinesStyle}
               updateSetting={(key, value) => updateTextSetting(key, value)}
             />
             <div>
@@ -324,7 +324,7 @@ export function FreeTextSettingsForm({
                   slotColors={sandbox.state.sandboxColors}
                 />
               ) : (
-                <Tooltip content="Line Color" side="left">
+                <Tooltip content="Line Color" side="left" fullWidth>
                   <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
@@ -356,20 +356,20 @@ export function FreeTextSettingsForm({
           <IndentedSection>
             <div className="min-w-0">
               <Tooltip content="Border Width" side="left" fullWidth={true}>
-                <Slider label="Border Width" value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderTheme)} onChange={(value) => {
-                  const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderTheme);
+                <Slider label="Border Width" value={actualToCommonStrokeWidth(computedCurrentStyle.borderWidth, computedCurrentStyle.borderStyle)} onChange={(value) => {
+                  const actualWidth = commonToActualStrokeWidth(value, computedCurrentStyle.borderStyle);
                   updateTextSetting('borderWidth', actualWidth);
                 }} min={1} max={getMaxCommonWidth()} step={1} className="w-full" />
               </Tooltip>
             </div>
-            <div>
-              <Tooltip content="Border Theme" side="left">
-                <ThemeSelect value={computedCurrentStyle.borderTheme} onChange={(value) => updateTextSetting('borderTheme', value)} />
+            <div className="w-full min-w-0">
+              <Tooltip content="Border Style" side="left" fullWidth>
+                <StyleSelect value={computedCurrentStyle.borderStyle} onChange={(value) => updateTextSetting('borderStyle', value)} />
               </Tooltip>
             </div>
-            <ThemeSettingsRenderer
+            <StyleSettingsRenderer
               element={element}
-              theme={computedCurrentStyle.borderTheme}
+              style={computedCurrentStyle.borderStyle}
               updateSetting={(key, value) => updateTextSetting(key, value)}
             />
             <div>
@@ -384,7 +384,7 @@ export function FreeTextSettingsForm({
                   slotColors={sandbox.state.sandboxColors}
                 />
               ) : (
-                <Tooltip content="Border Color" side="left">
+                <Tooltip content="Border Color" side="left" fullWidth>
                   <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
@@ -424,7 +424,7 @@ export function FreeTextSettingsForm({
                   slotColors={sandbox.state.sandboxColors}
                 />
               ) : (
-                <Tooltip content="Background Color" side="left">
+                <Tooltip content="Background Color" side="left" fullWidth>
                   <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />

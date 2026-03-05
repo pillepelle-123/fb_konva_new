@@ -1,12 +1,12 @@
 /**
- * Shared Theme Engine - Pure JavaScript Theme-Algorithmen
- * Zuerst nur Zigzag-Theme als PoC, dann Erweiterung auf alle Themes
+ * Shared Style Engine - Pure JavaScript Style-Algorithmen
+ * Linien-/Border-Styles: default, rough, glow, candy, zigzag, wobbly, dashed
  *
  * Alle externen Abhängigkeiten (document, roughInstance) werden über Options injiziert
  */
 
 // Stroke width conversion – works in both browser (ESM) and Node (CJS)
-let commonToActualStrokeWidth = (width, _theme) => width;
+let commonToActualStrokeWidth = (width, _style) => width;
 if (typeof require !== 'undefined') {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -129,7 +129,7 @@ function generateZigzagPath(element, options = {}) {
         }
       } catch (error) {
         // Fallback to perimeter if DOM operation fails
-        console.warn('[themes-engine] Failed to calculate path length, using perimeter:', error);
+        console.warn('[styles-engine] Failed to calculate path length, using perimeter:', error);
       }
     }
     
@@ -257,7 +257,7 @@ function generateRoughPath(element, options = {}) {
   const { roughInstance, document, zoom = 1 } = options;
   
   if (!roughInstance || !document) {
-    console.warn('[themes-engine] Rough.js not available, falling back to default theme');
+    console.warn('[styles-engine] Rough.js not available, falling back to default style');
     return generateDefaultPath(element, options);
   }
   
@@ -324,7 +324,7 @@ function generateRoughPath(element, options = {}) {
       return combinedPath.trim();
     }
   } catch (error) {
-    console.error('[themes-engine] Error generating rough path:', error);
+    console.error('[styles-engine] Error generating rough path:', error);
   }
   
   return generateDefaultPath(element, options);
@@ -757,9 +757,9 @@ function generateWobblyPath(element, options = {}) {
 }
 
 /**
- * Gets stroke properties for an element based on theme
+ * Gets stroke properties for an element based on style
  * @param {Object} element - Element object
- * @param {string} theme - Theme name
+ * @param {string} style - Style name
  * @param {Object} options - Options object
  * @returns {Object} Stroke properties object
  */
@@ -795,7 +795,7 @@ function generateDashedPath(element, options = {}) {
   return generateDefaultPath(element, options);
 }
 
-function getStrokeProps(element, theme, options = {}) {
+function getStrokeProps(element, style, options = {}) {
   // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
   let strokeWidth = (element.type === 'line' || element.type === 'brush')
     ? (element.strokeWidth || 0)
@@ -804,13 +804,13 @@ function getStrokeProps(element, theme, options = {}) {
   // Simple logic: if strokeWidth is in common scale (1-100), convert it
   // If it's outside this range, assume it's already converted
   if (strokeWidth >= 1 && strokeWidth <= 100) {
-    strokeWidth = commonToActualStrokeWidth(strokeWidth, theme);
+    strokeWidth = commonToActualStrokeWidth(strokeWidth, style);
   }
   // Otherwise keep as-is (already converted or 0)
 
-  // Theme-specific stroke props
+  // Style-specific stroke props
   // Glow: Multi-Stroke-Layers statt shadowBlur (performanter – kein teurer Blur-Filter)
-  if (theme === 'glow') {
+  if (style === 'glow') {
     const fill = element.type === 'line' || element.type === 'brush'
       ? (element.stroke || '#1f2937')
       : (element.fill !== 'transparent' ? element.fill : undefined);
@@ -827,7 +827,7 @@ function getStrokeProps(element, theme, options = {}) {
       glowLayerWidthMultiplier: 2.5,
       glowLayerOpacity: 0.25
     };
-  } else if (theme === 'candy') {
+  } else if (style === 'candy') {
     // Check if candyHoled is enabled - if so, use transparent fill
     const fill = element.candyHoled ? 'transparent' : (element.stroke || '#ff0000');
 
@@ -861,7 +861,7 @@ function getStrokeProps(element, theme, options = {}) {
       strokeWidth: strokeWidth,
       fill: strokeWidth > 0 ? 'transparent' : fill
     };
-  } else if (theme === 'dashed') {
+  } else if (style === 'dashed') {
     // EXAKT wie Candy für line: Gestrichlete Darstellung für alle Elementtypen
     // 1:1 Kopie der Candy-Logik für line, angewendet auf alle Typen
     const dashLength = Math.max(4, strokeWidth * 2);
@@ -886,7 +886,7 @@ function getStrokeProps(element, theme, options = {}) {
       dash: dashPattern, // Für React-Konva
       lineCap: 'round'
     };
-  } else if (theme === 'wobbly') {
+  } else if (style === 'wobbly') {
     if (element.type === 'brush' || element.type === 'line') {
       return {
         stroke: 'transparent',
@@ -900,7 +900,7 @@ function getStrokeProps(element, theme, options = {}) {
       strokeWidth: strokeWidth,
       fill: strokeWidth > 0 ? 'transparent' : (element.stroke || '#1f2937')
     };
-  } else if (theme === 'zigzag') {
+  } else if (style === 'zigzag') {
     // For shapes, use element.fill (background) if available; for line/brush, use stroke as fill
     const fill = element.type === 'line' || element.type === 'brush'
       ? (element.stroke || '#bf4d28')
@@ -914,7 +914,7 @@ function getStrokeProps(element, theme, options = {}) {
       lineJoin: 'round'
     };
   } else {
-    // Default and rough themes
+    // Default and rough styles
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: strokeWidth,
@@ -924,14 +924,14 @@ function getStrokeProps(element, theme, options = {}) {
 }
 
 /**
- * Generate path for an element based on theme
+ * Generate path for an element based on style
  * @param {Object} element - Element object
- * @param {string} theme - Theme name
+ * @param {string} style - Style name
  * @param {Object} options - Options object with { roughInstance?, document?, zoom? }
  * @returns {string} SVG path string
  */
-function generatePath(element, theme, options = {}) {
-  switch (theme) {
+function generatePath(element, style, options = {}) {
+  switch (style) {
     case 'default':
       return generateDefaultPath(element, options);
     case 'rough':

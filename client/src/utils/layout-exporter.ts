@@ -3,7 +3,7 @@ import type { LayoutMeta, PageTemplate } from '../types/template-types';
 import { displayJSONInNewWindow } from './json-display';
 import { actualToCommon } from './font-size-converter';
 import { actualToCommonRadius } from './corner-radius-converter';
-import { actualToThemeJsonStrokeWidth } from './stroke-width-converter';
+import { actualToStyleJsonStrokeWidth } from './stroke-width-converter';
 
 // Konvertierung mm zu Pixel (bei 300 DPI: 1mm = 11.81px)
 const MM_TO_PX = 11.811;

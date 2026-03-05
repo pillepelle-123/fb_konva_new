@@ -1,6 +1,6 @@
 import type { CanvasElement } from '../context/editor-context';
 
-export interface ThemeSetting {
+export interface StyleSetting {
   key: string;
   type: 'checkbox' | 'select' | 'slider' | 'color';
   label: string;
@@ -12,11 +12,11 @@ export interface ThemeSetting {
   dependsOn?: string; // Key of another setting that must be true/enabled for this to show
 }
 
-export interface ThemeSettingsConfig {
-  [theme: string]: ThemeSetting[];
+export interface StyleSettingsConfig {
+  [style: string]: StyleSetting[];
 }
 
-export const THEME_SETTINGS: ThemeSettingsConfig = {
+export const STYLE_SETTINGS: StyleSettingsConfig = {
   candy: [
     {
       key: 'candyRandomness',
@@ -43,29 +43,27 @@ export const THEME_SETTINGS: ThemeSettingsConfig = {
       defaultValue: false
     }
   ],
-  // Weitere Themes können hier hinzugefügt werden
 };
 
 /**
- * Gets all theme-specific settings for a given theme.
+ * Gets all style-specific settings for a given style.
  */
-export function getThemeSettings(theme: string): ThemeSetting[] {
-  return THEME_SETTINGS[theme] || [];
+export function getStyleSettings(style: string): StyleSetting[] {
+  return STYLE_SETTINGS[style] || [];
 }
 
 /**
- * Gets the value of a theme-specific setting from an element.
+ * Gets the value of a style-specific setting from an element.
  */
-export function getThemeSettingValue(element: CanvasElement, settingKey: string): any {
+export function getStyleSettingValue(element: CanvasElement, settingKey: string): any {
   return (element as any)[settingKey];
 }
 
 /**
- * Creates an update object for a theme-specific setting.
+ * Creates an update object for a style-specific setting.
  */
-export function updateThemeSetting(element: CanvasElement, settingKey: string, value: any): Partial<CanvasElement> {
+export function updateStyleSetting(element: CanvasElement, settingKey: string, value: any): Partial<CanvasElement> {
   return {
     [settingKey]: value
   } as Partial<CanvasElement>;
 }
-

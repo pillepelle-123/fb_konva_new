@@ -5202,7 +5202,7 @@ export default function Canvas() {
           borderWidth: el.borderWidth,
           borderOpacity: el.borderOpacity,
           borderEnabled: qnaEl.borderEnabled,
-          borderTheme: qnaEl.borderTheme,
+          borderStyle: qnaEl.borderStyle,
           cornerRadius: el.cornerRadius,
           padding: el.padding,
           answerInNewRow: qnaEl.answerInNewRow,
@@ -5210,7 +5210,7 @@ export default function Canvas() {
           blockQuestionAnswerGap: qnaEl.blockQuestionAnswerGap,
           ruledLines: qnaEl.ruledLines,
           ruledLinesWidth: qnaEl.ruledLinesWidth,
-          ruledLinesTheme: qnaEl.ruledLinesTheme,
+          ruledLinesStyle: qnaEl.ruledLinesStyle,
           ruledLinesColor: qnaEl.ruledLinesColor,
           ruledLinesOpacity: qnaEl.ruledLinesOpacity,
           ruledLinesTarget: qnaEl.ruledLinesTarget,
@@ -5492,7 +5492,7 @@ export default function Canvas() {
                     width={canvasWidth}
                     height={SAFETY_MARGIN_PX}
                     fill={safetyMarginStrokeColor}
-                    opacity={1}
+                    opacity={0.4}
                     listening={false}
                     name="no-print"
                   />
@@ -5503,7 +5503,7 @@ export default function Canvas() {
                     width={canvasWidth}
                     height={SAFETY_MARGIN_PX}
                     fill={safetyMarginStrokeColor}
-                    opacity={1}
+                    opacity={0.4}
                     listening={false}
                     name="no-print"
                   />
@@ -5514,7 +5514,7 @@ export default function Canvas() {
                     width={SAFETY_MARGIN_PX}
                     height={canvasHeight - 2 * SAFETY_MARGIN_PX}
                     fill={safetyMarginStrokeColor}
-                    opacity={1}
+                    opacity={0.4}
                     listening={false}
                     name="no-print"
                   />
@@ -5525,7 +5525,7 @@ export default function Canvas() {
                     width={SAFETY_MARGIN_PX}
                     height={canvasHeight - 2 * SAFETY_MARGIN_PX}
                     fill={safetyMarginStrokeColor}
-                    opacity={1}
+                    opacity={0.4}
                     listening={false}
                     name="no-print"
                   />

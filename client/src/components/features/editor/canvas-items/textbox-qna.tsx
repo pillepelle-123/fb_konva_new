@@ -3,9 +3,9 @@ import { Shape, Rect, Path, Text as KonvaText, Group, Circle } from 'react-konva
 import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
-import { getThemeRenderer, type Theme } from '../../../../utils/themes-client';
+import { getStyleRenderer, type Style } from '../../../../utils/styles-client';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
+import { renderStyledBorder, createRectPath, createLinePath } from '../../../../utils/styled-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import { useCanvasOverlayElement } from '../canvas/canvas-overlay';
@@ -15,7 +15,7 @@ import type { LinePosition, LayoutResult } from '../../../../../../shared/types/
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText } from '../../../../../../shared/utils/text-layout';
 import { createLayout as sharedCreateLayout, createBlockLayout as sharedCreateBlockLayout } from '../../../../../../shared/utils/qna-layout';
 import { createInlineTextEditor } from './inline-text-editor';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, THEME_STROKE_RANGES } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, STYLE_STROKE_RANGES } from '../../../../utils/stroke-width-converter';
 
 // Global canvas context for text measurement (shared across all instances)
 let globalCanvasContext: CanvasRenderingContext2D | null = null;
@@ -49,7 +49,7 @@ interface QnaCanvasElement extends CanvasElement {
   borderColor?: string;
   borderWidth?: number;
   borderOpacity?: number;
-  borderTheme?: string;
+  borderStyle?: string;
   cornerRadius?: number;
   ruledLines?: boolean;
   ruledLinesWidth?: number;
@@ -1742,13 +1742,13 @@ function TextboxQnaComponent(props: CanvasItemProps) {
 
   // Generate ruled lines if enabled
   const ruledLines = qnaElement.ruledLines ?? false;
-  // Use theme defaults from qnaDefaults - prioritize element value, then theme defaults, then fallback
-  const ruledLinesTheme = qnaElement.ruledLinesTheme || qnaDefaults.ruledLinesTheme || 'rough';
+  // Use style defaults from qnaDefaults - prioritize element value, then style defaults, then fallback
+  const ruledLinesStyle = qnaElement.ruledLinesStyle || qnaDefaults.ruledLinesStyle || 'rough';
 
-  // Clamp ruled lines width to theme-specific min/max range
+  // Clamp ruled lines width to style-specific min/max range
   const rawRuledLinesWidth = qnaElement.ruledLinesWidth ?? qnaDefaults.ruledLinesWidth ?? 0.8;
-  const themeRange = THEME_STROKE_RANGES[ruledLinesTheme] || THEME_STROKE_RANGES.default;
-  const ruledLinesWidth = Math.max(themeRange.min, Math.min(themeRange.max, rawRuledLinesWidth));
+  const styleRange = STYLE_STROKE_RANGES[ruledLinesStyle] || STYLE_STROKE_RANGES.default;
+  const ruledLinesWidth = Math.max(styleRange.min, Math.min(styleRange.max, rawRuledLinesWidth));
   const ruledLinesColor = qnaElement.ruledLinesColor || qnaDefaults.ruledLinesColor || '#1f2937';
   const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? 1;
 
@@ -1761,21 +1761,21 @@ function TextboxQnaComponent(props: CanvasItemProps) {
 
     const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement | null => {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-      // Ensure theme is one of the supported themes
-      const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
-      // Convert to string and check if it's a valid theme
-      const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
-      const theme = (supportedThemes.includes(themeString as Theme) ? themeString : 'default') as Theme;
+      // Ensure style is one of the supported styles
+      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+      // Convert to string and check if it's a valid style
+      const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
+      const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;
 
-      return renderThemedBorder({
+      return renderStyledBorder({
         width: ruledLinesWidth,
         color: ruledLinesColor,
         opacity: ruledLinesOpacity,
         path: createLinePath(startX, y, endX, y),
-        theme: theme,
-        themeSettings: {
+        style: lineStyle,
+        styleSettings: {
           seed: seed + y,
-          roughness: theme === 'rough' ? 2 : 1
+          roughness: lineStyle === 'rough' ? 2 : 1
         },
         strokeScaleEnabled: true,
         listening: false,
@@ -1850,7 +1850,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     }
 
     return elements;
-  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesTheme, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget, qnaDefaults, effectiveQuestionStyle, answerStyle]);
+  }, [ruledLines, layout.linePositions, layout.questionArea, layout.answerArea, padding, boxWidth, boxHeight, ruledLinesWidth, ruledLinesStyle, ruledLinesColor, ruledLinesOpacity, element.id, layoutVariant, ruledLinesTarget, qnaDefaults, effectiveQuestionStyle, answerStyle]);
 
   const showBackground = qnaElement.backgroundEnabled && qnaElement.backgroundColor;
   const showBorder = qnaElement.borderEnabled && qnaElement.borderColor && qnaElement.borderWidth !== undefined;
@@ -2425,20 +2425,20 @@ function TextboxQnaComponent(props: CanvasItemProps) {
               const borderWidth = qnaElement.borderWidth || 1;
               const borderOpacity = qnaElement.borderOpacity ?? 1;
               const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-              const themeValue = qnaElement.borderTheme || element.theme || 'default';
-              const theme = themeValue as Theme;
+              const styleValue = qnaElement.borderStyle || element.style || 'default';
+              const borderStyle = styleValue as Style;
 
-              const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+              const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
               
-              const borderElement = renderThemedBorder({
+              const borderElement = renderStyledBorder({
                 width: borderWidth,
                 color: borderColor,
                 opacity: borderOpacity,
                 cornerRadius: cornerRadius,
                 path: createRectPath(0, 0, boxWidth, boxHeight),
-                theme: theme,
-                themeSettings: {
-                  roughness: theme === 'rough' ? 8 : undefined,
+                style: borderStyle,
+                styleSettings: {
+                  roughness: borderStyle === 'rough' ? 8 : undefined,
                   seed: seed
                 },
                 strokeScaleEnabled: true,
@@ -2585,7 +2585,7 @@ const areTextboxQnaPropsEqual = (
   if ((prevEl as any).backgroundEnabled !== (nextEl as any).backgroundEnabled) return false;
   if ((prevEl as any).ruledLines !== (nextEl as any).ruledLines) return false;
   if ((prevEl as any).ruledLinesWidth !== (nextEl as any).ruledLinesWidth) return false;
-  if ((prevEl as any).ruledLinesTheme !== (nextEl as any).ruledLinesTheme) return false;
+  if ((prevEl as any).ruledLinesStyle !== (nextEl as any).ruledLinesStyle) return false;
   if ((prevEl as any).ruledLinesColor !== (nextEl as any).ruledLinesColor) return false;
   if ((prevEl as any).ruledLinesOpacity !== (nextEl as any).ruledLinesOpacity) return false;
   if ((prevEl as any).ruledLinesTarget !== (nextEl as any).ruledLinesTarget) return false;

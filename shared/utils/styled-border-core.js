@@ -1,16 +1,16 @@
 /**
- * Shared Core Logic for Themed Border Rendering
+ * Shared Core Logic for Styled Border Rendering
  * Pure JavaScript - no React dependencies
  * Used by both client-side (React) and server-side (Konva) implementations
  */
 
-// Import theme engine functions
+// Import style engine functions
 let generatePath, getStrokeProps;
 if (typeof require !== 'undefined') {
   // CommonJS (Node.js / Server)
-  const themeEngine = require('./themes-engine');
-  generatePath = themeEngine.generatePath;
-  getStrokeProps = themeEngine.getStrokeProps;
+  const styleEngine = require('./styles-engine');
+  generatePath = styleEngine.generatePath;
+  getStrokeProps = styleEngine.getStrokeProps;
 } else {
   // ES Module (Browser)
   // Will be imported dynamically in client code
@@ -19,8 +19,8 @@ if (typeof require !== 'undefined') {
 }
 
 /**
- * Creates a themed border configuration
- * Extracts common logic for path type determination, element creation, and theme rendering
+ * Creates a styled border configuration
+ * Extracts common logic for path type determination, element creation, and style rendering
  * 
  * @param {Object} config - Configuration object
  * @param {number} config.width - Stroke width
@@ -28,24 +28,24 @@ if (typeof require !== 'undefined') {
  * @param {number} config.opacity - Opacity (default: 1)
  * @param {number} config.cornerRadius - Corner radius (default: 0)
  * @param {Object} config.path - Path definition (rect, circle, line, custom)
- * @param {string} config.theme - Theme name
- * @param {Object} config.themeSettings - Theme-specific settings
+ * @param {string} config.style - Style name
+ * @param {Object} config.styleSettings - Style-specific settings
  * @param {number} config.zoom - Zoom factor (default: 1)
- * @param {Function} config.getThemeRenderer - Function to get theme renderer (client-side only)
- * @param {Object} config.options - Options for theme engine (document, roughInstance, zoom)
+ * @param {Function} config.getStyleRenderer - Function to get style renderer (client-side only)
+ * @param {Object} config.options - Options for style engine (document, roughInstance, zoom)
  * @returns {Object|null} - { tempElement, pathData, strokeProps, pathOffsetX, pathOffsetY } or null
  */
-function createThemedBorderConfig(config) {
+function createStyledBorderConfig(config) {
   const {
     width,
     color,
     opacity = 1,
     cornerRadius = 0,
     path,
-    theme,
-    themeSettings = {},
+    style,
+    styleSettings = {},
     zoom = 1,
-    getThemeRenderer,
+    getStyleRenderer,
     options = {}
   } = config;
 
@@ -57,7 +57,7 @@ function createThemedBorderConfig(config) {
   let elementY = path.y || 0;
 
   // For lines: path is generated relative to (0,0) and offset is applied separately as x/y on Path
-  // This allows theme algorithms to work from (0,0) while the line appears at the correct position
+  // This allows style algorithms to work from (0,0) while the line appears at the correct position
   let pathOffsetX = 0;
   let pathOffsetY = 0;
 
@@ -72,7 +72,7 @@ function createThemedBorderConfig(config) {
     elementType = 'line';
     // For lines: width and height are delta values
     // The actual line goes from (x, y) to (x + width, y + height)
-    // Theme engine works relative to (0,0), so we remember the offset separately
+    // Style engine works relative to (0,0), so we remember the offset separately
     pathOffsetX = path.x || 0;
     pathOffsetY = path.y || 0;
   } else if (path.type === 'custom' && path.pathData) {
@@ -80,10 +80,10 @@ function createThemedBorderConfig(config) {
     elementType = 'rect';
   }
 
-  // Create temporary element for theme renderer
+  // Create temporary element for style renderer
   const tempElement = {
     type: elementType,
-    id: `border-${themeSettings.seed || 1}`,
+    id: `border-${styleSettings.seed || 1}`,
     x: elementX,
     y: elementY,
     width: elementWidth,
@@ -93,58 +93,58 @@ function createThemedBorderConfig(config) {
     strokeWidth: width,
     borderWidth: width,
     fill: 'transparent',
-    theme: theme,
-    roughness: themeSettings.roughness || (theme === 'rough' ? 8 : 1),
-    // Theme-specific settings
-    candyRandomness: themeSettings.candyRandomness,
-    candyIntensity: themeSettings.candyIntensity,
-    candySpacingMultiplier: themeSettings.candySpacingMultiplier,
-    candyHoled: themeSettings.candyHoled,
-    ...themeSettings
+    style: style,
+    roughness: styleSettings.roughness || (style === 'rough' ? 8 : 1),
+    // Style-specific settings
+    candyRandomness: styleSettings.candyRandomness,
+    candyIntensity: styleSettings.candyIntensity,
+    candySpacingMultiplier: styleSettings.candySpacingMultiplier,
+    candyHoled: styleSettings.candyHoled,
+    ...styleSettings
   };
 
   // Get path data and stroke properties
   let pathData = null;
   let strokeProps = {};
 
-  // Use getThemeRenderer if provided (client-side), otherwise use theme engine directly
-  if (getThemeRenderer) {
+  // Use getStyleRenderer if provided (client-side), otherwise use style engine directly
+  if (getStyleRenderer) {
     try {
-      const themeRenderer = getThemeRenderer(theme);
-      pathData = themeRenderer.generatePath(tempElement, zoom);
-      strokeProps = themeRenderer.getStrokeProps(tempElement, zoom);
+      const styleRenderer = getStyleRenderer(style);
+      pathData = styleRenderer.generatePath(tempElement, zoom);
+      strokeProps = styleRenderer.getStrokeProps(tempElement, zoom);
     } catch (error) {
-      console.warn('[themed-border-core] Error using getThemeRenderer, falling back to theme engine:', error);
-      // Fall through to theme engine
+      console.warn('[styled-border-core] Error using getStyleRenderer, falling back to style engine:', error);
+      // Fall through to style engine
     }
   }
   
-  // Use theme engine directly if getThemeRenderer not provided or failed
+  // Use style engine directly if getStyleRenderer not provided or failed
   if (!pathData) {
     // Merge options with defaults
     const engineOptions = {
       document: options.document || (typeof document !== 'undefined' ? document : undefined),
       zoom: zoom,
-      roughInstance: options.roughInstance || (theme === 'rough' && typeof window !== 'undefined' && window.rough ? window.rough : undefined)
+      roughInstance: options.roughInstance || (style === 'rough' && typeof window !== 'undefined' && window.rough ? window.rough : undefined)
     };
 
     if (generatePath && getStrokeProps) {
-      pathData = generatePath(tempElement, theme, engineOptions);
-      strokeProps = getStrokeProps(tempElement, theme, engineOptions);
+      pathData = generatePath(tempElement, style, engineOptions);
+      strokeProps = getStrokeProps(tempElement, style, engineOptions);
     } else {
-      // Try to require theme engine if not already loaded
+      // Try to require style engine if not already loaded
       if (typeof require !== 'undefined') {
         try {
-          const themeEngine = require('./themes-engine');
-          pathData = themeEngine.generatePath(tempElement, theme, engineOptions);
-          strokeProps = themeEngine.getStrokeProps(tempElement, theme, engineOptions);
+          const styleEngine = require('./styles-engine');
+          pathData = styleEngine.generatePath(tempElement, style, engineOptions);
+          strokeProps = styleEngine.getStrokeProps(tempElement, style, engineOptions);
         } catch (error) {
-          console.warn('[themed-border-core] Theme engine not available:', error);
+          console.warn('[styled-border-core] Style engine not available:', error);
           return null;
         }
       } else {
-        // Fallback: return null if theme engine is not available
-        console.warn('[themed-border-core] Theme engine not available');
+        // Fallback: return null if style engine is not available
+        console.warn('[styled-border-core] Style engine not available');
         return null;
       }
     }
@@ -164,12 +164,12 @@ function createThemedBorderConfig(config) {
 }
 
 // ES module exports for client (Vite / Browser)
-export { createThemedBorderConfig };
+export { createStyledBorderConfig };
 
 // CommonJS exports for Node (Server)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    createThemedBorderConfig
+    createStyledBorderConfig
   };
 }
 

@@ -5,14 +5,14 @@ import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { calculateQuestionStyle, calculateAnswerStyle, getDisplaySegments } from './textbox-qna-utils';
-import { renderThemedBorder, createRectPath, createLinePath } from '../../../../utils/themed-border';
+import { renderStyledBorder, createRectPath, createLinePath } from '../../../../utils/styled-border';
 import type Konva from 'konva';
 import type { TextRun } from '../../../../../../shared/types/text-layout';
 import type { LinePosition } from '../../../../../../shared/types/layout';
 import { buildFont, getLineHeight } from '../../../../../../shared/utils/text-layout';
 import { calculateContrastColor } from '../../../../utils/contrast-color';
 import { createRichTextLayoutFromSegments } from '../../../../../../shared/utils/rich-text-layout';
-import type { Theme } from '../../../../utils/themes-client';
+import type { Style } from '../../../../utils/styles-client';
 import { debugQna2Selection } from '../../../../utils/debug-qna2-selection';
 
 const RULED_LINE_BASELINE_OFFSET = 12;
@@ -164,8 +164,8 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     : !!ruledLinesConfig;
   const ruledLinesWidth =
     element.ruledLinesWidth ?? element.textSettings?.ruledLinesWidth ?? qna2Defaults.textSettings?.ruledLinesWidth ?? 0.8;
-  const ruledLinesTheme =
-    element.ruledLinesTheme || element.textSettings?.ruledLinesTheme || qna2Defaults.textSettings?.ruledLinesTheme || 'rough';
+  const ruledLinesStyle =
+    element.ruledLinesStyle || element.textSettings?.ruledLinesStyle || qna2Defaults.textSettings?.ruledLinesStyle || 'rough';
   const ruledLinesColor =
     element.ruledLinesColor ||
     element.textSettings?.ruledLinesColor ||
@@ -206,21 +206,21 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     if (extendedPositions.length === 0) return [];
     const elements: React.ReactElement[] = [];
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedThemes: Theme[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
-    const themeString = String(ruledLinesTheme || 'default').toLowerCase().trim();
-    const theme = (supportedThemes.includes(themeString as Theme)
-      ? themeString
-      : 'default') as Theme;
+    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+    const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
+    const lineStyle = (supportedStyles.includes(styleString as Style)
+      ? styleString
+      : 'default') as Style;
 
     extendedPositions.forEach((linePos: LinePosition) => {
       if (linePos.y >= topLimit && linePos.y <= bottomLimit) {
-        const lineElement = renderThemedBorder({
+        const lineElement = renderStyledBorder({
           width: ruledLinesWidth,
           color: ruledLinesColor,
           opacity: ruledLinesOpacity,
           path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
-          theme,
-          themeSettings: { seed: seed + linePos.y, roughness: theme === 'rough' ? 2 : 1 },
+          style: lineStyle,
+          styleSettings: { seed: seed + linePos.y, roughness: lineStyle === 'rough' ? 2 : 1 },
           strokeScaleEnabled: true,
           listening: false,
           key: `ruled-line-${linePos.y}`
@@ -237,7 +237,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     elementHeight,
     answerStyle,
     ruledLinesWidth,
-    ruledLinesTheme,
+    ruledLinesStyle,
     ruledLinesColor,
     ruledLinesOpacity,
     element.id
@@ -504,19 +504,19 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
                 element.textSettings?.cornerRadius ??
                 qna2Defaults.cornerRadius ??
                 0;
-              const theme = (element.borderTheme ??
-                (element.textSettings?.borderTheme ||
-                  qna2Defaults.textSettings?.borderTheme ||
-                  'default')) as Theme;
-              const seed = theme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-              const borderElement = renderThemedBorder({
+              const borderStyle = (element.borderStyle ??
+                (element.textSettings?.borderStyle ||
+                  qna2Defaults.textSettings?.borderStyle ||
+                  'default')) as Style;
+              const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+              const borderElement = renderStyledBorder({
                 width: borderWidth,
                 color: borderColor,
                 opacity: borderOpacity,
                 cornerRadius,
                 path: createRectPath(0, 0, elementWidth, elementHeight),
-                theme,
-                themeSettings: { roughness: theme === 'rough' ? 8 : undefined, seed },
+                style: borderStyle,
+                styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
                 strokeScaleEnabled: true,
                 listening: false
               });
@@ -640,7 +640,7 @@ const areTextboxQna2PropsEqual = (
   if ((prevEl as any).borderEnabled !== (nextEl as any).borderEnabled) return false;
   if ((prevEl as any).ruledLines !== (nextEl as any).ruledLines) return false;
   if ((prevEl as any).ruledLinesWidth !== (nextEl as any).ruledLinesWidth) return false;
-  if ((prevEl as any).ruledLinesTheme !== (nextEl as any).ruledLinesTheme) return false;
+  if ((prevEl as any).ruledLinesStyle !== (nextEl as any).ruledLinesStyle) return false;
   if ((prevEl as any).ruledLinesColor !== (nextEl as any).ruledLinesColor) return false;
   if ((prevEl as any).ruledLinesOpacity !== (nextEl as any).ruledLinesOpacity) return false;
   if (prevEl.backgroundColor !== nextEl.backgroundColor) return false;

@@ -48,7 +48,7 @@ export function applyShapeStyle(element: any, style?: ShapeStyle): any {
   if (style.stroke) styledElement.stroke = style.stroke;
   if (style.fill) styledElement.fill = style.fill;
   if (style.opacity !== undefined) styledElement.opacity = style.opacity;
-  if (style.inheritTheme) styledElement.inheritTheme = style.inheritTheme;
+  if (style.inheritStyle) styledElement.inheritStyle = style.inheritStyle;
   if (style.borderEnabled !== undefined) styledElement.borderEnabled = style.borderEnabled;
   if (style.backgroundEnabled !== undefined) styledElement.backgroundEnabled = style.backgroundEnabled;
 
@@ -63,21 +63,21 @@ export function applyBrushTheme(brushSettings: any, theme: string): any {
   
   switch (theme) {
     case 'sketchy':
-      themedSettings.inheritTheme = 'rough';
+      themedSettings.inheritStyle = 'rough';
       themedSettings.strokeWidth = Math.max(themedSettings.strokeWidth || 2, 3);
       break;
     case 'colorful':
-      themedSettings.inheritTheme = 'glow';
+      themedSettings.inheritStyle = 'glow';
       themedSettings.strokeWidth = Math.max(themedSettings.strokeWidth || 2, 4);
       break;
     case 'vintage':
       themedSettings.inheritTheme = 'wobbly';
       break;
     case 'dark':
-      themedSettings.inheritTheme = 'zigzag';
+      themedSettings.inheritStyle = 'zigzag';
       break;
     default:
-      themedSettings.inheritTheme = 'default';
+      themedSettings.inheritStyle = 'default';
   }
   
   return themedSettings;

@@ -38,7 +38,7 @@ export interface TextboxStyle {
     borderWidth?: number;
     borderColor?: string;
     borderOpacity?: number;
-    borderTheme?: string;
+    borderStyle?: string;
   };
   format?: {
     textAlign?: 'left' | 'center' | 'right';
@@ -66,7 +66,7 @@ export interface ShapeStyle {
   stroke?: string;
   fill?: string;
   opacity?: number;
-  inheritTheme?: string;
+  inheritStyle?: string;
   borderEnabled?: boolean;
   backgroundEnabled?: boolean;
 }

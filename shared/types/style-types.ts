@@ -1,25 +1,25 @@
 /**
- * TypeScript Interfaces für Shared Theme Engine
- * Vollständige Interfaces für alle Themes
+ * TypeScript Interfaces für Shared Style Engine
+ * Vollständige Interfaces für alle Linien-/Border-Styles
  */
 
 /**
- * Options object für Theme-Engine Funktionen
+ * Options object für Style-Engine Funktionen
  * Alle externen Abhängigkeiten werden hier injiziert
  */
-export interface ThemeEngineOptions {
+export interface StyleEngineOptions {
   /** Document object für DOM-Operationen (z.B. createElementNS) */
   document?: Document;
   /** Zoom-Faktor für Skalierung */
   zoom?: number;
-  /** Rough.js instance für Rough-Theme */
+  /** Rough.js instance für Rough-Style */
   roughInstance?: any;
 }
 
 /**
- * Ergebnis einer Theme-Pfad-Generierung
+ * Ergebnis einer Style-Pfad-Generierung
  */
-export interface ThemeResult {
+export interface StyleResult {
   /** SVG-Pfad-String */
   pathData: string;
   /** Stroke-Eigenschaften */
@@ -40,8 +40,7 @@ export interface ThemeResult {
 }
 
 /**
- * Theme-Typen
- * Alle unterstützten Themes
+ * Style-Typen
+ * Alle unterstützten Linien-/Border-Styles
  */
-export type Theme = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag' | 'dashed';
-
+export type Style = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag' | 'dashed';

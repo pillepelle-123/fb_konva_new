@@ -12,7 +12,7 @@ import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE 
 import { getFontFamily } from '../../../../utils/font-utils';
 import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-families';
 import { FONT_GROUPS } from '../../../../utils/font-families';
-import { ThemeSelect } from '../../../../utils/theme-options';
+import { StyleSelect } from '../../../../utils/style-options';
 import { Tooltip } from '../../../ui';
 import { useEditor } from '../../../../context/editor-context';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
@@ -24,8 +24,8 @@ import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
-import { getBorderTheme } from '../../../../utils/theme-utils';
-import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { getBorderStyle } from '../../../../utils/border-utils';
+import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
 
 const getCurrentFontName = (fontFamily: string) => {
@@ -185,14 +185,14 @@ export function QnASettingsForm({
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
       const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
       const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? themeDefaults.borderOpacity ?? 1;
-      const borderTheme = element.borderTheme || element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      const borderStyle = element.borderStyle || element.questionSettings?.borderStyle || element.answerSettings?.borderStyle || themeDefaults.borderStyle || 'default';
       
       // Set all border properties on top-level only (no border object, no nested border.enabled)
       updates.borderEnabled = value;
       updates.borderWidth = borderWidth;
       updates.borderColor = borderColor;
       updates.borderOpacity = borderOpacity;
-      updates.borderTheme = borderTheme;
+      updates.borderStyle = borderStyle;
     } else if (key === 'backgroundEnabled') {
       const backgroundColor = element.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || themeDefaults.backgroundColor || '#ffffff';
       const backgroundOpacity = element.backgroundOpacity ?? element.questionSettings?.backgroundOpacity ?? element.answerSettings?.backgroundOpacity ?? themeDefaults.backgroundOpacity ?? 1;
@@ -204,21 +204,21 @@ export function QnASettingsForm({
     } else if (key === 'borderWidth') {
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
       const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? themeDefaults.borderOpacity ?? 1;
-      const borderTheme = element.borderTheme || element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      const borderStyle = element.borderStyle || element.questionSettings?.borderStyle || element.answerSettings?.borderStyle || themeDefaults.borderStyle || 'default';
       
       // Only set on top-level (only individual properties, no border object)
       updates.borderWidth = value;
       updates.borderColor = borderColor;
       updates.borderOpacity = borderOpacity;
-      updates.borderTheme = borderTheme;
-    } else if (key === 'borderTheme') {
+      updates.borderStyle = borderStyle;
+    } else if (key === 'borderStyle') {
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
       // When border theme changes, set borderWidth to minimum value of new theme
       const minWidth = getMinActualStrokeWidth(value);
       const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
       
       // Only set on top-level (only individual properties, no border object)
-      updates.borderTheme = value;
+      updates.borderStyle = value;
       // Only update borderWidth if border is enabled
       const currentBorderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || 0;
       if (currentBorderWidth > 0) {
@@ -231,13 +231,13 @@ export function QnASettingsForm({
     } else if (key === 'borderOpacity') {
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
       const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
-      const borderTheme = element.borderTheme || element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+      const borderStyle = element.borderStyle || element.questionSettings?.borderStyle || element.answerSettings?.borderStyle || themeDefaults.borderStyle || 'default';
       
       // Only set on top-level (only individual properties, no border object)
       updates.borderOpacity = value;
       updates.borderWidth = borderWidth;
       updates.borderColor = borderColor;
-      updates.borderTheme = borderTheme;
+      updates.borderStyle = borderStyle;
     } else if (key === 'backgroundOpacity') {
       const backgroundColor = element.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || themeDefaults.backgroundColor || '#ffffff';
       
@@ -352,7 +352,7 @@ export function QnASettingsForm({
               </Button>
             </Tooltip>
             <div className="flex-1">
-              <Tooltip content={`Font: ${getCurrentFontName(displayStyle.fontFamily)}`} side="left">
+              <Tooltip content={`Font: ${getCurrentFontName(displayStyle.fontFamily)}`} side="left" fullWidth>
                 <Button
                   variant="outline"
                   size="xxs"
@@ -430,7 +430,7 @@ export function QnASettingsForm({
               slotColors={sandbox.state.sandboxColors}
             />
           ) : (
-            <Tooltip content="Font Color" side="left">
+            <Tooltip content="Font Color" side="left" fullWidth>
               <Button
                 variant="outline"
                 size="xxs"
@@ -704,7 +704,7 @@ export function QnASettingsForm({
           const currentEnabled = element.borderEnabled ?? (element.questionSettings?.border?.enabled || element.answerSettings?.border?.enabled) ?? (themeDefaults.borderEnabled ?? false);
           const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
           const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
-          const borderTheme = element.borderTheme || element.questionSettings?.borderTheme || element.answerSettings?.borderTheme || themeDefaults.borderTheme || 'default';
+          const borderStyle = element.borderStyle || element.questionSettings?.borderStyle || element.answerSettings?.borderStyle || themeDefaults.borderStyle || 'default';
           
           dispatch({
             type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -716,7 +716,7 @@ export function QnASettingsForm({
                 borderColor: colorValue,
                 borderWidth: borderWidth,
                 borderOpacity: borderOpacity,
-                borderTheme: borderTheme
+                borderStyle: borderStyle
               }
             }
           });
@@ -860,7 +860,7 @@ export function QnASettingsForm({
   
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-2 p-2">
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
         {/* Layout controls - only show when requested */}
       {showLayoutControls && (
         <>
@@ -1414,11 +1414,11 @@ export function QnASettingsForm({
             </Tooltip>
           </div>
           
-          <div>
-            <Tooltip content="Ruled Lines Theme" side="left">
-              <ThemeSelect 
+          <div className="w-full min-w-0">
+            <Tooltip content="Ruled Lines Style" side="left" fullWidth>
+              <StyleSelect 
               value={(() => {
-                return element.ruledLinesTheme || 'rough';
+                return element.ruledLinesStyle || 'rough';
               })()}
               onChange={(value) => {
                 dispatch({
@@ -1426,8 +1426,8 @@ export function QnASettingsForm({
                   payload: {
                     id: element.id,
                     updates: {
-                      // Set ruledLinesTheme on top-level (moved from answerSettings)
-                      ruledLinesTheme: value
+                      // Set ruledLinesStyle on top-level (moved from answerSettings)
+                      ruledLinesStyle: value
                     }
                   }
                 });
@@ -1436,10 +1436,10 @@ export function QnASettingsForm({
             </Tooltip>
           </div>
           
-          {/* Theme-specific settings for Ruled Lines */}
-          <ThemeSettingsRenderer
+          {/* Style-specific settings for Ruled Lines */}
+          <StyleSettingsRenderer
             element={element}
-            theme={element.ruledLinesTheme || 'rough'}
+            style={element.ruledLinesStyle || 'rough'}
             updateSetting={(key, value) => {
               dispatch({
                 type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
@@ -1468,7 +1468,7 @@ export function QnASettingsForm({
                 slotColors={sandbox.state.sandboxColors}
               />
             ) : (
-              <Tooltip content="Line Color" side="left">
+              <Tooltip content="Line Color" side="left" fullWidth>
                 <Button
                   variant="outline"
                   size="xxs"
@@ -1561,25 +1561,25 @@ export function QnASettingsForm({
                          element.questionSettings?.borderWidth || 
                          element.answerSettings?.borderWidth || 
                          (element.border?.borderWidth ?? (themeDefaults.borderWidth ?? 1));
-                  const borderTheme = element.borderTheme || 
-                         element.questionSettings?.borderTheme || 
-                         element.answerSettings?.borderTheme || 
-                         element.border?.borderTheme || 
-                         themeDefaults.borderTheme || 
+                  const borderStyle = element.borderStyle || 
+                         element.questionSettings?.borderStyle || 
+                         element.answerSettings?.borderStyle || 
+                         element.border?.borderStyle || 
+                         themeDefaults.borderStyle || 
                          'default';
                   // Convert actual width to common scale (0-100) for the slider
-                  return actualToCommonStrokeWidth(currentBorderWidth, borderTheme);
+                  return actualToCommonStrokeWidth(currentBorderWidth, borderStyle);
                 })()}
                 onChange={(value) => {
                   const themeDefaults = getThemeDefaults();
-                  const borderTheme = element.borderTheme || 
-                         element.questionSettings?.borderTheme || 
-                         element.answerSettings?.borderTheme || 
-                         element.border?.borderTheme || 
-                         themeDefaults.borderTheme || 
+                  const borderStyle = element.borderStyle || 
+                         element.questionSettings?.borderStyle || 
+                         element.answerSettings?.borderStyle || 
+                         element.border?.borderStyle || 
+                         themeDefaults.borderStyle || 
                          'default';
                   // Convert common scale (0-100) back to actual theme-specific width
-                  const actualWidth = commonToActualStrokeWidth(value, borderTheme);
+                  const actualWidth = commonToActualStrokeWidth(value, borderStyle);
                   updateSharedSetting('borderWidth', actualWidth);
                 }}
                 min={1}
@@ -1590,33 +1590,33 @@ export function QnASettingsForm({
             </Tooltip>
           </div>
           
-          <div>
-            <Tooltip content="Border Theme" side="left">
-              <ThemeSelect 
+          <div className="w-full min-w-0">
+            <Tooltip content="Border Style" side="left" fullWidth>
+              <StyleSelect 
               value={(() => {
                 const themeDefaults = getThemeDefaults();
-                return element.borderTheme || 
-                       element.questionSettings?.borderTheme || 
-                       element.answerSettings?.borderTheme || 
-                       element.border?.borderTheme || 
-                       themeDefaults.borderTheme || 
+                return element.borderStyle || 
+                       element.questionSettings?.borderStyle || 
+                       element.answerSettings?.borderStyle || 
+                       element.border?.borderStyle || 
+                       themeDefaults.borderStyle || 
                        'default';
               })()}
-              onChange={(value) => updateSharedSetting('borderTheme', value)}
+              onChange={(value) => updateSharedSetting('borderStyle', value)}
             />
             </Tooltip>
           </div>
           
-          {/* Theme-specific settings for Border */}
-          <ThemeSettingsRenderer
+          {/* Style-specific settings for Border */}
+          <StyleSettingsRenderer
             element={element}
-            theme={(() => {
+            style={(() => {
               const themeDefaults = getThemeDefaults();
-              return element.borderTheme || 
-                     element.questionSettings?.borderTheme || 
-                     element.answerSettings?.borderTheme || 
-                     element.border?.borderTheme || 
-                     themeDefaults.borderTheme || 
+              return element.borderStyle || 
+                     element.questionSettings?.borderStyle || 
+                     element.answerSettings?.borderStyle || 
+                     element.border?.borderStyle || 
+                     themeDefaults.borderStyle || 
                      'default';
             })()}
             updateSetting={(key, value) => updateSharedSetting(key, value)}
@@ -1634,7 +1634,7 @@ export function QnASettingsForm({
                 slotColors={sandbox.state.sandboxColors}
               />
             ) : (
-              <Tooltip content="Border Color" side="left">
+              <Tooltip content="Border Color" side="left" fullWidth>
                 <Button
                   variant="outline"
                   size="xxs"
@@ -1729,7 +1729,7 @@ export function QnASettingsForm({
                 slotColors={sandbox.state.sandboxColors}
               />
             ) : (
-              <Tooltip content="Background Color" side="left">
+              <Tooltip content="Background Color" side="left" fullWidth>
                 <Button
                   variant="outline"
                   size="xxs"

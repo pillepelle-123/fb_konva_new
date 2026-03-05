@@ -58,7 +58,7 @@ export function Select({ value: controlledValue, onValueChange, defaultValue, ch
 
   return (
     <SelectContext.Provider value={{ value, onValueChange: handleValueChange, open, setOpen, itemLabels, registerItem, showInfoIcons, itemTooltips: tooltipsMap }}>
-      <div className="relative">
+      <div className="relative w-full min-w-0">
         {children}
       </div>
     </SelectContext.Provider>

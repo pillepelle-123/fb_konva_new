@@ -15,7 +15,7 @@ export function getRuledLinesConfig(element: CanvasElement) {
     opacity: getRuledLinesOpacity(element),
     color: element.ruledLines?.lineColor || element.ruledLinesColor || '#1f2937',
     width: element.ruledLines?.width ?? element.ruledLines?.lineWidth ?? element.ruledLinesWidth ?? 0.8,
-    theme: element.ruledLines?.theme || element.ruledLines?.ruledLinesTheme || element.ruledLines?.inheritTheme || element.ruledLinesTheme || 'rough',
+    style: element.ruledLines?.ruledLinesStyle ?? element.ruledLines?.style ?? element.ruledLines?.inheritStyle ?? (element as any).ruledLinesStyle ?? 'rough',
     enabled: element.ruledLines?.enabled ?? (element.ruledLines || false)
   };
 }

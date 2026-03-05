@@ -1,6 +1,6 @@
 import type { CanvasElement } from '../context/editor-context';
 import { actualToCommon } from './font-size-converter';
-import { actualToCommonStrokeWidth, actualToThemeJsonStrokeWidth } from './stroke-width-converter';
+import { actualToCommonStrokeWidth, actualToStyleJsonStrokeWidth } from './stroke-width-converter';
 import { actualToCommonRadius } from './corner-radius-converter';
 import { displayJSONInNewWindow } from './json-display';
 
@@ -231,14 +231,14 @@ export function extractThemeDefaults(
     if (textElement.textSettings?.border?.enabled !== undefined || textElement.border?.enabled !== undefined) {
       const borderEnabled = textElement.textSettings?.border?.enabled ?? textElement.border?.enabled ?? false;
       const borderWidth = textElement.textSettings?.borderWidth ?? textElement.borderWidth ?? 1;
-      const borderTheme = textElement.textSettings?.borderTheme ?? textElement.border?.borderTheme ?? textElement.theme ?? pageTheme ?? 'default';
+      const borderStyle = textElement.textSettings?.borderStyle ?? textElement.border?.borderStyle ?? textElement.style ?? pageTheme ?? 'default';
       const borderOpacity = textElement.textSettings?.borderOpacity ?? textElement.borderOpacity ?? 1;
       
       textDefaults.border = {
         enabled: borderEnabled,
-        width: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0,
+        width: borderWidth ? actualToStyleJsonStrokeWidth(borderWidth, borderStyle) : 0,
         opacity: borderOpacity,
-        theme: borderTheme
+        style: borderStyle
       };
     }
     
@@ -263,14 +263,14 @@ export function extractThemeDefaults(
     if (textElement.textSettings?.ruledLines !== undefined || textElement.ruledLines !== undefined) {
       const ruledLinesEnabled = textElement.textSettings?.ruledLines ?? textElement.ruledLines ?? false;
       const ruledLinesWidth = textElement.textSettings?.ruledLinesWidth ?? textElement.ruledLinesWidth ?? textElement.ruledLines?.width ?? 0.8;
-      const ruledLinesTheme = textElement.textSettings?.ruledLinesTheme ?? textElement.ruledLinesTheme ?? textElement.ruledLines?.theme ?? 'default';
+      const ruledLinesStyle = textElement.textSettings?.ruledLinesStyle ?? textElement.ruledLinesStyle ?? textElement.ruledLines?.style ?? 'default';
       const ruledLinesOpacity = textElement.textSettings?.ruledLinesOpacity ?? textElement.ruledLinesOpacity ?? textElement.ruledLines?.opacity ?? 0.5;
       
       textDefaults.ruledLines = {
         enabled: ruledLinesEnabled,
-        width: ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8,
+        width: ruledLinesWidth ? actualToStyleJsonStrokeWidth(ruledLinesWidth, ruledLinesStyle) : 0.8,
         opacity: ruledLinesOpacity,
-        theme: ruledLinesTheme
+        style: ruledLinesStyle
       };
     }
     
@@ -308,14 +308,14 @@ export function extractThemeDefaults(
     // Border settings (QnA2 stores borderEnabled on top-level, not in questionSettings.border)
     const borderEnabled = qnaElement.borderEnabled ?? qnaElement.textSettings?.borderEnabled ?? qnaElement.questionSettings?.border?.enabled ?? qnaElement.answerSettings?.border?.enabled ?? qnaElement.border?.enabled ?? false;
     const borderWidth = qnaElement.borderWidth ?? qnaElement.textSettings?.borderWidth ?? qnaElement.questionSettings?.borderWidth ?? qnaElement.answerSettings?.borderWidth ?? 1;
-    const borderTheme = qnaElement.borderTheme ?? qnaElement.textSettings?.borderTheme ?? qnaElement.questionSettings?.borderTheme ?? qnaElement.answerSettings?.borderTheme ?? qnaElement.border?.borderTheme ?? qnaElement.theme ?? pageTheme ?? 'default';
+    const borderStyle = qnaElement.borderStyle ?? qnaElement.textSettings?.borderStyle ?? qnaElement.questionSettings?.borderStyle ?? qnaElement.answerSettings?.borderStyle ?? qnaElement.border?.borderStyle ?? qnaElement.style ?? pageTheme ?? 'default';
     const borderOpacity = qnaElement.borderOpacity ?? qnaElement.textSettings?.borderOpacity ?? qnaElement.questionSettings?.borderOpacity ?? qnaElement.answerSettings?.borderOpacity ?? 1;
     
     qnaDefaults.border = {
       enabled: borderEnabled,
-      width: borderWidth ? actualToThemeJsonStrokeWidth(borderWidth, borderTheme) : 0,
+      width: borderWidth ? actualToStyleJsonStrokeWidth(borderWidth, borderStyle) : 0,
       opacity: borderOpacity,
-      theme: borderTheme
+      style: borderStyle
     };
     
     // Background settings (QnA2 stores backgroundEnabled on top-level, not in questionSettings.background)
@@ -333,13 +333,13 @@ export function extractThemeDefaults(
       ? (ruledLinesConfig as { enabled?: boolean }).enabled ?? false
       : !!(ruledLinesConfig ?? qnaElement.ruledLinesEnabled);
     const ruledLinesWidth = qnaElement.ruledLinesWidth ?? qnaElement.textSettings?.ruledLinesWidth ?? qnaElement.ruledLines?.width ?? 0.8;
-    const ruledLinesTheme = qnaElement.ruledLinesTheme ?? qnaElement.textSettings?.ruledLinesTheme ?? qnaElement.ruledLines?.theme ?? 'default';
+    const ruledLinesStyle = qnaElement.ruledLinesStyle ?? qnaElement.textSettings?.ruledLinesStyle ?? qnaElement.ruledLines?.style ?? 'default';
     const ruledLinesOpacity = qnaElement.ruledLinesOpacity ?? qnaElement.textSettings?.ruledLinesOpacity ?? qnaElement.ruledLines?.opacity ?? 0.5;
     
     qnaDefaults.ruledLines = {
       enabled: ruledLines,
-      width: ruledLinesWidth ? actualToThemeJsonStrokeWidth(ruledLinesWidth, ruledLinesTheme) : 0.8,
-      theme: ruledLinesTheme,
+      width: ruledLinesWidth ? actualToStyleJsonStrokeWidth(ruledLinesWidth, ruledLinesStyle) : 0.8,
+      style: ruledLinesStyle,
       opacity: ruledLinesOpacity
     };
     
@@ -404,8 +404,8 @@ export function extractThemeDefaults(
     const shapeDefaults: any = {};
     
     if (shapeElement.strokeWidth !== undefined) {
-      const strokeTheme = shapeElement.inheritTheme || shapeElement.theme || pageTheme || 'default';
-      shapeDefaults.strokeWidth = actualToThemeJsonStrokeWidth(shapeElement.strokeWidth, strokeTheme);
+      const strokeStyle = shapeElement.inheritStyle || shapeElement.style || pageTheme || 'default';
+      shapeDefaults.strokeWidth = actualToStyleJsonStrokeWidth(shapeElement.strokeWidth, strokeStyle);
     }
     
     if (shapeElement.cornerRadius !== undefined) {
@@ -416,7 +416,7 @@ export function extractThemeDefaults(
       shapeDefaults.borderOpacity = shapeElement.borderOpacity ?? shapeElement.opacity ?? 1;
     }
     
-    shapeDefaults.inheritTheme = shapeElement.inheritTheme || shapeElement.theme || 'default';
+    shapeDefaults.inheritStyle = shapeElement.inheritStyle || shapeElement.style || 'default';
     
     // Check if shape has border/background enabled (look for stroke/fill)
     shapeDefaults.borderEnabled = !!(shapeElement.stroke && shapeElement.stroke !== 'transparent');
@@ -430,8 +430,8 @@ export function extractThemeDefaults(
     const brushDefaults: any = {};
     
     if (brushElement.strokeWidth !== undefined) {
-      const strokeTheme = brushElement.inheritTheme || brushElement.theme || pageTheme || 'default';
-      brushDefaults.strokeWidth = actualToThemeJsonStrokeWidth(brushElement.strokeWidth, strokeTheme);
+      const strokeStyle = brushElement.inheritStyle || brushElement.style || pageTheme || 'default';
+      brushDefaults.strokeWidth = actualToStyleJsonStrokeWidth(brushElement.strokeWidth, strokeStyle);
     }
     
     if (brushElement.strokeOpacity !== undefined) {
@@ -456,10 +456,10 @@ export function extractThemeDefaults(
       ? imageElement.frameEnabled
       : ((imageElement.strokeWidth || 0) > 0);
     imageDefaults.frameEnabled = frameEnabled;
-    const frameTheme = imageElement.frameTheme || imageElement.theme || pageTheme || 'default';
-    imageDefaults.frameTheme = frameTheme;
+    const frameStyle = imageElement.frameStyle || imageElement.style || pageTheme || 'default';
+    imageDefaults.frameStyle = frameStyle;
     if (imageElement.strokeWidth !== undefined) {
-      imageDefaults.strokeWidth = actualToThemeJsonStrokeWidth(imageElement.strokeWidth, frameTheme);
+      imageDefaults.strokeWidth = actualToStyleJsonStrokeWidth(imageElement.strokeWidth, frameStyle);
     }
     if (imageElement.borderOpacity !== undefined) {
       imageDefaults.borderOpacity = imageElement.borderOpacity;
@@ -498,11 +498,11 @@ export function extractThemeDefaults(
     const lineDefaults: any = {};
     
     if (lineElement.strokeWidth !== undefined) {
-      const strokeTheme = lineElement.inheritTheme || lineElement.theme || pageTheme || 'default';
-      lineDefaults.strokeWidth = actualToThemeJsonStrokeWidth(lineElement.strokeWidth, strokeTheme);
+      const strokeStyle = lineElement.inheritStyle || lineElement.style || pageTheme || 'default';
+      lineDefaults.strokeWidth = actualToStyleJsonStrokeWidth(lineElement.strokeWidth, strokeStyle);
     }
     
-    lineDefaults.inheritTheme = lineElement.inheritTheme || lineElement.theme || 'default';
+    lineDefaults.inheritStyle = lineElement.inheritStyle || lineElement.style || 'default';
     
     defaults.line = lineDefaults;
   }

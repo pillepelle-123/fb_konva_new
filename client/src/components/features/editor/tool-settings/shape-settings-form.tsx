@@ -5,11 +5,11 @@ import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
-import { ThemeSelect } from '../../../../utils/theme-options';
+import { StyleSelect } from '../../../../utils/style-options';
 import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
-import { getElementTheme } from '../../../../utils/theme-utils';
-import { ThemeSettingsRenderer } from './theme-settings-renderer';
+import { getElementStyle } from '../../../../utils/style-utils';
+import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
 import { SlotSelector } from './slot-selector';
 import type { SandboxContextValue } from '../../../../context/sandbox-context';
@@ -47,7 +47,7 @@ export function ShapeSettingsForm({
     case 'brush':
       return (
         <div className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto space-y-2 p-2">
+          <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
           <Slider
             label="Stroke Size"
             value={Math.round(element.strokeWidth || 2)}
@@ -62,6 +62,7 @@ export function ShapeSettingsForm({
             max={100}
           />
           
+          <div className="w-full min-w-0">
           {isSandboxMode && sandbox ? (
             <SlotSelector
               label="Stroke Color"
@@ -84,6 +85,7 @@ export function ShapeSettingsForm({
               Stroke Color
             </Button>
           )}
+          </div>
           
           <Slider
             label="Stroke Opacity"
@@ -108,16 +110,14 @@ export function ShapeSettingsForm({
     case 'line':
       return (
         <div className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto space-y-2 p-2">
-          <div>
-            <Label variant="xs">Theme</Label>
-            <ThemeSelect 
-              value={getElementTheme(element)}
+          <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
+          <div className="w-full min-w-0">
+            <Label variant="xs">Style</Label>
+            <StyleSelect 
+              value={getElementStyle(element)}
               onChange={(value) => {
-                // When theme changes, set strokeWidth to minimum value of new theme
                 const minWidth = getMinActualStrokeWidth(value);
-                updateSetting('theme', value);
-                updateSetting('inheritTheme', value);
+                updateSetting('inheritStyle', value);
                 // Only update strokeWidth if border is enabled (strokeWidth > 0)
                 if ((element.strokeWidth || 0) > 0) {
                   updateSetting('strokeWidth', minWidth);
@@ -130,15 +130,15 @@ export function ShapeSettingsForm({
 
           <Slider
             label="Stroke Width"
-            value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementTheme(element))}
-            onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, getElementTheme(element)))}
+            value={actualToCommonStrokeWidth(element.strokeWidth || 2, getElementStyle(element))}
+            onChange={(value) => updateSetting('strokeWidth', commonToActualStrokeWidth(value, getElementStyle(element)))}
             min={0}
             max={getMaxStrokeWidth()}
           />
           
           <Separator />
           
-          <div>
+          <div className="w-full min-w-0">
             {isSandboxMode && sandbox ? (
               <SlotSelector
                 label="Color"
@@ -199,17 +199,14 @@ export function ShapeSettingsForm({
     case 'smiley':
       return (
         <div className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto space-y-2 p-2">
-          <div>
-            <Label variant="xs">Theme</Label>
-            <ThemeSelect 
-              value={getElementTheme(element)}
+          <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
+          <div className="w-full min-w-0">
+            <Label variant="xs">Style</Label>
+            <StyleSelect 
+              value={getElementStyle(element)}
               onChange={(value) => {
-                // When theme changes, set borderWidth to minimum value of new theme
                 const minWidth = getMinActualStrokeWidth(value);
-                updateSetting('inheritTheme', value);
-                updateSetting('theme', value);
-                // Only update borderWidth if border is enabled (borderWidth > 0)
+                updateSetting('inheritStyle', value);
                 if ((element.borderWidth || element.strokeWidth || 0) > 0) {
                   updateSetting('borderWidth', minWidth);
                 }
@@ -249,9 +246,9 @@ export function ShapeSettingsForm({
             <IndentedSection>
               <Slider
                 label="Stroke Width"
-                value={actualToCommonStrokeWidth((element.borderWidth || element.strokeWidth || 0), getElementTheme(element))}
+                value={actualToCommonStrokeWidth((element.borderWidth || element.strokeWidth || 0), getElementStyle(element))}
                 onChange={(value) => {
-                  const actualWidth = commonToActualStrokeWidth(value, getElementTheme(element));
+                  const actualWidth = commonToActualStrokeWidth(value, getElementStyle(element));
                   updateSetting('borderWidth', actualWidth);
                   localStorage.setItem(`shape-border-width-${element.id}`, String(actualWidth));
                 }}
@@ -318,7 +315,7 @@ export function ShapeSettingsForm({
           
           {(element.backgroundEnabled !== undefined ? element.backgroundEnabled : (element.fill !== 'transparent' && element.fill !== undefined)) && (
             <IndentedSection>
-              <div>
+              <div className="w-full min-w-0">
                 {isSandboxMode && sandbox ? (
                   <SlotSelector
                     label="Background Color"
@@ -356,13 +353,13 @@ export function ShapeSettingsForm({
           )}
           
           {/* Theme-specific settings */}
-          <ThemeSettingsRenderer
+          <StyleSettingsRenderer
             element={element}
-            theme={getElementTheme(element)}
+            style={getElementStyle(element)}
             updateSetting={updateSetting}
           />
           
-          {element.type === 'rect' && (element.theme !== 'candy' && element.theme !== 'zigzag' && element.theme !== 'wobbly') && ( 
+          {element.type === 'rect' && ((element as any).inheritStyle !== 'candy' && (element as any).inheritStyle !== 'zigzag' && (element as any).inheritStyle !== 'wobbly') && ( 
             <Slider
               label="Corner Radius"
               value={actualToCommonRadius(element.cornerRadius || 0)}

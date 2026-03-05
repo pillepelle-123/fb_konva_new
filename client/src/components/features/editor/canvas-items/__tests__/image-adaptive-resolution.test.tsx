@@ -15,12 +15,12 @@ vi.mock('react-konva', () => ({
 }));
 
 // Mock other dependencies
-vi.mock('../../../../../utils/themes-client', () => ({
-  getThemeRenderer: vi.fn(() => ({})),
+vi.mock('../../../../../utils/styles-client', () => ({
+  getStyleRenderer: vi.fn(() => ({})),
 }));
 
-vi.mock('../../../../../utils/themed-border', () => ({
-  renderThemedBorder: vi.fn(() => null),
+vi.mock('../../../../../utils/styled-border', () => ({
+  renderStyledBorder: vi.fn(() => null),
   createRectPath: vi.fn(() => ''),
 }));
 

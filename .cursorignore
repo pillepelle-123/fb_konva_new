@@ -55,10 +55,10 @@ docs/migration/
 
 # --- DATENBANK-HISTORIE ---
 # Verhindert Verwirrung durch alte SQL-Stände
-server/migrations/
-**/*.sql
+# server/migrations/
+# **/*.sql
 # AUSNAHME: Aktuelle Datenbankstruktur soll zugänglich bleiben
-!server/migrations/database.sql
+# !server/migrations/database.sql
 
 # --- PERFORMANCE TESTS & MOCKS ---
 # Diese Dateien enthalten oft riesige Daten-Arrays

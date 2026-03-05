@@ -191,7 +191,7 @@ export function PageNumberingSettings({ onBack }: PageNumberingSettingsProps) {
                   </Button>
                 </Tooltip>
                 <div className="flex-1">
-                  <Tooltip content={`Font: ${getCurrentFontName(draft.fontFamily)}`} side="left">
+                  <Tooltip content={`Font: ${getCurrentFontName(draft.fontFamily)}`} side="left" fullWidth>
                     <Button
                       variant="outline"
                       size="xxs"
@@ -226,7 +226,7 @@ export function PageNumberingSettings({ onBack }: PageNumberingSettingsProps) {
             </div>
 
             <div>
-              <Tooltip content="Font Color" side="left">
+              <Tooltip content="Font Color" side="left" fullWidth>
                 <Button
                   variant="outline"
                   size="xxs"

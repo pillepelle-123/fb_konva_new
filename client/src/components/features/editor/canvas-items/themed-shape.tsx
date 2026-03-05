@@ -1,8 +1,8 @@
 import { Path, Rect, Group, Line } from 'react-konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
-import { getThemeRenderer } from '../../../../utils/themes-client';
-import { renderThemedBorder, createRectPath, createCirclePath } from '../../../../utils/themed-border';
+import { getStyleRenderer } from '../../../../utils/styles-client';
+import { renderStyledBorder, createRectPath, createCirclePath } from '../../../../utils/styled-border';
 import { hexToRgba } from '../../../../../../shared/utils/color-utils';
 
 export default function ThemedShape(props: CanvasItemProps) {
@@ -45,8 +45,8 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
-  const theme = element.inheritTheme || element.theme || 'rough';
-  const renderer = getThemeRenderer(theme);
+  const style = element.inheritStyle || element.style || 'rough';
+  const renderer = getStyleRenderer(style);
 
   // Calculate hit area for brush strokes
   const hitArea = element.type === 'brush' && element.points ? (() => {
@@ -86,8 +86,8 @@ export default function ThemedShape(props: CanvasItemProps) {
 
   // For rough theme, ensure high roughness value like QnA borders
   // Align with QnA2 border: zoom=1 (no strokeWidth*zoom), seed=1 (consistent stroke count)
-  if (theme === 'rough' && strokeProps.strokeWidth > 0) {
-    const roughRenderer = getThemeRenderer('rough');
+  if (style === 'rough' && strokeProps.strokeWidth > 0) {
+    const roughRenderer = getStyleRenderer('rough');
     const roughElement = { ...element, roughness: 8, seed: 1 };
     const roughPathData = roughRenderer.generatePath(roughElement, 1);
     if (roughPathData) {
@@ -158,8 +158,8 @@ export default function ThemedShape(props: CanvasItemProps) {
 
 
 
-  // Special handling for multi-strokes theme - SVG organic pattern
-  if (theme === 'multi-strokes') {
+  // Special handling for multi-strokes style - SVG organic pattern
+  if (style === 'multi-strokes') {
     const organicPath = pathData;
     
     return (
@@ -188,8 +188,8 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
-  // Special handling for Glow theme - Multi-Stroke-Layers statt shadowBlur (performanter)
-  if (theme === 'glow' && strokeProps.useGlowLayers && strokeProps.strokeWidth > 0) {
+  // Special handling for Glow style - Multi-Stroke-Layers statt shadowBlur (performanter)
+  if (style === 'glow' && strokeProps.useGlowLayers && strokeProps.strokeWidth > 0) {
     const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
     const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
     const glowStrokeWidth = strokeProps.strokeWidth * glowMultiplier;
@@ -236,8 +236,8 @@ export default function ThemedShape(props: CanvasItemProps) {
     );
   }
 
-  // Special handling for Candy and Wobbly themes - use themed border API
-  if ((theme === 'candy' || theme === 'wobbly') && strokeProps.strokeWidth > 0) {
+  // Special handling for Candy and Wobbly styles - use styled border API
+  if ((style === 'candy' || style === 'wobbly') && strokeProps.strokeWidth > 0) {
     // Get raw borderWidth value (not converted)
     const borderWidth = element.borderWidth || element.strokeWidth || 1;
     
@@ -256,15 +256,15 @@ export default function ThemedShape(props: CanvasItemProps) {
       borderPath = createRectPath(0, 0, element.width || 0, element.height || 0);
     }
     
-    const borderElement = renderThemedBorder({
+    const borderElement = renderStyledBorder({
       width: borderWidth,
       color: finalStrokeColor,
       opacity: finalBorderOpacity,
       cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
       path: borderPath,
-      theme: theme,
-      themeSettings: {
-        roughness: theme === 'rough' ? 8 : undefined,
+      style: style,
+      styleSettings: {
+        roughness: style === 'rough' ? 8 : undefined,
         candyRandomness: element.candyRandomness,
         candyIntensity: element.candyIntensity,
         seed: seed
@@ -290,7 +290,7 @@ export default function ThemedShape(props: CanvasItemProps) {
                 perfectDrawEnabled={false}
               />
             )}
-            {/* Border layer using themed border API */}
+            {/* Border layer using styled border API */}
             {borderElement}
           </Group>
         </BaseCanvasItem>

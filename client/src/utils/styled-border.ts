@@ -1,13 +1,13 @@
 import React from 'react';
 import { Path, Group } from 'react-konva';
 import Konva from 'konva';
-import { getThemeRenderer, type Theme } from './themes-client';
+import { getStyleRenderer, type Style } from './styles-client';
 import type { CanvasElement } from '../context/editor-context';
-import { createThemedBorderConfig } from '../../../shared/utils/themed-border-core';
+import { createStyledBorderConfig } from '../../../shared/utils/styled-border-core';
 import { FEATURE_FLAGS } from './feature-flags';
 
-export interface ThemedBorderConfig {
-  // Standard-Einstellungen (für alle Themes)
+export interface StyledBorderConfig {
+  // Standard-Einstellungen (für alle Styles)
   width: number;
   color: string;
   opacity?: number;
@@ -16,84 +16,67 @@ export interface ThemedBorderConfig {
   // Pfad-Definition (für Rechtecke, Kreise, Linien, etc.)
   path: {
     type: 'rect' | 'circle' | 'line' | 'custom';
-    // Für rect:
     x?: number;
     y?: number;
     width: number;
     height: number;
-    // Für circle:
     centerX?: number;
     centerY?: number;
     radius?: number;
-    // Für custom:
     pathData?: string;
   };
   
-  // Theme-Einstellungen
-  theme: Theme;
-  themeSettings?: {
-    // Candy-spezifisch
+  // Style-Einstellungen
+  style: Style;
+  styleSettings?: {
     candyRandomness?: boolean;
     candyIntensity?: 'weak' | 'middle' | 'strong';
     candySpacingMultiplier?: number;
     candyHoled?: boolean;
-    
-    // Rough-spezifisch
     roughness?: number;
-    
-    // Allgemein
     seed?: number;
   };
   
-  // Rendering-Optionen
   zoom?: number;
   strokeScaleEnabled?: boolean;
   listening?: boolean;
-  key?: string; // Für React key prop
+  key?: string;
 }
 
 /**
- * Rendert einen themed Border entlang eines Pfades.
- * Unterstützt alle Themes und kann mehrere Formen entlang des Pfades rendern.
- * 
- * Verwendung:
- * - Borders für Textboxen (QnA, Free Text)
- * - Frames für Bilder
- * - Borders für Shapes
- * - Ruled Lines (als einzelne Linien)
+ * Rendert einen styled Border entlang eines Pfades.
+ * Unterstützt alle Styles und kann mehrere Formen entlang des Pfades rendern.
  */
-export function renderThemedBorder(config: ThemedBorderConfig): React.ReactElement | null {
+export function renderStyledBorder(config: StyledBorderConfig): React.ReactElement | null {
   const {
     width,
     color,
     opacity = 1,
     path,
-    theme,
-    themeSettings = {},
+    style,
+    styleSettings = {},
     zoom = 1,
     strokeScaleEnabled = true,
     listening = false,
     key
   } = config;
   
-  // Use shared core logic
-  const borderConfig = createThemedBorderConfig({
+  const borderConfig = createStyledBorderConfig({
     width,
     color,
     opacity,
     cornerRadius: config.cornerRadius || 0,
     path,
-    theme,
-    themeSettings,
+    style,
+    styleSettings,
     zoom,
-    getThemeRenderer
+    getStyleRenderer
   });
   
   if (!borderConfig) return null;
   
   const { pathData, strokeProps, pathOffsetX, pathOffsetY } = borderConfig;
   
-  // Glow-Theme: Multi-Stroke-Layers statt shadowBlur (performanter)
   const useGlowLayers = strokeProps.useGlowLayers === true;
   const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
   const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
@@ -146,32 +129,20 @@ export function renderThemedBorder(config: ThemedBorderConfig): React.ReactEleme
   });
 }
 
-/**
- * Helper: Erstellt eine Rechteck-Pfad-Konfiguration
- */
 export function createRectPath(
   x: number,
   y: number,
   width: number,
   height: number
-): ThemedBorderConfig['path'] {
-  return {
-    type: 'rect',
-    x,
-    y,
-    width,
-    height
-  };
+): StyledBorderConfig['path'] {
+  return { type: 'rect', x, y, width, height };
 }
 
-/**
- * Helper: Erstellt eine Kreis-Pfad-Konfiguration
- */
 export function createCirclePath(
   centerX: number,
   centerY: number,
   radius: number
-): ThemedBorderConfig['path'] {
+): StyledBorderConfig['path'] {
   return {
     type: 'circle',
     centerX,
@@ -182,15 +153,12 @@ export function createCirclePath(
   };
 }
 
-/**
- * Helper: Erstellt eine Linien-Pfad-Konfiguration
- */
 export function createLinePath(
   x1: number,
   y1: number,
   x2: number,
   y2: number
-): ThemedBorderConfig['path'] {
+): StyledBorderConfig['path'] {
   return {
     type: 'line',
     x: x1,
@@ -200,38 +168,29 @@ export function createLinePath(
   };
 }
 
-/**
- * Server-seitige Version von renderThemedBorder
- * Gibt native Konva-Objekte statt React-Komponenten zurück
- * Wird im PDF-Renderer verwendet (läuft im Browser via Puppeteer)
- * 
- * @param config - ThemedBorderConfig (ohne key, da nicht für React)
- * @returns Konva.Path | Konva.Line | Konva.Group | null (Group bei Glow-Theme mit Multi-Stroke)
- */
-export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>): Konva.Path | Konva.Line | Konva.Group | null {
+export function renderStyledBorderKonva(config: Omit<StyledBorderConfig, 'key'>): Konva.Path | Konva.Line | Konva.Group | null {
   const {
     width,
     color,
     opacity = 1,
     path,
-    theme,
-    themeSettings = {},
+    style,
+    styleSettings = {},
     zoom = 1,
     strokeScaleEnabled = true,
     listening = false
   } = config;
   
-  // Use shared core logic
-  const borderConfig = createThemedBorderConfig({
+  const borderConfig = createStyledBorderConfig({
     width,
     color,
     opacity,
     cornerRadius: config.cornerRadius || 0,
     path,
-    theme,
-    themeSettings,
+    style,
+    styleSettings,
     zoom,
-    getThemeRenderer
+    getStyleRenderer
   });
   
   if (!borderConfig) return null;
@@ -251,7 +210,6 @@ export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>)
     listening: listening
   };
   
-  // Glow-Theme: Multi-Stroke-Layers statt shadowBlur (performanter)
   const useGlowLayers = strokeProps.useGlowLayers === true;
   const glowMultiplier = strokeProps.glowLayerWidthMultiplier ?? 2.5;
   const glowOpacity = strokeProps.glowLayerOpacity ?? 0.25;
@@ -288,38 +246,20 @@ export function renderThemedBorderKonva(config: Omit<ThemedBorderConfig, 'key'>)
   return konvaPath;
 }
 
-/**
- * Wrapper function with feature flag and fallback support
- * Used in PDF renderer to safely migrate to centralized border rendering
- * 
- * @param config - ThemedBorderConfig (ohne key)
- * @param fallbackFn - Optional fallback function if feature flag is off or error occurs
- * @returns Konva.Path | Konva.Line | Konva.Group | null
- */
-export function renderThemedBorderKonvaWithFallback(
-  config: Omit<ThemedBorderConfig, 'key'>,
+export function renderStyledBorderKonvaWithFallback(
+  config: Omit<StyledBorderConfig, 'key'>,
   fallbackFn?: () => Konva.Path | Konva.Line | Konva.Group | null
 ): Konva.Path | Konva.Line | Konva.Group | null {
-  // Check feature flag
   if (!FEATURE_FLAGS.USE_CENTRALIZED_BORDER_RENDERING) {
-    // Use fallback if provided
-    if (fallbackFn) {
-      return fallbackFn();
-    }
-    // Otherwise return null (should not happen in practice)
+    if (fallbackFn) return fallbackFn();
     return null;
   }
   
-  // Try centralized rendering
   try {
-    return renderThemedBorderKonva(config);
+    return renderStyledBorderKonva(config);
   } catch (error) {
-    console.warn('[renderThemedBorderKonvaWithFallback] Error in centralized rendering, using fallback:', error);
-    // Use fallback if error occurs
-    if (fallbackFn) {
-      return fallbackFn();
-    }
+    console.warn('[renderStyledBorderKonvaWithFallback] Error in centralized rendering, using fallback:', error);
+    if (fallbackFn) return fallbackFn();
     return null;
   }
 }
-

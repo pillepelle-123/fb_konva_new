@@ -3,8 +3,7 @@ import { Rect, Image as KonvaImage, Group, Line } from 'react-konva';
 import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
-import { getThemeRenderer } from '../../../../utils/themes-client';
-import { renderThemedBorder, createRectPath } from '../../../../utils/themed-border';
+import { renderStyledBorder, createRectPath } from '../../../../utils/styled-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
@@ -482,7 +481,7 @@ export default function Image(props: ImageProps) {
                 : (element.strokeWidth || 0) > 0);
             const strokeWidth = element.strokeWidth || 0;
             const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
-            const frameTheme = element.frameTheme || element.theme || 'default';
+            const frameStyle = element.frameStyle || element.style || 'default';
             const cornerRadius = element.cornerRadius || 0;
 
             const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
@@ -496,20 +495,20 @@ export default function Image(props: ImageProps) {
             const frameWidth = size.width;
             const frameHeight = size.height;
             
-            const seed = frameTheme === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+            const seed = frameStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
             
-            const frameElement = renderThemedBorder({
+            const frameElement = renderStyledBorder({
               width: strokeWidth,
               color: stroke,
               opacity: borderOpacity,
               cornerRadius: cornerRadius,
               path: createRectPath(0, 0, frameWidth, frameHeight),
-              theme: frameTheme as any,
-              themeSettings: {
-                roughness: frameTheme === 'rough' ? 8 : undefined,
+              style: frameStyle as any,
+              styleSettings: {
+                roughness: frameStyle === 'rough' ? 8 : undefined,
                 seed: seed
               },
-              zoom: frameTheme === 'rough' ? 1 : zoom,
+              zoom: frameStyle === 'rough' ? 1 : zoom,
               strokeScaleEnabled: true,
               listening: false
             });

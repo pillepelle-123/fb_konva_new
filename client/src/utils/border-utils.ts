@@ -22,10 +22,10 @@ export function getBorderOpacity(element: CanvasElement): number {
 }
 
 /**
- * Centralized utility for getting border theme with consistent fallback logic
+ * Centralized utility for getting border style with consistent fallback logic
  */
-export function getBorderTheme(element: CanvasElement): string {
-  return element.border?.theme || element.border?.borderTheme || element.border?.inheritTheme || element.theme || 'default';
+export function getBorderStyle(element: CanvasElement): string {
+  return element.border?.borderStyle ?? element.border?.style ?? element.border?.inheritStyle ?? 'default';
 }
 
 /**
@@ -36,7 +36,7 @@ export function getBorderConfig(element: CanvasElement) {
     width: getBorderWidth(element),
     color: getBorderColor(element),
     opacity: getBorderOpacity(element),
-    theme: getBorderTheme(element),
+    style: getBorderStyle(element),
     enabled: element.border?.enabled ?? (getBorderWidth(element) > 0)
   };
 }

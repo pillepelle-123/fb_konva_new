@@ -2,7 +2,7 @@ import type { CanvasElement } from '../context/editor-context.tsx';
 import { colorPalettes, getPalettePartColor } from '../data/templates/color-palettes.ts';
 import type { ColorPalette } from '../types/template-types.ts';
 import { commonToActual } from './font-size-converter.ts';
-import { themeJsonToActualStrokeWidth } from './stroke-width-converter.ts';
+import { styleJsonToActualStrokeWidth } from './stroke-width-converter.ts';
 import { commonToActualRadius } from './corner-radius-converter.ts';
 import { getThemesData } from '../data/templates/templates-data';
 import { getElementPaletteColors } from './global-palettes';
@@ -74,8 +74,8 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     // Convert strokeWidth if it exists directly in defaults (for shapes/brushes)
     const convertedDefaults = { ...defaults };
     if (convertedDefaults.strokeWidth !== undefined && typeof convertedDefaults.strokeWidth === 'number') {
-      const strokeTheme = convertedDefaults.inheritTheme || convertedDefaults.frameTheme || id;
-      convertedDefaults.strokeWidth = themeJsonToActualStrokeWidth(convertedDefaults.strokeWidth, strokeTheme);
+      const strokeStyle = convertedDefaults.inheritStyle || convertedDefaults.frameStyle || id;
+      convertedDefaults.strokeWidth = styleJsonToActualStrokeWidth(convertedDefaults.strokeWidth, strokeStyle);
     }
     
     const base = {
@@ -118,13 +118,13 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       if (base.border.opacity === undefined && base.border.borderOpacity !== undefined) {
         base.border.opacity = base.border.borderOpacity;
       }
-      if (base.border.theme === undefined && base.border.borderTheme !== undefined) {
-        base.border.theme = base.border.borderTheme;
+      if (base.border.style === undefined && base.border.borderStyle !== undefined) {
+        base.border.style = base.border.borderStyle;
       }
 
       if (base.border.width !== undefined) {
-        const borderTheme = base.border.theme || id;
-        const convertedBorderWidth = themeJsonToActualStrokeWidth(base.border.width, borderTheme);
+        const borderStyle = base.border.style || id;
+        const convertedBorderWidth = styleJsonToActualStrokeWidth(base.border.width, borderStyle);
         base.border.width = convertedBorderWidth;
         base.borderWidth = convertedBorderWidth;
         base.border.borderWidth = convertedBorderWidth;
@@ -136,9 +136,9 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       if (base.border.enabled !== undefined) {
         base.borderEnabled = base.border.enabled;
       }
-      if (base.border.theme !== undefined) {
-        base.borderTheme = base.border.theme;
-        base.border.borderTheme = base.border.theme;
+      if (base.border.style !== undefined) {
+        base.borderStyle = base.border.style;
+        base.border.borderStyle = base.border.style;
       }
     }
 
@@ -173,13 +173,13 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       if (base.ruledLines.opacity === undefined && base.ruledLines.lineOpacity !== undefined) {
         base.ruledLines.opacity = base.ruledLines.lineOpacity;
       }
-      if (base.ruledLines.theme === undefined && base.ruledLines.ruledLinesTheme !== undefined) {
-        base.ruledLines.theme = base.ruledLines.ruledLinesTheme;
+      if (base.ruledLines.style === undefined && base.ruledLines.ruledLinesStyle !== undefined) {
+        base.ruledLines.style = base.ruledLines.ruledLinesStyle;
       }
 
       if (base.ruledLines.width !== undefined) {
-        const ruledLinesTheme = base.ruledLines.theme || id;
-        const convertedWidth = themeJsonToActualStrokeWidth(base.ruledLines.width, ruledLinesTheme);
+        const ruledLinesStyle = base.ruledLines.style || id;
+        const convertedWidth = styleJsonToActualStrokeWidth(base.ruledLines.width, ruledLinesStyle);
         base.ruledLines.width = convertedWidth;
         base.ruledLinesWidth = convertedWidth;
         base.ruledLines.lineWidth = convertedWidth;
@@ -188,9 +188,9 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
         base.ruledLinesOpacity = base.ruledLines.opacity;
         base.ruledLines.lineOpacity = base.ruledLines.opacity;
       }
-      if (base.ruledLines.theme !== undefined) {
-        base.ruledLinesTheme = base.ruledLines.theme;
-        base.ruledLines.ruledLinesTheme = base.ruledLines.theme;
+      if (base.ruledLines.style !== undefined) {
+        base.ruledLinesStyle = base.ruledLines.style;
+        base.ruledLines.ruledLinesStyle = base.ruledLines.style;
       }
       if (base.ruledLines.enabled !== undefined) {
         base.ruledLinesEnabled = base.ruledLines.enabled;
@@ -208,9 +208,9 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       base.stickerTextSettings.fontSize = commonToActual(base.stickerTextSettings.fontSize);
     }
 
-    // Image: use frameTheme for theme
-    if (elementType === 'image' && base.frameTheme) {
-      base.theme = base.frameTheme;
+    // Image: use frameStyle for style
+    if (elementType === 'image' && base.frameStyle) {
+      base.style = base.frameStyle;
     }
 
     // Apply palette colors automatically (overriding hardcoded colors)
@@ -245,7 +245,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       if (base.border) {
         base.border.borderColor = palette.colors.secondary;
         base.borderColor = palette.colors.secondary;
-        base.border.borderTheme = base.border.borderTheme || id;
+        base.border.borderStyle = base.border.borderStyle || id;
       } else if (elementType === 'image') {
         base.borderColor = palette.colors.primary;
       } else {
@@ -271,15 +271,15 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
       if (base.ruledLines) {
         base.ruledLines.lineColor = palette.colors.accent || palette.colors.primary;
         base.ruledLinesColor = palette.colors.accent || palette.colors.primary;
-        base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
+        base.ruledLines.ruledLinesStyle = base.ruledLines.ruledLinesStyle || id;
       }
     }
 
-    // Add inherit theme for shapes and stroke themes - preserve existing inheritTheme
+    // Add inherit style for shapes and stroke styles - preserve existing inheritStyle
     if (['shape', 'brush', 'line'].includes(elementType)) {
-      // Don't override if inheritTheme is already set in the theme definition
-      if (!base.inheritTheme) {
-        base.inheritTheme = id;
+      // Don't override if inheritStyle is already set in the theme definition
+      if (!base.inheritStyle) {
+        base.inheritStyle = id;
       }
     }
     
@@ -294,11 +294,11 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
     
     // Handle theme inheritance for borders and ruled lines
     if (base.border) {
-      base.border.borderTheme = base.border.borderTheme || id;
+      base.border.borderStyle = base.border.borderStyle || id;
     }
     
     if (base.ruledLines) {
-      base.ruledLines.ruledLinesTheme = base.ruledLines.ruledLinesTheme || id;
+      base.ruledLines.ruledLinesStyle = base.ruledLines.ruledLinesStyle || id;
     }
 
     return base;
@@ -340,7 +340,7 @@ function processTheme(theme: GlobalTheme): GlobalTheme {
       ...theme.pageSettings,
       backgroundPattern: theme.pageSettings.backgroundPattern ? {
         ...theme.pageSettings.backgroundPattern,
-        strokeWidth: themeJsonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, theme.id)
+        strokeWidth: styleJsonToActualStrokeWidth(theme.pageSettings.backgroundPattern.strokeWidth, 'default')
       } : undefined
     }
     // elementDefaults are already converted in buildElement, no need to convert again
@@ -537,7 +537,7 @@ function getBaseDefaultsForType(elementType: string): any {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      ruledLinesTheme: 'rough',
+      ruledLinesStyle: 'rough',
       ruledLinesColor: '#1f2937',
       ruledLinesWidth: 1,
       cornerRadius: 0,
@@ -568,7 +568,7 @@ function getBaseDefaultsForType(elementType: string): any {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      ruledLinesTheme: 'rough',
+      ruledLinesStyle: 'rough',
       ruledLinesColor: '#1f2937',
       ruledLinesWidth: 1,
       cornerRadius: 0,
@@ -586,7 +586,7 @@ function getBaseDefaultsForType(elementType: string): any {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      ruledLinesTheme: 'rough',
+      ruledLinesStyle: 'rough',
       ruledLinesColor: '#1f2937',
       ruledLinesWidth: 1,
       cornerRadius: 0,
@@ -613,7 +613,7 @@ function getBaseDefaultsForType(elementType: string): any {
       align: 'left',
       paragraphSpacing: 'medium',
       ruledLines: false,
-      ruledLinesTheme: 'rough',
+      ruledLinesStyle: 'rough',
       ruledLinesColor: '#1f2937',
       ruledLinesWidth: 1,
       cornerRadius: 0,
@@ -631,11 +631,11 @@ function getBaseDefaultsForType(elementType: string): any {
         align: 'left',
         paragraphSpacing: 'medium',
         ruledLines: false,
-        ruledLinesTheme: 'rough',
+        ruledLinesStyle: 'rough',
         ruledLinesColor: '#1f2937',
         ruledLinesWidth: 1,
         background: { enabled: false, color: 'transparent', opacity: 1 },
-        border: { enabled: false, color: '#000000', width: 1, opacity: 1, theme: 'default' },
+        border: { enabled: false, color: '#000000', width: 1, opacity: 1, style: 'default' },
         cornerRadius: 0,
         padding: 4
       }
@@ -669,7 +669,7 @@ function getBaseDefaultsForType(elementType: string): any {
       imageOpacity: 1,
       cornerRadius: 0,
       frameEnabled: false,
-      frameTheme: 'default',
+      frameStyle: 'default',
       strokeWidth: 0,
       borderOpacity: 1
     },
@@ -677,7 +677,7 @@ function getBaseDefaultsForType(elementType: string): any {
       imageOpacity: 1,
       cornerRadius: 0,
       frameEnabled: false,
-      frameTheme: 'default',
+      frameStyle: 'default',
       strokeWidth: 0,
       borderOpacity: 1
     },
@@ -772,11 +772,11 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
 
       // List of shared properties to move to top-level
       const sharedProperties = [
-        'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+        'borderWidth', 'borderColor', 'borderStyle', 'borderOpacity', 'borderEnabled',
         'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
         'cornerRadius', 'padding', 'paragraphSpacing', 'align',
         'layoutVariant', 'questionPosition', 'questionWidth',
-        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
+        'ruledLinesColor', 'ruledLinesStyle', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
         'answerInNewRow', 'questionAnswerGap', 'qnaIndividualSettings'
       ];
 
@@ -866,9 +866,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       if (elementType === 'qna2') {
         const rl = (convertedDefaults as any).ruledLines;
         (convertedDefaults as any).textSettings = {
-          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, theme: 'default' },
+          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, style: 'default' },
           ruledLinesWidth: (convertedDefaults as any).ruledLinesWidth ?? 0.8,
-          ruledLinesTheme: (convertedDefaults as any).ruledLinesTheme ?? 'rough',
+          ruledLinesStyle: (convertedDefaults as any).ruledLinesStyle ?? 'rough',
           ruledLinesColor: (convertedDefaults as any).ruledLinesColor ?? '#1f2937',
           ruledLinesOpacity: (convertedDefaults as any).ruledLinesOpacity ?? 1,
           backgroundColor: (convertedDefaults as any).backgroundColor,
@@ -878,7 +878,7 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
           borderColor: (convertedDefaults as any).borderColor,
           borderWidth: (convertedDefaults as any).borderWidth,
           borderOpacity: (convertedDefaults as any).borderOpacity,
-          borderTheme: (convertedDefaults as any).borderTheme,
+          borderStyle: (convertedDefaults as any).borderStyle,
           borderEnabled: (convertedDefaults as any).borderEnabled,
           padding: (convertedDefaults as any).padding,
           align: (convertedDefaults as any).align,
@@ -896,11 +896,11 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
 
       // List of shared properties to move to top-level
       const sharedProperties = [
-        'borderWidth', 'borderColor', 'borderTheme', 'borderOpacity', 'borderEnabled',
+        'borderWidth', 'borderColor', 'borderStyle', 'borderOpacity', 'borderEnabled',
         'backgroundColor', 'backgroundOpacity', 'backgroundEnabled',
         'cornerRadius', 'padding', 'paragraphSpacing', 'align',
         'layoutVariant', 'questionPosition', 'questionWidth',
-        'ruledLinesColor', 'ruledLinesTheme', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
+        'ruledLinesColor', 'ruledLinesStyle', 'ruledLinesWidth', 'ruledLinesOpacity', 'ruledLines',
         'answerInNewRow', 'questionAnswerGap', 'qnaIndividualSettings'
       ];
 
@@ -978,9 +978,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
       if (elementType === 'qna2') {
         const rl = (convertedDefaults as any).ruledLines;
         (convertedDefaults as any).textSettings = {
-          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, theme: 'default' },
+          ruledLines: typeof rl === 'object' && rl !== null ? rl : { enabled: !!rl, width: 0.8, opacity: 0.5, style: 'default' },
           ruledLinesWidth: (convertedDefaults as any).ruledLinesWidth ?? 0.8,
-          ruledLinesTheme: (convertedDefaults as any).ruledLinesTheme ?? 'rough',
+          ruledLinesStyle: (convertedDefaults as any).ruledLinesStyle ?? 'rough',
           ruledLinesColor: (convertedDefaults as any).ruledLinesColor ?? '#1f2937',
           ruledLinesOpacity: (convertedDefaults as any).ruledLinesOpacity ?? 1,
           backgroundColor: (convertedDefaults as any).backgroundColor,
@@ -990,7 +990,7 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
           borderColor: (convertedDefaults as any).borderColor,
           borderWidth: (convertedDefaults as any).borderWidth,
           borderOpacity: (convertedDefaults as any).borderOpacity,
-          borderTheme: (convertedDefaults as any).borderTheme,
+          borderStyle: (convertedDefaults as any).borderStyle,
           borderEnabled: (convertedDefaults as any).borderEnabled,
           padding: (convertedDefaults as any).padding,
           align: (convertedDefaults as any).align,
@@ -1038,8 +1038,8 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
         borderWidth: themeDefaults.border.borderWidth || 0,
         borderColor: themeDefaults.border.borderColor,
         borderOpacity: themeDefaults.border.borderOpacity ?? 1,
-        borderTheme: themeDefaults.border.borderTheme || 'default'
-      } : { enabled: false, borderWidth: 0, borderColor: baseDefaults.borderColor || '#000000', borderOpacity: 1, borderTheme: 'default' },
+        borderStyle: themeDefaults.border.borderStyle || 'default'
+      } : { enabled: false, borderWidth: 0, borderColor: baseDefaults.borderColor || '#000000', borderOpacity: 1, borderStyle: 'default' },
       background: themeDefaults.background ? {
         enabled: themeDefaults.background.enabled ?? false,
         backgroundColor: themeDefaults.background.backgroundColor,
@@ -1049,9 +1049,9 @@ export function getGlobalThemeDefaults(themeId: string, elementType: string, pal
         enabled: themeDefaults.ruledLines.enabled ?? false,
         lineWidth: themeDefaults.ruledLines.lineWidth || 0.8,
         lineOpacity: themeDefaults.ruledLines.lineOpacity ?? 0.5,
-        ruledLinesTheme: themeDefaults.ruledLines.ruledLinesTheme || 'default',
+        ruledLinesStyle: themeDefaults.ruledLines.ruledLinesStyle || 'default',
         lineColor: themeDefaults.ruledLines.lineColor
-      } : { enabled: false, lineWidth: 0.8, lineOpacity: 0.5, ruledLinesTheme: 'default', lineColor: baseDefaults.ruledLinesColor || '#1f2937' }
+      } : { enabled: false, lineWidth: 0.8, lineOpacity: 0.5, ruledLinesStyle: 'default', lineColor: baseDefaults.ruledLinesColor || '#1f2937' }
     };
     
     // Initialize font object if it doesn't exist
@@ -1244,8 +1244,8 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
   
   // Extract top-level properties from qnaConfig (like cornerRadius, padding, etc.)
   const topLevelProperties: any = {};
-  let topLevelBorderTheme: string | undefined;
-  let topLevelRuledLinesTheme: string | undefined;
+  let topLevelBorderStyle: string | undefined;
+  let topLevelRuledLinesStyle: string | undefined;
   let topLevelBorderEnabled: boolean | undefined;
   let topLevelBackgroundEnabled: boolean | undefined;
   let topLevelBorderWidth: number | undefined;
@@ -1267,12 +1267,12 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
             topLevelBorderEnabled = borderConfig.enabled;
             topLevelProperties.borderEnabled = borderConfig.enabled;
           }
-          if (borderConfig.theme !== undefined) {
-            topLevelBorderTheme = borderConfig.theme;
-            topLevelProperties.borderTheme = borderConfig.theme;
-          } else if (borderConfig.borderTheme !== undefined) {
-            topLevelBorderTheme = borderConfig.borderTheme;
-            topLevelProperties.borderTheme = borderConfig.borderTheme;
+          if (borderConfig.style !== undefined) {
+            topLevelBorderStyle = borderConfig.style;
+            topLevelProperties.borderStyle = borderConfig.style;
+          } else if (borderConfig.borderStyle !== undefined) {
+            topLevelBorderStyle = borderConfig.borderStyle;
+            topLevelProperties.borderStyle = borderConfig.borderStyle;
           }
           const borderWidthValue = borderConfig.width ?? borderConfig.borderWidth;
           if (borderWidthValue !== undefined) {
@@ -1310,10 +1310,10 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
           if (ruledLinesConfig.enabled !== undefined) {
             topLevelProperties.ruledLinesEnabled = ruledLinesConfig.enabled;
           }
-          const ruledLinesThemeValue = ruledLinesConfig.theme ?? ruledLinesConfig.ruledLinesTheme;
-          if (ruledLinesThemeValue !== undefined) {
-            topLevelRuledLinesTheme = ruledLinesThemeValue;
-            topLevelProperties.ruledLinesTheme = ruledLinesThemeValue;
+          const ruledLinesStyleValue = ruledLinesConfig.style ?? ruledLinesConfig.ruledLinesStyle;
+          if (ruledLinesStyleValue !== undefined) {
+            topLevelRuledLinesStyle = ruledLinesStyleValue;
+            topLevelProperties.ruledLinesStyle = ruledLinesStyleValue;
           }
           const ruledLinesWidthValue = ruledLinesConfig.width ?? ruledLinesConfig.lineWidth;
           if (ruledLinesWidthValue !== undefined) {
@@ -1335,11 +1335,11 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
         }
         
         // Extract specific properties for later use
-        if (key === 'borderTheme') {
-          topLevelBorderTheme = qnaConfig[key];
+        if (key === 'borderStyle') {
+          topLevelBorderStyle = qnaConfig[key];
         }
-        if (key === 'ruledLinesTheme') {
-          topLevelRuledLinesTheme = qnaConfig[key];
+        if (key === 'ruledLinesStyle') {
+          topLevelRuledLinesStyle = qnaConfig[key];
         }
         if (key === 'borderEnabled') {
           topLevelBorderEnabled = qnaConfig[key];
@@ -1389,21 +1389,21 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
           enabled: false
         };
         settings.borderEnabled = false;
-        // Explicitly don't apply borderTheme, borderWidth, borderOpacity when disabled
+        // Explicitly don't apply borderStyle, borderWidth, borderOpacity when disabled
       } else {
         // If borderEnabled is true or not explicitly set, apply border properties
         settings.border = {
           ...settings.border,
           enabled: topLevelBorderEnabled,
-          theme: topLevelBorderTheme !== undefined ? (settings.border.theme || topLevelBorderTheme) : settings.border.theme,
-          borderTheme: topLevelBorderTheme !== undefined ? (settings.border.borderTheme || topLevelBorderTheme) : settings.border.borderTheme
+          style: topLevelBorderStyle !== undefined ? (settings.border.style || topLevelBorderStyle) : settings.border.style,
+          borderStyle: topLevelBorderStyle !== undefined ? (settings.border.borderStyle || topLevelBorderStyle) : settings.border.borderStyle
         };
         settings.borderEnabled = topLevelBorderEnabled;
         // Also set on top-level of settings for backward compatibility
-        if (topLevelBorderTheme !== undefined) {
-          settings.border.theme = settings.border.theme || topLevelBorderTheme;
-          settings.border.borderTheme = settings.border.theme;
-          settings.borderTheme = settings.border.theme;
+        if (topLevelBorderStyle !== undefined) {
+          settings.border.style = settings.border.style || topLevelBorderStyle;
+          settings.border.borderStyle = settings.border.style;
+          settings.borderStyle = settings.border.style;
         }
         if (topLevelBorderWidth !== undefined) {
           settings.border.width = topLevelBorderWidth;
@@ -1416,19 +1416,19 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
           settings.borderOpacity = topLevelBorderOpacity;
         }
       }
-    } else if (topLevelBorderTheme !== undefined) {
-      // If borderEnabled is not set but borderTheme is, apply it (backward compatibility)
+    } else if (topLevelBorderStyle !== undefined) {
+      // If borderEnabled is not set but borderStyle is, apply it (backward compatibility)
       if (!settings.border) {
         settings.border = {};
       }
       settings.border = {
         ...settings.border,
-        theme: settings.border.theme || topLevelBorderTheme,
-        borderTheme: settings.border.borderTheme || topLevelBorderTheme
+        style: settings.border.style || topLevelBorderStyle,
+        borderStyle: settings.border.borderStyle || topLevelBorderStyle
       };
-      settings.border.theme = settings.border.theme || topLevelBorderTheme;
-      settings.border.borderTheme = settings.border.theme;
-      settings.borderTheme = settings.border.theme;
+      settings.border.style = settings.border.style || topLevelBorderStyle;
+      settings.border.borderStyle = settings.border.style;
+      settings.borderStyle = settings.border.style;
     }
     
     // Handle backgroundEnabled first - if false, don't apply any background properties
@@ -1463,21 +1463,21 @@ export function getQnAInlineThemeDefaults(themeId: string): any {
       }
     }
     
-    // Apply ruledLinesTheme to ruledLines object if it exists
-    if (topLevelRuledLinesTheme) {
+    // Apply ruledLinesStyle to ruledLines object if it exists
+    if (topLevelRuledLinesStyle) {
       // Ensure ruledLines object exists (it might come from textDefaults)
       if (!settings.ruledLines) {
         settings.ruledLines = {};
       }
       settings.ruledLines = {
         ...settings.ruledLines,
-        theme: settings.ruledLines.theme || topLevelRuledLinesTheme,
-        ruledLinesTheme: settings.ruledLines.ruledLinesTheme || topLevelRuledLinesTheme
+        style: settings.ruledLines.style || topLevelRuledLinesStyle,
+        ruledLinesStyle: settings.ruledLines.ruledLinesStyle || topLevelRuledLinesStyle
       };
       // Also set on top-level of settings for backward compatibility
-      settings.ruledLines.theme = settings.ruledLines.theme || topLevelRuledLinesTheme;
-      settings.ruledLines.ruledLinesTheme = settings.ruledLines.theme;
-      settings.ruledLinesTheme = settings.ruledLines.theme;
+      settings.ruledLines.style = settings.ruledLines.style || topLevelRuledLinesStyle;
+      settings.ruledLines.ruledLinesStyle = settings.ruledLines.style;
+      settings.ruledLinesStyle = settings.ruledLines.style;
     }
     if (topLevelProperties.ruledLinesWidth !== undefined) {
       if (!settings.ruledLines) {
