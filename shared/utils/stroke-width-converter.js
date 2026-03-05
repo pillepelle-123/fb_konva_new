@@ -9,7 +9,10 @@ const STYLE_STROKE_RANGES = {
   zigzag: { min: 3, max: 40 },    // Increased from 20 for faster stroke width scaling
   wobbly: { min: 1, max: 50 },
   sketchy: { min: 1, max: 100 },   // alias for rough
-  dashed: { min: 1, max: 100 }     // Gestrichlete Linien für alle Elementtypen
+  dashed: { min: 1, max: 100 },   // Gestrichlete Linien für alle Elementtypen
+  marker: { min: 1, max: 100 },
+  crayon: { min: 1, max: 100 },
+  ink: { min: 1, max: 100 }
 };
 
 function commonToActualStrokeWidth(commonWidth, style = 'default') {

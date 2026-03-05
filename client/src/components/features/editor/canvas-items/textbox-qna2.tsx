@@ -206,7 +206,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     if (extendedPositions.length === 0) return [];
     const elements: React.ReactElement[] = [];
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly'];
+    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'ink'];
     const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
     const lineStyle = (supportedStyles.includes(styleString as Style)
       ? styleString
@@ -323,6 +323,75 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     () => ({ x: 0, y: 0, width: elementWidth, height: elementHeight }),
     [elementWidth, elementHeight]
   );
+
+  const borderElement = useMemo(() => {
+    if (!showBorder) return null;
+    const borderColor =
+      element.borderColor ??
+      (element.textSettings?.borderColor || qna2Defaults.textSettings?.borderColor || '#000000');
+    const borderWidth =
+      element.borderWidth ??
+      element.textSettings?.borderWidth ??
+      qna2Defaults.textSettings?.borderWidth ??
+      1;
+    const borderOpacity =
+      element.borderOpacity ??
+      element.textSettings?.borderOpacity ??
+      qna2Defaults.textSettings?.borderOpacity ??
+      1;
+    const cornerRadius =
+      element.cornerRadius ??
+      element.textSettings?.cornerRadius ??
+      qna2Defaults.cornerRadius ??
+      0;
+    const borderStyle = (element.borderStyle ??
+      (element.textSettings?.borderStyle || qna2Defaults.textSettings?.borderStyle || 'default')) as Style;
+    const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+    const el = renderStyledBorder({
+      width: borderWidth,
+      color: borderColor,
+      opacity: borderOpacity,
+      cornerRadius,
+      path: createRectPath(0, 0, elementWidth, elementHeight),
+      style: borderStyle,
+      styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
+      strokeScaleEnabled: true,
+      listening: false
+    });
+    return (
+      el || (
+        <Rect
+          width={elementWidth}
+          height={elementHeight}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          opacity={borderOpacity}
+          cornerRadius={cornerRadius}
+          listening={false}
+        />
+      )
+    );
+  }, [
+    showBorder,
+    elementWidth,
+    elementHeight,
+    element.borderColor,
+    element.textSettings?.borderColor,
+    element.borderWidth,
+    element.textSettings?.borderWidth,
+    element.borderOpacity,
+    element.textSettings?.borderOpacity,
+    element.cornerRadius,
+    element.textSettings?.cornerRadius,
+    element.borderStyle,
+    element.textSettings?.borderStyle,
+    element.id,
+    qna2Defaults.textSettings?.borderColor,
+    qna2Defaults.textSettings?.borderWidth,
+    qna2Defaults.textSettings?.borderOpacity,
+    qna2Defaults.textSettings?.borderStyle,
+    qna2Defaults.cornerRadius
+  ]);
 
   const showSkeleton = isTransforming || isDragging;
   const hasContent = layout.runs.length > 0;
@@ -482,58 +551,7 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
           {ruledLines && ruledLinesElements.length > 0 && (
             <Group listening={false}>{ruledLinesElements}</Group>
           )}
-          {showBorder &&
-            (() => {
-                const borderColor =
-                  element.borderColor ??
-                  (element.textSettings?.borderColor ||
-                    qna2Defaults.textSettings?.borderColor ||
-                    '#000000');
-              const borderWidth =
-                element.borderWidth ??
-                element.textSettings?.borderWidth ??
-                qna2Defaults.textSettings?.borderWidth ??
-                1;
-              const borderOpacity =
-                element.borderOpacity ??
-                element.textSettings?.borderOpacity ??
-                qna2Defaults.textSettings?.borderOpacity ??
-                1;
-              const cornerRadius =
-                element.cornerRadius ??
-                element.textSettings?.cornerRadius ??
-                qna2Defaults.cornerRadius ??
-                0;
-              const borderStyle = (element.borderStyle ??
-                (element.textSettings?.borderStyle ||
-                  qna2Defaults.textSettings?.borderStyle ||
-                  'default')) as Style;
-              const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-              const borderElement = renderStyledBorder({
-                width: borderWidth,
-                color: borderColor,
-                opacity: borderOpacity,
-                cornerRadius,
-                path: createRectPath(0, 0, elementWidth, elementHeight),
-                style: borderStyle,
-                styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
-                strokeScaleEnabled: true,
-                listening: false
-              });
-              return (
-                borderElement || (
-                  <Rect
-                    width={elementWidth}
-                    height={elementHeight}
-                    stroke={borderColor}
-                    strokeWidth={borderWidth}
-                    opacity={borderOpacity}
-                    cornerRadius={cornerRadius}
-                    listening={false}
-                  />
-                )
-              );
-            })()}
+          {borderElement}
           {!isEditing && (
             hasContent ? (
               <RichTextShape

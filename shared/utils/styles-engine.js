@@ -764,6 +764,466 @@ function generateWobblyPath(element, options = {}) {
  * @returns {Object} Stroke properties object
  */
 /**
+ * Offsets all point coordinates in an SVG path by (dx, dy)
+ * Handles M, L, Q, C, A commands (A: only endpoint, not rx/ry)
+ */
+function offsetPathBy(path, dx, dy) {
+  if (!path || path.trim() === '') return path;
+  let result = path
+    .replace(/M\s+([-\d.]+)\s+([-\d.]+)/g, (_, x, y) => `M ${parseFloat(x) + dx} ${parseFloat(y) + dy}`)
+    .replace(/L\s+([-\d.]+)\s+([-\d.]+)/g, (_, x, y) => `L ${parseFloat(x) + dx} ${parseFloat(y) + dy}`)
+    .replace(/Q\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/g, (_, x1, y1, x, y) =>
+      `Q ${parseFloat(x1) + dx} ${parseFloat(y1) + dy} ${parseFloat(x) + dx} ${parseFloat(y) + dy}`)
+    .replace(/C\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/g, (_, x1, y1, x2, y2, x, y) =>
+      `C ${parseFloat(x1) + dx} ${parseFloat(y1) + dy} ${parseFloat(x2) + dx} ${parseFloat(y2) + dy} ${parseFloat(x) + dx} ${parseFloat(y) + dy}`)
+    .replace(/A\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([01])\s+([01])\s+([-\d.]+)\s+([-\d.]+)/g, (_, rx, ry, rot, la, sweep, x, y) =>
+      `A ${rx} ${ry} ${rot} ${la} ${sweep} ${parseFloat(x) + dx} ${parseFloat(y) + dy}`);
+  return result;
+}
+
+/**
+ * fabric.util.getRandom compatibility – seeded random for reproducibility
+ * getRandom(max) or getRandom(max, min)
+ */
+function getRandom(max, min) {
+  if (min === undefined) min = 0;
+  return Math.random() * (max - min) + min;
+}
+
+/**
+ * fabric.util.clamp compatibility
+ */
+function clamp(val, high, low) {
+  return Math.max(low, Math.min(high, val));
+}
+
+/**
+ * Adds perpendicular jitter to path points to simulate hand-drawn wobble.
+ * @param {Array<{x:number,y:number}>} points - Sampled points along the path
+ * @param {number} jitterAmount - Max perpendicular offset in px
+ * @param {Function} seededRandom - (offset) => 0..1
+ * @param {boolean} isClosed - Whether path is closed (rect, circle)
+ * @returns {Array<{x:number,y:number}>} Jittered points
+ */
+function addPathJitter(points, jitterAmount, seededRandom, isClosed) {
+  if (points.length < 2) return points;
+  const result = points.map((p) => ({ x: p.x, y: p.y }));
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const prev = isClosed ? points[(i - 1 + n) % n] : points[Math.max(0, i - 1)];
+    const next = isClosed ? points[(i + 1) % n] : points[Math.min(n - 1, i + 1)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const perpX = -dy / len;
+    const perpY = dx / len;
+    const jitter = (seededRandom(i * 31) * 2 - 1) * jitterAmount;
+    result[i].x += perpX * jitter;
+    result[i].y += perpY * jitter;
+  }
+  return result;
+}
+
+/**
+ * Adds outward offset to points for closed shapes (borders extending beyond edges).
+ * @param {Array<{x:number,y:number}>} points - Path points
+ * @param {number} offsetAmount - Outward offset in px
+ * @param {Function} seededRandom - (offset) => 0..1
+ * @returns {Array<{x:number,y:number}>} Points with outward offset
+ */
+function addOutwardOffset(points, offsetAmount, seededRandom) {
+  if (points.length < 2 || offsetAmount <= 0) return points;
+  const result = points.map((p) => ({ x: p.x, y: p.y }));
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n];
+    const next = points[(i + 1) % n];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const perpOutX = dy / len;
+    const perpOutY = -dx / len;
+    const variation = 0.5 + seededRandom(i * 47) * 0.5;
+    result[i].x += perpOutX * offsetAmount * variation;
+    result[i].y += perpOutY * offsetAmount * variation;
+  }
+  return result;
+}
+
+/**
+ * Builds smooth SVG path from points for an OPEN segment (e.g. one rect side).
+ * Uses quadratic Bézier (Q) with max 3 subtle direction changes. Very low curveAmount.
+ * @param {Array<{x:number,y:number}>} points - 5 points: start, 25%, 50%, 75%, end
+ * @param {Function} seededRandom - (offset) => 0..1
+ * @param {number} curveAmount - Max control-point offset (px), keep very low (~0.5)
+ * @returns {string} SVG path string
+ */
+function pointsToSmoothPathOpen(points, seededRandom, curveAmount = 0.5) {
+  if (points.length < 2) return '';
+  let pathStr = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const dx = curr.x - prev.x;
+    const dy = curr.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const perpX = -dy / len;
+    const perpY = dx / len;
+    const midX = (prev.x + curr.x) / 2;
+    const midY = (prev.y + curr.y) / 2;
+    const curveOffset = (seededRandom(i * 23) * 2 - 1) * curveAmount;
+    const cpx = midX + perpX * curveOffset;
+    const cpy = midY + perpY * curveOffset;
+    pathStr += ` Q ${cpx} ${cpy} ${curr.x} ${curr.y}`;
+  }
+  return pathStr;
+}
+
+/**
+ * Builds smooth SVG path from points using quadratic Bézier (Q) instead of straight lines.
+ * @param {Array<{x:number,y:number}>} points - Path points
+ * @param {Function} seededRandom - (offset) => 0..1
+ * @param {boolean} isClosed - Whether path is closed
+ * @param {number} curveAmount - Max control-point offset for organic curves (px)
+ * @returns {string} SVG path string
+ */
+function pointsToSmoothPath(points, seededRandom, isClosed, curveAmount = 3) {
+  if (points.length < 2) return '';
+  const n = points.length;
+  let pathStr = `M ${points[0].x} ${points[0].y}`;
+  const lastIdx = isClosed ? n : n - 1;
+  for (let i = 1; i <= lastIdx; i++) {
+    const idx = i % n;
+    const prev = points[(i - 1 + n) % n];
+    const curr = points[idx];
+    const dx = curr.x - prev.x;
+    const dy = curr.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const perpX = -dy / len;
+    const perpY = dx / len;
+    const midX = (prev.x + curr.x) / 2;
+    const midY = (prev.y + curr.y) / 2;
+    const curveOffset = (seededRandom(i * 23 + idx * 7) * 2 - 1) * curveAmount;
+    const cpx = midX + perpX * curveOffset;
+    const cpy = midY + perpY * curveOffset;
+    pathStr += ` Q ${cpx} ${cpy} ${curr.x} ${curr.y}`;
+  }
+  if (isClosed) pathStr += ' Z';
+  return pathStr;
+}
+
+/**
+ * Converts straight path to hand-drawn style: samples points, adds jitter, rebuilds path.
+ * @param {string} basePath - Original SVG path
+ * @param {Object} element - Element with type, width, height
+ * @param {Object} options - { document, stepSize }
+ * @param {number} jitterAmount - Perpendicular wobble in px
+ * @param {Function} seededRandom - (offset) => 0..1
+ * @param {boolean} isClosed - rect/circle = true, line = false
+ * @returns {string} Jittered path string
+ */
+function jitterPath(basePath, element, options, jitterAmount, seededRandom, isClosed) {
+  const { document } = options;
+  const stepSize = options.stepSize || 12;
+  let points = [];
+  if (document && document.createElementNS) {
+    try {
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', basePath);
+      if (pathEl.getTotalLength) {
+        const pathLength = pathEl.getTotalLength();
+        const stepNum = Math.max(2, Math.min(50, Math.floor(pathLength / stepSize) + 1));
+        for (let j = 0; j <= stepNum; j++) {
+          const t = (stepNum > 0 ? j / stepNum : 0) * pathLength;
+          const pt = pathEl.getPointAtLength(t);
+          points.push({ x: pt.x, y: pt.y });
+        }
+      }
+    } catch (_e) { /* fallback */ }
+  }
+  if (points.length === 0) {
+    if (element.type === 'line') {
+      const len = Math.sqrt(element.width * element.width + element.height * element.height);
+      const stepNum = Math.max(2, Math.min(50, Math.floor(len / stepSize) + 1));
+      for (let j = 0; j <= stepNum; j++) {
+        const t = stepNum > 0 ? j / stepNum : 0;
+        points.push({ x: element.width * t, y: element.height * t });
+      }
+    } else if (element.type === 'rect') {
+      const w = element.width || 0;
+      const h = element.height || 0;
+      const perim = 2 * (w + h);
+      const stepNum = Math.max(2, Math.min(50, Math.floor(perim / stepSize) + 1));
+      for (let j = 0; j <= stepNum; j++) {
+        const t = (stepNum > 0 ? j / stepNum : 0) * perim;
+        if (t <= w) points.push({ x: t, y: 0 });
+        else if (t <= w + h) points.push({ x: w, y: t - w });
+        else if (t <= 2 * w + h) points.push({ x: 2 * w + h - t, y: h });
+        else points.push({ x: 0, y: perim - t });
+      }
+    } else {
+      return basePath;
+    }
+  }
+  const jittered = addPathJitter(points, jitterAmount, seededRandom, isClosed);
+  let pathStr = `M ${jittered[0].x} ${jittered[0].y}`;
+  const lastIdx = isClosed ? jittered.length - 2 : jittered.length - 1;
+  for (let i = 1; i <= lastIdx; i++) {
+    pathStr += ` L ${jittered[i].x} ${jittered[i].y}`;
+  }
+  if (isClosed) pathStr += ' Z';
+  return pathStr;
+}
+
+/**
+ * MarkerBrush – fabric-brush algorithm
+ * Multiple parallel strokes with diagonal offset, lineCap/lineJoin round, opacity 0.8
+ * Uses jitterPath for hand-drawn wobble on straight lines.
+ */
+function generateMarkerPath(element, options = {}) {
+  const basePath = generateDefaultPath(element, options);
+  const strokeWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 0)
+    : (element.borderWidth || element.strokeWidth || 0);
+  const lineWidth = 3;
+  const baseWidth = 10;
+  const size = Math.max(1, (strokeWidth || 4) + baseWidth);
+  const numLayers = Math.max(1, Math.floor((size / lineWidth) / 2));
+  const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  const seededRandom = (offset) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  const isClosed = element.type !== 'line' && element.type !== 'brush';
+  const jitterAmount = Math.max(0.8, (strokeWidth || 4) * 0.35);
+  const jitteredPath = jitterPath(basePath, element, options, jitterAmount, seededRandom, isClosed);
+  const paths = [];
+  for (let i = 0; i < numLayers; i++) {
+    const offset = (lineWidth - 1) * i;
+    paths.push(offsetPathBy(jitteredPath, offset, offset));
+  }
+  return paths.join(' ');
+}
+
+/**
+ * CrayonBrush – fabric-brush algorithm (performance-capped)
+ * Small random rects distributed along the path with random offset
+ * Caps: max 25 sample points, max 18 dots per point (~450 rects total) to avoid freeze
+ */
+function generateCrayonPath(element, options = {}) {
+  const { document } = options;
+  const strokeWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 0)
+    : (element.borderWidth || element.strokeWidth || 0);
+  const baseWidth = 20;
+  const sep = 5;
+  const inkAmount = 10;
+  const size = (strokeWidth || 4) / 2 + baseWidth;
+  const stepSize = Math.max(1, Math.ceil(size / 2));
+  const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  const seededRandom = (offset) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  let pathString = '';
+  const basePath = generateDefaultPath(element, options);
+  let pathLength = 0;
+  let points = [];
+  if (document && document.createElementNS) {
+    try {
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', basePath);
+      if (pathEl.getTotalLength) {
+        pathLength = pathEl.getTotalLength();
+        const rawStepNum = Math.max(1, Math.floor(pathLength / stepSize) + 1);
+        const stepNum = Math.min(25, rawStepNum);
+        for (let j = 0; j <= stepNum; j++) {
+          const t = (stepNum > 0 ? j / stepNum : 0) * pathLength;
+          const pt = pathEl.getPointAtLength(t);
+          points.push({ x: pt.x, y: pt.y });
+        }
+      }
+    } catch (_e) { /* fallback */ }
+  }
+  if (points.length === 0) {
+    if (element.type === 'line') {
+      const len = Math.sqrt(element.width * element.width + element.height * element.height);
+      const stepNum = Math.min(25, Math.max(1, Math.floor(len / stepSize) + 1));
+      for (let j = 0; j <= stepNum; j++) {
+        const t = stepNum > 0 ? j / stepNum : 0;
+        points.push({ x: element.width * t, y: element.height * t });
+      }
+    } else if (element.type === 'rect') {
+      const w = element.width || 0;
+      const h = element.height || 0;
+      const perim = 2 * (w + h);
+      const rawStepNum = Math.max(1, Math.floor(perim / stepSize) + 1);
+      const stepNum = Math.min(25, rawStepNum);
+      for (let j = 0; j <= stepNum; j++) {
+        const t = (stepNum > 0 ? j / stepNum : 0) * perim;
+        if (t <= w) points.push({ x: t, y: 0 });
+        else if (t <= w + h) points.push({ x: w, y: t - w });
+        else if (t <= 2 * w + h) points.push({ x: 2 * w + h - t, y: h });
+        else points.push({ x: 0, y: perim - t });
+      }
+    } else {
+      return basePath;
+    }
+  }
+  const range = size / 2;
+  const rawDotNum = Math.ceil(size * sep);
+  const dotNum = Math.min(18, rawDotNum);
+  const strokeLength = pathLength || (points.length > 1 ? 1 : 1);
+  const dist = points.length > 1 ? Math.sqrt(
+    Math.pow(points[1].x - points[0].x, 2) + Math.pow(points[1].y - points[0].y, 2)
+  ) * (points.length - 1) : 1;
+  const dotSizeBase = sep * clamp((inkAmount / (dist + 1)) * 3, 1, 0.5);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    for (let j = 0; j < dotNum; j++) {
+      const r = seededRandom(i * 1000 + j * 7) * range;
+      const c = seededRandom(i * 1000 + j * 11) * Math.PI * 2;
+      const w = seededRandom(i * 1000 + j * 13) * (dotSizeBase / 2) + dotSizeBase / 2;
+      const h = seededRandom(i * 1000 + j * 17) * (dotSizeBase / 2) + dotSizeBase / 2;
+      const x = p.x + r * Math.sin(c) - w / 2;
+      const y = p.y + r * Math.cos(c) - h / 2;
+      pathString += `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z `;
+    }
+  }
+  return pathString.trim() || basePath;
+}
+
+/**
+ * Generates Ink path for a rect as four separate overlapping sides (for textbox-style borders).
+ * Each side: 5 points (start, 3 jitter at 25/50/75%, end), max 3 direction changes, very low jitter.
+ * Sides extend past corners for overlap effect.
+ */
+function generateInkRectFourSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  const sides = [
+    { start: { x: -overlap, y: 0 }, end: { x: w + overlap, y: 0 }, perpX: 0, perpY: 1 },
+    { start: { x: w, y: -overlap }, end: { x: w, y: h + overlap }, perpX: -1, perpY: 0 },
+    { start: { x: w + overlap, y: h }, end: { x: -overlap, y: h }, perpX: 0, perpY: -1 },
+    { start: { x: 0, y: h + overlap }, end: { x: 0, y: -overlap }, perpX: 1, perpY: 0 }
+  ];
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
+      const side = sides[sideIdx];
+      const base = [side.start, null, null, null, side.end];
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        base[k] = {
+          x: side.start.x + (side.end.x - side.start.x) * t,
+          y: side.start.y + (side.end.y - side.start.y) * t
+        };
+        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
+        base[k].x += side.perpX * jitter;
+        base[k].y += side.perpY * jitter;
+      }
+      const offsetPoints = base.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  return pathString.trim();
+}
+
+/**
+ * InkBrush – fabric-brush algorithm (performance-capped)
+ * For rect (textbox borders): four separate overlapping sides, low jitter, max 3 direction changes per side.
+ * For other shapes: multiple strokes with smooth curves. No splash circles.
+ */
+function generateInkPath(element, options = {}) {
+  const { document } = options;
+  const strokeWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 0)
+    : (element.borderWidth || element.strokeWidth || 0);
+  const baseWidth = 20;
+  const size = Math.max(1, (strokeWidth || 4) / 5 + baseWidth);
+  const strokeNum = Math.max(3, Math.min(8, Math.floor(size)));
+  const range = size / 2;
+  const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  const seededRandom = (offset) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  const cornerRadius = element.cornerRadius || 0;
+  if (element.type === 'rect' && cornerRadius === 0) {
+    return generateInkRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  const basePath = generateDefaultPath(element, options);
+  let pathLength = 0;
+  let points = [];
+  const stepSize = 10;
+  const maxPoints = 50;
+  if (document && document.createElementNS) {
+    try {
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', basePath);
+      if (pathEl.getTotalLength) {
+        pathLength = pathEl.getTotalLength();
+        const rawStepNum = Math.max(2, Math.floor(pathLength / stepSize));
+        const stepNum = Math.min(maxPoints - 1, rawStepNum);
+        for (let j = 0; j <= stepNum; j++) {
+          const t = (stepNum > 0 ? j / stepNum : 0) * pathLength;
+          const pt = pathEl.getPointAtLength(t);
+          points.push({ x: pt.x, y: pt.y });
+        }
+      }
+    } catch (_e) { /* fallback */ }
+  }
+  if (points.length === 0) {
+    if (element.type === 'line') {
+      const len = Math.sqrt(element.width * element.width + element.height * element.height);
+      const stepNum = Math.min(maxPoints - 1, Math.max(2, Math.floor(len / stepSize)));
+      for (let j = 0; j <= stepNum; j++) {
+        const t = stepNum > 0 ? j / stepNum : 0;
+        points.push({ x: element.width * t, y: element.height * t });
+      }
+    } else {
+      return basePath;
+    }
+  }
+  const isClosed = element.type !== 'line' && element.type !== 'brush';
+  const jitterAmount = Math.max(0.5, (strokeWidth || 4) * 0.12);
+  let pointsProcessed = addPathJitter(points, jitterAmount, seededRandom, isClosed);
+  if (isClosed) {
+    const outwardAmount = Math.max(1, (strokeWidth || 4) * 0.25);
+    pointsProcessed = addOutwardOffset(pointsProcessed, outwardAmount, seededRandom);
+  }
+  const curveAmount = Math.max(1.5, (strokeWidth || 4) * 0.2);
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const cos = Math.cos(c);
+    const sin = Math.sin(c);
+    const offsetX = x0 * cos - y0 * sin;
+    const offsetY = x0 * sin + y0 * cos;
+    const offsetPoints = pointsProcessed.map((p) => ({
+      x: p.x + offsetX,
+      y: p.y + offsetY
+    }));
+    pathString += pointsToSmoothPath(offsetPoints, seededRandom, isClosed, curveAmount) + ' ';
+  }
+  return pathString.trim() || basePath;
+}
+
+/**
  * Generates a dashed path for all element types
  * Uses simple paths with dash pattern applied via strokeDasharray
  * @param {Object} element - Element object
@@ -913,6 +1373,31 @@ function getStrokeProps(element, style, options = {}) {
       lineCap: 'round',
       lineJoin: 'round'
     };
+  } else if (style === 'marker') {
+    return {
+      stroke: element.stroke || '#1f2937',
+      strokeWidth: 3,
+      fill: 'transparent',
+      opacity: 0.8,
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
+  } else if (style === 'crayon') {
+    return {
+      stroke: 'transparent',
+      strokeWidth: 0,
+      fill: element.stroke || '#1f2937',
+      opacity: 0.6
+    };
+  } else if (style === 'ink') {
+    const inkStrokeWidth = Math.max(1, (strokeWidth || 4) * 0.35);
+    return {
+      stroke: element.stroke || '#1f2937',
+      strokeWidth: inkStrokeWidth,
+      fill: 'transparent',
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
   } else {
     // Default and rough styles
     return {
@@ -946,6 +1431,12 @@ function generatePath(element, style, options = {}) {
       return generateZigzagPath(element, options);
     case 'dashed':
       return generateDashedPath(element, options);
+    case 'marker':
+      return generateMarkerPath(element, options);
+    case 'crayon':
+      return generateCrayonPath(element, options);
+    case 'ink':
+      return generateInkPath(element, options);
     default:
       return generateDefaultPath(element, options);
   }
@@ -960,6 +1451,9 @@ export {
   generateWobblyPath,
   generateZigzagPath,
   generateDashedPath,
+  generateMarkerPath,
+  generateCrayonPath,
+  generateInkPath,
   generatePath,
   getStrokeProps,
   generateComplexShapePath
@@ -975,6 +1469,9 @@ if (typeof module !== 'undefined' && module.exports) {
     generateWobblyPath,
     generateZigzagPath,
     generateDashedPath,
+    generateMarkerPath,
+    generateCrayonPath,
+    generateInkPath,
     generatePath,
     getStrokeProps,
     generateComplexShapePath

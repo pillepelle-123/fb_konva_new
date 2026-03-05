@@ -75,7 +75,10 @@ const styleRenderers: Record<Style, StyleRenderer> = {
   candy: createStyleRenderer('candy'),
   wobbly: createStyleRenderer('wobbly'),
   zigzag: createStyleRenderer('zigzag'),
-  dashed: createStyleRenderer('dashed')
+  dashed: createStyleRenderer('dashed'),
+  marker: createStyleRenderer('marker'),
+  crayon: createStyleRenderer('crayon'),
+  ink: createStyleRenderer('ink')
 };
 
 /**

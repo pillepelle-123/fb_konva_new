@@ -7,7 +7,10 @@ export const STYLE_OPTIONS = [
   { value: 'candy', label: 'Candy (Dotted)' },
   { value: 'zigzag', label: 'Zig-zag (Electric)' },
   { value: 'wobbly', label: 'Wobbly (Variable width)' },
-  { value: 'dashed', label: 'Dashed (Dotted line)' }
+  { value: 'dashed', label: 'Dashed (Dotted line)' },
+  { value: 'marker', label: 'Marker (Felt pen)' },
+  { value: 'crayon', label: 'Crayon (Waxy)' },
+  { value: 'ink', label: 'Ink (Brush)' }
 ];
 
 export function StyleSelect({ value, onChange, className }: { 

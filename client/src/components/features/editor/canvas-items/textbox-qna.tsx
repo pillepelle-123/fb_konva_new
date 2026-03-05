@@ -1762,7 +1762,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement | null => {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
       // Ensure style is one of the supported styles
-      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed'];
+      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'ink'];
       // Convert to string and check if it's a valid style
       const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
       const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;
@@ -2358,6 +2358,58 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     height: boxHeight
   }), [boxWidth, boxHeight]);
 
+  // Memoize border to avoid recalculating heavy styles (crayon, ink) on every render
+  const borderElement = useMemo(() => {
+    if (!showBorder) return null;
+    const borderColor = qnaElement.borderColor || '#000000';
+    const borderWidth = qnaElement.borderWidth ?? 1;
+    const borderOpacity = qnaElement.borderOpacity ?? 1;
+    const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
+    const styleValue = qnaElement.borderStyle || element.style || 'default';
+    const borderStyle = styleValue as Style;
+    const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
+    const el = renderStyledBorder({
+      width: borderWidth,
+      color: borderColor,
+      opacity: borderOpacity,
+      cornerRadius: cornerRadius,
+      path: createRectPath(0, 0, boxWidth, boxHeight),
+      style: borderStyle,
+      styleSettings: {
+        roughness: borderStyle === 'rough' ? 8 : undefined,
+        seed: seed
+      },
+      strokeScaleEnabled: true,
+      listening: false
+    });
+    if (!el) {
+      return (
+        <Rect
+          width={boxWidth}
+          height={boxHeight}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          opacity={borderOpacity}
+          cornerRadius={cornerRadius}
+          listening={false}
+        />
+      );
+    }
+    return el;
+  }, [
+    showBorder,
+    boxWidth,
+    boxHeight,
+    qnaElement.borderColor,
+    qnaElement.borderWidth,
+    qnaElement.borderOpacity,
+    qnaElement.cornerRadius,
+    qnaElement.borderStyle,
+    element.style,
+    element.id,
+    qnaDefaults.cornerRadius
+  ]);
+
   return (
     <>
     <BaseCanvasItem
@@ -2420,47 +2472,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
               </>
             )}
             
-            {showBorder && (() => {
-              const borderColor = qnaElement.borderColor || '#000000';
-              const borderWidth = qnaElement.borderWidth || 1;
-              const borderOpacity = qnaElement.borderOpacity ?? 1;
-              const cornerRadius = qnaElement.cornerRadius ?? qnaDefaults.cornerRadius ?? 0;
-              const styleValue = qnaElement.borderStyle || element.style || 'default';
-              const borderStyle = styleValue as Style;
-
-              const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-              
-              const borderElement = renderStyledBorder({
-                width: borderWidth,
-                color: borderColor,
-                opacity: borderOpacity,
-                cornerRadius: cornerRadius,
-                path: createRectPath(0, 0, boxWidth, boxHeight),
-                style: borderStyle,
-                styleSettings: {
-                  roughness: borderStyle === 'rough' ? 8 : undefined,
-                  seed: seed
-                },
-                strokeScaleEnabled: true,
-                listening: false
-              });
-
-              if (!borderElement) {
-                return (
-                  <Rect
-                    width={boxWidth}
-                    height={boxHeight}
-                    stroke={borderColor}
-                    strokeWidth={borderWidth}
-                    opacity={borderOpacity}
-                    cornerRadius={cornerRadius}
-                    listening={false}
-                  />
-                );
-              }
-
-              return borderElement;
-            })()}
+            {borderElement}
           </Group>
 
       {/* Text that can extend beyond the box */}
