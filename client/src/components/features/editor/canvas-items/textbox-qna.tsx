@@ -1762,7 +1762,7 @@ function TextboxQnaComponent(props: CanvasItemProps) {
     const generateRuledLineElement = (y: number, startX: number, endX: number): React.ReactElement | null => {
       const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
       // Ensure style is one of the supported styles
-      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'ink'];
+      const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'ink', 'paint-brush'];
       // Convert to string and check if it's a valid style
       const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
       const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;

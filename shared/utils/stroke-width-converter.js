@@ -12,7 +12,8 @@ const STYLE_STROKE_RANGES = {
   dashed: { min: 1, max: 100 },   // Gestrichlete Linien für alle Elementtypen
   marker: { min: 1, max: 100 },
   crayon: { min: 1, max: 100 },
-  ink: { min: 1, max: 100 }
+  ink: { min: 1, max: 100 },
+  'paint-brush': { min: 1, max: 100 }
 };
 
 function commonToActualStrokeWidth(commonWidth, style = 'default') {

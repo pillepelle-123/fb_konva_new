@@ -43,4 +43,4 @@ export interface StyleResult {
  * Style-Typen
  * Alle unterstützten Linien-/Border-Styles
  */
-export type Style = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag' | 'dashed' | 'marker' | 'crayon' | 'ink';
+export type Style = 'default' | 'rough' | 'glow' | 'candy' | 'wobbly' | 'zigzag' | 'dashed' | 'marker' | 'crayon' | 'ink' | 'paint-brush';

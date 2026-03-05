@@ -1150,9 +1150,10 @@ function generateInkPath(element, options = {}) {
     ? (element.strokeWidth || 0)
     : (element.borderWidth || element.strokeWidth || 0);
   const baseWidth = 20;
-  const size = Math.max(1, (strokeWidth || 4) / 5 + baseWidth);
-  const strokeNum = Math.max(3, Math.min(8, Math.floor(size)));
-  const range = size / 2;
+  const sw = strokeWidth || 4;
+  const size = Math.max(1, sw / 5 + baseWidth);
+  const strokeNum = Math.max(3, Math.min(6, Math.floor(size * 0.5)));
+  const range = Math.max(4, sw * 0.6);
   const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
   const seededRandom = (offset) => {
     const x = Math.sin(seed + offset) * 10000;
@@ -1203,6 +1204,89 @@ function generateInkPath(element, options = {}) {
     pointsProcessed = addOutwardOffset(pointsProcessed, outwardAmount, seededRandom);
   }
   const curveAmount = Math.max(1.5, (strokeWidth || 4) * 0.2);
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const cos = Math.cos(c);
+    const sin = Math.sin(c);
+    const offsetX = x0 * cos - y0 * sin;
+    const offsetY = x0 * sin + y0 * cos;
+    const offsetPoints = pointsProcessed.map((p) => ({
+      x: p.x + offsetX,
+      y: p.y + offsetY
+    }));
+    pathString += pointsToSmoothPath(offsetPoints, seededRandom, isClosed, curveAmount) + ' ';
+  }
+  return pathString.trim() || basePath;
+}
+
+/**
+ * PaintBrush – same structure as Ink (before width/dash changes).
+ * Four separate sides for rect, smooth curves, no strokeDasharray/dashes.
+ */
+function generatePaintBrushPath(element, options = {}) {
+  const { document } = options;
+  const strokeWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 0)
+    : (element.borderWidth || element.strokeWidth || 0);
+  const baseWidth = 20;
+  const size = Math.max(1, (strokeWidth || 4) / 5 + baseWidth);
+  const strokeNum = Math.max(3, Math.min(8, Math.floor(size)));
+  const range = size / 2;
+  const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  const seededRandom = (offset) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  const cornerRadius = element.cornerRadius || 0;
+  if (element.type === 'rect' && cornerRadius === 0) {
+    return generateInkRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  const basePath = generateDefaultPath(element, options);
+  let pathLength = 0;
+  let points = [];
+  const stepSize = 10;
+  const maxPoints = 50;
+  if (document && document.createElementNS) {
+    try {
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', basePath);
+      if (pathEl.getTotalLength) {
+        pathLength = pathEl.getTotalLength();
+        const rawStepNum = Math.max(2, Math.floor(pathLength / stepSize));
+        const stepNum = Math.min(maxPoints - 1, rawStepNum);
+        for (let j = 0; j <= stepNum; j++) {
+          const t = (stepNum > 0 ? j / stepNum : 0) * pathLength;
+          const pt = pathEl.getPointAtLength(t);
+          points.push({ x: pt.x, y: pt.y });
+        }
+      }
+    } catch (_e) { /* fallback */ }
+  }
+  if (points.length === 0) {
+    if (element.type === 'line') {
+      const len = Math.sqrt(element.width * element.width + element.height * element.height);
+      const stepNum = Math.min(maxPoints - 1, Math.max(2, Math.floor(len / stepSize)));
+      for (let j = 0; j <= stepNum; j++) {
+        const t = stepNum > 0 ? j / stepNum : 0;
+        points.push({ x: element.width * t, y: element.height * t });
+      }
+    } else {
+      return basePath;
+    }
+  }
+  const isClosed = element.type !== 'line' && element.type !== 'brush';
+  const jitterAmount = Math.max(1, (strokeWidth || 4) * 0.4);
+  let pointsProcessed = addPathJitter(points, jitterAmount, seededRandom, isClosed);
+  if (isClosed) {
+    const outwardAmount = Math.max(1, (strokeWidth || 4) * 0.25);
+    pointsProcessed = addOutwardOffset(pointsProcessed, outwardAmount, seededRandom);
+  }
+  const curveAmount = Math.max(2, (strokeWidth || 4) * 0.3);
   let pathString = '';
   for (let si = 0; si < strokeNum; si++) {
     const rx = seededRandom(si * 13) * range;
@@ -1389,12 +1473,39 @@ function getStrokeProps(element, style, options = {}) {
       fill: element.stroke || '#1f2937',
       opacity: 0.6
     };
-  } else if (style === 'ink') {
+  } else if (style === 'paint-brush') {
     const inkStrokeWidth = Math.max(1, (strokeWidth || 4) * 0.35);
     return {
       stroke: element.stroke || '#1f2937',
       strokeWidth: inkStrokeWidth,
       fill: 'transparent',
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
+  } else if (style === 'ink') {
+    const sw = strokeWidth || 4;
+    const mult = 0.32 + 0.18 * Math.min(1, sw / 50);
+    const inkStrokeWidth = Math.max(0.8, Math.sqrt(sw) * mult);
+    const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    const seededRandom = (offset) => {
+      const x = Math.sin(seed + offset) * 10000;
+      return x - Math.floor(x);
+    };
+    const dashPattern = [];
+    const gapBase = Math.max(0.3, sw * 0.01);
+    const gapRange = Math.max(0.5, sw * 0.04);
+    for (let i = 0; i < 3; i++) {
+      dashPattern.push(
+        60 + seededRandom(i * 7) * 90,
+        gapBase + seededRandom(i * 11 + 100) * gapRange
+      );
+    }
+    return {
+      stroke: element.stroke || '#1f2937',
+      strokeWidth: inkStrokeWidth,
+      fill: 'transparent',
+      strokeDasharray: dashPattern,
+      dash: dashPattern,
       lineCap: 'round',
       lineJoin: 'round'
     };
@@ -1437,6 +1548,8 @@ function generatePath(element, style, options = {}) {
       return generateCrayonPath(element, options);
     case 'ink':
       return generateInkPath(element, options);
+    case 'paint-brush':
+      return generatePaintBrushPath(element, options);
     default:
       return generateDefaultPath(element, options);
   }
@@ -1454,6 +1567,7 @@ export {
   generateMarkerPath,
   generateCrayonPath,
   generateInkPath,
+  generatePaintBrushPath,
   generatePath,
   getStrokeProps,
   generateComplexShapePath
@@ -1472,6 +1586,7 @@ if (typeof module !== 'undefined' && module.exports) {
     generateMarkerPath,
     generateCrayonPath,
     generateInkPath,
+    generatePaintBrushPath,
     generatePath,
     getStrokeProps,
     generateComplexShapePath
