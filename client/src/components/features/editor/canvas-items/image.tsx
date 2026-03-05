@@ -481,7 +481,7 @@ export default function Image(props: ImageProps) {
                 : (element.strokeWidth || 0) > 0);
             const strokeWidth = element.strokeWidth || 0;
             const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
-            const frameStyle = element.frameStyle || element.style || 'default';
+            const frameStyle = element.frameStyle || element.theme || element.style || 'default';
             const cornerRadius = element.cornerRadius || 0;
 
             const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';

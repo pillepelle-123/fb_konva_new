@@ -23,7 +23,7 @@ import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getQnAThemeDefaults, getQnAInlineThemeDefaults, getGlobalThemeDefaults } from '../../../../utils/global-themes';
-import { getMinActualStrokeWidth, commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { getBorderStyle } from '../../../../utils/border-utils';
 import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
@@ -213,19 +213,13 @@ export function QnASettingsForm({
       updates.borderStyle = borderStyle;
     } else if (key === 'borderStyle') {
       const borderColor = element.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || themeDefaults.borderColor || '#000000';
-      // When border theme changes, set borderWidth to minimum value of new theme
-      const minWidth = getMinActualStrokeWidth(value);
+      const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
       const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
       
       // Only set on top-level (only individual properties, no border object)
       updates.borderStyle = value;
-      // Only update borderWidth if border is enabled
-      const currentBorderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || 0;
-      if (currentBorderWidth > 0) {
-        updates.borderWidth = minWidth;
-      } else {
-        updates.borderWidth = currentBorderWidth;
-      }
+      // Keep borderWidth unchanged when changing style
+      updates.borderWidth = borderWidth;
       updates.borderColor = borderColor;
       updates.borderOpacity = borderOpacity;
     } else if (key === 'borderOpacity') {

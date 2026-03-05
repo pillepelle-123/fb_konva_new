@@ -156,7 +156,7 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
     if (!ruledLines || !layout.linePositions?.length) return [];
     const elements: React.ReactElement[] = [];
     const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'ink', 'paint-brush'];
+    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'pencil', 'paint-brush'];
     const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
     const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;
 

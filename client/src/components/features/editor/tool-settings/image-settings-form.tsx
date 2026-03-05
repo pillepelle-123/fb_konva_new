@@ -7,10 +7,11 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { StyleSelect } from '../../../../utils/style-options';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { StyleSettingsRenderer } from './style-settings-renderer';
 import { SettingsFormFooter } from './settings-form-footer';
 import { SlotSelector } from './slot-selector';
+import { Tooltip } from '../../../ui/composites/tooltip';
 import type { SandboxContextValue } from '../../../../context/sandbox-context';
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
@@ -48,7 +49,7 @@ export function ImageSettingsForm({
     ? element.frameEnabled 
     : (element.strokeWidth || 0) > 0;
   
-  const frameStyle = element.frameStyle || element.theme || 'default';
+  const frameStyle = element.frameStyle || element.theme || element.style || 'default';
   const imageOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
 
   const handleRemoveImage = () => {
@@ -145,20 +146,15 @@ export function ImageSettingsForm({
           {frameEnabled && (
             <IndentedSection>
               {/* Frame Style */}
-              <div className="w-full min-w-0">
-                <Label variant="xs">Frame Style</Label>
+              <Tooltip side='left' content="Frame Style">
                 <StyleSelect 
                   value={frameStyle}
                   onChange={(value) => {
-                    const minWidth = getMinActualStrokeWidth(value);
                     updateSetting('frameStyle', value);
                     updateSetting('theme', value);
-                    if ((element.strokeWidth || 0) > 0) {
-                      updateSetting('strokeWidth', minWidth);
-                    }
                   }}
                 />
-              </div>
+              </Tooltip>
               
               {/* Style-specific settings for Frame */}
               <StyleSettingsRenderer

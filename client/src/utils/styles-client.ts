@@ -78,7 +78,7 @@ const styleRenderers: Record<Style, StyleRenderer> = {
   dashed: createStyleRenderer('dashed'),
   marker: createStyleRenderer('marker'),
   crayon: createStyleRenderer('crayon'),
-  ink: createStyleRenderer('ink'),
+  pencil: createStyleRenderer('pencil'),
   'paint-brush': createStyleRenderer('paint-brush')
 };
 

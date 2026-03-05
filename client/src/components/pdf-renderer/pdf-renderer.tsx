@@ -3120,7 +3120,7 @@ export function PDFRenderer({
 
                   const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
                 const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
-                const frameStyle = element.frameStyle || element.style || 'default';
+                const frameStyle = element.frameStyle || element.theme || element.style || 'default';
                 const cornerRadius = element.cornerRadius || 0;
                 
                 // Debug: Log frame rendering details

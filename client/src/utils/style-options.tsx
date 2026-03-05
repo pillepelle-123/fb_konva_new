@@ -10,7 +10,7 @@ export const STYLE_OPTIONS = [
   { value: 'dashed', label: 'Dashed (Dotted line)' },
   { value: 'marker', label: 'Marker (Felt pen)' },
   { value: 'crayon', label: 'Crayon (Waxy)' },
-  { value: 'ink', label: 'Ink (Brush)' },
+  { value: 'pencil', label: 'Pencil' },
   { value: 'paint-brush', label: 'Paint Brush' }
 ];
 

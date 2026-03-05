@@ -6,7 +6,7 @@ import { Label } from '../../../ui/primitives/label';
 import { Checkbox } from '../../../ui/primitives/checkbox';
 import { IndentedSection } from '../../../ui/primitives/indented-section';
 import { StyleSelect } from '../../../../utils/style-options';
-import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth, getMinActualStrokeWidth } from '../../../../utils/stroke-width-converter';
+import { commonToActualStrokeWidth, actualToCommonStrokeWidth, getMaxCommonWidth } from '../../../../utils/stroke-width-converter';
 import { actualToCommonRadius, commonToActualRadius, COMMON_CORNER_RADIUS_RANGE } from '../../../../utils/corner-radius-converter';
 import { getElementStyle } from '../../../../utils/style-utils';
 import { StyleSettingsRenderer } from './style-settings-renderer';
@@ -116,12 +116,8 @@ export function ShapeSettingsForm({
             <StyleSelect 
               value={getElementStyle(element)}
               onChange={(value) => {
-                const minWidth = getMinActualStrokeWidth(value);
                 updateSetting('inheritStyle', value);
-                // Only update strokeWidth if border is enabled (strokeWidth > 0)
-                if ((element.strokeWidth || 0) > 0) {
-                  updateSetting('strokeWidth', minWidth);
-                }
+                // Keep strokeWidth unchanged when changing style
               }}
             />
           </div>
@@ -205,11 +201,8 @@ export function ShapeSettingsForm({
             <StyleSelect 
               value={getElementStyle(element)}
               onChange={(value) => {
-                const minWidth = getMinActualStrokeWidth(value);
                 updateSetting('inheritStyle', value);
-                if ((element.borderWidth || element.strokeWidth || 0) > 0) {
-                  updateSetting('borderWidth', minWidth);
-                }
+                // Keep borderWidth unchanged when changing style
               }}
             />
           </div>
