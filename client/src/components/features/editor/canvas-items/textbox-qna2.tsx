@@ -6,6 +6,8 @@ import { useAuth } from '../../../../context/auth-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { calculateQuestionStyle, calculateAnswerStyle, getDisplaySegments } from './textbox-qna-utils';
 import { renderStyledBorder, createRectPath, createLinePath } from '../../../../utils/styled-border';
+import { renderRuledLines } from '../../../../hooks/use-ruled-lines';
+import { useRectangleBorder } from '../../../../hooks/use-rectangle-border';
 import type Konva from 'konva';
 import type { TextRun } from '../../../../../../shared/types/text-layout';
 import type { LinePosition } from '../../../../../../shared/types/layout';
@@ -204,31 +206,20 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     }
 
     if (extendedPositions.length === 0) return [];
-    const elements: React.ReactElement[] = [];
-    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'pencil', 'paint-brush'];
-    const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
-    const lineStyle = (supportedStyles.includes(styleString as Style)
-      ? styleString
-      : 'default') as Style;
 
-    extendedPositions.forEach((linePos: LinePosition) => {
-      if (linePos.y >= topLimit && linePos.y <= bottomLimit) {
-        const lineElement = renderStyledBorder({
-          width: ruledLinesWidth,
-          color: ruledLinesColor,
-          opacity: ruledLinesOpacity,
-          path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
-          style: lineStyle,
-          styleSettings: { seed: seed + linePos.y, roughness: lineStyle === 'rough' ? 2 : 1 },
-          strokeScaleEnabled: true,
-          listening: false,
-          key: `ruled-line-${linePos.y}`
-        });
-        if (lineElement) elements.push(lineElement);
-      }
+    // Use shared rendering utility
+    return renderRuledLines({
+      elementId: element.id,
+      ruledLinesWidth,
+      ruledLinesStyle,
+      ruledLinesColor,
+      ruledLinesOpacity,
+      linePositions: extendedPositions,
+      padding,
+      elementWidth,
+      topLimit,
+      bottomLimit
     });
-    return elements;
   }, [
     ruledLines,
     layout.linePositions,
@@ -324,74 +315,34 @@ function TextboxQna2(props: CanvasItemProps & { isDragging?: boolean }) {
     [elementWidth, elementHeight]
   );
 
-  const borderElement = useMemo(() => {
-    if (!showBorder) return null;
-    const borderColor =
-      element.borderColor ??
-      (element.textSettings?.borderColor || qna2Defaults.textSettings?.borderColor || '#000000');
-    const borderWidth =
-      element.borderWidth ??
-      element.textSettings?.borderWidth ??
-      qna2Defaults.textSettings?.borderWidth ??
-      1;
-    const borderOpacity =
-      element.borderOpacity ??
-      element.textSettings?.borderOpacity ??
-      qna2Defaults.textSettings?.borderOpacity ??
-      1;
-    const cornerRadius =
-      element.cornerRadius ??
-      element.textSettings?.cornerRadius ??
-      qna2Defaults.cornerRadius ??
-      0;
-    const borderStyle = (element.borderStyle ??
-      (element.textSettings?.borderStyle || qna2Defaults.textSettings?.borderStyle || 'default')) as Style;
-    const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-    const el = renderStyledBorder({
-      width: borderWidth,
-      color: borderColor,
-      opacity: borderOpacity,
-      cornerRadius,
-      path: createRectPath(0, 0, elementWidth, elementHeight),
-      style: borderStyle,
-      styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
-      strokeScaleEnabled: true,
-      listening: false
-    });
-    return (
-      el || (
-        <Rect
-          width={elementWidth}
-          height={elementHeight}
-          stroke={borderColor}
-          strokeWidth={borderWidth}
-          opacity={borderOpacity}
-          cornerRadius={cornerRadius}
-          listening={false}
-        />
-      )
-    );
-  }, [
-    showBorder,
-    elementWidth,
-    elementHeight,
-    element.borderColor,
-    element.textSettings?.borderColor,
-    element.borderWidth,
-    element.textSettings?.borderWidth,
-    element.borderOpacity,
-    element.textSettings?.borderOpacity,
-    element.cornerRadius,
-    element.textSettings?.cornerRadius,
-    element.borderStyle,
-    element.textSettings?.borderStyle,
-    element.id,
-    qna2Defaults.textSettings?.borderColor,
-    qna2Defaults.textSettings?.borderWidth,
-    qna2Defaults.textSettings?.borderOpacity,
-    qna2Defaults.textSettings?.borderStyle,
-    qna2Defaults.cornerRadius
-  ]);
+  // Border rendering using unified hook
+  const borderElement = useRectangleBorder({
+    element: {
+      id: element.id,
+      borderWidth: element.borderWidth ??
+        element.textSettings?.borderWidth ??
+        qna2Defaults.textSettings?.borderWidth ??
+        1,
+      borderColor: element.borderColor ??
+        (element.textSettings?.borderColor || qna2Defaults.textSettings?.borderColor || '#000000'),
+      borderOpacity: element.borderOpacity ??
+        element.textSettings?.borderOpacity ??
+        qna2Defaults.textSettings?.borderOpacity ??
+        1,
+      borderStyle: (element.borderStyle ??
+        (element.textSettings?.borderStyle || qna2Defaults.textSettings?.borderStyle || 'default')) as Style,
+      cornerRadius: element.cornerRadius ??
+        element.textSettings?.cornerRadius ??
+        qna2Defaults.cornerRadius ??
+        0,
+      roughness: 8,
+      seed: 1
+    },
+    width: elementWidth,
+    height: elementHeight,
+    isVisible: showBorder,
+    elementType: 'textbox'
+  });
 
   const showSkeleton = isTransforming || isDragging;
   const hasContent = layout.runs.length > 0;

@@ -1,5 +1,5 @@
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, X, Heart, Lock } from 'lucide-react';
+import { ChevronLeft, X, Heart } from 'lucide-react';
 import { SketchPicker } from 'react-color';
 import { Label } from '../../../ui/primitives/label';
 import { Slider } from '../../../ui/primitives/slider';
@@ -20,8 +20,6 @@ interface ColorSelectorProps {
   onAddFavorite: (color: string) => void;
   onRemoveFavorite: (color: string) => void;
   onBack?: () => void;
-  isOverridden?: boolean;
-  onResetOverride?: () => void;
   showOpacitySlider?: boolean;
 }
 
@@ -34,9 +32,7 @@ export function ColorSelector({
   onAddFavorite,
   onRemoveFavorite,
   onBack,
-  isOverridden = false,
-  onResetOverride,
-  showOpacitySlider = true
+  showOpacitySlider = false
 }: ColorSelectorProps) {
 
   return (
@@ -46,7 +42,7 @@ export function ColorSelector({
           <div className="flex items-center gap-2 mb-2">
             <Label variant="xs">Current:</Label>
             <div
-              className={`h-6 flex-1 rounded border-2 ${isOverridden ? 'border-orange-300' : 'border-gray-300'}`}
+              className="h-6 flex-1 rounded border-2 border-gray-300"
               style={{ backgroundColor: value === 'transparent' ? '#ffffff' : (value || '#000000') }}
             />
             <Tooltip content="Add to your Favorite Colors">
@@ -70,25 +66,7 @@ export function ColorSelector({
                 )}
               </Button>
             </Tooltip>
-            {isOverridden && (
-              <div className="flex items-center gap-1 ml-auto">
-                <Lock className="h-3 w-3 text-orange-500" />
-                <span className="text-xs text-orange-600">Override</span>
-              </div>
-            )}
           </div>
-          {isOverridden && onResetOverride && (
-            <div className="mb-2">
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={onResetOverride}
-                className="w-full text-xs"
-              >
-                Reset to Palette Color
-              </Button>
-            </div>
-          )}
             <SketchPicker
               color={value === 'transparent' ? '#ffffff' : (value || '#000000')}
               onChange={(color) => onChange(color.hex)}

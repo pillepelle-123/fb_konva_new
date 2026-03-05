@@ -4,6 +4,8 @@ import BaseCanvasItem, { type CanvasItemProps } from './base-canvas-item';
 import { useEditor } from '../../../../context/editor-context';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
 import { renderStyledBorder, createRectPath, createLinePath } from '../../../../utils/styled-border';
+import { renderRuledLines } from '../../../../hooks/use-ruled-lines';
+import { useRectangleBorder } from '../../../../hooks/use-rectangle-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import type Konva from 'konva';
 import type { RichTextStyle, TextRun } from '../../../../../../shared/types/text-layout';
@@ -154,29 +156,20 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
 
   const ruledLinesElements = useMemo(() => {
     if (!ruledLines || !layout.linePositions?.length) return [];
-    const elements: React.ReactElement[] = [];
-    const seed = parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
-    const supportedStyles: Style[] = ['default', 'rough', 'glow', 'candy', 'zigzag', 'wobbly', 'dashed', 'marker', 'crayon', 'pencil', 'paint-brush'];
-    const styleString = String(ruledLinesStyle || 'default').toLowerCase().trim();
-    const lineStyle = (supportedStyles.includes(styleString as Style) ? styleString : 'default') as Style;
 
-    layout.linePositions.forEach((linePos: LinePosition) => {
-      if (linePos.y >= 0 && linePos.y <= elementHeight) {
-        const lineElement = renderStyledBorder({
-          width: ruledLinesWidth,
-          color: ruledLinesColor,
-          opacity: ruledLinesOpacity,
-          path: createLinePath(padding, linePos.y, elementWidth - padding, linePos.y),
-          style: lineStyle,
-          styleSettings: { seed: seed + linePos.y, roughness: lineStyle === 'rough' ? 2 : 1 },
-          strokeScaleEnabled: true,
-          listening: false,
-          key: `ruled-line-${linePos.y}`
-        });
-        if (lineElement) elements.push(lineElement);
-      }
+    // Use shared rendering utility
+    return renderRuledLines({
+      elementId: element.id,
+      ruledLinesWidth,
+      ruledLinesStyle,
+      ruledLinesColor,
+      ruledLinesOpacity,
+      linePositions: layout.linePositions,
+      padding,
+      elementWidth,
+      topLimit: 0,
+      bottomLimit: elementHeight
     });
-    return elements;
   }, [ruledLines, layout.linePositions, padding, elementWidth, elementHeight, ruledLinesWidth, ruledLinesStyle, ruledLinesColor, ruledLinesOpacity, element.id]);
 
   const showBackground = element.textSettings?.backgroundEnabled && element.textSettings?.backgroundColor;
@@ -400,55 +393,23 @@ export default function TextboxFreeText(props: CanvasItemProps & { isDragging?: 
 
   const hitArea = useMemo(() => ({ x: 0, y: 0, width: elementWidth, height: elementHeight }), [elementWidth, elementHeight]);
 
-  const borderElement = useMemo(() => {
-    if (!showBorder) return null;
-    const borderColor = element.textSettings?.borderColor || freeTextDefaults.textSettings?.borderColor || '#000000';
-    const borderWidth = element.textSettings?.borderWidth ?? freeTextDefaults.textSettings?.borderWidth ?? 1;
-    const borderOpacity = element.textSettings?.borderOpacity ?? freeTextDefaults.textSettings?.borderOpacity ?? 1;
-    const cornerRadius = element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0;
-    const borderStyle = (element.textSettings?.borderStyle || freeTextDefaults.textSettings?.borderStyle || 'default') as Style;
-    const seed = borderStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-    const el = renderStyledBorder({
-      width: borderWidth,
-      color: borderColor,
-      opacity: borderOpacity,
-      cornerRadius,
-      path: createRectPath(0, 0, elementWidth, elementHeight),
-      style: borderStyle,
-      styleSettings: { roughness: borderStyle === 'rough' ? 8 : undefined, seed },
-      strokeScaleEnabled: true,
-      listening: false
-    });
-    return (
-      el || (
-        <Rect
-          width={elementWidth}
-          height={elementHeight}
-          stroke={borderColor}
-          strokeWidth={borderWidth}
-          opacity={borderOpacity}
-          cornerRadius={cornerRadius}
-          listening={false}
-        />
-      )
-    );
-  }, [
-    showBorder,
-    elementWidth,
-    elementHeight,
-    element.textSettings?.borderColor,
-    element.textSettings?.borderWidth,
-    element.textSettings?.borderOpacity,
-    element.textSettings?.cornerRadius,
-    element.textSettings?.borderStyle,
-    element.cornerRadius,
-    element.id,
-    freeTextDefaults.textSettings?.borderColor,
-    freeTextDefaults.textSettings?.borderWidth,
-    freeTextDefaults.textSettings?.borderOpacity,
-    freeTextDefaults.textSettings?.borderStyle,
-    freeTextDefaults.cornerRadius
-  ]);
+  // Border rendering using unified hook
+  const borderElement = useRectangleBorder({
+    element: {
+      id: element.id,
+      borderWidth: element.textSettings?.borderWidth ?? freeTextDefaults.textSettings?.borderWidth ?? 1,
+      borderColor: element.textSettings?.borderColor || freeTextDefaults.textSettings?.borderColor || '#000000',
+      borderOpacity: element.textSettings?.borderOpacity ?? freeTextDefaults.textSettings?.borderOpacity ?? 1,
+      borderStyle: (element.textSettings?.borderStyle || freeTextDefaults.textSettings?.borderStyle || 'default') as Style,
+      cornerRadius: element.textSettings?.cornerRadius ?? element.cornerRadius ?? freeTextDefaults.cornerRadius ?? 0,
+      roughness: 8,
+      seed: 1
+    },
+    width: elementWidth,
+    height: elementHeight,
+    isVisible: showBorder,
+    elementType: 'textbox'
+  });
 
   // Show skeleton during transform or drag
   const showSkeleton = isTransforming || isDragging;

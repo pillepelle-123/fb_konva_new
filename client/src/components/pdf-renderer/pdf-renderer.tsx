@@ -754,11 +754,19 @@ export function PDFRenderer({
       }
       setLayerReady(false);
     };
-  }, [stageRef.current]);
+  }, []); // Empty dependency - run once on mount when stage ref is set
 
   // Render content to manually created layer
   useEffect(() => {
-    if (!layerRef.current || !bgLayerRef.current || !layerReady || !stageRef.current) return;
+    if (!layerRef.current || !bgLayerRef.current || !layerReady || !stageRef.current) {
+      console.log('[PDFRenderer] Rendering skipped - waiting for layers:', {
+        hasLayerRef: !!layerRef.current,
+        hasBgLayerRef: !!bgLayerRef.current,
+        layerReady,
+        hasStageRef: !!stageRef.current
+      });
+      return;
+    }
     
     const bgLayer = bgLayerRef.current;
     const layer = layerRef.current;
@@ -989,7 +997,9 @@ export function PDFRenderer({
     
     // Render page elements
     const elements = sortedElements;
-    console.log('[PDFRenderer] Rendering', elements.length, 'elements');
+    const shapeElements = elements.filter(el => ['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(el.type));
+    console.log('[PDFRenderer] Rendering', elements.length, 'elements (', shapeElements.length, 'shapes)');
+    console.log('[PDFRenderer] Shape elements:', shapeElements.map(el => ({ id: el.id, type: el.type, x: el.x, y: el.y, width: el.width, height: el.height })));
     
     // Create a map of element IDs to their z-order index in the sorted array
     const elementIdToZOrder = new Map<string, number>();
@@ -3421,6 +3431,8 @@ export function PDFRenderer({
         }
         // Render shape elements (rect, circle, etc.)
         else if (['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
+          console.log('[PDFRenderer] ⭐ RENDERING SHAPE:', element.type, 'id:', element.id, 'x:', element.x, 'y:', element.y, 'width:', element.width, 'height:', element.height);
+          
           const fill = element.fill !== undefined ? element.fill : 'transparent';
           const stroke = element.stroke || '#000000';
           // For shapes (not line/brush), use borderWidth; for line, use strokeWidth
@@ -3428,7 +3440,13 @@ export function PDFRenderer({
             ? (element.strokeWidth || 0)
             : (element.borderWidth || element.strokeWidth || 0);
           const strokeWidth = borderWidth; // Use borderWidth for all shapes
-          const shapeStyle = element.style || element.borderStyle || 'default';
+          const rawShapeStyle = element.inheritStyle || element.style || element.borderStyle || 'default';
+          const normalizedShapeStyle = String(rawShapeStyle)
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/_/g, '-');
+          const shapeStyle = normalizedShapeStyle === 'paintbrush' ? 'paint-brush' : normalizedShapeStyle;
           
           // For rect elements, use backgroundOpacity if available, otherwise use elementOpacity
           // For other shapes, use elementOpacity
@@ -3442,10 +3460,14 @@ export function PDFRenderer({
             : 1;
           
           // Check if theme renderer should be used
+          console.log('[PDFRenderer] Getting style renderer for:', shapeStyle);
           const styleRenderer = getStyleRenderer(shapeStyle);
+          console.log('[PDFRenderer] Style renderer obtained:', !!styleRenderer, typeof styleRenderer);
           const hasBorder = borderWidth > 0;
           const hasFill = fill !== 'transparent' && fill !== undefined;
-          const useStyle = styleRenderer && shapeStyle !== 'default' && (hasBorder || hasFill);
+          const requiresPathShape = !['rect', 'circle', 'line'].includes(element.type);
+          const useStyle = Boolean(styleRenderer) && (shapeStyle !== 'default' || requiresPathShape) && (hasBorder || hasFill || requiresPathShape);
+          console.log('[PDFRenderer] Will use styled rendering:', useStyle);
 
           console.log('[PDFRenderer] Shape analysis:',
             'elementId:', String(element.id),
@@ -3455,7 +3477,7 @@ export function PDFRenderer({
             'fill:', String(fill),
             'hasBorder:', Boolean(hasBorder),
             'hasFill:', Boolean(hasFill),
-            'useTheme:', Boolean(useTheme),
+            'useStyle:', Boolean(useStyle),
             'hasStyleRenderer:', Boolean(!!styleRenderer),
             'elementType:', String(element.type),
             'elementRotation:', Number(elementRotation),
@@ -3467,7 +3489,7 @@ export function PDFRenderer({
             'elementType:', String(element.type),
             'style:', String(shapeStyle),
             'borderWidth:', Number(borderWidth),
-            'useTheme:', Boolean(useTheme),
+            'useStyle:', Boolean(useStyle),
             'hasStyleRenderer:', Boolean(!!styleRenderer)
           );
           
@@ -3516,9 +3538,9 @@ export function PDFRenderer({
           // DEBUG: Log which path we're taking
           console.log('[PDFRenderer] Shape rendering path decision:',
             'elementId:', String(element.id),
-            'useTheme:', Boolean(useTheme),
-            'willEnterIfBlock:', Boolean(useTheme),
-            'willEnterElseBlock:', Boolean(!useTheme)
+            'useStyle:', Boolean(useStyle),
+            'willEnterIfBlock:', Boolean(useStyle),
+            'willEnterElseBlock:', Boolean(!useStyle)
           );
           
             if (useStyle) {
@@ -3542,8 +3564,12 @@ export function PDFRenderer({
               roughness: shapeStyle === 'rough' ? 8 : element.roughness
             } as CanvasElement;
 
+            console.log('[PDFRenderer] Calling styleRenderer.generatePath...');
             const pathData = styleRenderer.generatePath(shapeElement);
+            console.log('[PDFRenderer] Path data generated:', pathData ? pathData.substring(0, 50) : 'null');
+            console.log('[PDFRenderer] Calling styleRenderer.getStrokeProps...');
             const strokeProps = styleRenderer.getStrokeProps(shapeElement);
+            console.log('[PDFRenderer] Stroke props obtained:', !!strokeProps);
             
             // DEBUG: Log pathData
             console.log('[PDFRenderer] Theme renderer result:',
@@ -4217,7 +4243,20 @@ export function PDFRenderer({
           }
         }
       } catch (error) {
-        console.error('[PDFRenderer] Error rendering element:', element.id, error);
+        console.error('[PDFRenderer] ❌ ERROR rendering element:', element.id);
+        console.error('[PDFRenderer] Error type:', typeof error);
+        console.error('[PDFRenderer] Error message:', error instanceof Error ? error.message : String(error));
+        console.error('[PDFRenderer] Error stack:', error instanceof Error ? error.stack : 'No stack');
+        console.error('[PDFRenderer] Element details:', {
+          type: element.type,
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+          fill: element.fill,
+          stroke: element.stroke,
+          style: element.style || element.borderStyle
+        });
       }
     }
     

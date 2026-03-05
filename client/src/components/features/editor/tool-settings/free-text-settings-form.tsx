@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
 import { Palette, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify, ALargeSmall, Rows4, Rows3, Rows2, SquareRoundCorner, PanelTopBottomDashed } from 'lucide-react';
 import { ButtonGroup } from '../../../ui/composites/button-group';
@@ -14,7 +13,6 @@ import { getFontFamily as getFontFamilyByName } from '../../../../utils/font-fam
 import { FONT_GROUPS } from '../../../../utils/font-families';
 import { StyleSelect } from '../../../../utils/style-options';
 import { FontSelector } from './font-selector';
-import { ColorSelector } from './color-selector';
 import { SlotSelector } from './slot-selector';
 import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
@@ -64,7 +62,6 @@ export function FreeTextSettingsForm({
   sandbox
 }: FreeTextSettingsFormProps) {
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
 
   const getTextStyle = () => {
     const tStyle = element.textSettings || {};
@@ -129,60 +126,6 @@ export function FreeTextSettingsForm({
     );
   }
 
-  if (localShowColorSelector) {
-    const getColorValue = () => {
-      switch (localShowColorSelector) {
-        case 'element-text-color': return computedCurrentStyle.fontColor;
-        case 'element-border-color': return computedCurrentStyle.borderColor;
-        case 'element-background-color': return computedCurrentStyle.backgroundColor;
-        case 'element-ruled-lines-color': return computedCurrentStyle.ruledLinesColor;
-        default: return '#1f2937';
-      }
-    };
-
-    const getElementOpacityValue = () => {
-      switch (localShowColorSelector) {
-        case 'element-text-color': return computedCurrentStyle.fontOpacity;
-        case 'element-border-color': return computedCurrentStyle.borderOpacity;
-        case 'element-background-color': return computedCurrentStyle.backgroundOpacity;
-        case 'element-ruled-lines-color': return computedCurrentStyle.ruledLinesOpacity;
-        default: return 1;
-      }
-    };
-
-    const handleElementOpacityChange = (opacity: number) => {
-      switch (localShowColorSelector) {
-        case 'element-text-color': updateTextSetting('fontOpacity', opacity); break;
-        case 'element-border-color': updateTextSetting('borderOpacity', opacity); break;
-        case 'element-background-color': updateTextSetting('backgroundOpacity', opacity); break;
-        case 'element-ruled-lines-color': updateTextSetting('ruledLinesOpacity', opacity); break;
-      }
-    };
-
-    const handleElementColorChange = (color: string) => {
-      switch (localShowColorSelector) {
-        case 'element-text-color': updateTextSetting('fontColor', color); break;
-        case 'element-border-color': updateTextSetting('borderColor', color); break;
-        case 'element-background-color': updateTextSetting('backgroundColor', color); break;
-        case 'element-ruled-lines-color': updateTextSetting('ruledLinesColor', color); break;
-      }
-    };
-
-    return (
-      <ColorSelector
-        value={getColorValue()}
-        onChange={handleElementColorChange}
-        opacity={getElementOpacityValue()}
-        onOpacityChange={handleElementOpacityChange}
-        favoriteColors={favoriteStrokeColors}
-        onAddFavorite={addFavoriteStrokeColor}
-        onRemoveFavorite={removeFavoriteStrokeColor}
-        onBack={() => setLocalShowColorSelector(null)}
-        showOpacitySlider={true}
-      />
-    );
-  }
-  
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 min-w-0 overflow-y-auto space-y-2 p-2">
@@ -231,7 +174,7 @@ export function FreeTextSettingsForm({
             />
           ) : (
             <Tooltip content="Font Color" side="left" fullWidth>
-              <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-text-color')} className="w-full">
+              <Button variant="outline" size="xxs" onClick={() => setShowColorSelector('element-text-color')} className="w-full">
                 <Palette className="w-4 mr-2" />
                 <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.fontColor }} />
                 Font Color
@@ -325,7 +268,7 @@ export function FreeTextSettingsForm({
                 />
               ) : (
                 <Tooltip content="Line Color" side="left" fullWidth>
-                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-ruled-lines-color')} className="w-full">
+                  <Button variant="outline" size="xxs" onClick={() => setShowColorSelector('element-ruled-lines-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.ruledLinesColor }} />
                     Line Color
@@ -385,7 +328,7 @@ export function FreeTextSettingsForm({
                 />
               ) : (
                 <Tooltip content="Border Color" side="left" fullWidth>
-                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-border-color')} className="w-full">
+                  <Button variant="outline" size="xxs" onClick={() => setShowColorSelector('element-border-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.borderColor }} />
                     Border Color
@@ -425,7 +368,7 @@ export function FreeTextSettingsForm({
                 />
               ) : (
                 <Tooltip content="Background Color" side="left" fullWidth>
-                  <Button variant="outline" size="xxs" onClick={() => setLocalShowColorSelector('element-background-color')} className="w-full">
+                  <Button variant="outline" size="xxs" onClick={() => setShowColorSelector('element-background-color')} className="w-full">
                     <Palette className="w-4 mr-2" />
                     <div className="w-4 h-4 mr-2 rounded border border-border" style={{ backgroundColor: computedCurrentStyle.backgroundColor }} />
                     Background Color

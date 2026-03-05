@@ -4,6 +4,7 @@ import Konva from 'konva';
 import BaseCanvasItem from './base-canvas-item';
 import type { CanvasItemProps } from './base-canvas-item';
 import { renderStyledBorder, createRectPath } from '../../../../utils/styled-border';
+import { useRectangleBorder } from '../../../../hooks/use-rectangle-border';
 import type { CanvasElement } from '../../../../context/editor-context';
 import { useEditor } from '../../../../context/editor-context';
 import { useAuth } from '../../../../context/auth-context';
@@ -380,6 +381,35 @@ export default function Image(props: ImageProps) {
     window.dispatchEvent(new CustomEvent('imageQualityTooltipHide'));
   };
 
+  // Frame rendering using unified hook
+  const frameEnabled = element.type === 'sticker'
+    ? false
+    : (element.frameEnabled !== undefined
+      ? element.frameEnabled
+      : (element.strokeWidth || 0) > 0);
+  const frameStrokeWidth = element.strokeWidth || 0;
+  const frameBorderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
+  const frameStyle = element.frameStyle || element.theme || element.style || 'default';
+  const frameCornerRadius = element.cornerRadius || 0;
+  const frameStroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
+
+  const frameElement = useRectangleBorder({
+    element: {
+      id: element.id,
+      borderWidth: frameStrokeWidth,
+      borderColor: frameStroke,
+      borderOpacity: frameBorderOpacity,
+      borderStyle: frameStyle,
+      cornerRadius: frameCornerRadius,
+      roughness: 8,
+      seed: 1
+    },
+    width: size.width,
+    height: size.height,
+    isVisible: Boolean(image && !isTransforming && frameEnabled && frameStrokeWidth > 0),
+    elementType: 'image'
+  });
+
   return (
     <BaseCanvasItem
       {...baseProps}
@@ -473,65 +503,7 @@ export default function Image(props: ImageProps) {
           )}
           
           {/* Frame around image */}
-          {image && !isTransforming && (() => {
-            const frameEnabled = element.type === 'sticker'
-              ? false
-              : (element.frameEnabled !== undefined
-                ? element.frameEnabled
-                : (element.strokeWidth || 0) > 0);
-            const strokeWidth = element.strokeWidth || 0;
-            const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
-            const frameStyle = element.frameStyle || element.theme || element.style || 'default';
-            const cornerRadius = element.cornerRadius || 0;
-
-            const stroke = element.borderColor || qnaDefaults.borderColor || '#1f2937';
-            
-            if (!frameEnabled || strokeWidth === 0) {
-              return null;
-            }
-            
-            // Get current frame dimensions - use size during transformation, element dimensions otherwise
-            // This ensures the frame matches the image size exactly and rotates correctly
-            const frameWidth = size.width;
-            const frameHeight = size.height;
-            
-            const seed = frameStyle === 'rough' ? 1 : (parseInt(element.id.replace(/[^0-9]/g, '').slice(0, 8), 10) || 1);
-            
-            const frameElement = renderStyledBorder({
-              width: strokeWidth,
-              color: stroke,
-              opacity: borderOpacity,
-              cornerRadius: cornerRadius,
-              path: createRectPath(0, 0, frameWidth, frameHeight),
-              style: frameStyle as any,
-              styleSettings: {
-                roughness: frameStyle === 'rough' ? 8 : undefined,
-                seed: seed
-              },
-              zoom: frameStyle === 'rough' ? 1 : zoom,
-              strokeScaleEnabled: true,
-              listening: false
-            });
-
-            // Fallback to simple Rect for default theme or if theme rendering fails
-            if (!frameElement) {
-              return (
-                <Rect
-                  width={frameWidth}
-                  height={frameHeight}
-                  fill="transparent"
-                  stroke={stroke}
-                  strokeWidth={strokeWidth}
-                  opacity={borderOpacity}
-                  cornerRadius={cornerRadius}
-                  strokeScaleEnabled={true}
-                  listening={false}
-                />
-              );
-            }
-
-            return frameElement;
-          })()}
+          {frameElement}
 
           {image && imageQuality && element.type === 'image' && !isTransforming && !props.isDragging && isImageHovered && (() => {
             const CORNER_SIZE = 50;

@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { Button } from '../../../ui/primitives/button';
-import { Input } from '../../../ui/primitives/input';
-import { Label } from '../../../ui/primitives/label';
-import { Separator } from '../../../ui/primitives/separator';
-import { Palette } from 'lucide-react';
-import { ColorSelector } from './color-selector';
+  import { Input } from '../../../ui/primitives/input';
+  import { Label } from '../../../ui/primitives/label';
+  import { Separator } from '../../../ui/primitives/separator';
+  import { Palette } from 'lucide-react';
 import { SettingsFormFooter } from './settings-form-footer';
 import { useEditorSettings } from '../../../../hooks/useEditorSettings';
 import { getGlobalThemeDefaults } from '../../../../utils/global-themes';
@@ -15,6 +13,7 @@ interface QrCodeSettingsFormProps {
   element: CanvasElement;
   state: EditorState;
   updateSetting: (key: string, value: unknown) => void;
+  setShowColorSelector?: (type: string | null) => void;
   hasChanges: boolean;
   onSave: () => void;
   onDiscard: () => void;
@@ -24,14 +23,14 @@ export function QrCodeSettingsForm({
   element,
   state,
   updateSetting,
+  setShowColorSelector,
   hasChanges,
   onSave,
   onDiscard
 }: QrCodeSettingsFormProps) {
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
-  const [localShowColorSelector, setLocalShowColorSelector] = useState<'foreground' | 'background' | null>(null);
 
-  const getQrStyle = () => {
+  const computedStyle = (() => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
     const bookTheme = state.currentBook?.themeId || state.currentBook?.bookTheme;
@@ -50,33 +49,7 @@ export function QrCodeSettingsForm({
       qrDotsStyle: element.qrDotsStyle || defaults.qrDotsStyle || 'square',
       qrCornerStyle: element.qrCornerStyle || defaults.qrCornerStyle || 'default'
     };
-  };
-
-  const computedStyle = getQrStyle();
-
-  if (localShowColorSelector) {
-    const value = localShowColorSelector === 'foreground'
-      ? computedStyle.qrForegroundColor
-      : computedStyle.qrBackgroundColor;
-
-    return (
-      <ColorSelector
-        value={value}
-        onChange={(color) => {
-          if (localShowColorSelector === 'foreground') {
-            updateSetting('qrForegroundColor', color);
-          } else {
-            updateSetting('qrBackgroundColor', color);
-          }
-        }}
-        favoriteColors={favoriteStrokeColors}
-        onAddFavorite={addFavoriteStrokeColor}
-        onRemoveFavorite={removeFavoriteStrokeColor}
-        onBack={() => setLocalShowColorSelector(null)}
-        showOpacitySlider={false}
-      />
-    );
-  }
+  })();
 
   return (
     <div className="flex flex-col h-full">
@@ -135,7 +108,7 @@ export function QrCodeSettingsForm({
           <Button
             variant="outline"
             size="xs"
-            onClick={() => setLocalShowColorSelector('foreground')}
+            onClick={() => setShowColorSelector?.('element-qr-code-foreground')}
             className="w-full"
           >
             <Palette className="w-4 mr-2" />
@@ -148,7 +121,7 @@ export function QrCodeSettingsForm({
           <Button
             variant="outline"
             size="xs"
-            onClick={() => setLocalShowColorSelector('background')}
+            onClick={() => setShowColorSelector?.('element-qr-code-background')}
             className="w-full"
           >
             <Palette className="w-4 mr-2" />

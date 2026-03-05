@@ -17,7 +17,6 @@ import { Tooltip } from '../../../ui';
 import { useEditor } from '../../../../context/editor-context';
 import { Tabs, TabsList, TabsTrigger } from '../../../ui/composites';
 import { FontSelector } from './font-selector';
-import { ColorSelector } from './color-selector';
 import { SlotSelector } from './slot-selector';
 import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
@@ -105,15 +104,11 @@ export function QnASettingsForm({
   const { dispatch } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   
-  // Local state for QnA color selector
-  const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
-  
   const currentPage = state.currentBook?.pages[state.activePageIndex];
   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
   
   // Close color selector when activeSection changes
   useEffect(() => {
-    setLocalShowColorSelector(null);
     setShowColorSelector(null);
   }, [activeSection, setShowColorSelector]);
   
@@ -429,11 +424,7 @@ export function QnASettingsForm({
                 variant="outline"
                 size="xxs"
                 onClick={() => {
-                  if (individualSettings) {
-                    setShowColorSelector('element-text-color');
-                  } else {
-                    setLocalShowColorSelector('element-text-color');
-                  }
+                  setShowColorSelector('element-text-color');
                 }}
                 className="w-full"
               >
@@ -522,263 +513,7 @@ export function QnASettingsForm({
     );
   }
   
-  // Only render ColorSelector locally if individualSettings is disabled
-  // When individualSettings is enabled, ColorSelector is rendered at top level via setShowColorSelector
-  if (localShowColorSelector && !individualSettings) {
-    const getColorValue = () => {
-      switch (localShowColorSelector) {
-        case 'element-text-color':
-          // In shared mode without individual settings, use the question color as primary
-          // In individual mode, use the active section's color
-          if (!individualSettings && sectionType === 'shared') {
-            // Shared mode: prefer question settings, but check both
-            return element.questionSettings?.fontColor || 
-                   element.answerSettings?.fontColor || 
-                   computedCurrentStyle.fontColor || 
-                   '#666666';
-          } else if (activeSection === 'question') {
-            return element.questionSettings?.fontColor || computedCurrentStyle.fontColor || '#666666';
-          } else {
-            return element.answerSettings?.fontColor || computedCurrentStyle.fontColor || '#1f2937';
-          }
-        case 'element-border-color':
-          return element.borderColor || element.border?.borderColor || element.questionSettings?.border?.borderColor || element.answerSettings?.border?.borderColor || '#000000';
-        case 'element-background-color':
-          return element.backgroundColor || element.background?.backgroundColor || element.questionSettings?.background?.backgroundColor || element.answerSettings?.background?.backgroundColor || '#ffffff';
-        case 'element-ruled-lines-color':
-          return element.ruledLinesColor || '#1f2937';
-        default:
-          return '#1f2937';
-      }
-    };
-    
-    const getElementOpacityValue = () => {
-      switch (localShowColorSelector) {
-        case 'element-text-color':
-          if (!individualSettings && sectionType === 'shared') {
-            return element.questionSettings?.fontOpacity ?? element.answerSettings?.fontOpacity ?? 1;
-          } else if (activeSection === 'question') {
-            return element.questionSettings?.fontOpacity ?? 1;
-          } else {
-            return element.answerSettings?.fontOpacity ?? 1;
-          }
-        case 'element-border-color': {
-          const themeDefaults = getThemeDefaults();
-              return element.borderOpacity ?? 
-                     element.questionSettings?.borderOpacity ?? 
-                     element.answerSettings?.borderOpacity ?? 
-                     element.border?.borderOpacity ?? 
-                     (themeDefaults.borderOpacity ?? 1);
-        }
-        case 'element-background-color': {
-          const themeDefaults = getThemeDefaults();
-              return element.backgroundOpacity ?? 
-                     element.questionSettings?.backgroundOpacity ?? 
-                     element.answerSettings?.backgroundOpacity ?? 
-                     element.background?.backgroundOpacity ?? 
-                     (themeDefaults.backgroundOpacity ?? 1);
-        }
-        case 'element-ruled-lines-color': {
-          return element.ruledLinesOpacity ?? 1;
-        }
-        default:
-          return 1;
-      }
-    };
-    
-    const handleElementOpacityChange = (opacity: number) => {
-      switch (localShowColorSelector) {
-        case 'element-text-color':
-          if (!individualSettings && sectionType === 'shared') {
-            updateSharedSetting('fontOpacity', opacity);
-          } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  questionSettings: {
-                    ...element.questionSettings,
-                    fontOpacity: opacity
-                  }
-                }
-              }
-            });
-          } else {
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  answerSettings: {
-                    ...element.answerSettings,
-                    fontOpacity: opacity
-                  }
-                }
-              }
-            });
-          }
-          break;
-        case 'element-border-color':
-          updateSharedSetting('borderOpacity', opacity);
-          break;
-        case 'element-background-color':
-          updateSharedSetting('backgroundOpacity', opacity);
-          break;
-        case 'element-ruled-lines-color':
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                // Set ruledLinesOpacity on top-level (moved from answerSettings)
-                ruledLinesOpacity: opacity
-              }
-            }
-          });
-          break;
-      }
-    };
-    
-    const handleElementColorChange = (color: string) => {
-      const colorValue = color || '#000000';
-      
-      switch (localShowColorSelector) {
-        case 'element-text-color':
-          if (!individualSettings && sectionType === 'shared') {
-            // Shared mode: update both question and answer
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  questionSettings: {
-                    ...element.questionSettings,
-                    fontColor: colorValue
-                  },
-                  answerSettings: {
-                    ...element.answerSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
-          } else if (individualSettings && (sectionType === 'question' || activeSection === 'question')) {
-            // Individual mode: update only question
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  questionSettings: {
-                    ...element.questionSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
-          } else {
-            // Individual mode: update only answer
-            dispatch({
-              type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-              payload: {
-                id: element.id,
-                updates: {
-                  answerSettings: {
-                    ...element.answerSettings,
-                    fontColor: colorValue
-                  }
-                }
-              }
-            });
-          }
-          break;
-        case 'element-border-color': {
-          const themeDefaults = getThemeDefaults();
-          const currentEnabled = element.borderEnabled ?? (element.questionSettings?.border?.enabled || element.answerSettings?.border?.enabled) ?? (themeDefaults.borderEnabled ?? false);
-          const borderWidth = element.borderWidth || element.questionSettings?.borderWidth || element.answerSettings?.borderWidth || (themeDefaults.borderWidth ?? 1);
-          const borderOpacity = element.borderOpacity ?? element.questionSettings?.borderOpacity ?? element.answerSettings?.borderOpacity ?? (themeDefaults.borderOpacity ?? 1);
-          const borderStyle = element.borderStyle || element.questionSettings?.borderStyle || element.answerSettings?.borderStyle || themeDefaults.borderStyle || 'default';
-          
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                // Set all border properties on top-level only (no border object, no nested border.enabled)
-                borderEnabled: currentEnabled,
-                borderColor: colorValue,
-                borderWidth: borderWidth,
-                borderOpacity: borderOpacity,
-                borderStyle: borderStyle
-              }
-            }
-          });
-          break;
-        }
-        case 'element-background-color': {
-          const themeDefaults = getThemeDefaults();
-          const currentEnabled = element.backgroundEnabled ?? (element.questionSettings?.background?.enabled || element.answerSettings?.background?.enabled) ?? (themeDefaults.backgroundEnabled ?? false);
-          const backgroundOpacity = element.backgroundOpacity ?? element.questionSettings?.backgroundOpacity ?? element.answerSettings?.backgroundOpacity ?? (themeDefaults.backgroundOpacity ?? 1);
-          
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                // Set all background properties on top-level only (no background object, no nested background.enabled)
-                backgroundEnabled: currentEnabled,
-                backgroundColor: colorValue,
-                backgroundOpacity: backgroundOpacity
-              }
-            }
-          });
-          break;
-        }
-        case 'element-ruled-lines-color':
-          dispatch({
-            type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
-            payload: {
-              id: element.id,
-              updates: {
-                // Set ruledLinesColor on top-level (moved from answerSettings)
-                ruledLinesColor: colorValue
-              }
-            }
-          });
-          break;
-      }
-    };
-    
 
-    
-    const getCurrentColorValue = () => {
-      const shouldUpdateBoth = !individualSettings && sectionType === 'shared';
-      const targetSection = individualSettings ? (activeSection || state.qnaActiveSection || 'question') : null;
-      
-      if (!individualSettings && sectionType === 'shared') {
-        return element.questionSettings?.fontColor || element.answerSettings?.fontColor || '#1f2937';
-      } else if (targetSection === 'question') {
-        return element.questionSettings?.fontColor || '#666666';
-      } else {
-        return element.answerSettings?.fontColor || '#1f2937';
-      }
-    };
-    
-    return (
-      <ColorSelector
-          value={getColorValue()}
-          onChange={handleElementColorChange}
-          opacity={getElementOpacityValue()}
-          onOpacityChange={handleElementOpacityChange}
-          favoriteColors={favoriteStrokeColors}
-          onAddFavorite={addFavoriteStrokeColor}
-          onRemoveFavorite={removeFavoriteStrokeColor}
-          onBack={() => setLocalShowColorSelector(null)}
-          showOpacitySlider={false}
-        />
-    );
-  }
   
   // Helper function to render Text Align ButtonGroup for individual settings
   const renderTextAlignControls = () => {
@@ -1175,9 +910,7 @@ export function QnASettingsForm({
           {individualSettings && onActiveSectionChange && (
             <>
               <Tabs value={activeSection} onValueChange={(section) => {
-                if (localShowColorSelector) {
-                  setLocalShowColorSelector(null);
-                }
+
                 onActiveSectionChange?.(section);
               }}>
                 <TabsList variant="bootstrap" className="w-full h-5">
@@ -1467,11 +1200,7 @@ export function QnASettingsForm({
                   variant="outline"
                   size="xxs"
                   onClick={() => {
-                    if (individualSettings) {
                       setShowColorSelector('element-ruled-lines-color');
-                    } else {
-                      setLocalShowColorSelector('element-ruled-lines-color');
-                    }
                   }}
                   className="w-full"
                 >
@@ -1633,11 +1362,7 @@ export function QnASettingsForm({
                   variant="outline"
                   size="xxs"
                   onClick={() => {
-                    if (individualSettings) {
                       setShowColorSelector('element-border-color');
-                    } else {
-                      setLocalShowColorSelector('element-border-color');
-                    }
                   }}
                   className="w-full"
                 >
@@ -1728,11 +1453,7 @@ export function QnASettingsForm({
                   variant="outline"
                   size="xxs"
                   onClick={() => {
-                    if (individualSettings) {
                       setShowColorSelector('element-background-color');
-                    } else {
-                      setLocalShowColorSelector('element-background-color');
-                    }
                   }}
                   className="w-full"
                 >

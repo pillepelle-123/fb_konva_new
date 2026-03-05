@@ -5287,6 +5287,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               }
             }
             
+            // Apply frame/border color to images and placeholders
+            if (element.type === 'image' || element.type === 'placeholder') {
+              const imageColors = getPaletteColors('image');
+              updates.borderColor = imageColors.borderColor;
+            }
+            
             return { ...element, ...updates };
           })
         };

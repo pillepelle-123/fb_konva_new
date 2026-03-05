@@ -526,6 +526,12 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           return element.borderColor || '#1f2937';
         case 'element-sticker-color':
           return element.stickerColor || '#1f2937';
+        case 'element-sticker-text-color':
+          return element.stickerTextSettings?.fontColor || '#1f2937';
+        case 'element-qr-code-foreground':
+          return element.qrForegroundColor || '#111827';
+        case 'element-qr-code-background':
+          return element.qrBackgroundColor || '#ffffff';
         default:
           return '#1f2937';
       }
@@ -541,6 +547,12 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           return element.borderOpacity || 1;
         case 'element-sticker-color':
           return element.imageOpacity !== undefined ? element.imageOpacity : 1;
+        case 'element-sticker-text-color':
+          return element.stickerTextSettings?.fontOpacity ?? 1;
+        case 'element-qr-code-foreground':
+          return 1;
+        case 'element-qr-code-background':
+          return 1;
         default:
           return 1;
       }
@@ -591,6 +603,20 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
         case 'element-sticker-color':
           void applyStickerColor(element, color);
           break;
+        case 'element-sticker-text-color':
+          updateElementSetting(element.id, {
+            stickerTextSettings: {
+              ...(element.stickerTextSettings || {}),
+              fontColor: color
+            }
+          });
+          break;
+        case 'element-qr-code-foreground':
+          updateElementSetting(element.id, { qrForegroundColor: color });
+          break;
+        case 'element-qr-code-background':
+          updateElementSetting(element.id, { qrBackgroundColor: color });
+          break;
       }
     };
     
@@ -607,6 +633,14 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
           break;
         case 'element-sticker-color':
           updateElementSetting(element.id, { imageOpacity: opacity });
+          break;
+        case 'element-sticker-text-color':
+          updateElementSetting(element.id, {
+            stickerTextSettings: {
+              ...(element.stickerTextSettings || {}),
+              fontOpacity: opacity
+            }
+          });
           break;
       }
     };
@@ -657,7 +691,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
         onBack={() => setShowColorSelector(null)}
         isOverridden={getIsOverridden()}
         onResetOverride={handleResetOverride}
-        showOpacitySlider={colorType !== 'element-sticker-color'}
+        showOpacitySlider={false}
       />
     );
   };
@@ -1263,6 +1297,7 @@ export const ToolSettingsContent = forwardRef<ToolSettingsContentRef, ToolSettin
             element={element}
             state={state}
             updateSetting={updateElementSettingLocal}
+            setShowColorSelector={setShowColorSelector}
             hasChanges={genericFormState.hasChanges}
             onSave={genericFormState.handleSave}
             onDiscard={genericFormState.handleDiscard}

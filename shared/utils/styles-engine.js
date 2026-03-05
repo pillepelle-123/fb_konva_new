@@ -1006,49 +1006,52 @@ function generateMarkerPath(element, options = {}) {
 }
 
 /**
- * CrayonBrush – fabric-brush algorithm (performance-capped)
- * Small random rects distributed along the path with random offset
- * Caps: max 25 sample points, max 18 dots per point (~450 rects total) to avoid freeze
+ * CrayonBrush – Waxy crayon effect with fine, tight frayed edges
+ * Multiple offset strokes with controlled jitter create fine, dense fraying
+ * Performance: 5-6 strokes per path (like Pencil)
  */
 function generateCrayonPath(element, options = {}) {
   const { document } = options;
   const strokeWidth = (element.type === 'line' || element.type === 'brush')
     ? (element.strokeWidth || 0)
     : (element.borderWidth || element.strokeWidth || 0);
+  
   const baseWidth = 20;
-  const sep = 5;
-  const inkAmount = 10;
   const size = (strokeWidth || 4) / 2 + baseWidth;
-  const stepSize = Math.max(1, Math.ceil(size / 2));
   const seed = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+  
   const seededRandom = (offset) => {
     const x = Math.sin(seed + offset) * 10000;
     return x - Math.floor(x);
   };
-  let pathString = '';
+  
   const basePath = generateDefaultPath(element, options);
-  let pathLength = 0;
+  
+  // Get sample points along the path - more points for finer fraying
   let points = [];
-  if (document && document.createElementNS) {
-    try {
+  const stepSize = Math.max(1, Math.ceil(size / 4)); // Even smaller steps = much finer detail
+  
+  try {
+    if (document && document.createElementNS) {
       const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       pathEl.setAttribute('d', basePath);
       if (pathEl.getTotalLength) {
-        pathLength = pathEl.getTotalLength();
+        const pathLength = pathEl.getTotalLength();
         const rawStepNum = Math.max(1, Math.floor(pathLength / stepSize) + 1);
-        const stepNum = Math.min(25, rawStepNum);
+        const stepNum = Math.min(500, rawStepNum); // Way more points for dense frays
         for (let j = 0; j <= stepNum; j++) {
           const t = (stepNum > 0 ? j / stepNum : 0) * pathLength;
           const pt = pathEl.getPointAtLength(t);
           points.push({ x: pt.x, y: pt.y });
         }
       }
-    } catch (_e) { /* fallback */ }
-  }
+    }
+  } catch (_e) { /* fallback */ }
+  
   if (points.length === 0) {
     if (element.type === 'line') {
       const len = Math.sqrt(element.width * element.width + element.height * element.height);
-      const stepNum = Math.min(25, Math.max(1, Math.floor(len / stepSize) + 1));
+      const stepNum = Math.min(500, Math.max(1, Math.floor(len / stepSize) + 1));
       for (let j = 0; j <= stepNum; j++) {
         const t = stepNum > 0 ? j / stepNum : 0;
         points.push({ x: element.width * t, y: element.height * t });
@@ -1058,7 +1061,7 @@ function generateCrayonPath(element, options = {}) {
       const h = element.height || 0;
       const perim = 2 * (w + h);
       const rawStepNum = Math.max(1, Math.floor(perim / stepSize) + 1);
-      const stepNum = Math.min(25, rawStepNum);
+      const stepNum = Math.min(500, rawStepNum);
       for (let j = 0; j <= stepNum; j++) {
         const t = (stepNum > 0 ? j / stepNum : 0) * perim;
         if (t <= w) points.push({ x: t, y: 0 });
@@ -1070,26 +1073,42 @@ function generateCrayonPath(element, options = {}) {
       return basePath;
     }
   }
-  const range = size / 2;
-  const rawDotNum = Math.ceil(size * sep);
-  const dotNum = Math.min(18, rawDotNum);
-  const strokeLength = pathLength || (points.length > 1 ? 1 : 1);
-  const dist = points.length > 1 ? Math.sqrt(
-    Math.pow(points[1].x - points[0].x, 2) + Math.pow(points[1].y - points[0].y, 2)
-  ) * (points.length - 1) : 1;
-  const dotSizeBase = sep * clamp((inkAmount / (dist + 1)) * 3, 1, 0.5);
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    for (let j = 0; j < dotNum; j++) {
-      const r = seededRandom(i * 1000 + j * 7) * range;
-      const c = seededRandom(i * 1000 + j * 11) * Math.PI * 2;
-      const w = seededRandom(i * 1000 + j * 13) * (dotSizeBase / 2) + dotSizeBase / 2;
-      const h = seededRandom(i * 1000 + j * 17) * (dotSizeBase / 2) + dotSizeBase / 2;
-      const x = p.x + r * Math.sin(c) - w / 2;
-      const y = p.y + r * Math.cos(c) - h / 2;
-      pathString += `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z `;
-    }
+  
+  if (points.length < 2) return basePath;
+  
+  // Crayon effect: 8 strokes with aggressive jitter for wild, dense fraying
+  const strokeNum = 8; // More strokes = denser, wilder fraying
+  const range = size * 0.5; // More offset spread
+  const jitterAmount = Math.max(3, size * 0.25); // Aggressive jitter = wild frays
+  const curveAmount = 0.01; // Almost no curvature = sharp, pointy frays
+  
+  let pathString = '';
+  
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const cos = Math.cos(c);
+    const sin = Math.sin(c);
+    const offsetX = x0 * cos - y0 * sin;
+    const offsetY = x0 * sin + y0 * cos;
+    
+    // Add fine, controlled jitter for tight fraying effect
+    const jitteredPoints = points.map((p, idx) => {
+      const jitterMagnitude = seededRandom(si * 100 + idx * 7) * jitterAmount;
+      const jitterAngle = seededRandom(si * 150 + idx * 11) * Math.PI * 2;
+      return {
+        x: p.x + offsetX + Math.cos(jitterAngle) * jitterMagnitude,
+        y: p.y + offsetY + Math.sin(jitterAngle) * jitterMagnitude
+      };
+    });
+    
+    // Generate path with gentle smoothing for natural fraying
+    pathString += pointsToSmoothPath(jitteredPoints, seededRandom, false, curveAmount) + ' ';
   }
+  
   return pathString.trim() || basePath;
 }
 
@@ -1140,6 +1159,314 @@ function generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeN
 }
 
 /**
+ * Generates Pencil path for triangle as three separate overlapping sides.
+ * Each side rendered with individual jitter and offset for straighter appearance.
+ */
+function generatePencilTriangleSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  
+  // Triangle vertexes: top, bottom-right, bottom-left
+  const v1 = { x: w / 2, y: 0 };
+  const v2 = { x: w, y: h };
+  const v3 = { x: 0, y: h };
+  
+  // Calculate perpendicular directions for each side
+  const getSidePerp = (start, end) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: -dy / len, y: dx / len };
+  };
+  
+  const sides = [
+    { start: v1, end: v2, perp: getSidePerp(v1, v2) },
+    { start: v2, end: v3, perp: getSidePerp(v2, v3) },
+    { start: v3, end: v1, perp: getSidePerp(v3, v1) }
+  ];
+  
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    
+    for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
+      const side = sides[sideIdx];
+      const perpX = side.perp.x;
+      const perpY = side.perp.y;
+      
+      // Extend side slightly for overlap at corners
+      const dx = side.end.x - side.start.x;
+      const dy = side.end.y - side.start.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      
+      const extended = [
+        { x: side.start.x - dirX * overlap, y: side.start.y - dirY * overlap },
+        null, null, null,
+        { x: side.end.x + dirX * overlap, y: side.end.y + dirY * overlap }
+      ];
+      
+      // Add intermediate points
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        extended[k] = {
+          x: side.start.x + dx * t,
+          y: side.start.y + dy * t
+        };
+        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
+        extended[k].x += perpX * jitter;
+        extended[k].y += perpY * jitter;
+      }
+      
+      const offsetPoints = extended.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  return pathString.trim();
+}
+
+/**
+ * Generates Pencil path for polygon as separate overlapping sides.
+ * Each side rendered with individual jitter and offset for straighter appearance.
+ */
+function generatePencilPolygonSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  
+  const sides = element.polygonSides || 5;
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = Math.min(w, h) / 2;
+  
+  // Generate polygon vertices
+  const vertices = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+    vertices.push({
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle)
+    });
+  }
+  
+  const getSidePerp = (start, end) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: -dy / len, y: dx / len };
+  };
+  
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    
+    for (let sideIdx = 0; sideIdx < vertices.length; sideIdx++) {
+      const start = vertices[sideIdx];
+      const end = vertices[(sideIdx + 1) % vertices.length];
+      const perp = getSidePerp(start, end);
+      const perpX = perp.x;
+      const perpY = perp.y;
+      
+      // Extend side for overlap
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      
+      const extended = [
+        { x: start.x - dirX * overlap, y: start.y - dirY * overlap },
+        null, null, null,
+        { x: end.x + dirX * overlap, y: end.y + dirY * overlap }
+      ];
+      
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        extended[k] = {
+          x: start.x + dx * t,
+          y: start.y + dy * t
+        };
+        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
+        extended[k].x += perpX * jitter;
+        extended[k].y += perpY * jitter;
+      }
+      
+      const offsetPoints = extended.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  return pathString.trim();
+}
+
+/**
+ * Generates Paint Brush path for triangle as three separate overlapping sides.
+ */
+function generatePaintBrushTriangleSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  
+  const v1 = { x: w / 2, y: 0 };
+  const v2 = { x: w, y: h };
+  const v3 = { x: 0, y: h };
+  
+  const getSidePerp = (start, end) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: -dy / len, y: dx / len };
+  };
+  
+  const sides = [
+    { start: v1, end: v2, perp: getSidePerp(v1, v2) },
+    { start: v2, end: v3, perp: getSidePerp(v2, v3) },
+    { start: v3, end: v1, perp: getSidePerp(v3, v1) }
+  ];
+  
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    
+    for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
+      const side = sides[sideIdx];
+      const perpX = side.perp.x;
+      const perpY = side.perp.y;
+      
+      const dx = side.end.x - side.start.x;
+      const dy = side.end.y - side.start.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      
+      const extended = [
+        { x: side.start.x - dirX * overlap, y: side.start.y - dirY * overlap },
+        null, null, null,
+        { x: side.end.x + dirX * overlap, y: side.end.y + dirY * overlap }
+      ];
+      
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        extended[k] = {
+          x: side.start.x + dx * t,
+          y: side.start.y + dy * t
+        };
+        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
+        extended[k].x += perpX * jitter;
+        extended[k].y += perpY * jitter;
+      }
+      
+      const offsetPoints = extended.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  return pathString.trim();
+}
+
+/**
+ * Generates Paint Brush path for polygon as separate overlapping sides.
+ */
+function generatePaintBrushPolygonSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  
+  const sides = element.polygonSides || 5;
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = Math.min(w, h) / 2;
+  
+  const vertices = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+    vertices.push({
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle)
+    });
+  }
+  
+  const getSidePerp = (start, end) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: -dy / len, y: dx / len };
+  };
+  
+  let pathString = '';
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    
+    for (let sideIdx = 0; sideIdx < vertices.length; sideIdx++) {
+      const start = vertices[sideIdx];
+      const end = vertices[(sideIdx + 1) % vertices.length];
+      const perp = getSidePerp(start, end);
+      const perpX = perp.x;
+      const perpY = perp.y;
+      
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      
+      const extended = [
+        { x: start.x - dirX * overlap, y: start.y - dirY * overlap },
+        null, null, null,
+        { x: end.x + dirX * overlap, y: end.y + dirY * overlap }
+      ];
+      
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        extended[k] = {
+          x: start.x + dx * t,
+          y: start.y + dy * t
+        };
+        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
+        extended[k].x += perpX * jitter;
+        extended[k].y += perpY * jitter;
+      }
+      
+      const offsetPoints = extended.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  return pathString.trim();
+}
+
+/**
  * PencilBrush – fabric-brush algorithm (performance-capped)
  * For rect (textbox borders): four separate overlapping sides, low jitter, max 3 direction changes per side.
  * For other shapes: multiple strokes with smooth curves. No splash circles.
@@ -1160,9 +1487,20 @@ function generatePencilPath(element, options = {}) {
     return x - Math.floor(x);
   };
   const cornerRadius = element.cornerRadius || 0;
+  
+  // For rect without corner radius: use 4-sided rendering
   if (element.type === 'rect' && cornerRadius === 0) {
     return generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
   }
+  // For triangle: use 3-sided rendering
+  if (element.type === 'triangle') {
+    return generatePencilTriangleSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  // For polygon: use side-by-side rendering
+  if (element.type === 'polygon') {
+    return generatePencilPolygonSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  
   const basePath = generateDefaultPath(element, options);
   let pathLength = 0;
   let points = [];
@@ -1249,6 +1587,14 @@ function generatePaintBrushPath(element, options = {}) {
   const cornerRadius = element.cornerRadius || 0;
   if (element.type === 'rect' && cornerRadius === 0) {
     return generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  // For triangle: use 3-sided rendering
+  if (element.type === 'triangle') {
+    return generatePaintBrushTriangleSides(element, strokeWidth, seededRandom, strokeNum, range);
+  }
+  // For polygon: use side-by-side rendering
+  if (element.type === 'polygon') {
+    return generatePaintBrushPolygonSides(element, strokeWidth, seededRandom, strokeNum, range);
   }
   const basePath = generateDefaultPath(element, options);
   let pathLength = 0;
@@ -1472,10 +1818,11 @@ function getStrokeProps(element, style, options = {}) {
     };
   } else if (style === 'crayon') {
     return {
-      stroke: 'transparent',
-      strokeWidth: 0,
-      fill: element.stroke || '#1f2937',
-      opacity: 0.6
+      stroke: element.stroke || '#1f2937',
+      strokeWidth: strokeWidth,
+      fill: 'transparent',
+      lineCap: 'round',
+      lineJoin: 'round'
     };
   } else if (style === 'paint-brush') {
     const paintBrushStrokeWidth = Math.max(1, (strokeWidth || 4) * 0.35);

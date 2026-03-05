@@ -7,7 +7,6 @@ import { Checkbox } from '../../../ui/primitives/checkbox';
 import { Separator } from '../../../ui/primitives/separator';
 import { SettingsFormFooter } from './settings-form-footer';
 import { FontSelector } from './font-selector';
-import { ColorSelector } from './color-selector';
 import { SlotSelector } from './slot-selector';
 import { DEFAULT_PALETTE_PARTS } from '../../../../data/templates/color-palettes';
 import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
@@ -49,7 +48,6 @@ export function StickerSettingsForm({
   const { state } = useEditor();
   const { favoriteStrokeColors, addFavoriteStrokeColor, removeFavoriteStrokeColor } = useEditorSettings(state.currentBook?.id);
   const [showFontSelector, setShowFontSelector] = useState(false);
-  const [localShowColorSelector, setLocalShowColorSelector] = useState<string | null>(null);
   const shouldShowFooter =
     hasChanges !== undefined && Boolean(onSave) && Boolean(onDiscard);
   const stickerOpacity = element.imageOpacity !== undefined ? element.imageOpacity : 1;
@@ -114,22 +112,6 @@ export function StickerSettingsForm({
         onBack={() => setShowFontSelector(false)}
         element={element}
         state={state}
-      />
-    );
-  }
-
-  if (localShowColorSelector) {
-    return (
-      <ColorSelector
-        value={computedTextStyle.fontColor}
-        onChange={(color) => updateStickerTextSetting('fontColor', color)}
-        opacity={computedTextStyle.fontOpacity}
-        onOpacityChange={(opacity) => updateStickerTextSetting('fontOpacity', opacity)}
-        favoriteColors={favoriteStrokeColors}
-        onAddFavorite={addFavoriteStrokeColor}
-        onRemoveFavorite={removeFavoriteStrokeColor}
-        onBack={() => setLocalShowColorSelector(null)}
-        showOpacitySlider={true}
       />
     );
   }
@@ -266,7 +248,7 @@ export function StickerSettingsForm({
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => setLocalShowColorSelector('sticker-text-color')}
+                onClick={() => setShowColorSelector('element-sticker-text-color')}
                 className="w-full"
               >
                 <Palette className="w-4 mr-2" />
