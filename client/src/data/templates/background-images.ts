@@ -221,7 +221,25 @@ function transformDesignerApiRecord(record: z.infer<typeof apiDesignerRecordSche
   }
 }
 
-function rebuildDerivedState(images: BackgroundImageWithUrl[]) {
+/**
+ * Normalize unknown API records (template/designer) to registry entries.
+ * Returns null if record shape is unsupported.
+ */
+export function normalizeBackgroundImageRecord(record: unknown): BackgroundImageWithUrl | null {
+  const parsedTemplate = apiRecordSchema.safeParse(record)
+  if (parsedTemplate.success) {
+    return transformApiRecord(parsedTemplate.data)
+  }
+
+  const parsedDesigner = apiDesignerRecordSchema.safeParse(record)
+  if (parsedDesigner.success) {
+    return transformDesignerApiRecord(parsedDesigner.data)
+  }
+
+  return null
+}
+
+export function rebuildDerivedState(images: BackgroundImageWithUrl[]) {
   registry = images
   registryMap = new Map(images.map((image) => [image.id, image]))
   const categorySet = new Set<BackgroundImage['category']>()

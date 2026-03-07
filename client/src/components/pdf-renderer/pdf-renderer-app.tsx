@@ -3,7 +3,13 @@ import type { Page, Book } from '../../context/editor-context.tsx';
 import { PDFExportAuthProvider } from './pdf-export-auth-provider';
 import { PDFExportEditorProvider } from './pdf-export-editor-provider';
 import { PDFRenderer } from './pdf-renderer';
-import { loadBackgroundImageRegistry } from '../../data/templates/background-images';
+import {
+  getBackgroundImageWithUrl,
+  loadBackgroundImageRegistry,
+  loadBackgroundImageSvg,
+  rebuildDerivedState,
+  normalizeBackgroundImageRecord,
+} from '../../data/templates/background-images';
 import { setColorPalettesData } from '../../data/templates/templates-data';
 
 interface PDFRendererAppProps {
@@ -81,7 +87,47 @@ export function PDFRendererApp({
     let cancelled = false;
     (async () => {
       try {
-        await loadBackgroundImageRegistry();
+        // If server has embedded backgroundImages in bookData, use those directly
+        // to avoid API call and ensure palette metadata is available
+        const embeddedBackgroundImages = (pageData.book as any).backgroundImages;
+        if (Array.isArray(embeddedBackgroundImages) && embeddedBackgroundImages.length > 0) {
+          const normalizedEmbeddedImages = embeddedBackgroundImages
+            .map((entry: unknown) => normalizeBackgroundImageRecord(entry))
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+          if (normalizedEmbeddedImages.length > 0) {
+            console.log('[PDFRendererApp] Using normalized embedded background images from server:', normalizedEmbeddedImages.length);
+            rebuildDerivedState(normalizedEmbeddedImages);
+          } else {
+            console.warn('[PDFRendererApp] Embedded background images could not be normalized, falling back to API load');
+            await loadBackgroundImageRegistry();
+          }
+        } else {
+          console.log('[PDFRendererApp] Loading background images from API');
+          await loadBackgroundImageRegistry();
+        }
+
+        // PDF export is single-pass: preload current vector background SVG so
+        // palette coloring can run immediately during first render.
+        const background = pageData.page.background;
+        if (
+          background?.type === 'image' &&
+          background.applyPalette !== false &&
+          background.backgroundImageId
+        ) {
+          const template = getBackgroundImageWithUrl(background.backgroundImageId);
+          if (template?.format === 'vector' && template.filePath && template.url) {
+            try {
+              await loadBackgroundImageSvg(template.filePath, template.url);
+              console.log('[PDFRendererApp] Preloaded vector SVG for palette rendering:', {
+                id: template.id,
+                filePath: template.filePath,
+              });
+            } catch (svgError) {
+              console.warn('[PDFRendererApp] Failed to preload vector SVG, palette may fallback to original colors:', svgError);
+            }
+          }
+        }
       } catch (err) {
         console.error('[PDFRendererApp] Failed to load background images registry:', err);
       } finally {
