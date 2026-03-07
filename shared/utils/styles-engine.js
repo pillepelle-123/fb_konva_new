@@ -1118,17 +1118,9 @@ function generateCrayonPath(element, options = {}) {
  * Sides extend past corners for overlap effect.
  */
 function generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeNum, range) {
-  const w = element.width || 0;
-  const h = element.height || 0;
-  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+  const sides = getRectOpenSides(element, strokeWidth);
   const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
   const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
-  const sides = [
-    { start: { x: -overlap, y: 0 }, end: { x: w + overlap, y: 0 }, perpX: 0, perpY: 1 },
-    { start: { x: w, y: -overlap }, end: { x: w, y: h + overlap }, perpX: -1, perpY: 0 },
-    { start: { x: w + overlap, y: h }, end: { x: -overlap, y: h }, perpX: 0, perpY: -1 },
-    { start: { x: 0, y: h + overlap }, end: { x: 0, y: -overlap }, perpX: 1, perpY: 0 }
-  ];
   let pathString = '';
   for (let si = 0; si < strokeNum; si++) {
     const rx = seededRandom(si * 13) * range;
@@ -1140,21 +1132,124 @@ function generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeN
     const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
     for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
       const side = sides[sideIdx];
-      const base = [side.start, null, null, null, side.end];
-      for (let k = 1; k <= 3; k++) {
-        const t = k / 4;
-        base[k] = {
-          x: side.start.x + (side.end.x - side.start.x) * t,
-          y: side.start.y + (side.end.y - side.start.y) * t
-        };
-        const jitter = (seededRandom(sideIdx * 100 + k * 31 + si * 7) * 2 - 1) * jitterAmount;
-        base[k].x += side.perpX * jitter;
-        base[k].y += side.perpY * jitter;
-      }
+      const base = buildOpenSidePoints(side, sideIdx, seededRandom, si, jitterAmount);
       const offsetPoints = base.map((p) => ({ x: p.x + offsetX, y: p.y + offsetY }));
       pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
     }
   }
+  return pathString.trim();
+}
+
+function getRectOpenSides(element, strokeWidth) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const overlap = Math.max(1, (strokeWidth || 4) * 0.3);
+
+  return [
+    { start: { x: -overlap, y: 0 }, end: { x: w + overlap, y: 0 }, perpX: 0, perpY: 1 },
+    { start: { x: w, y: -overlap }, end: { x: w, y: h + overlap }, perpX: -1, perpY: 0 },
+    { start: { x: w + overlap, y: h }, end: { x: -overlap, y: h }, perpX: 0, perpY: -1 },
+    { start: { x: 0, y: h + overlap }, end: { x: 0, y: -overlap }, perpX: 1, perpY: 0 }
+  ];
+}
+
+function buildOpenSidePoints(side, sideIdx, seededRandom, strokeIndex, jitterAmount) {
+  const base = [side.start, null, null, null, side.end];
+
+  for (let k = 1; k <= 3; k++) {
+    const t = k / 4;
+    base[k] = {
+      x: side.start.x + (side.end.x - side.start.x) * t,
+      y: side.start.y + (side.end.y - side.start.y) * t
+    };
+    const jitter = (seededRandom(sideIdx * 100 + k * 31 + strokeIndex * 7) * 2 - 1) * jitterAmount;
+    base[k].x += side.perpX * jitter;
+    base[k].y += side.perpY * jitter;
+  }
+
+  return base;
+}
+
+/**
+ * Generates Paint Brush path for rect with optional wobbly edges
+ * When paintBrushWobbly is enabled, each side gets a random skew/angle offset
+ * to simulate hand-drawn inaccuracy (like in the user's reference image)
+ */
+function generatePaintBrushRectFourSides(element, strokeWidth, seededRandom, strokeNum, range) {
+  const w = element.width || 0;
+  const h = element.height || 0;
+  const wobblyEdges = element.paintBrushWobbly || false;
+  
+  const sides = getRectOpenSides(element, strokeWidth);
+  const jitterAmount = Math.max(0.2, (strokeWidth || 4) * 0.08);
+  const curveAmount = Math.max(0.3, (strokeWidth || 4) * 0.06);
+  
+  // Wobbly edges: generate random angles/offsets for each side
+  // These make the sides slightly skewed/rotated to simulate hand-drawn inaccuracy
+  const wobblyAngles = wobblyEdges ? [
+    (seededRandom(1000) - 0.5) * 0.08, // top: ±4.5 degrees max
+    (seededRandom(2000) - 0.5) * 0.08, // right
+    (seededRandom(3000) - 0.5) * 0.08, // bottom
+    (seededRandom(4000) - 0.5) * 0.08  // left
+  ] : [0, 0, 0, 0];
+  
+  const wobblyOffsets = wobblyEdges ? [
+    { x: (seededRandom(5000) - 0.5) * strokeWidth * 2, y: (seededRandom(6000) - 0.5) * strokeWidth * 2 },
+    { x: (seededRandom(7000) - 0.5) * strokeWidth * 2, y: (seededRandom(8000) - 0.5) * strokeWidth * 2 },
+    { x: (seededRandom(9000) - 0.5) * strokeWidth * 2, y: (seededRandom(10000) - 0.5) * strokeWidth * 2 },
+    { x: (seededRandom(11000) - 0.5) * strokeWidth * 2, y: (seededRandom(12000) - 0.5) * strokeWidth * 2 }
+  ] : [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
+  
+  let pathString = '';
+  
+  for (let si = 0; si < strokeNum; si++) {
+    const rx = seededRandom(si * 13) * range;
+    const c = seededRandom(si * 17) * Math.PI * 2;
+    const c0 = seededRandom(si * 19) * Math.PI * 2;
+    const x0 = rx * Math.sin(c0);
+    const y0 = (rx / 2) * Math.cos(c0);
+    const offsetX = x0 * Math.cos(c) - y0 * Math.sin(c);
+    const offsetY = x0 * Math.sin(c) + y0 * Math.cos(c);
+    
+    for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
+      const side = sides[sideIdx];
+      const base = buildOpenSidePoints(side, sideIdx, seededRandom, si, jitterAmount);
+      
+      // Apply wobbly transformation if enabled
+      let transformedPoints = base;
+      if (wobblyEdges) {
+        const angle = wobblyAngles[sideIdx];
+        const offset = wobblyOffsets[sideIdx];
+        
+        // Calculate side center for rotation pivot
+        const centerX = (side.start.x + side.end.x) / 2;
+        const centerY = (side.start.y + side.end.y) / 2;
+        
+        transformedPoints = base.map(p => {
+          // Rotate around side center
+          const dx = p.x - centerX;
+          const dy = p.y - centerY;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          const rotatedX = dx * cos - dy * sin;
+          const rotatedY = dx * sin + dy * cos;
+          
+          return {
+            x: rotatedX + centerX + offset.x,
+            y: rotatedY + centerY + offset.y
+          };
+        });
+      }
+      
+      const offsetPoints = transformedPoints.map((p) => ({ 
+        x: p.x + offsetX, 
+        y: p.y + offsetY 
+      }));
+      
+      pathString += pointsToSmoothPathOpen(offsetPoints, seededRandom, curveAmount) + ' ';
+    }
+  }
+  
   return pathString.trim();
 }
 
@@ -1563,6 +1658,358 @@ function generatePencilPath(element, options = {}) {
 }
 
 /**
+ * Generates a freehand path using perfect-freehand library
+ * Creates natural-looking hand-drawn strokes with variable width
+ * @param {Object} element - Element object
+ * @param {Object} options - Options object
+ * @returns {string} SVG path string
+ */
+function generateFreehandPath(element, options = {}) {
+  console.log('🎨 [generateFreehandPath] Called with element type:', element.type, 'style:', element.style);
+  console.log('🎨 [generateFreehandPath] Element properties:', {
+    freehandSimplification: element.freehandSimplification,
+    freehandTaperStart: element.freehandTaperStart,
+    freehandTaperEnd: element.freehandTaperEnd,
+    freehandPressure: element.freehandPressure,
+    freehandSeed: element.freehandSeed,
+    borderWidth: element.borderWidth,
+    strokeWidth: element.strokeWidth
+  });
+
+  // Try to use perfect-freehand if available (client-side)
+  // Server-side fallback: use default path
+  
+  try {
+    // Check if getStroke is available (perfect-freehand on client)
+    // For server-side compatibility, we gracefully fall back to default
+    const isClientSide = typeof window !== 'undefined' || (typeof require !== 'undefined' && typeof global !== 'undefined');
+    
+    console.log('🎨 [generateFreehandPath] isClientSide:', isClientSide);
+
+    if (!isClientSide) {
+      console.log('🎨 [generateFreehandPath] Server-side fallback - returning default path');
+      // Server-side: fall back to generateDefaultPath
+      return generateDefaultPath(element, options);
+    }
+
+    // Generate outline points based on element type
+    const outlinePoints = generateShapeOutlinePoints(element);
+    console.log('🎨 [generateFreehandPath] Generated outline points:', outlinePoints.length, 'points');
+    
+    if (outlinePoints.length < 3) {
+      console.log('🎨 [generateFreehandPath] Not enough outline points, falling back to default');
+      return generateDefaultPath(element, options);
+    }
+
+    // getStroke is injected by the client wrapper
+    const getStroke = options?.getStroke;
+    console.log('🎨 [generateFreehandPath] perfect-freehand injected:', !!getStroke);
+
+    if (!getStroke || typeof getStroke !== 'function') {
+      console.warn('🎨 [generateFreehandPath] getStroke not a function');
+      return generateDefaultPath(element, options);
+    }
+
+    // Get freehand settings from element
+    const size = (element.type === 'line' || element.type === 'brush')
+      ? (element.strokeWidth || 2)
+      : (element.borderWidth || element.strokeWidth || 2);
+    const simplification = element.freehandSimplification ?? 0.5;
+    const taperStart = element.freehandTaperStart ?? 0.3;
+    const taperEnd = element.freehandTaperEnd ?? 0.3;
+    const simulatePressure = element.freehandPressure !== false; // default true
+    const seedFallback = parseInt(String(element.id || '1').replace(/[^0-9]/g, '').slice(0, 8), 10) || 1;
+    const seed = element.freehandSeed ?? seedFallback;
+    const normalizedSimplification = Math.max(0, Math.min(1, simplification));
+    const normalizedTaperStart = Math.max(0, Math.min(1, taperStart));
+    const normalizedTaperEnd = Math.max(0, Math.min(1, taperEnd));
+
+    const seededRandom = (index) => {
+      const value = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453;
+      return value - Math.floor(value);
+    };
+
+    const pointCount = outlinePoints.length;
+    const pointOffset = pointCount > 0 ? Math.floor(seededRandom(999) * pointCount) : 0;
+    const jitterAmplitude = Math.max(0, (1 - normalizedSimplification) * size * 0.45);
+
+    const strokeInputPoints = outlinePoints.map((_, index) => {
+      const sourcePoint = outlinePoints[(index + pointOffset) % pointCount] || outlinePoints[index];
+      const progress = pointCount > 1 ? (index / (pointCount - 1)) : 0;
+      const startInfluence = (1 - progress) * normalizedTaperStart;
+      const endInfluence = progress * normalizedTaperEnd;
+      const pressure = Math.max(0.05, Math.min(1, 1 - (startInfluence + endInfluence) * 0.6));
+      const jitterAngle = seededRandom(index * 3) * Math.PI * 2;
+      const jitterRadius = ((seededRandom(index * 3 + 1) * 2) - 1) * jitterAmplitude;
+      const jitterX = Math.cos(jitterAngle) * jitterRadius;
+      const jitterY = Math.sin(jitterAngle) * jitterRadius;
+
+      return [sourcePoint[0] + jitterX, sourcePoint[1] + jitterY, pressure];
+    });
+
+    console.log('🎨 [generateFreehandPath] Freehand settings:', {
+      size: Math.max(1, size),
+      simplification,
+      taperStart,
+      taperEnd,
+      simulatePressure,
+      seed,
+      pointOffset,
+      jitterAmplitude
+    });
+
+    // For rect/text without corner radius, render as four open subpaths
+    // Reuse the same open-side geometry as Pencil/Paint Brush for stronger visible freehand effects
+    const useOpenRectSides = (element.type === 'rect' || element.type === 'text') && (element.cornerRadius || 0) === 0;
+    if (useOpenRectSides) {
+      const sides = getRectOpenSides(element, size);
+      const sideJitterAmount = Math.max(0.15, (1 - normalizedSimplification) * size * 0.18);
+      const subPathStrings = [];
+
+      for (let sideIdx = 0; sideIdx < sides.length; sideIdx++) {
+        const sideBasePoints = buildOpenSidePoints(sides[sideIdx], sideIdx, seededRandom, 0, sideJitterAmount);
+        const sideInputPoints = sideBasePoints.map((point, idx) => {
+          const progress = idx / Math.max(1, sideBasePoints.length - 1);
+          const startInfluence = (1 - progress) * normalizedTaperStart;
+          const endInfluence = progress * normalizedTaperEnd;
+          const pressure = Math.max(0.05, Math.min(1, 1 - (startInfluence + endInfluence) * 0.65));
+          return [point.x, point.y, pressure];
+        });
+
+        const sideStroke = getStroke(sideInputPoints, {
+          size: Math.max(1, size),
+          thinning: simulatePressure ? (0.2 + ((normalizedTaperStart + normalizedTaperEnd) / 2) * 0.8) : 0,
+          smoothing: 0.2 + normalizedSimplification * 0.75,
+          streamline: 0.15 + normalizedSimplification * 0.75,
+          easing: (t) => t,
+          simulatePressure: simulatePressure,
+          start: {
+            taper: Math.max(0, size * (0.2 + normalizedTaperStart * 1.8)),
+            cap: true
+          },
+          end: {
+            taper: Math.max(0, size * (0.2 + normalizedTaperEnd * 1.8)),
+            cap: true
+          },
+          seed: seed + sideIdx * 997
+        });
+
+        if (sideStroke && sideStroke.length >= 2) {
+          let sidePath = `M ${sideStroke[0][0]} ${sideStroke[0][1]}`;
+          for (let pointIdx = 1; pointIdx < sideStroke.length; pointIdx++) {
+            sidePath += ` L ${sideStroke[pointIdx][0]} ${sideStroke[pointIdx][1]}`;
+          }
+          sidePath += ' Z';
+          subPathStrings.push(sidePath);
+        }
+      }
+
+      if (subPathStrings.length > 0) {
+        const openPathResult = subPathStrings.join(' ');
+        console.log('🎨 [generateFreehandPath] Using open 4-side subpaths, length:', openPathResult.length);
+        return openPathResult;
+      }
+    }
+
+    // Generate stroke outline (hand-drawn outline)
+    const outlineStrpts = getStroke(strokeInputPoints, {
+      size: Math.max(1, size),
+      thinning: simulatePressure ? (0.15 + ((normalizedTaperStart + normalizedTaperEnd) / 2) * 0.85) : 0,
+      smoothing: 0.2 + normalizedSimplification * 0.75,
+      streamline: 0.15 + normalizedSimplification * 0.75,
+      easing: (t) => t,
+      simulatePressure: simulatePressure,
+      start: {
+        taper: Math.max(0, size * (0.2 + normalizedTaperStart * 1.8)),
+        cap: true
+      },
+      end: {
+        taper: Math.max(0, size * (0.2 + normalizedTaperEnd * 1.8)),
+        cap: true
+      },
+      seed: seed
+    });
+
+    console.log('🎨 [generateFreehandPath] getStroke returned:', outlineStrpts?.length || 0, 'points');
+
+    if (!outlineStrpts || outlineStrpts.length < 2) {
+      console.log('🎨 [generateFreehandPath] Invalid stroke outline, falling back to default');
+      return generateDefaultPath(element, options);
+    }
+
+    // Convert stroke outline to SVG path
+    let pathString = `M ${outlineStrpts[0][0]} ${outlineStrpts[0][1]}`;
+    for (let i = 1; i < outlineStrpts.length; i++) {
+      pathString += ` L ${outlineStrpts[i][0]} ${outlineStrpts[i][1]}`;
+    }
+    pathString += ' Z'; // Close the path
+
+    console.log('🎨 [generateFreehandPath] Generated path length:', pathString.length, 'chars');
+    console.log('🎨 [generateFreehandPath] Path preview:', pathString.substring(0, 100) + '...');
+
+    return pathString;
+  } catch (error) {
+    // Graceful fallback: use default path
+    console.error('🎨 [generateFreehandPath] Caught error:', error.message);
+    return generateDefaultPath(element, options);
+  }
+}
+
+/**
+ * Helper: Generate center-line points for a border
+ * Creates points along the CENTER of where the border should be
+ * These are thin outline points that getStroke() will thicken appropriately
+ * @param {Object} element - Element with type, width, height, borderWidth
+ * @returns {Array<[number, number]>} Array of [x, y] points along the border center line
+ */
+function generateShapeOutlinePoints(element) {
+  console.log('🎨 [generateShapeOutlinePoints] Called for element type:', element.type);
+  
+  const w = element.width || 0;
+  const h = element.height || 0;
+  
+  // Determine border width
+  const borderWidth = (element.type === 'line' || element.type === 'brush')
+    ? (element.strokeWidth || 2)
+    : (element.borderWidth || element.strokeWidth || 2);
+  
+  // For a hand-drawn border, generate points along the CENTER line of the border
+  // getStroke() will create an outline around these points with appropriate thickness
+  // This avoids the problem of creating a closed polygon that fills the entire interior
+  const centerOffset = borderWidth / 2;
+  
+  console.log('🎨 [generateShapeOutlinePoints] borderWidth:', borderWidth, 'centerOffset:', centerOffset);
+  
+  const points = [];
+  const resolution = 20; // Number of points per side
+
+  if (element.type === 'rect' || element.type === 'text') {
+    const r = element.cornerRadius || 0;
+    
+    if (r === 0) {
+      // Simple rectangle border: center line points
+      // TOP edge (center line y = centerOffset)
+      for (let i = 0; i < resolution; i++) {
+        const t = i / resolution;
+        points.push([centerOffset + (w - 2 * centerOffset) * t, centerOffset]);
+      }
+      // RIGHT edge (center line x = w - centerOffset)
+      for (let i = 0; i < resolution; i++) {
+        const t = i / resolution;
+        points.push([w - centerOffset, centerOffset + (h - 2 * centerOffset) * t]);
+      }
+      // BOTTOM edge (right to left, center line y = h - centerOffset)
+      for (let i = 0; i < resolution; i++) {
+        const t = i / resolution;
+        points.push([w - centerOffset - (w - 2 * centerOffset) * t, h - centerOffset]);
+      }
+      // LEFT edge (bottom to top, center line x = centerOffset)
+      for (let i = 0; i < resolution; i++) {
+        const t = i / resolution;
+        points.push([centerOffset, h - centerOffset - (h - 2 * centerOffset) * t]);
+      }
+    } else {
+      // Rounded rectangle border: center line
+      const cornerR = Math.min(Math.max(r - centerOffset, 0), (w - 2 * centerOffset) / 2, (h - 2 * centerOffset) / 2);
+      const innerW = w - 2 * centerOffset;
+      const innerH = h - 2 * centerOffset;
+      
+      // Trace around the center line of the rounded rect
+      const numPoints = Math.max(20, Math.floor((innerW + innerH) * 2 / 10));
+      
+      // Top edge (center line)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const x = centerOffset + cornerR + (innerW - 2 * cornerR) * t;
+        points.push([x, centerOffset]);
+      }
+      
+      // Top-right corner (center points)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const angle = -Math.PI / 2 + (Math.PI / 2) * t;
+        const x = w - centerOffset - cornerR + cornerR * Math.cos(angle);
+        const y = centerOffset + cornerR + cornerR * Math.sin(angle);
+        points.push([x, y]);
+      }
+      
+      // Right edge (center line)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const y = centerOffset + cornerR + (innerH - 2 * cornerR) * t;
+        points.push([w - centerOffset, y]);
+      }
+      
+      // Bottom-right corner (center points)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const angle = 0 + (Math.PI / 2) * t;
+        const x = w - centerOffset - cornerR + cornerR * Math.cos(angle);
+        const y = h - centerOffset - cornerR + cornerR * Math.sin(angle);
+        points.push([x, y]);
+      }
+      
+      // Bottom edge (center line)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const x = w - centerOffset - cornerR - (innerW - 2 * cornerR) * t;
+        points.push([x, h - centerOffset]);
+      }
+      
+      // Bottom-left corner (center points)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const angle = Math.PI / 2 + (Math.PI / 2) * t;
+        const x = centerOffset + cornerR + cornerR * Math.cos(angle);
+        const y = h - centerOffset - cornerR + cornerR * Math.sin(angle);
+        points.push([x, y]);
+      }
+      
+      // Left edge (center line)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const y = h - centerOffset - cornerR - (innerH - 2 * cornerR) * t;
+        points.push([centerOffset, y]);
+      }
+      
+      // Top-left corner (center points)
+      for (let i = 0; i < numPoints / 4; i++) {
+        const t = i / (numPoints / 4);
+        const angle = Math.PI + (Math.PI / 2) * t;
+        const x = centerOffset + cornerR + cornerR * Math.cos(angle);
+        const y = centerOffset + cornerR + cornerR * Math.sin(angle);
+        points.push([x, y]);
+      }
+    }
+  } else if (element.type === 'circle') {
+    // Circle border: generate points along the center line of the border
+    const r = Math.min(w, h) / 2 - centerOffset;
+    const cx = w / 2, cy = h / 2;
+    const numPoints = resolution * 4;
+    
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * Math.PI * 2;
+      points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
+    }
+  } else if (element.type === 'line') {
+    // For lines: generate center line points along the line path
+    // getStroke will thicken these appropriately
+    points.push([0, 0]);
+    points.push([element.width, element.height]);
+  } else {
+    // Default: simple rectangle border center line for other shapes
+    points.push([centerOffset, centerOffset]);
+    points.push([w - centerOffset, centerOffset]);
+    points.push([w - centerOffset, h - centerOffset]);
+    points.push([centerOffset, h - centerOffset]);
+  }
+
+  console.log('🎨 [generateShapeOutlinePoints] Generated', points.length, 'border center-line points');
+  
+  return points.length >= 2 ? points : [[centerOffset, centerOffset], [w - centerOffset, h - centerOffset]];
+}
+
+/**
  * PaintBrush – same structure as Ink (before width/dash changes).
  * Four separate sides for rect, smooth curves, no strokeDasharray/dashes.
  */
@@ -1586,7 +2033,7 @@ function generatePaintBrushPath(element, options = {}) {
   };
   const cornerRadius = element.cornerRadius || 0;
   if (element.type === 'rect' && cornerRadius === 0) {
-    return generatePencilRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
+    return generatePaintBrushRectFourSides(element, strokeWidth, seededRandom, strokeNum, range);
   }
   // For triangle: use 3-sided rendering
   if (element.type === 'triangle') {
@@ -1690,6 +2137,7 @@ function generateDashedPath(element, options = {}) {
 }
 
 function getStrokeProps(element, style, options = {}) {
+  
   // For shapes (not line/brush), use borderWidth; for line/brush, use strokeWidth
   let strokeWidth = (element.type === 'line' || element.type === 'brush')
     ? (element.strokeWidth || 0)
@@ -1857,6 +2305,17 @@ function getStrokeProps(element, style, options = {}) {
       lineCap: 'round',
       lineJoin: 'round'
     };
+  } else if (style === 'freehand') {
+    // Freehand: perfect-freehand returns an outline polygon path
+    // Render it as fill to display the generated hand-drawn stroke shape
+    return {
+      stroke: 'transparent',
+      strokeWidth: 0,
+      fill: element.stroke || '#1f2937',
+      opacity: 1,
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
   } else {
     // Default and rough styles
     return {
@@ -1875,6 +2334,7 @@ function getStrokeProps(element, style, options = {}) {
  * @returns {string} SVG path string
  */
 function generatePath(element, style, options = {}) {
+  
   switch (style) {
     case 'default':
       return generateDefaultPath(element, options);
@@ -1898,6 +2358,8 @@ function generatePath(element, style, options = {}) {
       return generatePencilPath(element, options);
     case 'paint-brush':
       return generatePaintBrushPath(element, options);
+    case 'freehand':
+      return generateFreehandPath(element, options);
     default:
       return generateDefaultPath(element, options);
   }
@@ -1916,9 +2378,11 @@ export {
   generateCrayonPath,
   generatePencilPath,
   generatePaintBrushPath,
+  generateFreehandPath,
   generatePath,
   getStrokeProps,
-  generateComplexShapePath
+  generateComplexShapePath,
+  generateShapeOutlinePoints
 };
 
 // CommonJS exports for Node (server)
@@ -1935,9 +2399,11 @@ if (typeof module !== 'undefined' && module.exports) {
     generateCrayonPath,
     generatePencilPath,
     generatePaintBrushPath,
+    generateFreehandPath,
     generatePath,
     getStrokeProps,
-    generateComplexShapePath
+    generateComplexShapePath,
+    generateShapeOutlinePoints
   };
 }
 

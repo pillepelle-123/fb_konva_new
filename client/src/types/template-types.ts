@@ -144,6 +144,7 @@ export interface BackgroundImage {
   name: string;
   category: BackgroundImageCategory;
   format: 'vector' | 'pixel';
+  imageType?: 'template' | 'designer';
   filePath: string;
   thumbnail: string;
   defaultSize: 'cover' | 'contain' | 'contain-repeat' | 'stretch';
@@ -158,6 +159,10 @@ export interface BackgroundImage {
   paletteSlotOpacities?: Partial<Record<PaletteSlot, number>>;
   /** true = use background/surface for large areas, false = only primary/secondary/accent, undefined = heuristic */
   useBackgroundSlots?: boolean;
+  designerCanvasStructure?: unknown;
+  designerCanvasWidth?: number;
+  designerCanvasHeight?: number;
+  designerId?: string;
   description?: string;
   tags?: string[];
 }

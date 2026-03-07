@@ -89,14 +89,17 @@ function mapCategoryRow(row) {
 }
 
 function mapImageRow(row) {
-  const slug = row.slug || ''
+  const id = row.id
+  const slug = row.slug
+  // Use slug instead of UUID in URLs for stable, readable URLs that work with palette caching
+  const identifier = slug || id  
   const localFileUrl =
-    row.file_path && slug
-      ? `/api/background-images/${encodeURIComponent(slug)}/file`
+    row.file_path && identifier
+      ? `/api/background-images/${encodeURIComponent(identifier)}/file`
       : null
 
-  const localThumbnailUrl = slug
-    ? `/api/background-images/${encodeURIComponent(slug)}/thumbnail`
+  const localThumbnailUrl = identifier
+    ? `/api/background-images/${encodeURIComponent(identifier)}/thumbnail`
     : null
 
   return {

@@ -185,7 +185,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
       const currentPage = state.currentBook?.pages[state.activePageIndex];
       const currentBackground = currentPage?.background;
       if (currentBackground?.type === 'image') {
-        setSelectedBackgroundImageId(currentBackground.backgroundImageTemplateId || null);
+        setSelectedBackgroundImageId(currentBackground.backgroundImageId || null);
       }
     } else {
       // Reset when selector closes
@@ -209,7 +209,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
 
 
   const currentPage = state.currentBook?.pages?.[state.activePageIndex];
-  const currentBackgroundImageId = currentPage?.background?.backgroundImageTemplateId ?? null;
+  const currentBackgroundImageId = currentPage?.background?.backgroundImageId ?? null;
   const isBackgroundApplyDisabled = !selectedBackgroundImageId || selectedBackgroundImageId === currentBackgroundImageId;
 
   const handleApplyBackgroundImage = () => {
@@ -461,7 +461,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
         <ImagesContent
           token={token || ''}
           mode="select"
-          onImageSelect={(imageId: number, imageUrl: string) => {
+          onImageSelect={(imageId: string, imageUrl: string) => {
             if (selectedImageElementId) {
               const currentElement = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === selectedImageElementId);
               if (currentElement) {
@@ -490,14 +490,14 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
                     }
                   }
                   
-                  const cacheBustedUrl = `${imageUrl}?t=${Date.now()}`;
                   dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Change Image' });
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: selectedImageElementId,
-                      updates: { 
-                        src: cacheBustedUrl,
+                      updates: {
+                        imageId,
+                        src: undefined,
                         width: Math.round(newWidth),
                         height: Math.round(newHeight)
                       }
@@ -516,7 +516,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             setShowImageModal(false);
             setSelectedImageElementId(null);
           }}
-          onImageUpload={(imageUrl) => {
+          onImageUpload={(imageId: string, imageUrl: string) => {
             if (selectedImageElementId) {
               const currentElement = state.currentBook?.pages[state.activePageIndex]?.elements.find(el => el.id === selectedImageElementId);
               if (currentElement) {
@@ -545,14 +545,14 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
                     }
                   }
                   
-                  const cacheBustedUrl = `${imageUrl}?t=${Date.now()}`;
                   dispatch({ type: 'SAVE_TO_HISTORY', payload: 'Change Image' });
                   dispatch({
                     type: 'UPDATE_ELEMENT_PRESERVE_SELECTION',
                     payload: {
                       id: selectedImageElementId,
-                      updates: { 
-                        src: cacheBustedUrl,
+                      updates: {
+                        imageId,
+                        src: undefined,
                         width: Math.round(newWidth),
                         height: Math.round(newHeight)
                       }
@@ -586,7 +586,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
         <ImagesContent
           token={token || ''}
           mode="select"
-          onImageSelect={(imageId: number, imageUrl: string) => {
+          onImageSelect={(_imageId: string, imageUrl: string) => {
             const currentPage = state.currentBook?.pages[state.activePageIndex];
             const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
             const newBackground = { ...background, type: 'image' as const, value: imageUrl, imageSize: 'cover' as const };
@@ -596,7 +596,7 @@ const ToolSettingsPanel = forwardRef<ToolSettingsPanelRef, ToolSettingsPanelProp
             });
             setShowBackgroundImageModal(false);
           }}
-          onImageUpload={(imageUrl: string) => {
+          onImageUpload={(_imageId: string, imageUrl: string) => {
             const currentPage = state.currentBook?.pages[state.activePageIndex];
             const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
             const newBackground = { ...background, type: 'image' as const, value: imageUrl, imageSize: 'cover' as const };

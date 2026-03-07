@@ -89,10 +89,12 @@ export default function Navigation() {
         
         // Listen for PDF export completion notifications
         socket.on('pdf_export_completed', (data: { exportId: number; bookId: number; bookName: string; status: string; error?: string }) => {
+          console.log('PDF export completed event received:', data);
           if (data.status === 'completed') {
             // Sofort Badge aktualisieren (optimistic update)
             setUnreadCount(prev => prev + 1);
             // Toast anzeigen
+            console.log('Showing success toast for PDF export');
             toast.success(`PDF export for "${data.bookName}" is ready!`, {
               action: {
                 label: 'View',
@@ -102,24 +104,22 @@ export default function Navigation() {
             // Exakten Count vom Server holen
             fetchUnreadCount();
           } else if (data.status === 'failed') {
+            console.log('Showing error toast for PDF export');
             toast.error(`PDF export for "${data.bookName}" failed: ${data.error || 'Unknown error'}`);
           }
         });
-        
-        return () => {
-          socket.off('message_notification');
-          socket.off('pdf_export_completed');
-          clearInterval(interval);
-          window.removeEventListener('profilePictureUpdated', handleProfileUpdate);
-        };
       }
       
       return () => {
+        if (socket) {
+          socket.off('message_notification');
+          socket.off('pdf_export_completed');
+        }
         clearInterval(interval);
         window.removeEventListener('profilePictureUpdated', handleProfileUpdate);
       };
     }
-  }, [user, socket]);
+  }, [user, socket, navigate]);
 
   const fetchUnreadCount = async () => {
     try {

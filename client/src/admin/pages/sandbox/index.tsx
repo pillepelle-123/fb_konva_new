@@ -146,7 +146,7 @@ function SandboxEditorContent() {
       dispatch({ type: 'SET_BOOK', payload: createSandboxBook() });
       sandbox.setCurrentSandboxPage(null);
     }
-  }, [sandboxPageId, dispatch, sandbox, state.currentBook?.id, sandbox.state.currentSandboxPageId]);
+  }, [sandboxPageId, dispatch, sandbox.loadSandboxState, sandbox.setCurrentSandboxPage, state.currentBook?.id, sandbox.state.currentSandboxPageId]);
 
   // Grant full editor permissions for sandbox (Tool-Settings, Toolbar, etc. require editorInteractionLevel + abilities)
   useEffect(() => {

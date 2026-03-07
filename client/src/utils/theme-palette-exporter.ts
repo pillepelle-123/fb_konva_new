@@ -513,7 +513,7 @@ export function extractThemeDefaults(
 /**
  * Builds pageSettings object from Page.background for theme config.
  */
-export function buildPageSettingsFromBackground(background: { type?: string; value?: string; opacity?: number; patternSize?: number; patternStrokeWidth?: number; patternBackgroundOpacity?: number; backgroundImageTemplateId?: string; imageSize?: string; imageRepeat?: boolean; imagePosition?: string; imageContainWidthPercent?: number } | undefined): Record<string, unknown> {
+export function buildPageSettingsFromBackground(background: { type?: string; value?: string; opacity?: number; patternSize?: number; patternStrokeWidth?: number; patternBackgroundOpacity?: number; backgroundImageId?: string; imageSize?: string; imageRepeat?: boolean; imagePosition?: string; imageContainWidthPercent?: number } | undefined): Record<string, unknown> {
   return {
     backgroundOpacity: background?.opacity ?? 1,
     backgroundPattern: background?.type === 'pattern'
@@ -525,10 +525,10 @@ export function buildPageSettingsFromBackground(background: { type?: string; val
           patternBackgroundOpacity: background.patternBackgroundOpacity ?? 0.3
         }
       : { enabled: false, style: 'dots', size: 20, strokeWidth: 1, patternBackgroundOpacity: 0.3 },
-    backgroundImage: background?.backgroundImageTemplateId
+    backgroundImage: background?.backgroundImageId
       ? {
           enabled: true,
-          templateId: background.backgroundImageTemplateId,
+          templateId: background.backgroundImageId,
           size: background.imageSize || 'cover',
           repeat: background.imageRepeat ?? false,
           opacity: background.opacity ?? 1,
@@ -722,9 +722,9 @@ export function exportThemeAndPalette(
       strokeWidth: 1,
       patternBackgroundOpacity: 0.3
     },
-    backgroundImage: pageBackground?.backgroundImageTemplateId ? {
+    backgroundImage: pageBackground?.backgroundImageId ? {
       enabled: true,
-      templateId: pageBackground.backgroundImageTemplateId,
+      templateId: pageBackground.backgroundImageId,
       size: pageBackground.imageSize || 'cover',
       repeat: pageBackground.imageRepeat ?? false,
       opacity: pageBackground.opacity ?? 1,

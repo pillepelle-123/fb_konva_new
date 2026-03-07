@@ -11,7 +11,8 @@ export const STYLE_OPTIONS = [
   { value: 'marker', label: 'Marker (Felt pen)' },
   { value: 'crayon', label: 'Crayon (Waxy)' },
   { value: 'pencil', label: 'Pencil' },
-  { value: 'paint-brush', label: 'Paint Brush' }
+  { value: 'paint-brush', label: 'Paint Brush' },
+  { value: 'freehand', label: 'Freehand (Organic)' }
 ];
 
 export function StyleSelect({ value, onChange, className }: { 

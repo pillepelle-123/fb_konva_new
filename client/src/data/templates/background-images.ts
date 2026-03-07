@@ -60,11 +60,37 @@ const apiRecordSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
   category: apiCategorySchema,
-  format: z.enum(['vector', 'pixel']),
+  type: z.enum(['template', 'designer']).optional(),
+  format: z.enum(['vector', 'pixel']).optional(),
   storage: apiStorageSchema,
   defaults: apiDefaultsSchema,
   paletteSlots: z.string().nullable().optional(),
   paletteSlotOpacities: paletteSlotOpacitiesSchema,
+  tags: z.array(z.string()).nullable().optional(),
+  metadata: z.record(z.unknown()).nullable().optional(),
+})
+
+const apiDesignerCanvasSchema = z.object({
+  canvasWidth: z.number().nullable().optional(),
+  canvasHeight: z.number().nullable().optional(),
+  structure: z.unknown().optional(),
+})
+
+const apiDesignerRecordSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  type: z.literal('designer').optional(),
+  category: apiCategorySchema.nullable().optional(),
+  canvas: apiDesignerCanvasSchema.optional(),
+  defaults: z
+    .object({
+      opacity: z.number().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  storage: apiStorageSchema.nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
 })
@@ -120,11 +146,20 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
   const filePath = storage.filePath ?? undefined
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
 
+  // Determine format from file extension if format field not available
+  const format: 'vector' | 'pixel' = 
+    record.format 
+      ? (record.format as 'vector' | 'pixel')
+      : (filePath && filePath.toLowerCase().endsWith('.svg')) 
+        ? 'vector' 
+        : 'pixel';
+
   const backgroundImage: BackgroundImage = {
     id: record.slug ?? (record.id != null ? String(record.id) : undefined) ?? record.name,
     name: record.name,
     category: record.category.slug ?? record.category.name,
-    format: record.format,
+    format,
+    imageType: 'template',
     filePath: filePath ?? '',
     thumbnail: thumbnailPath ?? filePath ?? '',
     defaultSize: (defaults.size as BackgroundImage['defaultSize'] | undefined) ?? 'cover',
@@ -146,6 +181,41 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
 
   return {
     ...backgroundImage,
+    url,
+    thumbnailUrl: thumbnailUrl || url,
+  }
+}
+
+function transformDesignerApiRecord(record: z.infer<typeof apiDesignerRecordSchema>): BackgroundImageWithUrl {
+  const storage = record.storage ?? {}
+  const storagePublicUrl = storage.publicUrl ?? null
+  const storageThumbnailUrl = storage.thumbnailUrl ?? null
+  const filePath = storage.filePath ?? ''
+  const thumbnailPath = storage.thumbnailPath ?? filePath
+
+  const resolveUrl = (u: string | null) => (u && apiBaseOrigin && u.startsWith('/') ? apiBaseOrigin + u : u)
+
+  const url = resolveUrl(storagePublicUrl) ?? resolveLocalUrl(filePath) ?? filePath ?? ''
+  const thumbnailUrl = resolveUrl(storageThumbnailUrl) ?? resolveLocalUrl(thumbnailPath) ?? thumbnailPath ?? url
+
+  const categoryName = record.category?.slug || record.category?.name || 'designer'
+
+  return {
+    id: record.slug,
+    name: record.name,
+    category: categoryName,
+    format: 'pixel',
+    imageType: 'designer',
+    filePath,
+    thumbnail: thumbnailPath,
+    defaultSize: 'cover',
+    defaultOpacity: record.defaults?.opacity ?? 1,
+    designerCanvasStructure: record.canvas?.structure,
+    designerCanvasWidth: record.canvas?.canvasWidth ?? undefined,
+    designerCanvasHeight: record.canvas?.canvasHeight ?? undefined,
+    designerId: String(record.id),
+    description: record.description ?? undefined,
+    tags: record.tags ?? undefined,
     url,
     thumbnailUrl: thumbnailUrl || url,
   }
@@ -212,13 +282,29 @@ export async function loadBackgroundImageRegistry(force = false) {
   if (registry.length > 0 && !force) return
 
   try {
-    const response = await fetch(`${API_BASE_URL}/background-images?page=1&pageSize=500`)
-    if (!response.ok) {
-      throw new Error(`Failed to load background images (${response.status})`)
+    const [templateResponse, designerResponse] = await Promise.all([
+      fetch(`${API_BASE_URL}/background-images?page=1&pageSize=500`),
+      fetch(`${API_BASE_URL}/background-images/designer?page=1&pageSize=500`),
+    ])
+
+    if (!templateResponse.ok) {
+      throw new Error(`Failed to load background images (${templateResponse.status})`)
     }
-    const payload = apiListResponseSchema.parse(await response.json())
-    const transformed = payload.items.map(transformApiRecord)
-    rebuildDerivedState(transformed)
+
+    const templatePayload = apiListResponseSchema.parse(await templateResponse.json())
+    const transformedTemplates = templatePayload.items.map(transformApiRecord)
+
+    let transformedDesigners: BackgroundImageWithUrl[] = []
+    if (designerResponse.ok) {
+      const rawDesignerPayload = await designerResponse.json()
+      const rawDesignerItems = Array.isArray(rawDesignerPayload?.items) ? rawDesignerPayload.items : []
+      transformedDesigners = rawDesignerItems
+        .map((entry) => apiDesignerRecordSchema.safeParse(entry))
+        .filter((parsed): parsed is { success: true; data: z.infer<typeof apiDesignerRecordSchema> } => parsed.success)
+        .map((parsed) => transformDesignerApiRecord(parsed.data))
+    }
+
+    rebuildDerivedState([...transformedTemplates, ...transformedDesigners])
     // SVG preload removed – SVGs are loaded on-demand via loadBackgroundImageSvg()
   } catch (error) {
     console.error('Hintergrundbilder konnten nicht geladen werden:', error)

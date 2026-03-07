@@ -84,7 +84,7 @@ async function applyPaletteToBookData(bookData) {
       const bg = p.background;
       console.log('[PDF Debug] Page', i, 'bg:', {
         valuePrefix: bg.value?.substring?.(0, 60),
-        backgroundImageTemplateId: bg.backgroundImageTemplateId,
+        backgroundImageId: bg.backgroundImageId,
         applyPalette: bg.applyPalette,
       });
     });
@@ -93,7 +93,7 @@ async function applyPaletteToBookData(bookData) {
 }
 
 // Regex to match protected image URLs for replacement (relative or absolute)
-const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/(\d+)(?:\?.*)?$/;
+const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/([0-9a-f-]{36})(?:\?.*)?$/i;
 const PROTECTED_STICKER_URL_PATTERN = /\/api\/stickers\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
 const PROTECTED_BG_IMAGE_URL_PATTERN = /\/api\/background-images\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
 const UPLOADS_STICKERS_PATTERN = /\/uploads\/stickers\/(.+?)(?:\?|$)/;
@@ -210,7 +210,7 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
     if (src.startsWith('data:')) return src;
 
     let m = src.match(PROTECTED_IMAGE_URL_PATTERN);
-    if (m) return imageIdToDataUrl(parseInt(m[1], 10)) || src;
+    if (m) return imageIdToDataUrl(m[1]) || src;
 
     m = src.match(PROTECTED_STICKER_URL_PATTERN);
     if (m) return stickerSlugToDataUrl(m[1]) || src;
@@ -232,7 +232,13 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
     // Resolve element images (image, sticker)
     const elements = page.elements || [];
     for (const element of elements) {
-      if ((element.type === 'image' || element.type === 'sticker') && element.src) {
+      if (element.type === 'image' && typeof element.imageId === 'string') {
+        const dataUrl = await imageIdToDataUrl(element.imageId);
+        if (dataUrl) element.src = dataUrl;
+        continue;
+      }
+
+      if (element.type === 'sticker' && element.src) {
         const dataUrl = await resolveUrl(element.src);
         if (dataUrl) element.src = dataUrl;
       }

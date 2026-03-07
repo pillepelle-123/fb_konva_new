@@ -91,13 +91,15 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
   };
 
   const handlePreview = (palette: ColorPalette, isThemePalette: boolean) => {
+    // Invalidate cache FIRST, before dispatching state updates, to ensure fresh SVG render
+    window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
     dispatch({
       type: 'SET_PAGE_COLOR_PALETTE',
-      payload: { pageIndex: state.activePageIndex, colorPaletteId: isThemePalette ? null : palette.id }
+      payload: { pageIndex: state.activePageIndex, colorPaletteId: isThemePalette ? null : palette.id, skipHistory: true }
     });
     dispatch({
       type: 'APPLY_COLOR_PALETTE',
-      payload: { palette, pageIndex: state.activePageIndex, applyToAllPages: false }
+      payload: { palette, pageIndex: state.activePageIndex, applyToAllPages: false, skipHistory: true }
     });
   };
 
@@ -122,6 +124,8 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
     if (!paletteToApply) return;
 
     if (applyToEntireBook && state.currentBook) {
+      // Invalidate cache BEFORE dispatching state updates to avoid stale/empty render after Apply
+      window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: {} }));
       state.currentBook.pages.forEach((_, pageIndex) => {
         dispatch({
           type: 'SET_PAGE_COLOR_PALETTE',
@@ -133,6 +137,8 @@ export const PaletteSelector = forwardRef<PaletteSelectorRef, PaletteSelectorPro
         });
       });
     } else {
+      // Invalidate cache BEFORE dispatching state updates to avoid stale/empty render after Apply
+      window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
       dispatch({ type: 'SET_PAGE_COLOR_PALETTE', payload: { pageIndex: state.activePageIndex, colorPaletteId: useThemePalette ? null : paletteToApply.id } });
       dispatch({
         type: 'APPLY_COLOR_PALETTE',

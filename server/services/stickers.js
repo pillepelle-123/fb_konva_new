@@ -89,14 +89,14 @@ function mapCategoryRow(row) {
 }
 
 function mapStickerRow(row) {
-  const slug = row.slug || ''
+  const id = row.id
   const localFileUrl =
-    row.file_path && slug
-      ? `/api/stickers/${encodeURIComponent(slug)}/file`
+    row.file_path && id
+      ? `/api/stickers/${encodeURIComponent(id)}/file`
       : null
 
-  const localThumbnailUrl = slug
-    ? `/api/stickers/${encodeURIComponent(slug)}/thumbnail`
+  const localThumbnailUrl = id
+    ? `/api/stickers/${encodeURIComponent(id)}/thumbnail`
     : null
 
   return {

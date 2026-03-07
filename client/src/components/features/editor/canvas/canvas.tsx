@@ -632,6 +632,34 @@ export default function Canvas() {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
         
+        // Force hover state update after zoom by simulating pointer position update
+        // This ensures selection-hover-rectangles disappear when mouse is no longer over items
+        requestAnimationFrame(() => {
+          try {
+            if (stageRef.current) {
+              const stage = stageRef.current;
+              const pointerPos = stage.getPointerPosition();
+              
+              if (pointerPos) {
+                // Force Konva to recalculate hover states by setting pointer position
+                // This will trigger mouseenter/mouseleave events as needed
+                stage.setPointersPositions({
+                  clientX: pointerPos.x,
+                  clientY: pointerPos.y,
+                } as any);
+                
+                // Trigger a synthetic mousemove event to update all hover states
+                const layer = stage.findOne('Layer');
+                if (layer) {
+                  layer.fire('mousemove', { evt: { clientX: pointerPos.x, clientY: pointerPos.y } }, true);
+                }
+              }
+            }
+          } catch (error) {
+            console.debug('Hover state update error:', error);
+          }
+        });
+        
         // Delay showing partner page to avoid re-renders during continuous zoom
         showPartnerTimeoutRef.current = setTimeout(() => {
           setHidePartnerDuringInteraction(false);
@@ -1005,15 +1033,23 @@ export default function Canvas() {
   }, []);
   const getPaletteForPage = (page?: typeof currentPage) => {
     const pageColorPaletteId = page?.colorPaletteId ?? null;
-    const pageThemeId = page?.themeId ?? 'default';
+    const pageThemeId =
+      page?.themeId ??
+      page?.background?.pageTheme ??
+      state.currentBook?.themeId ??
+      state.currentBook?.bookTheme ??
+      'default';
     const themePaletteId = !pageColorPaletteId ? getThemePaletteId(pageThemeId) : null;
-    const effectivePaletteId = pageColorPaletteId ?? themePaletteId;
+    // Fallback to first palette if theme has no default palette
+    const effectivePaletteId = pageColorPaletteId ?? themePaletteId ?? colorPalettes[0]?.id;
 
-    if (effectivePaletteId === null) {
+    if (!effectivePaletteId) {
       return { paletteId: null as string | null, palette: null as ColorPalette | null };
     }
 
-    const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
+    // Use loose comparison because API can return ids as number or string.
+    const palette =
+      colorPalettes.find((item) => item.id == effectivePaletteId || String(item.id) === String(effectivePaletteId)) ?? null;
     return { paletteId: effectivePaletteId, palette };
   };
 
@@ -1959,6 +1995,7 @@ export default function Canvas() {
     if (state.editorInteractionLevel === 'answer_only') {
       // Only allow panning with right-click for view-only mode
       if (e.evt.button === 2) {
+        setImageQualityTooltip(null);
         setIsPanning(true);
         setHasPanned(false);
         const pos = e.target.getStage()?.getPointerPosition();
@@ -1983,6 +2020,7 @@ export default function Canvas() {
 
     // Right-click drag for panning
     if (e.evt.button === 2) {
+      setImageQualityTooltip(null);
       setIsPanning(true);
       setHasPanned(false);
       isInteractingRef.current = true;
@@ -2003,6 +2041,7 @@ export default function Canvas() {
 
     // Only handle mouseDown for brush, select, and pan tools
     if (state.activeTool === 'pan') {
+      setImageQualityTooltip(null);
       setIsPanning(true);
       isInteractingRef.current = true;
       const pos = e.target.getStage()?.getPointerPosition();
@@ -2359,6 +2398,7 @@ export default function Canvas() {
     // For answer_only users, only allow panning
     if (state.editorInteractionLevel === 'answer_only') {
       if (isPanning) {
+        setImageQualityTooltip(null);
         const pos = e.target.getStage()?.getPointerPosition();
         if (pos) {
           setHasPanned(true);
@@ -2396,6 +2436,7 @@ export default function Canvas() {
     }
     
     if (isPanning) {
+      setImageQualityTooltip(null);
       setHidePartnerDuringInteraction(true);
       const pos = e.target.getStage()?.getPointerPosition();
       if (pos) {
@@ -3386,6 +3427,7 @@ export default function Canvas() {
     }
     
     e.evt.preventDefault();
+    setImageQualityTooltip(null);
     
     if (e.evt.shiftKey) {
       // Horizontal scroll with Shift + mousewheel
@@ -3397,17 +3439,34 @@ export default function Canvas() {
         isInteractingRef.current = false;
         setHidePartnerDuringInteraction(false);
         
-        // Clear transform cache after pan ends
+        // Force hover state update after pan
         requestAnimationFrame(() => {
           try {
             if (stageRef.current) {
-              const layer = stageRef.current.findOne('Layer');
+              const stage = stageRef.current;
+              const pointerPos = stage.getPointerPosition();
+              
+              if (pointerPos) {
+                // Force Konva to recalculate hover states
+                stage.setPointersPositions({
+                  clientX: pointerPos.x,
+                  clientY: pointerPos.y,
+                } as any);
+                
+                const layer = stage.findOne('Layer');
+                if (layer) {
+                  layer.fire('mousemove', { evt: { clientX: pointerPos.x, clientY: pointerPos.y } }, true);
+                }
+              }
+              
+              // Clear transform cache after pan ends
+              const layer = stage.findOne('Layer');
               if (layer) {
-                layer.find('Group').forEach(node => node.clearCache());
+                (layer as any).find('Group').forEach((node: any) => node.clearCache());
               }
             }
           } catch (error) {
-            console.debug('Cache clear error:', error);
+            console.debug('Hover state update error:', error);
           }
         });
       }, 200);
@@ -3447,24 +3506,44 @@ export default function Canvas() {
         isZoomingRef.current = false;
         isInteractingRef.current = false;
         
+        // Force hover state update after zoom by simulating pointer position update
+        // This ensures selection-hover-rectangles disappear when mouse is no longer over items
+        requestAnimationFrame(() => {
+          try {
+            if (stageRef.current) {
+              const stage = stageRef.current;
+              const pointerPos = stage.getPointerPosition();
+              
+              if (pointerPos) {
+                // Force Konva to recalculate hover states by setting pointer position
+                // This will trigger mouseenter/mouseleave events as needed
+                stage.setPointersPositions({
+                  clientX: pointerPos.x,
+                  clientY: pointerPos.y,
+                } as any);
+                
+                // Trigger a synthetic mousemove event to update all hover states
+                const layer = stage.findOne('Layer');
+                if (layer) {
+                  layer.fire('mousemove', { evt: { clientX: pointerPos.x, clientY: pointerPos.y } }, true);
+                }
+              }
+              
+              // Clear transform cache after zoom ends
+              const layer = stage.findOne('Layer');
+              if (layer) {
+                (layer as any).find('Group').forEach((node: any) => node.clearCache());
+              }
+            }
+          } catch (error) {
+            console.debug('Hover state update error:', error);
+          }
+        });
+        
         // Delay showing partner page to avoid re-renders during continuous zoom
         showPartnerTimeoutRef.current = setTimeout(() => {
           setHidePartnerDuringInteraction(false);
         }, 300);
-        
-        // Clear transform cache after zoom ends
-        requestAnimationFrame(() => {
-          try {
-            if (stageRef.current) {
-              const layer = stageRef.current.findOne('Layer');
-              if (layer) {
-                layer.find('Group').forEach(node => node.clearCache());
-              }
-            }
-          } catch (error) {
-            console.debug('Cache clear error:', error);
-          }
-        });
       }, 200);
 
       // During zoom minimal mode, use direct zoom update for smooth experience
@@ -3481,17 +3560,34 @@ export default function Canvas() {
         isInteractingRef.current = false;
         setHidePartnerDuringInteraction(false);
         
-        // Clear transform cache after pan ends
+        // Force hover state update after pan
         requestAnimationFrame(() => {
           try {
             if (stageRef.current) {
-              const layer = stageRef.current.findOne('Layer');
+              const stage = stageRef.current;
+              const pointerPos = stage.getPointerPosition();
+              
+              if (pointerPos) {
+                // Force Konva to recalculate hover states
+                stage.setPointersPositions({
+                  clientX: pointerPos.x,
+                  clientY: pointerPos.y,
+                } as any);
+                
+                const layer = stage.findOne('Layer');
+                if (layer) {
+                  layer.fire('mousemove', { evt: { clientX: pointerPos.x, clientY: pointerPos.y } }, true);
+                }
+              }
+              
+              // Clear transform cache after pan ends
+              const layer = stage.findOne('Layer');
               if (layer) {
-                layer.find('Group').forEach(node => node.clearCache());
+                (layer as any).find('Group').forEach((node: any) => node.clearCache());
               }
             }
           } catch (error) {
-            console.debug('Cache clear error:', error);
+            console.debug('Hover state update error:', error);
           }
         });
       }, 200);
@@ -3826,7 +3922,7 @@ export default function Canvas() {
     token,
     JSON.stringify(activePalette?.colors),
     JSON.stringify({
-      templateId: (currentPage?.background as any)?.backgroundImageTemplateId,
+      templateId: (currentPage?.background as any)?.backgroundImageId,
       applyPalette: (currentPage?.background as any)?.applyPalette,
       paletteMode: (currentPage?.background as any)?.paletteMode,
       backgroundColor: (currentPage?.background as any)?.backgroundColor,
@@ -3843,6 +3939,7 @@ export default function Canvas() {
       failedBackgroundUrlsRef.current.clear(); // Allow retry when palette/theme changes
       
       const targetPageIndex = event.detail?.pageIndex;
+      let didInvalidate = false;
       
       if (targetPageIndex !== undefined && state.currentBook?.pages) {
         // Invalidate cache for specific page
@@ -3856,9 +3953,9 @@ export default function Canvas() {
           
           for (const [url] of cache) {
             // Remove all data URLs (they change when palette changes)
-            // Also remove entries that match the current page's background template ID
+            // Also remove entries that match the current page's background image UUID
             if (url.startsWith('data:') || 
-                (page.background.backgroundImageTemplateId && url.includes(page.background.backgroundImageTemplateId))) {
+                (page.background.backgroundImageId && url.includes(page.background.backgroundImageId))) {
               urlsToRemove.push(url);
             }
           }
@@ -3893,6 +3990,7 @@ export default function Canvas() {
           
           if (urlsToRemove.length > 0) {
             setBackgroundImageCache(new Map(cache));
+            didInvalidate = true;
           }
         }
       } else {
@@ -3905,6 +4003,13 @@ export default function Canvas() {
         accessOrder.length = 0;
         loadingImages.clear();
         setBackgroundImageCache(new Map());
+        didInvalidate = true;
+      }
+
+      // Force preload effect to rerun immediately after cache clear
+      // This prevents black flash when applying palette changes
+      if (didInvalidate) {
+        setBackgroundSvgLoadedVersion((v) => v + 1);
       }
     };
 
@@ -3951,7 +4056,7 @@ export default function Canvas() {
           if (imageUrl) urlsToKeep.add(imageUrl);
           // Für die aktive Seite: Beide Modus-URLs behalten, damit beim Wechsel
           // Palette↔Monochrom keine Lücke entsteht (neue URL lädt asynchron)
-          if (distance === 0 && pageBackground.applyPalette && pageBackground.backgroundImageTemplateId) {
+          if (distance === 0 && pageBackground.applyPalette && pageBackground.backgroundImageId) {
             const otherMode = (pageBackground.paletteMode ?? 'palette') === 'palette' ? 'monochrome' : 'palette';
             const altUrl = resolveBackgroundImageUrl(
               { ...pageBackground, paletteMode: otherMode },
@@ -4880,7 +4985,7 @@ export default function Canvas() {
     };
   }, [isSelecting, selectionStart, currentPage, activePageOffsetX, pageOffsetY, dispatch, stagePos, zoom]);
 
-  const handleImageSelect = useCallback((imageId: number, imageUrl: string) => {
+  const handleImageSelect = useCallback((imageId: string, imageUrl: string) => {
     if (pendingImageElementId && !canEditElements) return;
     if (!pendingImageElementId && !canCreateElements) return;
     if (!pendingImageElementId && !pendingImagePosition) return;
@@ -4917,7 +5022,8 @@ export default function Canvas() {
                 id: elementIdToUpdate,
                 updates: {
                   type: 'image',
-                  src: imageUrl,
+                  imageId,
+                  src: undefined,
                   width: element.width || width,
                   height: element.height || height
                 }
@@ -4928,11 +5034,11 @@ export default function Canvas() {
           const newElement: CanvasElement = {
             id: uuidv4(),
             type: 'image',
+            imageId,
             x: positionToUse.x,
             y: positionToUse.y,
             width,
             height,
-            src: imageUrl,
             cornerRadius: 0
           };
           addElementIfAllowed(newElement);

@@ -3,6 +3,7 @@ import {
   useContext,
   useReducer,
   useCallback,
+  useMemo,
   type ReactNode,
 } from 'react';
 import type { PaletteColorSlot } from '../utils/sandbox-utils';
@@ -225,18 +226,32 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const value: SandboxContextValue = {
-    state,
-    setSandboxColor,
-    setSandboxColorSlotOpen,
-    setPartSlotOverride,
-    setPageSlotOverride,
-    getPartSlot,
-    getPageSlot,
-    getColorForSlot,
-    loadSandboxState,
-    setCurrentSandboxPage,
-  };
+  const value: SandboxContextValue = useMemo(
+    () => ({
+      state,
+      setSandboxColor,
+      setSandboxColorSlotOpen,
+      setPartSlotOverride,
+      setPageSlotOverride,
+      getPartSlot,
+      getPageSlot,
+      getColorForSlot,
+      loadSandboxState,
+      setCurrentSandboxPage,
+    }),
+    [
+      state,
+      setSandboxColor,
+      setSandboxColorSlotOpen,
+      setPartSlotOverride,
+      setPageSlotOverride,
+      getPartSlot,
+      getPageSlot,
+      getColorForSlot,
+      loadSandboxState,
+      setCurrentSandboxPage,
+    ]
+  );
 
   return (
     <SandboxContext.Provider value={value}>{children}</SandboxContext.Provider>

@@ -103,6 +103,37 @@ const normalizePageMetadata = (page = {}) => {
   };
 };
 
+function extractImageIdsFromElements(elements = []) {
+  const imageIdSet = new Set();
+  for (const element of Array.isArray(elements) ? elements : []) {
+    if (element?.type !== 'image') continue;
+    if (typeof element.imageId !== 'string') continue;
+    const imageId = element.imageId.trim();
+    if (!imageId) continue;
+    imageIdSet.add(imageId);
+  }
+  return [...imageIdSet];
+}
+
+async function syncPageImagesForPage(db, pageId, elements = []) {
+  const imageIds = extractImageIdsFromElements(elements);
+
+  await db.query('DELETE FROM public.page_images WHERE page_id = $1', [pageId]);
+
+  if (imageIds.length === 0) {
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO public.page_images (page_id, image_id)
+     SELECT $1, i.id
+     FROM public.images i
+     WHERE i.id = ANY($2::uuid[])
+     ON CONFLICT DO NOTHING`,
+    [pageId, imageIds]
+  );
+}
+
 // Dashboard data
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
@@ -607,6 +638,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
               pageId
             ]
           );
+          await syncPageImagesForPage(pool, pageId, pageElements);
 
           // Remove existing question associations for this page
           await pool.query(
@@ -690,6 +722,7 @@ router.put('/:id/author-save', authenticateToken, async (req, res) => {
               'UPDATE public.pages SET elements = $1 WHERE id = $2',
               [JSON.stringify(updatedPageData), pageId]
             );
+            await syncPageImagesForPage(pool, pageId, elements);
           }
         }
       }
@@ -942,6 +975,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               bookId
             ]
           );
+          await syncPageImagesForPage(db, page.id, pageElements);
           pageId = page.id;
           processedPageIds.add(page.id);
         } else {
@@ -1026,6 +1060,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 bookId
               ]
             );
+            await syncPageImagesForPage(db, existingPageId, pageElements);
             pageId = existingPageId;
             processedPageIds.add(existingPageId);
           } else if (existingPageId && !shouldUpdateExisting) {
@@ -1110,6 +1145,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
               'UPDATE public.pages SET elements = $1 WHERE id = $2',
               [JSON.stringify(completePageData), pageId]
             );
+            await syncPageImagesForPage(db, pageId, pageElements);
             
             // Add both the original page.id (if it exists) and the new database ID to processedPageIds
             // This ensures that if the page is later referenced by its database ID, it will be recognized
@@ -1304,6 +1340,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             'UPDATE public.pages SET elements = $1 WHERE id = $2',
             [JSON.stringify(updatedPageData), pageId]
           );
+          await syncPageImagesForPage(db, pageId, elements);
         }
       }
       

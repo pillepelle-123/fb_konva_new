@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import { Rect, Group, Image as KonvaImage } from 'react-konva';
 import { createPatternTile } from './canvas-utils';
+import { DesignerBackgroundGroup } from './DesignerBackgroundGroup';
+import { hasDesignerCanvasPayload } from '../../../../services/canvas-structure-to-konva-group';
 
 // Local copy of getPalettePartColor to avoid import issues
 function getPalettePartColor(
@@ -131,6 +133,18 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
   }
 
   if (background.type === 'image') {
+    if (hasDesignerCanvasPayload(background)) {
+      return (
+        <DesignerBackgroundGroup
+          background={background}
+          offsetX={offsetX}
+          pageOffsetY={pageOffsetY}
+          canvasWidth={canvasWidth}
+          canvasHeight={canvasHeight}
+        />
+      );
+    }
+
     // Resolve image URL (handles both template and direct URLs)
     const opts = {
       paletteId,
@@ -140,8 +154,8 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     };
     let imageUrl = resolveBackgroundImageUrl(background, opts);
 
-    // If URL is undefined and we have a template ID, try without palette as fallback
-    if (!imageUrl && background.backgroundImageTemplateId) {
+    // If URL is undefined and we have a background image UUID, try without palette as fallback
+    if (!imageUrl && background.backgroundImageId) {
       imageUrl = resolveBackgroundImageUrl(background, {
         paletteId: null,
         paletteColors: undefined

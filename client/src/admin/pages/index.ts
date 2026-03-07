@@ -6,5 +6,6 @@ export { default as AdminStickersPage } from './sticker'
 export { default as AdminThemesPage } from './themes'
 export { default as AdminColorPalettesPage } from './color-palettes'
 export { default as AdminLayoutsPage } from './layouts'
+export { default as AdminBackgroundDesignerPage } from './background-designer'
 export { default as SandboxEditorPage } from './sandbox'
 

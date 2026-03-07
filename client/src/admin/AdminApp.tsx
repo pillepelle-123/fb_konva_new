@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdminLayout } from './layouts'
-import { AdminBackgroundImagesPage, AdminBooksPage, AdminColorPalettesPage, AdminLayoutsPage, AdminPageRecordsPage, AdminStickersPage, AdminThemesPage, AdminUsersPage, SandboxEditorPage } from './pages'
+import { AdminBackgroundDesignerPage, AdminBackgroundImagesPage, AdminBooksPage, AdminColorPalettesPage, AdminLayoutsPage, AdminPageRecordsPage, AdminStickersPage, AdminThemesPage, AdminUsersPage, SandboxEditorPage } from './pages'
 import { AdminQueryClientProvider } from './providers'
 
 export default function AdminApp() {
@@ -14,6 +14,8 @@ export default function AdminApp() {
             <Route path="books" element={<AdminBooksPage />} />
             <Route path="pages" element={<AdminPageRecordsPage />} />
             <Route path="background-images" element={<AdminBackgroundImagesPage />} />
+            <Route path="background-images/designer/new" element={<AdminBackgroundDesignerPage />} />
+            <Route path="background-images/designer/:id" element={<AdminBackgroundDesignerPage />} />
             <Route path="stickers" element={<AdminStickersPage />} />
             <Route path="themes" element={<AdminThemesPage />} />
             <Route path="color-palettes" element={<AdminColorPalettesPage />} />

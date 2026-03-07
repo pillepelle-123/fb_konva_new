@@ -393,6 +393,7 @@ export interface CanvasElement {
   questionElementId?: string; // Legacy - for linking answer to question element
   questionOrder?: number; // Order/position of the question in orderedQuestions (for maintaining question order)
   src?: string;
+  imageId?: string;
   imageOpacity?: number;
   imageClipPosition?: 'left-top' | 'left-middle' | 'left-bottom' | 'center-top' | 'center-middle' | 'center-bottom' | 'right-top' | 'right-middle' | 'right-bottom';
   cropX?: number;
@@ -514,6 +515,13 @@ export interface CanvasElement {
   backgroundEnabled?: boolean;
   candyRandomness?: number;
   candyIntensity?: number;
+  candyHoled?: boolean;
+  freehandSimplification?: number;
+  freehandTaperStart?: number;
+  freehandTaperEnd?: number;
+  freehandPressure?: boolean;
+  freehandSeed?: number;
+  paintBrushWobbly?: boolean;
   // Backward compatibility
   fill?: string; // @deprecated - use fontColor instead
   // Group properties
@@ -568,7 +576,17 @@ export interface PageBackground {
   /** For image type: opacity of the background color layer behind the image (pageSettings.backgroundOpacity). */
   backgroundColorOpacity?: number;
   pageTheme?: string; // page-specific theme ID
-  backgroundImageTemplateId?: string; // Reference to background image template
+  backgroundImageId?: string; // Reference to background image by UUID
+  backgroundImageType?: 'template' | 'designer';
+  backgroundImageDesignerId?: string;
+  designerCanvasStructure?: unknown;
+  designerCanvasWidth?: number;
+  designerCanvasHeight?: number;
+  designerCanvas?: {
+    structure?: unknown;
+    canvasWidth?: number;
+    canvasHeight?: number;
+  };
   ruledLines?: {
     enabled: boolean;
     theme: 'notebook' | 'college' | 'graph' | 'dotted';
@@ -1284,7 +1302,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
     let resolvedBackground = page.background;
     const isCustomImageBackground =
       page.background?.type === 'image' &&
-      !page.background?.backgroundImageTemplateId &&
+      !page.background?.backgroundImageId &&
       page.background?.value;
 
     const hasExplicitBackground = page.background && (
@@ -2395,7 +2413,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               imageRepeat: backgroundImageConfig.repeat || false,
               imagePosition: backgroundImageConfig.position || 'center-middle',
               imageContainWidthPercent: backgroundImageConfig.containWidthPercent || 100,
-              backgroundImageTemplateId: backgroundImageConfig.templateId
+              backgroundImageId: backgroundImageConfig.templateId
             };
             appliedBackgroundImage = true;
           }
@@ -3402,10 +3420,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           // The actual page theme is determined by page.themeId (which is now undefined)
           const backgroundImageConfig = theme.pageSettings.backgroundImage;
           
-          // Check if old background is a custom image (not from theme template)
+          // Check if old background is a custom image (not from theme)
           // Custom images should be preserved, theme images should be replaced
           const isCustomImageBackground = page.background?.type === 'image' && 
-                                        !page.background?.backgroundImageTemplateId &&
+                                        !page.background?.backgroundImageId &&
                                         page.background?.value;
           
           let newBackground: PageBackground | null = null;
@@ -5154,19 +5172,18 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             patternForegroundColor: getPalettePartColor(appliedPalette, 'pageBackground', 'background', appliedPalette.colors.background)
           };
         } else {
-          // For 'image' type: update backgroundColor (Color layer behind image) from palette, same as type 'color'
-          // WICHTIG: Immer Kopie erstellen, damit Seiten nicht dieselbe Referenz teilen.
-          updatedBackground = typeof structuredClone === 'function'
-            ? structuredClone(currentBackground)
-            : JSON.parse(JSON.stringify(currentBackground));
-          if ((updatedBackground as any).backgroundColorEnabled) {
-            (updatedBackground as any).backgroundColor = getPalettePartColor(
-              appliedPalette,
-              'pageBackground',
-              'background',
-              appliedPalette.colors.background
-            );
-          }
+          // For 'image' type: update backgroundColor (Color layer behind image) from palette
+          // Use spread operator to preserve all properties including undefined values
+          // For template images, ONLY update backgroundColor - keep imagePosition/imageSize/etc. stable
+          const shouldUpdateBackgroundColor = 
+            (currentBackground as any).backgroundColorEnabled || 
+            (currentBackground as any).applyPalette;
+          updatedBackground = {
+            ...currentBackground,
+            backgroundColor: shouldUpdateBackgroundColor
+              ? getPalettePartColor(appliedPalette, 'pageBackground', 'background', appliedPalette.colors.background)
+              : (currentBackground as any).backgroundColor
+          };
         }
         
         return {

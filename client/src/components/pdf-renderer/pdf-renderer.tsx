@@ -1551,7 +1551,8 @@ export function PDFRenderer({
                     candyRandomness: tempElement.candyRandomness,
                     candyIntensity: tempElement.candyIntensity,
                     candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                    candyHoled: tempElement.candyHoled
+                    candyHoled: tempElement.candyHoled,
+                    paintBrushWobbly: tempElement.paintBrushWobbly
                   },
                   strokeScaleEnabled: true,
                   listening: false
@@ -1681,7 +1682,8 @@ export function PDFRenderer({
                           candyRandomness: tempElement.candyRandomness,
                           candyIntensity: tempElement.candyIntensity,
                           candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                          candyHoled: tempElement.candyHoled
+                          candyHoled: tempElement.candyHoled,
+                          paintBrushWobbly: tempElement.paintBrushWobbly
                         },
                         strokeScaleEnabled: true,
                         listening: false
@@ -1828,7 +1830,8 @@ export function PDFRenderer({
                       candyRandomness: tempElement.candyRandomness,
                       candyIntensity: tempElement.candyIntensity,
                       candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                      candyHoled: tempElement.candyHoled
+                      candyHoled: tempElement.candyHoled,
+                      paintBrushWobbly: tempElement.paintBrushWobbly
                     },
                     strokeScaleEnabled: true,
                     listening: false
@@ -1965,7 +1968,8 @@ export function PDFRenderer({
                       candyRandomness: tempElement.candyRandomness,
                       candyIntensity: tempElement.candyIntensity,
                       candySpacingMultiplier: tempElement.candySpacingMultiplier,
-                      candyHoled: tempElement.candyHoled
+                      candyHoled: tempElement.candyHoled,
+                      paintBrushWobbly: tempElement.paintBrushWobbly
                     },
                     strokeScaleEnabled: true,
                     listening: false
@@ -2118,7 +2122,8 @@ export function PDFRenderer({
               candyRandomness: (element as any).candyRandomness,
               candyIntensity: (element as any).candyIntensity,
               candySpacingMultiplier: (element as any).candySpacingMultiplier,
-              candyHoled: (element as any).candyHoled
+              candyHoled: (element as any).candyHoled,
+              paintBrushWobbly: (element as any).paintBrushWobbly
               } as CanvasElement;
               
               const borderPathData = styleRenderer.generatePath(borderElement);
@@ -2149,7 +2154,8 @@ export function PDFRenderer({
                 candyRandomness: (borderElement as any).candyRandomness,
                 candyIntensity: (borderElement as any).candyIntensity,
                 candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
-                candyHoled: (borderElement as any).candyHoled
+                candyHoled: (borderElement as any).candyHoled,
+                paintBrushWobbly: (borderElement as any).paintBrushWobbly
               },
               cornerRadius: cornerRadius,
               strokeScaleEnabled: true,
@@ -2439,7 +2445,8 @@ export function PDFRenderer({
               candyRandomness: (element as any).candyRandomness,
               candyIntensity: (element as any).candyIntensity,
               candySpacingMultiplier: (element as any).candySpacingMultiplier,
-              candyHoled: (element as any).candyHoled
+              candyHoled: (element as any).candyHoled,
+              paintBrushWobbly: (element as any).paintBrushWobbly
             } as CanvasElement;
             const styleRenderer = getStyleRenderer(borderStyle);
             const borderPathData = styleRenderer.generatePath(borderElement);
@@ -3165,7 +3172,8 @@ export function PDFRenderer({
                   candyRandomness: (element as any).candyRandomness,
                   candyIntensity: (element as any).candyIntensity,
                   candySpacingMultiplier: (element as any).candySpacingMultiplier,
-                  candyHoled: (element as any).candyHoled
+                  candyHoled: (element as any).candyHoled,
+                  paintBrushWobbly: (element as any).paintBrushWobbly
                     } as CanvasElement;
                     
                 // Use centralized border rendering with fallback
@@ -3180,7 +3188,8 @@ export function PDFRenderer({
                     candyRandomness: (frameElement as any).candyRandomness,
                     candyIntensity: (frameElement as any).candyIntensity,
                     candySpacingMultiplier: (frameElement as any).candySpacingMultiplier,
-                    candyHoled: (frameElement as any).candyHoled
+                    candyHoled: (frameElement as any).candyHoled,
+                    paintBrushWobbly: (frameElement as any).paintBrushWobbly
                   },
                   cornerRadius: cornerRadius,
                   strokeScaleEnabled: true,
@@ -3632,7 +3641,8 @@ export function PDFRenderer({
                   candyRandomness: (element as any).candyRandomness,
                   candyIntensity: (element as any).candyIntensity,
                   candySpacingMultiplier: (element as any).candySpacingMultiplier,
-                  candyHoled: (element as any).candyHoled
+                  candyHoled: (element as any).candyHoled,
+                  paintBrushWobbly: (element as any).paintBrushWobbly
                 } as CanvasElement;
 
                 // Call generatePath and getStrokeProps WITHOUT zoom parameter, exactly like textbox-qna.tsx
@@ -3766,7 +3776,8 @@ export function PDFRenderer({
                       candyRandomness: (borderElement as any).candyRandomness,
                       candyIntensity: (borderElement as any).candyIntensity,
                       candySpacingMultiplier: (borderElement as any).candySpacingMultiplier,
-                      candyHoled: (borderElement as any).candyHoled
+                      candyHoled: (borderElement as any).candyHoled,
+                      paintBrushWobbly: (borderElement as any).paintBrushWobbly
                     },
                     cornerRadius: element.type === 'rect' ? (element.cornerRadius || 0) : 0,
                     strokeScaleEnabled: true,

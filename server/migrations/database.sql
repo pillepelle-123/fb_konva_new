@@ -11,6 +11,11 @@ DROP TABLE IF EXISTS conversations CASCADE;
 DROP TABLE IF EXISTS pdf_exports CASCADE;
 DROP TABLE IF EXISTS stickers CASCADE;
 DROP TABLE IF EXISTS sticker_categories CASCADE;
+DROP VIEW IF EXISTS theme_backgrounds_unified CASCADE;
+DROP TABLE IF EXISTS theme_designer_backgrounds CASCADE;
+DROP TABLE IF EXISTS theme_template_backgrounds CASCADE;
+DROP TABLE IF EXISTS background_image_designs CASCADE;
+DROP TABLE IF EXISTS background_image_templates CASCADE;
 DROP TABLE IF EXISTS background_images CASCADE;
 DROP TABLE IF EXISTS background_image_categories CASCADE;
 DROP TABLE IF EXISTS user_question_assignments CASCADE;
@@ -20,6 +25,7 @@ DROP TABLE IF EXISTS question_pages CASCADE;
 DROP TABLE IF EXISTS questions CASCADE;
 DROP TABLE IF EXISTS page_assignments CASCADE;
 DROP TABLE IF EXISTS editor_settings CASCADE;
+DROP TABLE IF EXISTS page_images CASCADE;
 DROP TABLE IF EXISTS images CASCADE;
 DROP TABLE IF EXISTS friendships CASCADE;
 DROP TABLE IF EXISTS book_friends CASCADE;
@@ -34,6 +40,7 @@ DROP TABLE IF EXISTS color_palettes CASCADE;
 DROP TABLE IF EXISTS themes CASCADE;
 DROP TABLE IF EXISTS layouts CASCADE;
 DROP TABLE IF EXISTS sandbox_pages CASCADE;
+DROP TABLE IF EXISTS theme_page_backgrounds CASCADE;
 
 -- Drop types
 DROP TYPE IF EXISTS page_access_level CASCADE;
@@ -227,24 +234,27 @@ UNIQUE (user_id, question_id);
 
 -- Create trigger function to automatically update updated_at
 CREATE OR REPLACE FUNCTION update_answers_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS '
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
+  NEW.updated_at := CURRENT_TIMESTAMP;
+  RETURN NEW;
 END;
-$$ language 'plpgsql';
+';
 
+DROP TRIGGER IF EXISTS update_answers_updated_at ON answers;
 CREATE TRIGGER update_answers_updated_at
-    BEFORE UPDATE ON answers
-    FOR EACH ROW
-    EXECUTE FUNCTION update_answers_updated_at();
+  BEFORE UPDATE ON answers
+  FOR EACH ROW
+  EXECUTE FUNCTION update_answers_updated_at();
 
 -- ###############################################################
 -- Images Table
 -- ###############################################################
 
 CREATE TABLE images (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
   uploaded_by INTEGER REFERENCES users(id) ON DELETE NO ACTION,
   filename VARCHAR(255) NOT NULL,
@@ -257,6 +267,16 @@ CREATE TABLE images (
 
 CREATE INDEX idx_images_book_id ON images(book_id);
 CREATE INDEX idx_images_uploaded_by ON images(uploaded_by);
+
+CREATE TABLE page_images (
+  page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  image_id UUID NOT NULL REFERENCES images(id) ON DELETE RESTRICT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (page_id, image_id)
+);
+
+CREATE INDEX idx_page_images_page_id ON page_images(page_id);
+CREATE INDEX idx_page_images_image_id ON page_images(image_id);
 
 -- ###############################################################
 -- Editor Settings Table
@@ -435,12 +455,12 @@ CREATE TABLE IF NOT EXISTS background_image_categories (
 );
 
 CREATE TABLE IF NOT EXISTS background_images (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   category_id INTEGER NOT NULL REFERENCES background_image_categories(id) ON DELETE RESTRICT,
   description TEXT,
-  format TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('template', 'designer')),
   file_path TEXT,
   thumbnail_path TEXT,
   default_size TEXT,
@@ -457,6 +477,29 @@ CREATE TABLE IF NOT EXISTS background_images (
 );
 
 CREATE INDEX IF NOT EXISTS idx_background_images_category_id ON background_images(category_id);
+
+-- Background Image Templates (uploaded files)
+CREATE TABLE IF NOT EXISTS background_image_templates (
+  id UUID PRIMARY KEY REFERENCES background_images(id) ON DELETE CASCADE,
+  original_filename TEXT,
+  file_size INTEGER,
+  mime_type TEXT,
+  dimensions JSONB,
+  uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Background Image Designs (canvas-created)
+CREATE TABLE IF NOT EXISTS background_image_designs (
+  id UUID PRIMARY KEY REFERENCES background_images(id) ON DELETE CASCADE,
+  canvas_structure JSONB NOT NULL,
+  canvas_width INTEGER DEFAULT 2480,
+  canvas_height INTEGER DEFAULT 3508,
+  version INTEGER DEFAULT 1,
+  last_generated_at TIMESTAMPTZ,
+  generated_image_cache JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_designs_structure ON background_image_designs USING GIN (canvas_structure);
 
 -- ###############################################################
 -- PDF Exports Tables
@@ -595,9 +638,10 @@ CREATE INDEX IF NOT EXISTS idx_sandbox_pages_updated_at ON public.sandbox_pages(
 -- Theme Page Backgrounds
 -- ###############################################################
 
+-- Legacy simple theme backgrounds (1:1 theme to background)
 CREATE TABLE IF NOT EXISTS theme_page_backgrounds (
   theme_id INTEGER PRIMARY KEY REFERENCES themes(id) ON DELETE CASCADE,
-  background_image_id INTEGER NOT NULL REFERENCES background_images(id) ON DELETE RESTRICT,
+  background_image_id UUID NOT NULL REFERENCES background_images(id) ON DELETE RESTRICT,
   size TEXT NOT NULL DEFAULT 'cover' CHECK (size IN ('cover', 'contain', 'stretch', 'contain-repeat')),
   position TEXT NOT NULL DEFAULT 'top-left' CHECK (position IN ('top-left', 'top-right', 'bottom-left', 'bottom-right', 'center')),
   repeat BOOLEAN NOT NULL DEFAULT false,
@@ -608,3 +652,67 @@ CREATE TABLE IF NOT EXISTS theme_page_backgrounds (
 );
 
 CREATE INDEX IF NOT EXISTS idx_theme_page_backgrounds_image ON theme_page_backgrounds(background_image_id);
+
+-- Template backgrounds (uploaded images) per page type
+CREATE TABLE IF NOT EXISTS theme_template_backgrounds (
+  id BIGSERIAL PRIMARY KEY,
+  theme_id INTEGER NOT NULL REFERENCES themes(id) ON DELETE CASCADE,
+  background_image_id UUID NOT NULL REFERENCES background_images(id) ON DELETE CASCADE,
+  page_type TEXT NOT NULL CHECK (page_type IN ('cover', 'left', 'right', 'all')),
+  size TEXT DEFAULT 'cover' CHECK (size IN ('cover', 'contain', 'stretch', 'contain-repeat')),
+  position TEXT DEFAULT 'center' CHECK (position IN ('top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right')),
+  repeat BOOLEAN DEFAULT false,
+  width INTEGER DEFAULT 100 CHECK (width >= 10 AND width <= 200),
+  opacity NUMERIC DEFAULT 1 CHECK (opacity >= 0 AND opacity <= 1),
+  apply_palette BOOLEAN DEFAULT true,
+  palette_mode TEXT DEFAULT 'palette' CHECK (palette_mode IN ('palette', 'monochrome', 'auto', 'standard')),
+  UNIQUE (theme_id, page_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_theme_template_backgrounds_theme ON theme_template_backgrounds(theme_id);
+CREATE INDEX IF NOT EXISTS idx_theme_template_backgrounds_image ON theme_template_backgrounds(background_image_id);
+
+-- Designer backgrounds (canvas-created illustrations) per page type
+CREATE TABLE IF NOT EXISTS theme_designer_backgrounds (
+  id BIGSERIAL PRIMARY KEY,
+  theme_id INTEGER NOT NULL REFERENCES themes(id) ON DELETE CASCADE,
+  background_image_id UUID NOT NULL REFERENCES background_images(id) ON DELETE CASCADE,
+  page_type TEXT NOT NULL CHECK (page_type IN ('cover', 'left', 'right', 'all')),
+  opacity NUMERIC DEFAULT 1 CHECK (opacity >= 0 AND opacity <= 1),
+  UNIQUE (theme_id, page_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_theme_designer_backgrounds_theme ON theme_designer_backgrounds(theme_id);
+CREATE INDEX IF NOT EXISTS idx_theme_designer_backgrounds_image ON theme_designer_backgrounds(background_image_id);
+
+-- Unified view for querying both template and designer backgrounds
+CREATE OR REPLACE VIEW theme_backgrounds_unified AS
+SELECT
+  id,
+  theme_id,
+  background_image_id,
+  page_type,
+  size,
+  position,
+  repeat,
+  width,
+  opacity,
+  apply_palette,
+  palette_mode,
+  'template' AS bg_type
+FROM theme_template_backgrounds
+UNION ALL
+SELECT
+  id,
+  theme_id,
+  background_image_id,
+  page_type,
+  NULL AS size,
+  'fullscreen' AS position,
+  false AS repeat,
+  100 AS width,
+  opacity,
+  false AS apply_palette,
+  'standard' AS palette_mode,
+  'designer' AS bg_type
+FROM theme_designer_backgrounds;

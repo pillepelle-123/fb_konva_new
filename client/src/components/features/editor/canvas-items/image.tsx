@@ -186,72 +186,81 @@ export default function Image(props: ImageProps) {
     }
   };
 
-  // Load existing image when src changes
+  // Load existing image when source data changes
   useEffect(() => {
-    if ((element.type === 'image' || element.type === 'sticker') && element.src) {
-      let src = element.src;
-      const isProtectedImageUrl = src.includes('/api/images/file/');
-      const isProtectedStickerUrl = src.includes('/api/stickers/');
-      const isProtectedBgImageUrl = src.includes('/api/background-images/');
-      const isProtectedUrl = isProtectedImageUrl || isProtectedStickerUrl || isProtectedBgImageUrl;
+    let src: string | undefined;
 
-      // Proxy-URL für Editor: alle Buch-Kollaborateure können Bilder sehen (unabhängig vom Uploader)
-      if (isProtectedImageUrl && state.currentBook?.id != null) {
-        const bookId = String(state.currentBook.id);
-        src = src.replace(/(\/api\/images\/file\/\d+)(\?.*)?$/, (_, base, query) => base + '/for-book/' + bookId + (query || ''));
-      }
-
-      const loadImage = (url: string) => {
-        let imageUrl = url;
-        imageUrl = getAdaptiveImageUrl(imageUrl, {
-          zoom: zoom || 1,
-          enabled: ADAPTIVE_IMAGE_RESOLUTION_ENABLED
-        });
-        const img = new window.Image();
-        const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
-                          url.startsWith('http://127.0.0.1') || url.startsWith('https://127.0.0.1') ||
-                          (!url.startsWith('http://') && !url.startsWith('https://'));
-        if (!isLocalUrl && !url.startsWith('/')) {
-          img.crossOrigin = 'anonymous';
-        }
-        img.onload = () => setImage(img);
-        img.onerror = (error) => {
-          console.warn('Failed to load image, trying fallback:', error);
-          const fallbackImg = new window.Image();
-          fallbackImg.onload = () => setImage(fallbackImg);
-          fallbackImg.onerror = () => console.error('Failed to load image:', url);
-          fallbackImg.src = url;
-        };
-        img.src = imageUrl;
-      };
-
-      if (isProtectedUrl && token) {
-        fetch(src, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-          .then((res) => {
-            if (!res.ok) throw new Error('Failed to fetch image');
-            return res.blob();
-          })
-          .then((blob) => {
-            const objectUrl = URL.createObjectURL(blob);
-            const img = new window.Image();
-            img.onload = () => {
-              setImage(img);
-              URL.revokeObjectURL(objectUrl);
-            };
-            img.onerror = () => {
-              URL.revokeObjectURL(objectUrl);
-              loadImage(src);
-            };
-            img.src = objectUrl;
-          })
-          .catch(() => loadImage(src));
-      } else {
-        loadImage(src);
-      }
-    } else {
-      setImage(null);
+    if (element.type === 'image' && element.imageId) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      src = `${apiUrl}/images/file/${element.imageId}`;
+    } else if ((element.type === 'sticker' || element.type === 'image') && element.src) {
+      src = element.src;
     }
-  }, [element.type, element.src, token, zoom, ADAPTIVE_IMAGE_RESOLUTION_ENABLED, state.currentBook?.id]);
+
+    if (!src) {
+      setImage(null);
+      return;
+    }
+
+    const isProtectedImageUrl = src.includes('/api/images/file/');
+    const isProtectedStickerUrl = src.includes('/api/stickers/');
+    const isProtectedBgImageUrl = src.includes('/api/background-images/');
+    const isProtectedUrl = isProtectedImageUrl || isProtectedStickerUrl || isProtectedBgImageUrl;
+
+    // Proxy-URL für Editor: alle Buch-Kollaborateure können Bilder sehen (unabhängig vom Uploader)
+    if (isProtectedImageUrl && state.currentBook?.id != null) {
+      const bookId = String(state.currentBook.id);
+      src = src.replace(/(\/api\/images\/file\/[^/?]+)(\?.*)?$/, (_, base, query) => base + '/for-book/' + bookId + (query || ''));
+    }
+
+    const loadImage = (url: string) => {
+      let imageUrl = url;
+      imageUrl = getAdaptiveImageUrl(imageUrl, {
+        zoom: zoom || 1,
+        enabled: ADAPTIVE_IMAGE_RESOLUTION_ENABLED
+      });
+      const img = new window.Image();
+      const isLocalUrl = url.startsWith('http://localhost') || url.startsWith('https://localhost') ||
+                        url.startsWith('http://127.0.0.1') || url.startsWith('https://127.0.0.1') ||
+                        (!url.startsWith('http://') && !url.startsWith('https://'));
+      if (!isLocalUrl && !url.startsWith('/')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => setImage(img);
+      img.onerror = (error) => {
+        console.warn('Failed to load image, trying fallback:', error);
+        const fallbackImg = new window.Image();
+        fallbackImg.onload = () => setImage(fallbackImg);
+        fallbackImg.onerror = () => console.error('Failed to load image:', url);
+        fallbackImg.src = url;
+      };
+      img.src = imageUrl;
+    };
+
+    if (isProtectedUrl && token) {
+      fetch(src, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+        .then((res) => {
+          if (!res.ok) throw new Error('Failed to fetch image');
+          return res.blob();
+        })
+        .then((blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          const img = new window.Image();
+          img.onload = () => {
+            setImage(img);
+            URL.revokeObjectURL(objectUrl);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            loadImage(src);
+          };
+          img.src = objectUrl;
+        })
+        .catch(() => loadImage(src));
+    } else {
+      loadImage(src);
+    }
+  }, [element.type, element.imageId, element.src, token, zoom, ADAPTIVE_IMAGE_RESOLUTION_ENABLED, state.currentBook?.id]);
 
   // onTransform Handler direkt auf dem Image-Node - genau wie in der React-Konva-Lösung
   // Basierend auf: https://konvajs.org/docs/sandbox/Scale_Image_To_Fit.html
@@ -299,7 +308,7 @@ export default function Image(props: ImageProps) {
       return {
         status: 'good' as const,
         color: '#22c55e',
-        text: `Druckqualitaet ausreichend (ca. ${estimatedDpi} DPI)`
+        text: `Print quality sufficient (approx. ${estimatedDpi} DPI)`
       };
     }
 
@@ -307,14 +316,14 @@ export default function Image(props: ImageProps) {
       return {
         status: 'warn' as const,
         color: '#f59e0b',
-        text: `Druckqualitaet grenzwertig (ca. ${estimatedDpi} DPI)`
+        text: `Print quality mediocre (approx. ${estimatedDpi} DPI)`
       };
     }
 
     return {
       status: 'bad' as const,
       color: '#ef4444',
-      text: `Druckqualitaet zu niedrig (ca. ${estimatedDpi} DPI)`
+      text: `Print quality too low (approx. ${estimatedDpi} DPI)`
     };
   }, [image, size.width, size.height, element.width, element.height]);
 

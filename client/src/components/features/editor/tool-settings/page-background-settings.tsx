@@ -195,7 +195,10 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     }
   }, [currentPage, currentPage?.background, currentPage?.colorPaletteId, state.currentBook?.colorPaletteId]);
 
-  const paintWithPalette = background.type === 'image' ? background.applyPalette !== false : true;
+  const isDesignerImage =
+    background.type === 'image' && (background as any).backgroundImageType === 'designer';
+  const paintWithPalette =
+    background.type === 'image' && !isDesignerImage ? background.applyPalette !== false : true;
   
   const isPattern = background.type === 'pattern';
   const isImage = background.type === 'image';
@@ -213,7 +216,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const modalApplyDisabled =
     isBackgroundApplyDisabled ??
     (!selectedBackgroundImageId ||
-      selectedBackgroundImageId === (isImage ? background.backgroundImageTemplateId ?? null : null));
+      selectedBackgroundImageId === (isImage ? background.backgroundImageId ?? null : null));
   
   // Get secondary color from current palette or theme
   const getSecondaryColor = (): string => {
@@ -237,10 +240,10 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const handleBackgroundModeChange = (mode: 'color' | 'pattern' | 'image') => {
     // Preserve current opacity value when switching background types
     const currentOpacity = background?.opacity ?? 0.15;
-    // Preserve backgroundImageTemplateId and image settings to restore them when switching back to image
-    const savedImageTemplateId = background?.backgroundImageTemplateId;
-    // Save the image value (URL) when current type is 'image' and no template ID is set (direct upload)
-    const savedImageValue = background?.type === 'image' && !background?.backgroundImageTemplateId 
+    // Preserve backgroundImageId and image settings to restore them when switching back to image
+    const savedImageTemplateId = background?.backgroundImageId;
+    // Save the image value (URL) when current type is 'image' and no background image ID is set (direct upload)
+    const savedImageValue = background?.type === 'image' && !background?.backgroundImageId 
       ? background.value 
       : (background as any)?._savedImageValue; // Use hidden property to preserve direct upload image URL
     const savedImageSize = background?.imageSize;
@@ -253,20 +256,20 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       const colorValue = background?.type === 'pattern' && background?.patternForegroundColor
         ? background.patternForegroundColor
         : getDefaultBackgroundColor();
-      // Preserve backgroundImageTemplateId and image settings when switching to color (for restoration later)
-      // Also preserve image value in a hidden property if it's a direct upload (no template ID)
+      // Preserve backgroundImageId and image settings when switching to color (for restoration later)
+      // Also preserve image value in a hidden property if it's a direct upload (no background image UUID)
       const updateData: any = {
         type: 'color',
         value: colorValue,
         opacity: currentOpacity,
-        backgroundImageTemplateId: savedImageTemplateId,
+        backgroundImageId: savedImageTemplateId,
         imageSize: savedImageSize,
         imageRepeat: savedImageRepeat,
         imagePosition: savedImagePosition,
         imageContainWidthPercent: background?.imageContainWidthPercent,
       };
       // Preserve direct upload image URL in hidden property
-      if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
+      if (background?.type === 'image' && !background?.backgroundImageId && background?.value) {
         updateData._savedImageValue = background.value;
       } else if ((background as any)?._savedImageValue) {
         updateData._savedImageValue = (background as any)._savedImageValue;
@@ -281,7 +284,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         ? background.value
         : getDefaultBackgroundColor();
       const secondaryColor = getSecondaryColor();
-      // Preserve backgroundImageTemplateId and image settings when switching to pattern (for restoration later)
+      // Preserve backgroundImageId and image settings when switching to pattern (for restoration later)
       // patternForegroundColor = Color (main color), patternBackgroundColor = Pattern Color (secondary)
       const updateData: any = {
         type: 'pattern',
@@ -292,14 +295,14 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         patternBackgroundColor: secondaryColor, // Pattern itself uses secondary color
         patternBackgroundOpacity: background?.patternBackgroundOpacity ?? 1, // Preserve existing opacity or default to 1
         opacity: currentOpacity,
-        backgroundImageTemplateId: savedImageTemplateId,
+        backgroundImageId: savedImageTemplateId,
         imageSize: savedImageSize,
         imageRepeat: savedImageRepeat,
         imagePosition: savedImagePosition,
         imageContainWidthPercent: background?.imageContainWidthPercent,
       };
       // Preserve direct upload image URL in hidden property
-      if (background?.type === 'image' && !background?.backgroundImageTemplateId && background?.value) {
+      if (background?.type === 'image' && !background?.backgroundImageId && background?.value) {
         updateData._savedImageValue = background.value;
       } else if ((background as any)?._savedImageValue) {
         updateData._savedImageValue = (background as any)._savedImageValue;
@@ -308,9 +311,12 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       setShowBackgroundImageTemplateSelector(false);
     } else if (mode === 'image') {
       setForceImageMode(true);
-      // If background already has a backgroundImageTemplateId, apply it immediately
-      if (background && (background as any).backgroundImageTemplateId) {
-        const templateId = (background as any).backgroundImageTemplateId;
+      // If background already has a backgroundImageId, apply it immediately
+      if (background && (background as any).backgroundImageId) {
+        const templateId = (background as any).backgroundImageId;
+        // Preserve current applyPalette setting (default to true if not set)
+        const currentApplyPalette = (background as any).applyPalette !== false;
+        const currentPaletteMode = (background as any).paletteMode ?? 'palette';
         // CRITICAL: Always pass imagePosition and imageWidth to preserve theme values
         const imageBackground = applyBackgroundImageTemplate(templateId, {
           imageSize: savedImageSize || background.imageSize || 'cover',
@@ -320,6 +326,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           opacity: currentOpacity,
           backgroundColor: (background as any).backgroundColor,
           backgroundColorOpacity: (background as any).backgroundColorOpacity ?? 1,
+          applyPalette: currentApplyPalette,  // Preserve applyPalette setting
+          paletteMode: currentPaletteMode,    // Preserve paletteMode setting
         });
         if (imageBackground) {
           // CRITICAL: Ensure position and width are preserved even if applyBackgroundImageTemplate doesn't set them
@@ -663,7 +671,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         )}
 
         {/* Color Button for Image mode - background color behind the image */}
-        {backgroundMode === 'image' && (
+        {backgroundMode === 'image' && !isDesignerImage && (
           <div>
             <Button
               variant="outline"
@@ -709,8 +717,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               size="xs"
               onClick={() => {
                 // Set selected image ID to current background image if it exists
-                if (background && background.type === 'image' && background.backgroundImageTemplateId) {
-                  onBackgroundImageSelect?.(background.backgroundImageTemplateId);
+                if (background && background.type === 'image' && background.backgroundImageId) {
+                  onBackgroundImageSelect?.(background.backgroundImageId);
                 }
                 setShowBackgroundImageTemplateSelector(true);
               }}
@@ -719,7 +727,10 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               <Image className="h-4 w-4 mr-2" />
               Select Image
             </Button>
-            {background?.type === 'image' && background.backgroundImageTemplateId && (
+            {background?.type === 'image' && background.backgroundImageId && !isDesignerImage && (() => {
+              const template = getBackgroundImageWithUrl(background.backgroundImageId);
+              const isVectorImage = template?.format === 'vector';
+              return isVectorImage ? (
               <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -727,9 +738,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                     checked={paintWithPalette}
                     onCheckedChange={(checked) => {
                       const usePalette = checked !== false;
-                      if (background?.type === 'image' && background.backgroundImageTemplateId) {
+                      if (background?.type === 'image' && background.backgroundImageId) {
                         if (!usePalette) {
-                          const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
+                          const template = getBackgroundImageWithUrl(background.backgroundImageId);
                           updateBackground({
                             applyPalette: false,
                             value: template?.url ?? background.value,
@@ -737,13 +748,14 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                           });
                           window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
                         } else {
-                          const template = getBackgroundImageWithUrl(background.backgroundImageTemplateId);
+                          const template = getBackgroundImageWithUrl(background.backgroundImageId);
                           const defaultColor = (template as any)?.backgroundColor?.defaultValue ?? getDefaultBackgroundColor();
                           updateBackground({
                             applyPalette: true,
                             paletteMode: background.paletteMode ?? 'palette',
                             backgroundColorEnabled: true,
                             backgroundColor: defaultColor,
+                            value: undefined, // Reset value so resolveBackgroundImageUrl uses backgroundImageId with palette
                           });
                           window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
                         }
@@ -780,12 +792,13 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                   </div>
                 )}
               </div>
-            )}
+              ) : null;
+            })()}
           </div>
         )}
         
         {/* Opacity: for image mode show two sliders (background color + image), otherwise single slider */}
-        {backgroundMode === 'image' ? (
+        {backgroundMode === 'image' && !isDesignerImage ? (
           <>
             <div>
               <Label variant="xs" className="mt-2 block">Background Color Opacity</Label>
@@ -843,7 +856,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         )}
 
         {/* Image Size, Position, and Repeat Controls - only visible when image background is active */}
-        {backgroundMode === 'image' && background && background.type === 'image' && (
+        {backgroundMode === 'image' && background && background.type === 'image' && !isDesignerImage && (
           <div className="space-y-3">
             {/* Image Size Buttons */}
             <div>

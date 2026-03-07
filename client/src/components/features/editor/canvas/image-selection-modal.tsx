@@ -5,7 +5,7 @@ type ImageSelectionModalProps = {
   showImageModal: boolean;
   onImageModalClose: () => void;
   token: string;
-  onImageSelect: (index: number, imageUrl: unknown) => void;
+  onImageSelect: (imageId: string, imageUrl: string) => void;
 };
 
 export const ImageSelectionModal: React.FC<ImageSelectionModalProps> = ({
@@ -36,7 +36,7 @@ export const ImageSelectionModal: React.FC<ImageSelectionModalProps> = ({
             token={token}
             mode="select"
             onImageSelect={onImageSelect}
-            onImageUpload={(imageUrl: unknown) => onImageSelect(0, imageUrl)}
+            onImageUpload={(imageId: string, imageUrl: string) => onImageSelect(imageId, imageUrl)}
             onClose={onImageModalClose}
           />
         </div>

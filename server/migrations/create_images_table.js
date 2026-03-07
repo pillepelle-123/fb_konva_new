@@ -10,8 +10,10 @@ async function createImagesTable() {
     await pool.query('SET search_path TO public');
     
     const result = await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
       CREATE TABLE images (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         book_id INTEGER,
         uploaded_by INTEGER,
         filename VARCHAR(255) NOT NULL,

@@ -43,6 +43,58 @@ export const STYLE_SETTINGS: StyleSettingsConfig = {
       defaultValue: false
     }
   ],
+  freehand: [
+    {
+      key: 'freehandSimplification',
+      type: 'slider',
+      label: 'Smoothness',
+      defaultValue: 0.5,
+      min: 0,
+      max: 1,
+      step: 0.05
+    },
+    {
+      key: 'freehandTaperStart',
+      type: 'slider',
+      label: 'Taper Start',
+      defaultValue: 0.3,
+      min: 0,
+      max: 1,
+      step: 0.1
+    },
+    {
+      key: 'freehandTaperEnd',
+      type: 'slider',
+      label: 'Taper End',
+      defaultValue: 0.3,
+      min: 0,
+      max: 1,
+      step: 0.1
+    },
+    {
+      key: 'freehandPressure',
+      type: 'checkbox',
+      label: 'Simulate Pressure',
+      defaultValue: true
+    },
+    {
+      key: 'freehandSeed',
+      type: 'slider',
+      label: 'Randomness Seed',
+      defaultValue: undefined,
+      min: 0,
+      max: 99999,
+      step: 1
+    }
+  ],
+  'paint-brush': [
+    {
+      key: 'paintBrushWobbly',
+      type: 'checkbox',
+      label: 'Wobbly Edges (Hand-drawn)',
+      defaultValue: false
+    }
+  ]
 };
 
 /**

@@ -1,4 +1,4 @@
-import type { Page } from '../../context/editor-context';
+import type { Page } from '../context/editor-context';
 import { getPalettePartColor } from '../data/templates/color-palettes';
 import { colorPalettes } from '../data/templates/color-palettes';
 import { getThemePaletteId } from './global-themes';

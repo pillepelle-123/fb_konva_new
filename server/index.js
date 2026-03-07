@@ -41,7 +41,7 @@ function normalizePath(p) {
   if (/^\/api\/stickers\?/.test(p)) return 'stickers (list)';
   if (/^\/api\/books\/\d+$/.test(p)) return 'books/:id';
   if (/^\/api\/users\/\d+$/.test(p)) return 'users/:id';
-  if (/^\/api\/images\/file\/\d+$/.test(p)) return 'images/file/:id';
+  if (/^\/api\/images\/file\/[^/]+$/.test(p)) return 'images/file/:id';
   return p.replace(/^\/api/, '').replace(/\d+/g, ':id') || p;
 }
 

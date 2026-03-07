@@ -7,6 +7,7 @@ import type { CanvasElement } from '../context/editor-context';
 import type { Style } from '../../../shared/types/style-types';
 import * as styleEngine from '../../../shared/utils/styles-engine';
 import rough from 'roughjs';
+import { getStroke as perfectFreehandGetStroke } from 'perfect-freehand';
 
 /**
  * StyleRenderer Interface
@@ -52,7 +53,8 @@ function createStyleRenderer(style: Style): StyleRenderer {
       const options = {
         document: typeof document !== 'undefined' ? document : undefined,
         zoom,
-        roughInstance: style === 'rough' ? getRoughInstance() : undefined
+        roughInstance: style === 'rough' ? getRoughInstance() : undefined,
+        getStroke: style === 'freehand' ? perfectFreehandGetStroke : undefined
       };
       return styleEngine.generatePath(element as any, style, options);
     },
@@ -79,7 +81,8 @@ const styleRenderers: Record<Style, StyleRenderer> = {
   marker: createStyleRenderer('marker'),
   crayon: createStyleRenderer('crayon'),
   pencil: createStyleRenderer('pencil'),
-  'paint-brush': createStyleRenderer('paint-brush')
+  'paint-brush': createStyleRenderer('paint-brush'),
+  freehand: createStyleRenderer('freehand')
 };
 
 /**
@@ -99,7 +102,7 @@ export const styles: Record<Style, StyleRenderer> = styleRenderers;
 /**
  * Re-export Style type
  */
-export type { Style } from '../../shared/types/style-types';
+export type { Style } from '../../../shared/types/style-types';
 
 /**
  * Interface for line path generation parameters

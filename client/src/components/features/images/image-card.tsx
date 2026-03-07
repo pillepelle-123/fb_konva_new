@@ -4,7 +4,7 @@ import { Tooltip } from '../../ui/composites/tooltip';
 import { CircleCheckBig, Circle, Trash2, Calendar } from 'lucide-react';
 
 interface ImageData {
-  id: number;
+  id: string;
   filename: string;
   original_name: string;
   book_name?: string;
@@ -19,9 +19,9 @@ interface ImageCardProps {
   isSelected?: boolean;
   mode?: 'select' | 'view';
   onImageClick?: () => void;
-  onImageSelect?: (imageId: number, imageUrl: string) => void;
-  onToggleSelection?: (imageId: number) => void;
-  onDelete?: (imageId: number) => void;
+  onImageSelect?: (imageId: string, imageUrl: string) => void;
+  onToggleSelection?: (imageId: string) => void;
+  onDelete?: (imageId: string) => void;
   getThumbUrl: (image: ImageData) => string;
   getImageUrl: (image: ImageData) => string;
   getFileUrlForCanvas?: (image: ImageData) => string;

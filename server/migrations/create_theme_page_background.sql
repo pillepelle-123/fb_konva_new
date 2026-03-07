@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS theme_page_backgrounds (
   theme_id INTEGER PRIMARY KEY REFERENCES themes(id) ON DELETE CASCADE,
-  background_image_id INTEGER NOT NULL REFERENCES background_images(id) ON DELETE RESTRICT,
+  background_image_id UUID NOT NULL REFERENCES background_images(id) ON DELETE RESTRICT,
   size TEXT NOT NULL DEFAULT 'cover' CHECK (size IN ('cover', 'contain', 'stretch', 'contain-repeat')),
   position TEXT NOT NULL DEFAULT 'top-left' CHECK (position IN ('top-left', 'top-right', 'bottom-left', 'bottom-right', 'center')),
   repeat BOOLEAN NOT NULL DEFAULT false,

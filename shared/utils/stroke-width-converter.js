@@ -13,7 +13,8 @@ const STYLE_STROKE_RANGES = {
   marker: { min: 1, max: 100 },
   crayon: { min: 1, max: 100 },
   pencil: { min: 1, max: 100 },
-  'paint-brush': { min: 1, max: 100 }
+  'paint-brush': { min: 1, max: 100 },
+  freehand: { min: 1, max: 60 }
 };
 
 function commonToActualStrokeWidth(commonWidth, style = 'default') {

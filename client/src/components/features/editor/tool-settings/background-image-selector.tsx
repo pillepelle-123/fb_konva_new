@@ -61,7 +61,7 @@ export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedIma
   }, [allImages, selectedCategory, selectedFormat, searchQuery]);
 
   const currentPage = state.currentBook?.pages[state.activePageIndex];
-  const currentBackgroundImageId = currentPage?.background?.backgroundImageTemplateId;
+  const currentBackgroundImageId = currentPage?.background?.backgroundImageId;
 
   const handleImageSelect = (item: ImageGridItem) => {
     setSelectedImage(item.id);

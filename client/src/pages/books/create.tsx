@@ -254,7 +254,7 @@ export default function BookCreatePage() {
             type: 'image',
             opacity: (pageSettings['backgroundOpacity'] as number) ?? 1,
             value: undefined,
-            backgroundImageTemplateId: bgImage?.['templateId'],
+            backgroundImageId: bgImage?.['templateId'],
             imageSize: (bgImage?.['size'] === 'contain') ? 'contain' : (bgImage?.['size'] === 'cover' ? 'cover' : 'cover'),
             imageRepeat: Boolean(bgImage?.['repeat']),
             imagePosition: (bgImage?.['position'] as string) || 'top-left',

@@ -30,6 +30,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
     style.textContent = `
       [data-sonner-toast] {
         position: relative !important;
+        z-index: 10005 !important;
+      }
+      [data-sonner-toaster] {
+        z-index: 10005 !important;
       }
       [data-sonner-toast] [data-close-button] {
         border: none !important;
@@ -74,6 +78,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           closeButton: "border border-input bg-background hover:bg-secondary hover:text-accent-foreground transition-colors rounded-md",
+          toast: "!z-[10005]",
         },
       }}
       style={
@@ -82,6 +87,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "hsl(var(--popover-foreground))",
           "--normal-border": "hsl(var(--border))",
           "--border-radius": "var(--radius)",
+          zIndex: 10005,
         } as React.CSSProperties
       }
       {...props}

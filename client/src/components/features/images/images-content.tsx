@@ -9,7 +9,7 @@ import { Tooltip } from '../../ui/composites/tooltip';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout, ImageGrid, type ImageGridItem } from '../../shared';
 
 interface ImageData {
-  id: number;
+  id: string;
   filename: string;
   original_name: string;
   book_name?: string;
@@ -24,8 +24,8 @@ interface ImageData {
 
 interface ImagesContentProps {
   token: string;
-  onImageSelect?: (imageId: number, imageUrl: string) => void;
-  onImageUpload?: (imageUrl: string) => void;
+  onImageSelect?: (imageId: string, imageUrl: string) => void;
+  onImageUpload?: (imageId: string, imageUrl: string) => void;
   mode?: 'manage' | 'select';
   onClose?: () => void;
   showAsContent?: boolean;
@@ -43,9 +43,9 @@ export default function ImagesContent({
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number[] | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string[] | null>(null);
   const [lightboxImage, setLightboxImage] = useState<ImageData | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -120,7 +120,7 @@ export default function ImagesContent({
         if (mode === 'select' && onImageUpload && data.images && data.images.length > 0) {
           const firstImage = data.images[0];
           const imageUrl = `${apiUrl}/images/file/${firstImage.id}`;
-          onImageUpload(imageUrl);
+          onImageUpload(firstImage.id, imageUrl);
         }
       } else {
         // Try to parse error message from response
@@ -211,7 +211,7 @@ export default function ImagesContent({
     }
   };
 
-  const handleDeleteImages = async (imageIds: number[]) => {
+  const handleDeleteImages = async (imageIds: string[]) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/images`, {
@@ -231,7 +231,7 @@ export default function ImagesContent({
     }
   };
 
-  const toggleImageSelection = (imageId: number) => {
+  const toggleImageSelection = (imageId: string) => {
     const newSelected = new Set(selectedImages);
     if (newSelected.has(imageId)) {
       newSelected.delete(imageId);

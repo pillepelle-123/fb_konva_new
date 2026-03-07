@@ -118,11 +118,12 @@ function BaseCanvasItem({
     // Determine effective palette: page palette > book palette > theme's default palette
     const effectivePaletteId = pageColorPaletteId ?? bookColorPaletteId ?? bookThemePaletteId;
 
-    if (effectivePaletteId === null) {
+    if (effectivePaletteId === null || effectivePaletteId === undefined) {
       return { paletteId: null as string | null, palette: null as ColorPalette | null };
     }
 
-    const palette = colorPalettes.find((item) => item.id === effectivePaletteId) ?? null;
+    const palette =
+      colorPalettes.find((item) => item.id == effectivePaletteId || String(item.id) === String(effectivePaletteId)) ?? null;
     return { paletteId: effectivePaletteId, palette };
   };
 

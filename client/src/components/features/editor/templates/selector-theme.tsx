@@ -78,6 +78,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
         opacity: backgroundImageConfig.opacity ?? backgroundOpacity,
         backgroundColor: pageColors.backgroundColor,
         backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
+        applyPalette: backgroundImageConfig.applyPalette,
+        paletteMode: backgroundImageConfig.paletteMode,
       });
       if (imageBackground) return { ...imageBackground, pageTheme: themeId };
     }
@@ -131,6 +133,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
             payload: { palette: newThemePalette, pageIndex: state.activePageIndex, applyToAllPages: false, skipHistory: true }
           });
         }
+        // Invalidate background image cache when theme palette changes
+        window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
       }
 
       const newBackground = buildBackground(themeId, state.activePageIndex);
@@ -198,6 +202,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
 
       const historyLabel = getGlobalTheme(selectedTheme)?.name || selectedTheme;
       dispatch({ type: 'SAVE_TO_HISTORY', payload: `Apply Theme "${historyLabel}" to all pages` });
+      // Invalidate background image cache for all pages when theme changes palette
+      window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: {} }));
       hasAppliedRef.current = true;
       onBack();
       return;
@@ -234,6 +240,8 @@ export const SelectorTheme = forwardRef<SelectorThemeRef, SelectorThemeProps>(fu
             payload: { palette: newThemePalette, pageIndex: state.activePageIndex, applyToAllPages: false, skipHistory: true }
           });
         }
+        // Invalidate background image cache when theme palette changes
+        window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
       }
 
       const newBackground = buildBackground(selectedTheme, state.activePageIndex);

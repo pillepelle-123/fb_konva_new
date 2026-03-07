@@ -53,6 +53,11 @@ function generateSignedUrl(imageId, thumb = false, expiresIn = '1h') {
   );
 }
 
+function isUuid(value) {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 // Upload images to local storage (with rate limiting)
 router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 10), async (req, res) => {
   try {
@@ -79,14 +84,15 @@ router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 
         return res.status(400).json({ error: 'Invalid file type. File content does not match image format.' });
       }
 
-      // Secure filename: UUID + validated extension
-      const secureFilename = `${randomUUID()}.${ext}`;
+      // Generate UUID first (will be used as both DB ID and filename)
+      const imageId = randomUUID();
+      const secureFilename = `${imageId}.${ext}`;
       const filePath = path.join(userDir, secureFilename);
       const dbFilePath = `images/${req.user.id}/${secureFilename}`;
 
       fs.writeFileSync(filePath, file.buffer);
 
-      const thumbFilename = `${path.basename(secureFilename, '.' + ext)}_thumb.${ext}`;
+      const thumbFilename = `${imageId}_thumb.${ext}`;
       const thumbPath = path.join(userDir, thumbFilename);
       
       try {
@@ -98,8 +104,8 @@ router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 
       }
       
       const result = await pool.query(
-        'INSERT INTO public.images (book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [finalBookId, req.user.id, secureFilename, file.originalname || secureFilename, dbFilePath]
+        'INSERT INTO public.images (id, book_id, uploaded_by, filename, original_name, file_path) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [imageId, finalBookId, req.user.id, secureFilename, file.originalname || secureFilename, dbFilePath]
       );
       
       const row = result.rows[0];
@@ -122,9 +128,9 @@ router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 
 // Ermöglicht allen Buch-Kollaborateuren, Bilder auf Buchseiten zu sehen (unabhängig vom Uploader)
 router.get('/file/:id/for-book/:bookId', authenticateToken, async (req, res) => {
   try {
-    const imageId = parseInt(req.params.id, 10);
+    const imageId = req.params.id;
     const bookId = parseInt(req.params.bookId, 10);
-    if (isNaN(imageId) || isNaN(bookId)) {
+    if (!isUuid(imageId) || isNaN(bookId)) {
       return res.status(400).json({ error: 'Invalid image or book ID' });
     }
 
@@ -173,8 +179,8 @@ router.get('/file/:id/for-book/:bookId', authenticateToken, async (req, res) => 
 // Access: eigene Bilder ODER Bilder zu Büchern, auf die der User Zugriff hat (Owner/Book-Friend)
 router.get('/file/:id', authenticateToken, async (req, res) => {
   try {
-    const imageId = parseInt(req.params.id, 10);
-    if (isNaN(imageId)) {
+    const imageId = req.params.id;
+    if (!isUuid(imageId)) {
       return res.status(400).json({ error: 'Invalid image ID' });
     }
 
@@ -243,7 +249,7 @@ router.get('/serve', authenticateToken, async (req, res) => {
     }
 
     const { imageId, thumb } = payload;
-    if (!imageId) {
+    if (!isUuid(imageId)) {
       return res.status(400).json({ error: 'Invalid token' });
     }
 
@@ -355,12 +361,31 @@ router.delete('/', authenticateToken, async (req, res) => {
     
     const { imageIds } = req.body;
     
-    if (!imageIds || !Array.isArray(imageIds)) {
+    if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
       return res.status(400).json({ error: 'Image IDs required' });
     }
 
+    if (!imageIds.every(isUuid)) {
+      return res.status(400).json({ error: 'Image IDs must be UUIDs' });
+    }
+
+    const blockedResult = await pool.query(
+      `SELECT DISTINCT pi.image_id
+       FROM public.page_images pi
+       JOIN public.images i ON i.id = pi.image_id
+       WHERE pi.image_id = ANY($1::uuid[]) AND i.uploaded_by = $2`,
+      [imageIds, req.user.id]
+    );
+
+    if (blockedResult.rows.length > 0) {
+      return res.status(409).json({
+        error: 'Cannot delete images that are still used on pages',
+        imageIds: blockedResult.rows.map((row) => row.image_id)
+      });
+    }
+
     const imagesResult = await pool.query(
-      'SELECT * FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
+      'SELECT * FROM public.images WHERE id = ANY($1::uuid[]) AND uploaded_by = $2',
       [imageIds, req.user.id]
     );
     
@@ -386,7 +411,7 @@ router.delete('/', authenticateToken, async (req, res) => {
     }
     
     await pool.query(
-      'DELETE FROM public.images WHERE id = ANY($1) AND uploaded_by = $2',
+      'DELETE FROM public.images WHERE id = ANY($1::uuid[]) AND uploaded_by = $2',
       [imageIds, req.user.id]
     );
     

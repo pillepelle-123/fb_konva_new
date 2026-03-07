@@ -11,33 +11,62 @@ const storageSchema = z.object({
   thumbnailUrl: z.string().nullable().optional(),
 })
 
-const defaultsSchema = z.object({
-  size: z.string().nullable(),
-  position: z.string().nullable(),
-  repeat: z.string().nullable(),
-  width: z.number().nullable(),
-  opacity: z.number(),
-  backgroundColor: z.record(z.any()).nullable(),
-})
+const normalizedDefaultsFallback = {
+  size: null,
+  position: null,
+  repeat: null,
+  width: null,
+  opacity: 1,
+  backgroundColor: null,
+}
+
+const defaultsSchema = z
+  .object({
+    size: z.string().nullable().optional(),
+    position: z.string().nullable().optional(),
+    repeat: z.string().nullable().optional(),
+    width: z.number().nullable().optional(),
+    opacity: z.number().nullable().optional(),
+    backgroundColor: z.record(z.any()).nullable().optional(),
+  })
+  .transform((value) => ({
+    size: value.size ?? null,
+    position: value.position ?? null,
+    repeat: value.repeat ?? null,
+    width: value.width ?? null,
+    opacity: value.opacity ?? 1,
+    backgroundColor: value.backgroundColor ?? null,
+  }))
 
 const adminBackgroundImageCategorySchema = z.object({
   id: z.number(),
   name: z.string(),
   slug: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.string().optional().transform((value) => value ?? ''),
+  updatedAt: z.string().optional().transform((value) => value ?? ''),
 })
 
 const adminBackgroundImageSchema = z.object({
-  id: z.union([z.string(), z.number()]),
+  id: z.union([z.string(), z.number()]).transform((value) => String(value)),
   slug: z.string(),
   name: z.string(),
-  description: z.string().nullable(),
-  category: adminBackgroundImageCategorySchema,
-  format: z.string(),
+  description: z.string().nullable().optional().transform((value) => value ?? null),
+  category: adminBackgroundImageCategorySchema
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value ?? {
+        id: 0,
+        name: 'Uncategorized',
+        slug: 'uncategorized',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ),
+  format: z.string().nullable().optional().transform((value) => value ?? 'designer'),
   storage: storageSchema,
-  defaults: defaultsSchema,
-  paletteSlots: z.string().nullable(),
+  defaults: defaultsSchema.optional().transform((value) => value ?? normalizedDefaultsFallback),
+  paletteSlots: z.string().nullable().optional().transform((value) => value ?? null),
   tags: z.array(z.string()),
   metadata: z.record(z.any()),
   createdAt: z.string(),

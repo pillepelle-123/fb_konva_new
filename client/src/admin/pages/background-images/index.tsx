@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Download, Edit, FileDown, Image as ImageIcon, Trash2, Upload } from 'lucide-react'
+import { Download, Edit, FileDown, Image as ImageIcon, Plus, Trash2, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import {
   Badge,
   Button,
@@ -32,6 +33,7 @@ function formatDate(value: string) {
 }
 
 export default function AdminBackgroundImagesPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -70,7 +72,14 @@ export default function AdminBackgroundImagesPage() {
 
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data])
 
-  const tableData = imagesQuery.data?.items ?? []
+  const tableData = useMemo<AdminBackgroundImage[]>(
+    () =>
+      (imagesQuery.data?.items ?? []).map((image) => ({
+        ...image,
+        id: String(image.id),
+      })) as AdminBackgroundImage[],
+    [imagesQuery.data?.items],
+  )
 
   const categoryOptions = useMemo(
     () =>
@@ -202,6 +211,10 @@ export default function AdminBackgroundImagesPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/admin/background-images/designer/new')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New designer background
+          </Button>
           <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
             <FileDown className="h-4 w-4" />
             Import
@@ -274,8 +287,14 @@ export default function AdminBackgroundImagesPage() {
         bulkActions={bulkActions}
         searchPlaceholder="Filter results using the search field above..."
         emptyState={{
-          title: imagesQuery.isLoading ? 'Loading background images...' : 'No background images found',
-          description: 'Upload new files or adjust your filters.',
+          title: imagesQuery.isLoading
+            ? 'Loading background images...'
+            : imagesQuery.isError
+              ? 'Failed to load background images'
+              : 'No background images found',
+          description: imagesQuery.isError
+            ? 'Please check API/server logs and try again.'
+            : 'Upload new files or adjust your filters.',
           actionLabel: 'Open upload dialog',
           onAction: () => setIsUploadOpen(true),
         }}
