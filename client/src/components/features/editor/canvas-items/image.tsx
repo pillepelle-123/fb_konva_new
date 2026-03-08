@@ -288,6 +288,37 @@ export default function Image(props: ImageProps) {
     return getCrop(image, size, clipPosition);
   }, [image, size, element.imageClipPosition]);
 
+  // Stickers should always stay fully visible. Use contain-fit instead of cover-crop
+  // to avoid subtle edge clipping after repeated scale/rotate operations.
+  const stickerContainLayout = useMemo(() => {
+    if (!image || element.type !== 'sticker') return null;
+
+    const boxWidth = element.width || 150;
+    const boxHeight = element.height || 100;
+    const imageRatio = image.width / image.height;
+    const boxRatio = boxWidth / boxHeight;
+
+    if (!Number.isFinite(imageRatio) || imageRatio <= 0 || !Number.isFinite(boxRatio) || boxRatio <= 0) {
+      return { x: 0, y: 0, width: boxWidth, height: boxHeight };
+    }
+
+    let drawWidth = boxWidth;
+    let drawHeight = boxHeight;
+
+    if (imageRatio > boxRatio) {
+      drawHeight = boxWidth / imageRatio;
+    } else {
+      drawWidth = boxHeight * imageRatio;
+    }
+
+    return {
+      x: (boxWidth - drawWidth) / 2,
+      y: (boxHeight - drawHeight) / 2,
+      width: drawWidth,
+      height: drawHeight,
+    };
+  }, [image, element.type, element.width, element.height]);
+
   const imageQuality = useMemo(() => {
     if (!image) return null;
 
@@ -486,13 +517,15 @@ export default function Image(props: ImageProps) {
             <KonvaImage
               ref={imageRef}
               image={image}
-              width={element.width || 150}
-              height={element.height || 100}
+              x={stickerContainLayout?.x || 0}
+              y={stickerContainLayout?.y || 0}
+              width={stickerContainLayout?.width || element.width || 150}
+              height={stickerContainLayout?.height || element.height || 100}
               cornerRadius={element.cornerRadius || 0}
               opacity={element.imageOpacity !== undefined ? element.imageOpacity : 1}
               listening={false}
               onTransform={handleTransform}
-              {...(crop ? {
+              {...(element.type !== 'sticker' && crop ? {
                 cropX: crop.cropX,
                 cropY: crop.cropY,
                 cropWidth: crop.cropWidth,

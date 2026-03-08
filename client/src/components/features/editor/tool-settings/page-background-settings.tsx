@@ -16,7 +16,7 @@ import type { PaletteColorSlot } from '../../../../utils/sandbox-utils';
 import { Slider } from '../../../ui/primitives/slider';
 import { Label } from '../../../ui/primitives/label';
 import { getGlobalThemeDefaults, getThemePaletteId } from '../../../../utils/global-themes';
-import { applyBackgroundImageTemplate, getBackgroundImageWithUrl } from '../../../../utils/background-image-utils';
+import { applyBackgroundImageTemplate, getBackgroundImageUrl, getBackgroundImageWithUrl } from '../../../../utils/background-image-utils';
 import { getActiveTemplateIds } from '../../../../utils/template-inheritance';
 import { Modal } from '../../../ui/overlays/modal';
 import { BackgroundImageSelector } from './background-image-selector';
@@ -40,6 +40,50 @@ interface PageBackgroundSettingsProps {
   isSandboxMode?: boolean;
   sandbox?: SandboxContextValue;
 }
+
+type PageBackgroundWithSavedImage = PageBackground & {
+  _savedImageValue?: string;
+};
+
+type TemplateWithDefaultBackground = {
+  backgroundColor?: {
+    defaultValue?: string;
+  };
+};
+
+const getSavedImageValue = (bg?: PageBackground): string | undefined => {
+  return (bg as PageBackgroundWithSavedImage | undefined)?._savedImageValue;
+};
+
+const withSavedImageValue = (bg: PageBackground): PageBackgroundWithSavedImage => {
+  return bg as PageBackgroundWithSavedImage;
+};
+
+const getTemplateDefaultBackgroundColor = (template: unknown): string | undefined => {
+  if (!template || typeof template !== 'object') {
+    return undefined;
+  }
+  return (template as TemplateWithDefaultBackground).backgroundColor?.defaultValue;
+};
+
+const isBackgroundDebugEnabled = (): boolean => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const value = window.localStorage.getItem('debug.background.palette');
+    return value === '1' || value === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const debugBackground = (label: string, data?: unknown): void => {
+  if (!isBackgroundDebugEnabled()) return;
+  if (data !== undefined) {
+    console.log(`[BG-DEBUG][settings] ${label}`, data);
+    return;
+  }
+  console.log(`[BG-DEBUG][settings] ${label}`);
+};
 
 export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const {
@@ -90,8 +134,17 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       }
       setPendingImageBackgroundColor((pending) => {
         if (pending) {
+          // Check current background state BEFORE updateBackground
+          const currentBg = state.currentBook?.pages[state.activePageIndex]?.background;
+          const shouldInvalidateCache = currentBg?.type === 'image' && currentBg.applyPalette !== false;
           updateBackground({ backgroundColor: pending, backgroundColorEnabled: true });
-          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+          // Only invalidate cache if palette is applied (image URL will change)
+          // When applyPalette is false, backgroundColor doesn't affect the image URL
+          if (shouldInvalidateCache) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+            }, 0);
+          }
         }
         return null;
       });
@@ -101,12 +154,13 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         clearTimeout(imageBgColorDebounceRef.current);
       }
     };
-  }, [showColorSelector]);
+  }, [showColorSelector, state.activePageIndex, state.currentBook]);
 
   const updateBackground = (updates: Partial<PageBackground>, skipHistory = true) => {
     const currentPage = state.currentBook?.pages[state.activePageIndex];
     const background = currentPage?.background || { type: 'color', value: '#ffffff', opacity: 1 };
-    
+    const backgroundWithSavedImage = withSavedImageValue(background);
+
     // CRITICAL: If type is changing, create a clean object without type-specific properties from old background
     // This prevents pattern properties from contaminating image backgrounds, etc.
     let newBackground: PageBackground;
@@ -121,20 +175,47 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         ...(background.imagePosition && { imagePosition: background.imagePosition }),
         ...(background.imageContainWidthPercent !== undefined && { imageContainWidthPercent: background.imageContainWidthPercent }),
         // Preserve palette settings for image backgrounds
-        ...((background as any).applyPalette !== undefined && { applyPalette: (background as any).applyPalette }),
-        ...((background as any).paletteMode && { paletteMode: (background as any).paletteMode }),
-        ...((background as any).backgroundColor && { backgroundColor: (background as any).backgroundColor }),
-        ...((background as any).backgroundColorEnabled !== undefined && { backgroundColorEnabled: (background as any).backgroundColorEnabled }),
-        ...((background as any).backgroundColorOpacity !== undefined && { backgroundColorOpacity: (background as any).backgroundColorOpacity }),
+        ...(background.applyPalette !== undefined && { applyPalette: background.applyPalette }),
+        ...(background.paletteMode && { paletteMode: background.paletteMode }),
+        ...(background.backgroundColor && { backgroundColor: background.backgroundColor }),
+        ...(background.backgroundColorEnabled !== undefined && { backgroundColorEnabled: background.backgroundColorEnabled }),
+        ...(background.backgroundColorOpacity !== undefined && { backgroundColorOpacity: background.backgroundColorOpacity }),
         // Hidden property for direct upload image URLs
-        ...((background as any)._savedImageValue && { _savedImageValue: (background as any)._savedImageValue }),
+        ...(backgroundWithSavedImage._savedImageValue && { _savedImageValue: backgroundWithSavedImage._savedImageValue }),
       };
       newBackground = { ...preservedProperties, ...updates } as PageBackground;
     } else {
       // Type is not changing - merge with existing background
       newBackground = { ...background, ...updates };
     }
-    
+
+    if (
+      updates.applyPalette !== undefined ||
+      updates.paletteMode !== undefined ||
+      updates.value !== undefined ||
+      updates.backgroundImageId !== undefined
+    ) {
+      debugBackground('updateBackground dispatch', {
+        pageIndex: state.activePageIndex,
+        skipHistory,
+        updates,
+        before: {
+          type: background.type,
+          applyPalette: background.applyPalette,
+          paletteMode: background.paletteMode,
+          valuePrefix: typeof background.value === 'string' ? background.value.slice(0, 80) : undefined,
+          backgroundImageId: background.backgroundImageId,
+        },
+        after: {
+          type: newBackground.type,
+          applyPalette: newBackground.applyPalette,
+          paletteMode: newBackground.paletteMode,
+          valuePrefix: typeof newBackground.value === 'string' ? newBackground.value.slice(0, 80) : undefined,
+          backgroundImageId: newBackground.backgroundImageId,
+        },
+      });
+    }
+
     dispatch({
       type: 'UPDATE_PAGE_BACKGROUND',
       payload: { pageIndex: state.activePageIndex, background: newBackground, skipHistory }
@@ -224,7 +305,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   }, [currentPage, currentPage?.background, currentPage?.colorPaletteId, state.currentBook?.colorPaletteId]);
 
   const isDesignerImage =
-    background.type === 'image' && (background as any).backgroundImageType === 'designer';
+    background.type === 'image' && background.backgroundImageType === 'designer';
   const paintWithPalette =
     background.type === 'image' && !isDesignerImage ? background.applyPalette !== false : true;
   
@@ -271,9 +352,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     // Preserve backgroundImageId and image settings to restore them when switching back to image
     const savedImageTemplateId = background?.backgroundImageId;
     // Save the image value (URL) when current type is 'image' and no background image ID is set (direct upload)
-    const savedImageValue = background?.type === 'image' && !background?.backgroundImageId 
-      ? background.value 
-      : (background as any)?._savedImageValue; // Use hidden property to preserve direct upload image URL
+    const savedImageValue = background?.type === 'image' && !background?.backgroundImageId
+      ? background.value
+      : getSavedImageValue(background); // Use hidden property to preserve direct upload image URL
     const savedImageSize = background?.imageSize;
     const savedImageRepeat = background?.imageRepeat;
     const savedImagePosition = background?.imagePosition;
@@ -287,7 +368,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       // Preserve backgroundImageId and image settings when switching to color (for restoration later)
       // Also preserve image value in a hidden property if it's a direct upload (no background image UUID)
       // CRITICAL: Only include properties relevant to 'color' type, don't copy all old properties
-      const updateData: PageBackground = {
+      const updateData = withSavedImageValue({
         type: 'color',
         value: colorValue,
         opacity: currentOpacity,
@@ -297,12 +378,12 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         imageRepeat: savedImageRepeat,
         imagePosition: savedImagePosition,
         imageContainWidthPercent: background?.imageContainWidthPercent,
-      } as any;
+      });
       // Preserve direct upload image URL in hidden property
       if (background?.type === 'image' && !background?.backgroundImageId && background?.value) {
-        (updateData as any)._savedImageValue = background.value;
-      } else if ((background as any)?._savedImageValue) {
-        (updateData as any)._savedImageValue = (background as any)._savedImageValue;
+        updateData._savedImageValue = background.value;
+      } else if (getSavedImageValue(background)) {
+        updateData._savedImageValue = getSavedImageValue(background);
       }
       updateBackground(updateData);
       setShowPatternSettings(false);
@@ -317,7 +398,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
       // Preserve backgroundImageId and image settings when switching to pattern (for restoration later)
       // patternForegroundColor = Color (main color), patternBackgroundColor = Pattern Color (secondary)
       // CRITICAL: Only include properties relevant to 'pattern' type, don't copy all old properties
-      const updateData: PageBackground = {
+      const updateData = withSavedImageValue({
         type: 'pattern',
         value: 'dots',
         patternSize: 6,
@@ -332,23 +413,23 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         imageRepeat: savedImageRepeat,
         imagePosition: savedImagePosition,
         imageContainWidthPercent: background?.imageContainWidthPercent,
-      } as any;
+      });
       // Preserve direct upload image URL in hidden property
       if (background?.type === 'image' && !background?.backgroundImageId && background?.value) {
-        (updateData as any)._savedImageValue = background.value;
-      } else if ((background as any)?._savedImageValue) {
-        (updateData as any)._savedImageValue = (background as any)._savedImageValue;
+        updateData._savedImageValue = background.value;
+      } else if (getSavedImageValue(background)) {
+        updateData._savedImageValue = getSavedImageValue(background);
       }
       updateBackground(updateData);
       setShowBackgroundImageTemplateSelector(false);
     } else if (mode === 'image') {
       setForceImageMode(true);
       // If background already has a backgroundImageId, apply it immediately
-      if (background && (background as any).backgroundImageId) {
-        const templateId = (background as any).backgroundImageId;
+      if (background && background.backgroundImageId) {
+        const templateId = background.backgroundImageId;
         // Preserve current applyPalette setting (default to true if not set)
-        const currentApplyPalette = (background as any).applyPalette !== false;
-        const currentPaletteMode = (background as any).paletteMode ?? 'palette';
+        const currentApplyPalette = background.applyPalette !== false;
+        const currentPaletteMode = 'monochrome';
         // CRITICAL: Always pass imagePosition and imageWidth to preserve theme values
         const imageBackground = applyBackgroundImageTemplate(templateId, {
           imageSize: savedImageSize || background.imageSize || 'cover',
@@ -356,10 +437,10 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           imagePosition: savedImagePosition || background.imagePosition, // Preserve existing position
           imageWidth: background.imageContainWidthPercent, // Preserve existing width
           opacity: currentOpacity,
-          backgroundColor: (background as any).backgroundColor,
-          backgroundColorOpacity: (background as any).backgroundColorOpacity ?? 1,
+          backgroundColor: background.backgroundColor,
+          backgroundColorOpacity: background.backgroundColorOpacity ?? 1,
           applyPalette: currentApplyPalette,  // Preserve applyPalette setting
-          paletteMode: currentPaletteMode,    // Preserve paletteMode setting
+          paletteMode: currentPaletteMode,
         });
         if (imageBackground) {
           // CRITICAL: Ensure position and width are preserved even if applyBackgroundImageTemplate doesn't set them
@@ -372,9 +453,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           updateBackground(imageBackground);
         }
         setShowBackgroundImageTemplateSelector(false);
-      } else if (savedImageValue || (background as any)?._savedImageValue) {
+      } else if (savedImageValue || getSavedImageValue(background)) {
         // Restore saved image URL value (direct image, not template)
-        const imageUrl = savedImageValue || (background as any)?._savedImageValue;
+        const imageUrl = (savedImageValue || getSavedImageValue(background)) as string;
         const colorValue = background?.type === 'color' && typeof background?.value === 'string'
           ? background.value
           : getDefaultBackgroundColor();
@@ -382,9 +463,9 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           type: 'image',
           value: imageUrl,
           opacity: currentOpacity,
-          backgroundColor: (background as any).backgroundColor ?? colorValue,
-          backgroundColorEnabled: (background as any).backgroundColorEnabled ?? true,
-          backgroundColorOpacity: (background as any).backgroundColorOpacity ?? 1,
+          backgroundColor: background.backgroundColor ?? colorValue,
+          backgroundColorEnabled: background.backgroundColorEnabled ?? true,
+          backgroundColorOpacity: background.backgroundColorOpacity ?? 1,
           imageSize: savedImageSize || 'cover',
           imageRepeat: savedImageRepeat || false,
           imagePosition: savedImagePosition || 'top-left',
@@ -409,7 +490,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           imageRepeat: savedImageRepeat || false,
           imagePosition: savedImagePosition || 'top-left',
           imageContainWidthPercent: background?.imageContainWidthPercent || 100,
-        } as any;
+        };
         updateBackground(imageBackground);
         setShowBackgroundImageTemplateSelector(false);
       }
@@ -486,9 +567,19 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
           if (imageBgColorDebounceRef.current) clearTimeout(imageBgColorDebounceRef.current);
           imageBgColorDebounceRef.current = setTimeout(() => {
             imageBgColorDebounceRef.current = null;
+            // Check BEFORE updateBackground whether palette is applied
+            // (after update, we might read stale state due to async updates)
+            const shouldInvalidateCache = background.type === 'image' && background.applyPalette !== false;
             updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
             setPendingImageBackgroundColor(null);
-            window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+            // Only invalidate cache if palette is applied (image URL will change)
+            // When applyPalette is false, backgroundColor doesn't affect the image URL
+            if (shouldInvalidateCache) {
+              // Defer cache invalidation to next tick so state update completes first
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+              }, 0);
+            }
           }, 200);
           break;
         }
@@ -720,8 +811,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                 className="w-4 h-4 mr-2 rounded border border-border"
                 style={{
                   backgroundColor:
-                    background?.type === 'image' && !!(background as any).backgroundColorEnabled && (background as any).backgroundColor
-                      ? (background as any).backgroundColor
+                    background?.type === 'image' && !!background.backgroundColorEnabled && background.backgroundColor
+                      ? background.backgroundColor
                       : getDefaultBackgroundColor()
                 }}
               />
@@ -777,23 +868,58 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                       if (background?.type === 'image' && background.backgroundImageId) {
                         if (!usePalette) {
                           const template = getBackgroundImageWithUrl(background.backgroundImageId);
+                          // Try multiple fallbacks to ensure we have a valid URL
+                          let directUrl = template?.url;
+                          if (!directUrl) {
+                            directUrl = getBackgroundImageUrl(background.backgroundImageId, undefined, false);
+                          }
+                          if (!directUrl) {
+                            // Last resort: deterministic non-palette endpoint for this image id.
+                            directUrl = `/api/background-images/${encodeURIComponent(background.backgroundImageId)}/file`;
+                          }
+                          // Never fallback to data URLs here, otherwise palette-colored image can persist.
+                          const valueFallback =
+                            background.value && !background.value.startsWith('data:')
+                              ? background.value
+                              : undefined;
+                          const finalUrl = directUrl || valueFallback;
+                          if (!finalUrl) {
+                            console.error('[PageBackgroundSettings] Failed to resolve direct URL when disabling palette', {
+                              backgroundImageId: background.backgroundImageId,
+                              hasTemplate: !!template,
+                              templateUrl: template?.url,
+                              backgroundValue: background.value
+                            });
+                          }
+                          
                           updateBackground({
                             applyPalette: false,
-                            value: template?.url ?? background.value,
-                            backgroundColorEnabled: false,
+                            // Always keep a direct image URL when palette processing is disabled.
+                            value: finalUrl,
+                            // Keep the page background color state untouched when disabling palette painting.
+                            backgroundColorEnabled: background.backgroundColorEnabled ?? true,
                           });
-                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+                          // No cache invalidation needed: switching from palette to non-palette
+                          // changes the URL completely (data: URL vs direct URL), so they are
+                          // separate cache entries. The old palette entry will simply be unused.
                         } else {
                           const template = getBackgroundImageWithUrl(background.backgroundImageId);
-                          const defaultColor = (template as any)?.backgroundColor?.defaultValue ?? getDefaultBackgroundColor();
+                          // Re-enabling palette should keep the user's chosen page background color.
+                          // Fallback to template default only when no user color exists yet.
+                          const preservedBackgroundColor =
+                            background.backgroundColor ??
+                            getTemplateDefaultBackgroundColor(template) ??
+                            getDefaultBackgroundColor();
                           updateBackground({
                             applyPalette: true,
-                            paletteMode: background.paletteMode ?? 'palette',
-                            backgroundColorEnabled: true,
-                            backgroundColor: defaultColor,
+                            paletteMode: 'monochrome',
+                            backgroundColorEnabled: background.backgroundColorEnabled ?? true,
+                            backgroundColor: preservedBackgroundColor,
                             value: undefined, // Reset value so resolveBackgroundImageUrl uses backgroundImageId with palette
                           });
-                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
+                          // No cache invalidation needed: switching from non-palette to palette
+                          // changes the URL completely (direct URL vs data: URL), so they are
+                          // separate cache entries. The old non-palette entry stays in cache for fast re-toggle.
                         }
                       } else {
                         updateBackground({ applyPalette: usePalette });
@@ -804,35 +930,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                     Paint with Color Palette
                   </label>
                 </div>
-                {paintWithPalette && (
-                  <div className="pl-6">
-                    <Label variant="xs" className="mb-1 block text-muted-foreground">Palette Mode</Label>
-                    <div className="flex gap-1">
-                      <Button
-                        variant={(background.paletteMode ?? 'palette') === 'palette' ? 'default' : 'outline'}
-                        size="xs"
-                        onClick={() => {
-                          updateBackground({ paletteMode: 'palette' });
-                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
-                        }}
-                        className="text-xs"
-                      >
-                        Palette
-                      </Button>
-                      <Button
-                        variant={(background.paletteMode ?? 'palette') === 'monochrome' ? 'default' : 'outline'}
-                        size="xs"
-                        onClick={() => {
-                          updateBackground({ paletteMode: 'monochrome' });
-                          window.dispatchEvent(new CustomEvent('invalidateBackgroundImageCache', { detail: { pageIndex: state.activePageIndex } }));
-                        }}
-                        className="text-xs"
-                      >
-                        Monochrom
-                      </Button>
-                    </div>
-                  </div>
-                )}
+
               </div>
               ) : null;
             })()}

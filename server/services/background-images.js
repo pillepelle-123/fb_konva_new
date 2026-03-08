@@ -192,7 +192,7 @@ async function listBackgroundImages({
   categorySlug,
   sort = 'updated_at',
   order = 'desc',
-}) {
+} = {}) {
   const offset = (page - 1) * pageSize
   const filters = []
   const values = []

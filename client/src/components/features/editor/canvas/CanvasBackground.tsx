@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Rect, Group, Image as KonvaImage } from 'react-konva';
 import { createPatternTile } from './canvas-utils';
 import { DesignerBackgroundGroup } from './DesignerBackgroundGroup';
@@ -64,12 +64,45 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
   const mirrorBackground = Boolean(backgroundTransform?.mirror);
   const { paletteId, palette } = getPaletteForPage(page);
   const normalizedPalette = palette || undefined;
+  const debugEnabled = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const value = window.localStorage.getItem('debug.background.palette');
+      return value === '1' || value === 'true';
+    } catch {
+      return false;
+    }
+  })();
   const palettePatternStroke =
     getPalettePartColor(normalizedPalette, 'pagePattern', 'primary', '#666666') || '#666666';
   const palettePatternFill =
     getPalettePartColor(normalizedPalette, 'pageBackground', 'background', 'transparent') || 'transparent';
   const pageBackgroundColor =
     getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
+
+  // Pre-calculate imageUrl (before early returns)
+  // Note: Preloading is handled by parent canvas.tsx to ensure proper cache state updates
+  let precomputedImageUrl: string | undefined;
+  if (background?.type === 'image' && !hasDesignerCanvasPayload(background)) {
+    const opts = {
+      paletteId,
+      paletteColors: palette?.colors,
+      palette: palette ?? undefined,
+      pageBackgroundColor,
+    };
+    precomputedImageUrl = resolveBackgroundImageUrl(background, opts);
+    
+    if (!precomputedImageUrl && background.backgroundImageId) {
+      precomputedImageUrl = resolveBackgroundImageUrl(background, {
+        paletteId: null,
+        paletteColors: undefined
+      });
+    }
+    
+    if (!precomputedImageUrl) {
+      precomputedImageUrl = background.value;
+    }
+  }
 
   if (!background) return null;
 
@@ -145,31 +178,14 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       );
     }
 
-    // Resolve image URL (handles both template and direct URLs)
-    const opts = {
-      paletteId,
-      paletteColors: palette?.colors,
-      palette: palette ?? undefined,
-      pageBackgroundColor,
-    };
-    let imageUrl = resolveBackgroundImageUrl(background, opts);
-
-    // If URL is undefined and we have a background image UUID, try without palette as fallback
-    if (!imageUrl && background.backgroundImageId) {
-      imageUrl = resolveBackgroundImageUrl(background, {
-        paletteId: null,
-        paletteColors: undefined
-      });
-    }
-
-    // Final fallback to direct value
-    if (!imageUrl) {
-      imageUrl = background.value;
-    }
+    // Use precomputed imageUrl from above
+    const imageUrl = precomputedImageUrl;
 
     if (!imageUrl) {
       return null;
     }
+
+
 
     // Check if this is a template background that needs background color
     const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
@@ -187,16 +203,66 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
         ? cacheEntry?.full
         : cacheEntry?.preview || cacheEntry?.full;
 
-    if (displayImage?.complete) {
+    // Only save as fallback if the image matches the current URL
+    if (displayImage?.complete && displayImage.src === imageUrl) {
       lastDisplayedImageRef.current = displayImage;
     }
-    const fallbackImage = (!displayImage || !displayImage.complete) ? lastDisplayedImageRef.current : null;
+    
+    // Only use fallback if it matches the current URL (prevent showing stale palette colors)
+    const fallbackCandidate = (!displayImage || !displayImage.complete) ? lastDisplayedImageRef.current : null;
+    const fallbackMatchesUrl = fallbackCandidate?.complete && fallbackCandidate.src === imageUrl;
+    const fallbackImage = fallbackMatchesUrl ? fallbackCandidate : null;
 
     if (!displayImage || !displayImage.complete) {
       if (fallbackImage?.complete) {
         const img = fallbackImage;
         const imageWidth = img.naturalWidth || img.width || 1;
         const imageHeight = img.naturalHeight || img.height || 1;
+        const fallbackImageOpacity = background.opacity ?? 1;
+        if (background.imageSize === 'contain' && !background.imageRepeat) {
+          const widthPercent = background.imageContainWidthPercent ?? 100;
+          const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
+          const scale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);
+          const scaledImageWidth = imageWidth * scale;
+          const scaledImageHeight = imageHeight * scale;
+          const position = background.imagePosition || 'top-left';
+
+          const horizontalSpace = canvasWidth - scaledImageWidth;
+          const verticalSpace = canvasHeight - scaledImageHeight;
+
+          const isRight = position.endsWith('right');
+          const isBottom = position.startsWith('bottom');
+
+          const imageX = offsetX + (isRight ? horizontalSpace : 0);
+          const imageY = pageOffsetY + (isBottom ? verticalSpace : 0);
+          const finalWidth = scaledImageWidth * transformScale;
+          const finalHeight = scaledImageHeight * transformScale;
+
+          return (
+            <Group listening={false}>
+              <Rect
+                x={offsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill={baseBackgroundColor}
+                opacity={backgroundColorOpacity}
+                listening={false}
+              />
+              <KonvaImage
+                image={img}
+                x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
+                y={imageY + transformOffsetY}
+                width={finalWidth}
+                height={finalHeight}
+                opacity={fallbackImageOpacity}
+                listening={false}
+                scaleX={mirrorBackground ? -1 : 1}
+                scaleY={1}
+              />
+            </Group>
+          );
+        }
         let fillPatternScaleX = 1;
         let fillPatternScaleY = 1;
         let fillPatternOffsetX = transformOffsetX;

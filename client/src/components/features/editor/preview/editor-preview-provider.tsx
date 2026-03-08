@@ -91,7 +91,7 @@ export function EditorPreviewProvider({
           backgroundColor: pageColors.backgroundColor,
           backgroundColorOpacity: theme?.pageSettings?.backgroundOpacity ?? 1,
           applyPalette: backgroundImageConfig.applyPalette ?? true,
-          paletteMode: backgroundImageConfig.paletteMode ?? 'palette',
+          paletteMode: backgroundImageConfig.paletteMode ?? 'monochrome',
         });
         if (imageBackground) return { ...imageBackground, pageTheme: themeId };
       }

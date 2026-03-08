@@ -96,7 +96,6 @@ export function PDFRendererApp({
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
           if (normalizedEmbeddedImages.length > 0) {
-            console.log('[PDFRendererApp] Using normalized embedded background images from server:', normalizedEmbeddedImages.length);
             rebuildDerivedState(normalizedEmbeddedImages);
           } else {
             console.warn('[PDFRendererApp] Embedded background images could not be normalized, falling back to API load');

@@ -315,7 +315,7 @@ function createTheme(id: string, config: ThemeConfig): GlobalTheme {
         size: 'cover',
         repeat: false,
         applyPalette: true,
-        paletteMode: 'palette',
+        paletteMode: 'monochrome',
         ...config.pageSettings.backgroundImage
       }
     },

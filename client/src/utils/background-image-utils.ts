@@ -57,7 +57,7 @@ export function applyBackgroundImageTemplate(
       imageRepeat: false,
       backgroundImageId: template.id,
       applyPalette: false,
-      paletteMode: 'palette',
+      paletteMode: 'monochrome',
       backgroundImageType: 'designer',
       backgroundImageDesignerId: (template as any).designerId || template.id,
       designerCanvasStructure: (template as any).designerCanvasStructure,
@@ -121,7 +121,7 @@ export function applyBackgroundImageTemplate(
     imageRepeat,
     backgroundImageId: templateId,
     applyPalette,
-    paletteMode: customSettings?.paletteMode ?? 'palette'
+    paletteMode: customSettings?.paletteMode ?? 'monochrome'
   };
 
   // Always set position (resolvedPosition already handles customSettings, template default, or fallback)
@@ -188,7 +188,7 @@ export function getBackgroundImageUrl(
   if (template.format === 'vector') {
     let rawSvg = svgRawImports[template.filePath];
     const paletteColors = resolvePaletteColors(options);
-    const paletteMode = options?.paletteMode ?? 'palette';
+    const paletteMode = options?.paletteMode ?? 'monochrome';
 
     // Trigger on-demand load when SVG not yet cached (fire-and-forget)
     if (!rawSvg && template.url) {
@@ -291,7 +291,7 @@ export function resolveBackgroundImageUrl(
     const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
     const dataUrlOptions: BackgroundImagePaletteOptions = {
       ...options,
-      paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+      paletteMode: background.paletteMode ?? options?.paletteMode ?? 'monochrome',
       backgroundColorOverride:
         bg.backgroundColorEnabled && bg.backgroundColor ? bg.backgroundColor : undefined,
     };
@@ -311,7 +311,7 @@ export function resolveBackgroundImageUrl(
         const paletteSlots = template?.paletteSlots;
 
         if (rawSvg && paletteColors) {
-          const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'palette';
+          const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'monochrome';
 
           if (paletteMode === 'monochrome') {
             const toneColor = getToneColorFromPalette(dataUrlOptions);
@@ -380,16 +380,25 @@ export function resolveBackgroundImageUrl(
       const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
       const mergedOptions: BackgroundImagePaletteOptions = {
         ...options,
-        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'monochrome',
         // Don't use backgroundColorOverride for palette mode - let it use the current paletteId
         // backgroundColorOverride would derive colors from a single color, overriding the palette
       };
+      console.log('[PDF Debug] resolveBackgroundImageUrl calling getBackgroundImageUrl:', {
+        backgroundImageId: background.backgroundImageId,
+        paletteMode: mergedOptions.paletteMode,
+        hasPaletteColors: !!mergedOptions.paletteColors,
+        paletteColorsKeys: mergedOptions.paletteColors ? Object.keys(mergedOptions.paletteColors) : [],
+        paletteId: mergedOptions.paletteId
+      });
       const result = getBackgroundImageUrl(background.backgroundImageId, mergedOptions, true);
       return result;
     }
     try {
       const template = getBackgroundImageWithUrlInternal(background.backgroundImageId);
-      return template?.url;
+      // Fallback to background.value if template URL is not available
+      const result = template?.url || background.value;
+      return result;
     } catch {
       return background.value;
     }
@@ -400,12 +409,6 @@ export function resolveBackgroundImageUrl(
   if (background.value && background.value.startsWith('data:')) {
     const shouldApplyPalette = background.applyPalette !== false;
     const isSvgDataUrl = background.value.startsWith('data:image/svg+xml');
-    console.log('[PDF Debug] resolveBackgroundImageUrl data URL branch:', {
-      valuePrefix: background.value.substring(0, 80),
-      shouldApplyPalette,
-      hasOptions: !!options,
-      isSvgDataUrl,
-    });
     if (
       shouldApplyPalette &&
       options &&
@@ -414,7 +417,7 @@ export function resolveBackgroundImageUrl(
       const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
       const dataUrlOptions: BackgroundImagePaletteOptions = {
         ...options,
-        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+        paletteMode: background.paletteMode ?? options?.paletteMode ?? 'monochrome',
         backgroundColorOverride:
           bg.backgroundColorEnabled && bg.backgroundColor ? bg.backgroundColor : undefined,
       };
@@ -448,7 +451,7 @@ export function resolveBackgroundImageUrl(
           });
 
           if (rawSvg && paletteColors) {
-            const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'palette';
+            const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'monochrome';
             let appliedBranch: string;
             let result: string | undefined;
 

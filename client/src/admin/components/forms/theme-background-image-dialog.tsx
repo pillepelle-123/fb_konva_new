@@ -37,7 +37,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const DEFAULT_SIZES = ['cover', 'contain', 'contain-repeat', 'stretch'] as const
 const DEFAULT_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'] as const
-const PALETTE_MODES = ['palette', 'auto', 'standard'] as const
 
 function BackgroundImagePreview({ slug, token }: { slug: string; token: string | null }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
@@ -127,7 +126,7 @@ export function ThemeBackgroundImageDialog({
   const [width, setWidth] = useState<number | ''>(100)
   const [opacity, setOpacity] = useState(1)
   const [applyPalette, setApplyPalette] = useState(true)
-  const [paletteMode, setPaletteMode] = useState<string>('palette')
+  const [paletteMode, setPaletteMode] = useState<string>('monochrome')
 
   const listParams = useMemo(
     () => ({
@@ -212,7 +211,7 @@ export function ThemeBackgroundImageDialog({
       setWidth(pageBackground.width ?? 100)
       setOpacity(pageBackground.opacity ?? 1)
       setApplyPalette(pageBackground.apply_palette ?? true)
-      setPaletteMode(pageBackground.palette_mode || 'palette')
+      setPaletteMode(pageBackground.palette_mode || 'monochrome')
     } else {
       setSelectedImageId(null)
       setSize('cover')
@@ -221,7 +220,7 @@ export function ThemeBackgroundImageDialog({
       setWidth(100)
       setOpacity(1)
       setApplyPalette(true)
-      setPaletteMode('palette')
+      setPaletteMode('monochrome')
     }
   }, [open, pageBackground])
 
@@ -419,18 +418,7 @@ export function ThemeBackgroundImageDialog({
                 </div>
                 <div className="flex flex-col gap-2 sm:col-span-2">
                   <Label>Palette mode</Label>
-                  <Select value={paletteMode} onValueChange={setPaletteMode}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PALETTE_MODES.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="rounded-md border p-3 text-sm text-muted-foreground">monochrome</div>
                 </div>
               </div>
             </div>

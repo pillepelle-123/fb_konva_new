@@ -520,7 +520,7 @@ export default function BookCreatePage() {
             backgroundColor: pageColors.backgroundColor,
             backgroundColorOpacity: backgroundOpacity,
             applyPalette: (bgImage['applyPalette'] as boolean) ?? true,
-            paletteMode: (bgImage['paletteMode'] as 'palette' | 'monochrome') ?? 'palette',
+            paletteMode: (bgImage['paletteMode'] as 'palette' | 'monochrome') ?? 'monochrome',
           });
           if (imageBackground) {
             return { ...imageBackground, pageTheme: themeId };

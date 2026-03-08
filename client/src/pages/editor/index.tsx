@@ -317,7 +317,7 @@ function EditorContent() {
                           backgroundColor: themeColors.backgroundColor || wizardPalette?.colors.background || '#ffffff',
                           backgroundColorOpacity: theme?.pageSettings?.backgroundOpacity ?? 1,
                           applyPalette: themeBackgroundImage.applyPalette ?? true,
-                          paletteMode: themeBackgroundImage.paletteMode ?? 'palette',
+                          paletteMode: themeBackgroundImage.paletteMode ?? 'monochrome',
                         });
                         
                         if (imageBackground && imageBackground.value) {

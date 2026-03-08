@@ -42,7 +42,7 @@ const paletteSlotOpacitiesSchema = z
 const apiDefaultsSchema = z.object({
   size: z.string().nullable().optional(),
   position: z.string().nullable().optional(),
-  repeat: z.string().nullable().optional(),
+  repeat: z.union([z.string(), z.boolean()]).nullable().optional(),
   width: z.number().nullable().optional(),
   opacity: z.number().nullable().optional(),
   backgroundColor: z
@@ -245,6 +245,24 @@ export function rebuildDerivedState(images: BackgroundImageWithUrl[]) {
   const categorySet = new Set<BackgroundImage['category']>()
   images.forEach((image) => {
     if (image.category) categorySet.add(image.category)
+    // Extract and cache SVG content from embedded data URLs (for PDF export palette processing)
+    if (image.format === 'vector' && image.url && image.url.startsWith('data:image/svg+xml;base64,')) {
+      try {
+        const base64Data = image.url.substring('data:image/svg+xml;base64,'.length)
+        const binary = atob(base64Data)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i)
+        }
+        const rawSvg = new TextDecoder().decode(bytes)
+        if (image.filePath) {
+          svgRawCache[image.filePath] = rawSvg
+          svgRawImports[image.filePath] = rawSvg
+        }
+      } catch (error) {
+        console.warn(`[rebuildDerivedState] Failed to decode embedded SVG for ${image.id}:`, error)
+      }
+    }
   })
   registryCategories = Array.from(categorySet)
 }
@@ -336,12 +354,33 @@ export async function loadBackgroundImageRegistry(force = false) {
 /** Load a single background image SVG on demand (for palette support). Caches result. */
 export async function loadBackgroundImageSvg(filePath: string, url: string): Promise<string> {
   if (svgRawCache[filePath]) return svgRawCache[filePath]
+  
+  // Optimize for data URLs: decode directly instead of fetching
+  if (url.startsWith('data:image/svg+xml;base64,')) {
+    try {
+      const base64Data = url.substring('data:image/svg+xml;base64,'.length)
+      const binary = atob(base64Data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      const raw = new TextDecoder().decode(bytes)
+      svgRawCache[filePath] = raw
+      svgRawImports[filePath] = raw
+      window.dispatchEvent(new CustomEvent('backgroundImageSvgLoaded', { detail: { filePath } }))
+      return raw
+    } catch (error) {
+      // Fall through to fetch
+    }
+  }
+  
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
   const headers = token ? { Authorization: `Bearer ${token}` } : {}
   const response = await fetch(url, { headers, credentials: 'include' })
   if (!response.ok) throw new Error(`Failed to load SVG (${response.status})`)
   const raw = await response.text()
   svgRawCache[filePath] = raw
+  svgRawImports[filePath] = raw
   window.dispatchEvent(new CustomEvent('backgroundImageSvgLoaded', { detail: { filePath } }))
   return raw
 }

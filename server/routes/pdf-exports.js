@@ -18,15 +18,73 @@ const router = express.Router();
 async function applyPaletteToBookData(bookData) {
   let palettes = [];
   let themes = [];
+  let backgroundImages = [];
   try {
-    [palettes, themes] = await Promise.all([
+    [palettes, themes, backgroundImages] = await Promise.all([
       themesPalettesService.listColorPalettes(),
-      themesPalettesService.listThemes()
+      themesPalettesService.listThemes(),
+      backgroundImagesService.listBackgroundImages()
     ]);
   } catch (err) {
-    console.warn('[pdf-exports] Failed to load palettes/themes:', err.message);
+    console.warn('[pdf-exports] Failed to load palettes/themes/backgroundImages:', err.message);
     return bookData;
   }
+
+  // Embed SVG raw content for palette processing in PDF renderer
+  // This allows client-side palette application without API calls (Puppeteer can't send auth headers)
+  const enrichedBackgroundImages = await Promise.all(
+    (backgroundImages.items || []).map(async (bgImage) => {
+      const filePath = bgImage.storage?.filePath || '';
+      const publicUrl = bgImage.storage?.publicUrl || '';
+      const isVectorLike =
+        bgImage.format === 'vector' ||
+        /\.svg$/i.test(filePath) ||
+        /\.svg(?:\?|$)/i.test(publicUrl) ||
+        /^data:image\/svg\+xml/i.test(publicUrl);
+
+      if (isVectorLike && bgImage.storage?.filePath) {
+        try {
+          const rawFilePath = String(bgImage.storage.filePath).replace(/\\/g, '/').replace(/^\/+/, '');
+          const withoutUploadsPrefix = rawFilePath.replace(/^uploads\//i, '');
+          const withoutBgPrefix = withoutUploadsPrefix.replace(/^background-images\//i, '');
+          const pathCandidates = [
+            path.resolve(path.join(getUploadsSubdir('background-images'), withoutBgPrefix)),
+            path.resolve(path.join(getUploadsDir(), withoutUploadsPrefix)),
+            path.resolve(path.join(getUploadsDir(), rawFilePath)),
+          ];
+          let fullPath = null;
+          for (const candidate of pathCandidates) {
+            if (!isPathWithinUploads(candidate)) continue;
+            try {
+              await fs.access(candidate);
+              fullPath = candidate;
+              break;
+            } catch {
+              // try next candidate
+            }
+          }
+          if (!fullPath) {
+            throw new Error(`SVG file not found: ${bgImage.storage.filePath}`);
+          }
+          const svgContent = await fs.readFile(fullPath, 'utf-8');
+          // Embed raw SVG content as base64 data URL
+          const base64Svg = Buffer.from(svgContent).toString('base64');
+          const dataUrl = `data:image/svg+xml;base64,${base64Svg}`;
+          return {
+            ...bgImage,
+            storage: {
+              ...bgImage.storage,
+              publicUrl: dataUrl, // Override publicUrl with embedded SVG data URL
+            },
+          };
+        } catch (error) {
+          console.warn(`[pdf-exports] Failed to load SVG for ${bgImage.id}:`, error.message);
+          return bgImage;
+        }
+      }
+      return bgImage;
+    })
+  );
 
   const themeById = Object.fromEntries((themes || []).map(t => [String(t.id), t]));
   const paletteById = Object.fromEntries((palettes || []).map(p => [String(p.id), p]));
@@ -75,14 +133,22 @@ async function applyPaletteToBookData(bookData) {
   const result = {
     ...bookData,
     pages,
-    colorPalettes: palettes
+    colorPalettes: palettes,
+    backgroundImages: enrichedBackgroundImages
   };
+  const embeddedSvgCount = enrichedBackgroundImages.filter(
+    (img) => typeof img?.storage?.publicUrl === 'string' && img.storage.publicUrl.startsWith('data:image/svg+xml;base64,')
+  ).length;
+  console.log('[PDF Debug] applyPaletteToBookData embedded SVG backgrounds:', {
+    embeddedSvgCount,
+    totalBackgroundImages: enrichedBackgroundImages.length,
+  });
   const bgImagePages = pages.filter(p => p.background?.type === 'image');
   if (bgImagePages.length > 0) {
-    console.log('[PDF Debug] applyPaletteToBookData: palettes count=', palettes.length, 'bgImagePages=', bgImagePages.length);
     bgImagePages.forEach((p, i) => {
       const bg = p.background;
-      console.log('[PDF Debug] Page', i, 'bg:', {
+      console.log('[PDF Debug] applyPaletteToBookData image background', {
+        index: i,
         valuePrefix: bg.value?.substring?.(0, 60),
         backgroundImageId: bg.backgroundImageId,
         applyPalette: bg.applyPalette,
@@ -245,14 +311,30 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
     }
 
     // Resolve page background image
+    // IMPORTANT: For images with palette application enabled, remove the value URL
+    // so the client uses backgroundImageId with the embedded backgroundImages registry
     const bg = page.background;
-    if (bg?.type === 'image' && bg?.value) {
+    if (bg?.type === 'image' && bg?.backgroundImageId) {
+      const shouldApplyPalette = bg.applyPalette !== false;
+      
+      if (shouldApplyPalette) {
+        // Remove value so client uses backgroundImageId with embedded registry and applies palette
+        page.background = { 
+          ...bg, 
+          value: undefined // Client will resolve from backgroundImageId with palette colors
+        };
+      } else if (bg.value) {
+        // For non-palette backgrounds, resolve the URL to data URL
+        const dataUrl = await resolveUrl(bg.value);
+        if (dataUrl) {
+          page.background = { ...bg, value: dataUrl };
+        }
+      }
+    } else if (bg?.type === 'image' && bg?.value) {
+      // Direct upload without backgroundImageId - resolve URL
       const dataUrl = await resolveUrl(bg.value);
       if (dataUrl) {
         page.background = { ...bg, value: dataUrl };
-        if (dataUrl.startsWith('data:image/svg')) {
-          console.log('[PDF Debug] resolveProtectedImageUrls: replaced bg with SVG data URL, prefix=', dataUrl.substring(0, 50));
-        }
       }
     }
   }

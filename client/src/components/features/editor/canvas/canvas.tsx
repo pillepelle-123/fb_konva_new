@@ -3843,6 +3843,17 @@ export default function Canvas() {
             previewImage.onload = () => storeEntry({ full: img, preview: previewImage });
             previewImage.onerror = () => storeEntry({ full: img, preview: img });
           }
+          // Trigger immediate render after image loads to show it without waiting for mousemove
+          // This fixes the issue where images only appear after mouse interaction
+          requestAnimationFrame(() => {
+            if (stageRef.current) {
+              try {
+                stageRef.current.batchDraw();
+              } catch (e) {
+                // Ignore - stage might be unmounted
+              }
+            }
+          });
         };
         img.onerror = () => {
           loadingImages.delete(imageUrl);
@@ -3897,14 +3908,32 @@ export default function Canvas() {
           const pageBackground = page.background;
           if (pageBackground?.type === 'image') {
             const { paletteId, palette } = getPaletteForPage(page);
+            const opts = {
+              paletteId,
+              paletteColors: palette?.colors,
+              palette: palette ?? undefined,
+            };
             const imageUrl =
-              resolveBackgroundImageUrl(pageBackground, {
-                paletteId,
-                paletteColors: palette?.colors,
-                palette: palette ?? undefined,
-              }) || pageBackground.value;
+              resolveBackgroundImageUrl(pageBackground, opts) || pageBackground.value;
             if (imageUrl) {
               preloadImage(imageUrl);
+            }
+            
+            // For active page: preload palette/non-palette URLs for fast checkbox toggle
+            if (distance === 0 && pageBackground.backgroundImageId) {
+              if (pageBackground.applyPalette) {
+                const nonPaletteUrl = resolveBackgroundImageUrl(
+                  { ...pageBackground, applyPalette: false },
+                  opts
+                );
+                if (nonPaletteUrl) preloadImage(nonPaletteUrl);
+              } else {
+                const paletteUrl = resolveBackgroundImageUrl(
+                  { ...pageBackground, applyPalette: true, paletteMode: 'monochrome' },
+                  opts
+                );
+                if (paletteUrl) preloadImage(paletteUrl);
+              }
             }
           }
         }
@@ -3933,6 +3962,15 @@ export default function Canvas() {
   // Listen for cache invalidation events (e.g., when palette changes)
   useEffect(() => {
     const handleInvalidateCache = (event: CustomEvent<{ pageIndex?: number }>) => {
+      const debugEnabled = (() => {
+        try {
+          if (typeof window === 'undefined') return false;
+          const value = window.localStorage.getItem('debug.background.palette');
+          return value === '1' || value === 'true';
+        } catch {
+          return false;
+        }
+      })();
       const cache = backgroundImageCacheRef.current;
       const accessOrder = cacheAccessOrderRef.current;
       const loadingImages = loadingImagesRef.current;
@@ -3940,6 +3978,8 @@ export default function Canvas() {
       
       const targetPageIndex = event.detail?.pageIndex;
       let didInvalidate = false;
+
+
       
       if (targetPageIndex !== undefined && state.currentBook?.pages) {
         // Invalidate cache for specific page
@@ -4031,6 +4071,16 @@ export default function Canvas() {
   useEffect(() => {
     if (!state.currentBook?.pages) return;
 
+    const debugEnabled = (() => {
+      try {
+        if (typeof window === 'undefined') return false;
+        const value = window.localStorage.getItem('debug.background.palette');
+        return value === '1' || value === 'true';
+      } catch {
+        return false;
+      }
+    })();
+
     const activeIndex = state.activePageIndex;
     const preloadRange = 2; // Same range as used in preloading
     const cache = backgroundImageCacheRef.current;
@@ -4054,15 +4104,21 @@ export default function Canvas() {
           const imageUrl =
             resolveBackgroundImageUrl(pageBackground, opts) || pageBackground.value;
           if (imageUrl) urlsToKeep.add(imageUrl);
-          // Für die aktive Seite: Beide Modus-URLs behalten, damit beim Wechsel
-          // Palette↔Monochrom keine Lücke entsteht (neue URL lädt asynchron)
-          if (distance === 0 && pageBackground.applyPalette && pageBackground.backgroundImageId) {
-            const otherMode = (pageBackground.paletteMode ?? 'palette') === 'palette' ? 'monochrome' : 'palette';
-            const altUrl = resolveBackgroundImageUrl(
-              { ...pageBackground, paletteMode: otherMode },
-              opts
-            );
-            if (altUrl) urlsToKeep.add(altUrl);
+          // Fuer die aktive Seite: Alle relevanten URLs vorladen fuer schnelles Umschalten
+          if (distance === 0 && pageBackground.backgroundImageId) {
+            if (pageBackground.applyPalette) {
+              const nonPaletteUrl = resolveBackgroundImageUrl(
+                { ...pageBackground, applyPalette: false },
+                opts
+              );
+              if (nonPaletteUrl) urlsToKeep.add(nonPaletteUrl);
+            } else {
+              const paletteUrl = resolveBackgroundImageUrl(
+                { ...pageBackground, applyPalette: true, paletteMode: 'monochrome' },
+                opts
+              );
+              if (paletteUrl) urlsToKeep.add(paletteUrl);
+            }
           }
         }
       }
@@ -4101,7 +4157,15 @@ export default function Canvas() {
     if (urlsToRemove.length > 0) {
       setBackgroundImageCache(new Map(cache));
     }
-  }, [state.activePageIndex, state.currentBook?.pages]);
+  }, [
+    state.activePageIndex, 
+    state.currentBook?.pages,
+    // Also re-run when background properties change to update urlsToKeep correctly
+    currentPage?.background?.type,
+    (currentPage?.background as any)?.applyPalette,
+    (currentPage?.background as any)?.paletteMode,
+    (currentPage?.background as any)?.backgroundImageId,
+  ]);
 
   useEffect(() => {
     const handleClickOutside = () => {

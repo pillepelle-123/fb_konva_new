@@ -1332,7 +1332,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
             backgroundColor: pageColors.backgroundColor,
             backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
             applyPalette: backgroundImageConfig.applyPalette ?? true,
-            paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
+            paletteMode: backgroundImageConfig.paletteMode ?? 'monochrome'
           });
 
           if (imageBackground) {
@@ -2177,7 +2177,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               backgroundColor: pageColors.backgroundColor,
               backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
               applyPalette: backgroundImageConfig.applyPalette ?? true,
-              paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
+              paletteMode: backgroundImageConfig.paletteMode ?? 'monochrome'
             });
 
             if (imageBackground) {
@@ -3436,7 +3436,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
               backgroundColor: pageColors.backgroundColor,
               backgroundColorOpacity: theme.pageSettings.backgroundOpacity ?? 1,
               applyPalette: backgroundImageConfig.applyPalette ?? true,
-              paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
+              paletteMode: backgroundImageConfig.paletteMode ?? 'monochrome'
             });
             
             if (imageBackground) {
@@ -3845,7 +3845,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             backgroundColor: resolvedBaseColor,
             backgroundColorOpacity: pageThemeResolved?.pageSettings?.backgroundOpacity ?? 1,
             applyPalette: backgroundImageConfig.applyPalette ?? true,
-            paletteMode: backgroundImageConfig.paletteMode ?? 'palette'
+            paletteMode: backgroundImageConfig.paletteMode ?? 'monochrome'
           });
 
           if (imageBackground) {

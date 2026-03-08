@@ -3018,25 +3018,48 @@ export function PDFRenderer({
               naturalHeight: img.naturalHeight
             });
             try {
-              // Always apply crop to match app rendering (cover without distortion)
-              // Use stored crop values from database if available, otherwise calculate via getCrop
-              let cropProps: { cropX: number; cropY: number; cropWidth: number; cropHeight: number };
-              if (element.cropX !== undefined && element.cropY !== undefined &&
-                  element.cropWidth !== undefined && element.cropHeight !== undefined) {
-                cropProps = {
-                  cropX: element.cropX,
-                  cropY: element.cropY,
-                  cropWidth: element.cropWidth,
-                  cropHeight: element.cropHeight
-                };
-              } else {
-                const clipPosition = (element.imageClipPosition as any) || 'center-middle';
-                cropProps = getCrop(img, { width: elementWidth, height: elementHeight }, clipPosition);
-              }
-              
               // For simple images/stickers, only use Group if rotation is needed
               // Without rotation, render directly with absolute coordinates (like before)
               const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
+
+              // Images use cover-crop. Stickers use contain-fit so their full shape stays visible.
+              let cropProps: { cropX: number; cropY: number; cropWidth: number; cropHeight: number } | null = null;
+              let imageDrawX = needsRotation ? 0 : elementX;
+              let imageDrawY = needsRotation ? 0 : elementY;
+              let imageDrawWidth = elementWidth;
+              let imageDrawHeight = elementHeight;
+
+              if (element.type === 'sticker') {
+                const imageRatio = img.width / img.height;
+                const boxRatio = elementWidth / elementHeight;
+
+                if (Number.isFinite(imageRatio) && imageRatio > 0 && Number.isFinite(boxRatio) && boxRatio > 0) {
+                  if (imageRatio > boxRatio) {
+                    imageDrawHeight = elementWidth / imageRatio;
+                  } else {
+                    imageDrawWidth = elementHeight * imageRatio;
+                  }
+                }
+
+                const centerOffsetX = (elementWidth - imageDrawWidth) / 2;
+                const centerOffsetY = (elementHeight - imageDrawHeight) / 2;
+                imageDrawX = (needsRotation ? 0 : elementX) + centerOffsetX;
+                imageDrawY = (needsRotation ? 0 : elementY) + centerOffsetY;
+              } else {
+                // Use stored crop values from database if available, otherwise calculate via getCrop.
+                if (element.cropX !== undefined && element.cropY !== undefined &&
+                    element.cropWidth !== undefined && element.cropHeight !== undefined) {
+                  cropProps = {
+                    cropX: element.cropX,
+                    cropY: element.cropY,
+                    cropWidth: element.cropWidth,
+                    cropHeight: element.cropHeight
+                  };
+                } else {
+                  const clipPosition = (element.imageClipPosition as any) || 'center-middle';
+                  cropProps = getCrop(img, { width: elementWidth, height: elementHeight }, clipPosition);
+                }
+              }
               
               let imageGroup: Konva.Group | null = null;
               let offsetX = 0;
@@ -3063,18 +3086,18 @@ export function PDFRenderer({
               
               // Create image node
               const imageNode = new Konva.Image({
-                x: needsRotation ? 0 : elementX, // Relative to Group (0,0) or absolute
-                y: needsRotation ? 0 : elementY, // Relative to Group (0,0) or absolute
+                x: imageDrawX,
+                y: imageDrawY,
                 image: img,
-                width: elementWidth,
-                height: elementHeight,
+                width: imageDrawWidth,
+                height: imageDrawHeight,
                 rotation: needsRotation ? 0 : elementRotation, // Explicitly set to 0 when in Group
                 opacity: needsRotation 
                   ? (element.imageOpacity !== undefined ? element.imageOpacity : 1) // Group handles elementOpacity
                   : ((element.imageOpacity !== undefined ? element.imageOpacity : 1) * elementOpacity), // Multiply when no Group
                 cornerRadius: element.cornerRadius || 0,
                 listening: false,
-                ...cropProps
+                ...(cropProps || {})
               });
               
               // Get z-order index for this element
