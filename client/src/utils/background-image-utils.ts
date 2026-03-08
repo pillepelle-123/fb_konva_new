@@ -282,10 +282,100 @@ export function resolveBackgroundImageUrl(
     return undefined;
   }
 
+  // Prefer pre-resolved SVG data URLs for palette processing in one-shot renderers
+  // (e.g. server PDF export), otherwise we may return too early via template lookup
+  // and miss palette coloring on first render.
+  const shouldApplyPalette = background.applyPalette !== false;
+  const isSvgDataUrl = Boolean(background.value && background.value.startsWith('data:image/svg+xml'));
+  if (isSvgDataUrl && shouldApplyPalette) {
+    const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
+    const dataUrlOptions: BackgroundImagePaletteOptions = {
+      ...options,
+      paletteMode: background.paletteMode ?? options?.paletteMode ?? 'palette',
+      backgroundColorOverride:
+        bg.backgroundColorEnabled && bg.backgroundColor ? bg.backgroundColor : undefined,
+    };
+    const match = background.value!.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
+    const urlEncodedMatch = background.value!.match(/^data:image\/svg\+xml,(.+)$/);
+    if (match) {
+      try {
+        const binary = atob(match[1]);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const rawSvg = new TextDecoder().decode(bytes);
+        const paletteColors = resolvePaletteColors(dataUrlOptions);
+        const containsPaletteTokens = rawSvg ? /PALETTE_[A-Z_]+/.test(rawSvg) : false;
+        const template = background.backgroundImageId
+          ? getBackgroundImageById(background.backgroundImageId)
+          : null;
+        const paletteSlots = template?.paletteSlots;
+
+        if (rawSvg && paletteColors) {
+          const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'palette';
+
+          if (paletteMode === 'monochrome') {
+            const toneColor = getToneColorFromPalette(dataUrlOptions);
+            const edgeBgColor = dataUrlOptions?.backgroundColorOverride
+              ? undefined
+              : getPageBackgroundColor(dataUrlOptions);
+            if (toneColor) {
+              const monoResult = applyMonochromeToneToSvg(rawSvg, toneColor, {
+                cacheKey: `${background.backgroundImageId || 'bg'}::data::mono`,
+                asDataUrl: true,
+                edgeBackgroundColor: edgeBgColor,
+                pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
+              });
+              if (monoResult?.startsWith('data:')) return monoResult;
+            }
+            return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+              cacheKey: `${background.backgroundImageId || 'bg'}::data::auto::fallback`,
+              asDataUrl: true,
+              slotOpacities: template?.paletteSlotOpacities,
+              useBackgroundSlots: template?.useBackgroundSlots,
+              pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
+            });
+          }
+
+          if (paletteSlots === 'standard' && containsPaletteTokens) {
+            return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+              cacheKey: `${background.backgroundImageId || 'bg'}::data`,
+              asDataUrl: true,
+            });
+          }
+
+          if (paletteSlots === 'auto' || (paletteSlots === 'standard' && !containsPaletteTokens)) {
+            return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+              cacheKey: `${background.backgroundImageId || 'bg'}::data::auto`,
+              asDataUrl: true,
+              slotOpacities: template?.paletteSlotOpacities,
+              useBackgroundSlots: template?.useBackgroundSlots,
+              pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
+            });
+          }
+
+          if (containsPaletteTokens) {
+            return applyPaletteSlotsToSvg(rawSvg, paletteColors, {
+              cacheKey: `${background.backgroundImageId || 'bg'}::data::fallback`,
+              asDataUrl: true,
+            });
+          }
+
+          return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+            cacheKey: `${background.backgroundImageId || 'bg'}::data::auto::fallback`,
+            asDataUrl: true,
+            slotOpacities: template?.paletteSlotOpacities,
+            useBackgroundSlots: template?.useBackgroundSlots,
+          });
+        }
+      } catch (e) {
+        console.warn('[resolveBackgroundImageUrl] Priority SVG data URL processing failed:', e);
+      }
+    }
+  }
+
   // If using background image by UUID/slug with palette, ignore value field
   // (Legacy data may have value set from before palette support)
   if (background.backgroundImageId) {
-    const shouldApplyPalette = background.applyPalette !== false;
     if (shouldApplyPalette) {
       const bg = background as { backgroundColor?: string; backgroundColorEnabled?: boolean };
       const mergedOptions: BackgroundImagePaletteOptions = {

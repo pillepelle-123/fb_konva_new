@@ -1300,15 +1300,11 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
     const activeThemeId = page.themeId ?? 'default';
 
     let resolvedBackground = page.background;
-    const isCustomImageBackground =
-      page.background?.type === 'image' &&
-      !page.background?.backgroundImageId &&
-      page.background?.value;
-
+    const isImageBackground = page.background?.type === 'image';
     const hasExplicitBackground = page.background && (
       page.background.type === 'pattern' ||
       (page.background.type === 'color' && page.background.value !== undefined) ||
-      isCustomImageBackground
+      isImageBackground
     );
 
     // Inner Front/Back now get theme/background from Creation Wizard like other pages
@@ -1366,7 +1362,7 @@ function normalizeApiPages(rawPages: any[], options: PageNormalizationOptions): 
           };
         }
       }
-    } else if (isCustomImageBackground) {
+    } else if (isImageBackground) {
       resolvedBackground = {
         ...page.background,
         pageTheme: activeThemeId || page.background?.pageTheme

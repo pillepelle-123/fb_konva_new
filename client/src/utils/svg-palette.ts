@@ -36,11 +36,6 @@ interface RenderOptions {
 
 const svgRenderCache = new Map<string, string>();
 
-type ColorOccurrenceEntry = {
-  originals: Set<string>;
-  hits: number;
-};
-
 /**
  * Replace palette slot placeholders inside an SVG string.
  */
@@ -136,7 +131,7 @@ export function applyAutoPaletteToSvg(
   if (useBackgroundSlots === undefined && colorOccurrences.size > 0) {
     const sortedColors = sortColorsByDominanceAndLuminance(colorOccurrences);
     const dominantColor = sortedColors[0];
-    const dominantCount = colorOccurrences.get(dominantColor)?.hits ?? 0;
+    const dominantCount = colorOccurrences.get(dominantColor)?.size ?? 0;
     const dominantLuminance = getRelativeLuminance(dominantColor);
     useBackgroundSlots = dominantLuminance >= 0.25 || dominantCount <= 3;
   } else if (useBackgroundSlots === undefined) {
@@ -189,12 +184,12 @@ export function applyAutoPaletteToSvg(
       return;
     }
 
-    const occurrence = colorOccurrences.get(normalizedColor);
-    if (!occurrence) {
+    const originals = colorOccurrences.get(normalizedColor);
+    if (!originals) {
       return;
     }
 
-    occurrence.originals.forEach((originalColor) => {
+    originals.forEach((originalColor) => {
       const colorPattern = new RegExp(escapeForRegex(originalColor), 'gi');
       processed = processed.replace(colorPattern, replacement);
     });
@@ -278,13 +273,12 @@ export function applyMonochromeToneToSvg(
     options.pageBackgroundColor?.startsWith('#') &&
     getRelativeLuminance(options.pageBackgroundColor) <= 0.15;
 
-  colorOccurrences.forEach((occurrence, normalizedColor) => {
+  colorOccurrences.forEach((originals, normalizedColor) => {
     let replacement: string;
     if (
       edgeColorToReplace &&
       normalizedColor === edgeColorToReplace &&
-      // Guard against replacing large mid-tone areas: only replace very light edge-like colors.
-      getRelativeLuminance(normalizedColor) >= 0.92
+      getRelativeLuminance(normalizedColor) >= 0.15
     ) {
       replacement = normalizedEdgeBg!;
     } else {
@@ -295,7 +289,7 @@ export function applyMonochromeToneToSvg(
     // Skip replace if result is invalid (e.g. NaN from edge cases)
     if (!replacement || !/^#[0-9a-fA-F]{6}$/.test(replacement)) return;
 
-    occurrence.originals.forEach((originalColor) => {
+    originals.forEach((originalColor) => {
       const colorPattern = new RegExp(escapeForRegex(originalColor), 'gi');
       processed = processed.replace(colorPattern, replacement);
     });
@@ -388,9 +382,9 @@ function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function extractHexColorOccurrences(svgContent: string): Map<string, ColorOccurrenceEntry> {
+function extractHexColorOccurrences(svgContent: string): Map<string, Set<string>> {
   const regex = /#([0-9a-fA-F]{3,8})\b/g;
-  const occurrences = new Map<string, ColorOccurrenceEntry>();
+  const occurrences = new Map<string, Set<string>>();
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(svgContent)) !== null) {
@@ -399,32 +393,34 @@ function extractHexColorOccurrences(svgContent: string): Map<string, ColorOccurr
     if (!normalized) {
       continue;
     }
-    addColorOccurrence(occurrences, normalized, original);
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized)!.add(original);
   }
 
   return occurrences;
 }
 
 function mergeColorOccurrences(
-  maps: Map<string, ColorOccurrenceEntry>[],
-): Map<string, ColorOccurrenceEntry> {
-  const merged = new Map<string, ColorOccurrenceEntry>();
+  maps: Map<string, Set<string>>[],
+): Map<string, Set<string>> {
+  const merged = new Map<string, Set<string>>();
   maps.forEach((map) => {
-    map.forEach((entry, normalized) => {
+    map.forEach((originals, normalized) => {
       if (!merged.has(normalized)) {
-        merged.set(normalized, { originals: new Set(), hits: 0 });
+        merged.set(normalized, new Set());
       }
-      const target = merged.get(normalized)!;
-      target.hits += entry.hits;
-      entry.originals.forEach((value) => target.originals.add(value));
+      const targetSet = merged.get(normalized)!;
+      originals.forEach((value) => targetSet.add(value));
     });
   });
   return merged;
 }
 
-function extractRgbColorOccurrences(svgContent: string): Map<string, ColorOccurrenceEntry> {
+function extractRgbColorOccurrences(svgContent: string): Map<string, Set<string>> {
   const regex = /rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})(?:\s*,\s*(0|0?\.\d+|1(?:\.0+)?))?\s*\)/gi;
-  const occurrences = new Map<string, ColorOccurrenceEntry>();
+  const occurrences = new Map<string, Set<string>>();
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(svgContent)) !== null) {
@@ -436,14 +432,17 @@ function extractRgbColorOccurrences(svgContent: string): Map<string, ColorOccurr
       continue;
     }
     const normalized = rgbToHex(r, g, b);
-    addColorOccurrence(occurrences, normalized, original);
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized)!.add(original);
   }
 
   return occurrences;
 }
 
-function extractGradientStopColors(svgContent: string): Map<string, ColorOccurrenceEntry> {
-  const occurrences = new Map<string, ColorOccurrenceEntry>();
+function extractGradientStopColors(svgContent: string): Map<string, Set<string>> {
+  const occurrences = new Map<string, Set<string>>();
   const stopColorRegex = /stop-color:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/g;
   const stopColorAttrRegex = /stop-color\s*=\s*["']([^"']+)["']/gi;
 
@@ -461,7 +460,10 @@ function extractGradientStopColors(svgContent: string): Map<string, ColorOccurre
       }
     }
     if (normalized) {
-      addColorOccurrence(occurrences, normalized, original);
+      if (!occurrences.has(normalized)) {
+        occurrences.set(normalized, new Set());
+      }
+      occurrences.get(normalized)!.add(original);
     }
   }
 
@@ -477,11 +479,11 @@ function extractGradientStopColors(svgContent: string): Map<string, ColorOccurre
 }
 
 function sortColorsByDominanceAndLuminance(
-  colorOccurrences: Map<string, ColorOccurrenceEntry>
+  colorOccurrences: Map<string, Set<string>>
 ): string[] {
-  const colorsWithWeight = Array.from(colorOccurrences.entries()).map(([color, occurrence]) => ({
+  const colorsWithWeight = Array.from(colorOccurrences.entries()).map(([color, originals]) => ({
     color,
-    count: occurrence.hits,
+    count: originals.size,
     luminance: getRelativeLuminance(color),
   }));
 
@@ -493,19 +495,6 @@ function sortColorsByDominanceAndLuminance(
       return b.luminance - a.luminance;
     })
     .map((c) => c.color);
-}
-
-function addColorOccurrence(
-  occurrences: Map<string, ColorOccurrenceEntry>,
-  normalized: string,
-  original: string,
-): void {
-  if (!occurrences.has(normalized)) {
-    occurrences.set(normalized, { originals: new Set(), hits: 0 });
-  }
-  const entry = occurrences.get(normalized)!;
-  entry.hits += 1;
-  entry.originals.add(original);
 }
 
 function replaceCurrentColor(
