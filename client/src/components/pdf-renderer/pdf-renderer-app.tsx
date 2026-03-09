@@ -173,6 +173,7 @@ export function PDFRendererApp({
             width={pageData.canvasWidth}
             height={pageData.canvasHeight}
             scale={pageData.scale}
+            onRenderComplete={() => onRenderComplete?.('')}
           />
         </PDFExportEditorProvider>
       </PDFExportAuthProvider>

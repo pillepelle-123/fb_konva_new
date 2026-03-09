@@ -23,7 +23,7 @@ interface StaticImageItemProps {
 const StaticImageItem = React.memo(function StaticImageItem({ item, opacityMultiplier }: StaticImageItemProps) {
   const src = item.type === 'image'
     ? item.uploadPath
-    : `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+    : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
   const [image] = useImage(src);
 
   if (!image) {

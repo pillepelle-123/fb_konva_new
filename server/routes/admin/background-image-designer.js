@@ -146,7 +146,7 @@ function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, tar
       }
 
       if (item?.type === 'sticker') {
-        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
         return {
           id: item.id || `designer-sticker-${index}`,
           type: 'sticker',

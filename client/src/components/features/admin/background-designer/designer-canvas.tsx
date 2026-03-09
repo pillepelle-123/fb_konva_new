@@ -34,7 +34,7 @@ interface DesignerCanvasProps {
 function getStickerUrl(stickerId: string): string | undefined {
   // TODO: Implement proper sticker library lookup
   // For now, return placeholder
-  return `/api/stickers/${stickerId}/image`;
+  return `/api/stickers/${stickerId}/file`;
 }
 
 function normalizeDesignerAssetUrl(uploadPath: string): string {

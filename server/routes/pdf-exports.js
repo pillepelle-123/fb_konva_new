@@ -161,7 +161,7 @@ async function applyPaletteToBookData(bookData) {
 
 // Regex to match protected image URLs for replacement (relative or absolute)
 const PROTECTED_IMAGE_URL_PATTERN = /\/api\/images\/file\/([0-9a-f-]{36})(?:\?.*)?$/i;
-const PROTECTED_STICKER_URL_PATTERN = /\/api\/stickers\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
+const PROTECTED_STICKER_URL_PATTERN = /\/api\/stickers\/([^/]+)\/(?:file|thumbnail|image)(?:\?.*)?$/;
 const PROTECTED_BG_IMAGE_URL_PATTERN = /\/api\/background-images\/([^/]+)\/(?:file|thumbnail)(?:\?.*)?$/;
 const UPLOADS_STICKERS_PATTERN = /\/uploads\/stickers\/(.+?)(?:\?|$)/;
 const UPLOADS_BG_IMAGES_PATTERN = /\/uploads\/background-images\/(.+?)(?:\?|$)/;
@@ -547,7 +547,7 @@ function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, tar
       }
 
       if (item?.type === 'sticker') {
-        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
         return {
           id: item.id || `designer-sticker-${index}`,
           type: 'sticker',
@@ -886,6 +886,100 @@ async function loadBookDataFromDB(bookId, userId) {
   };
 }
 
+/**
+ * Validate all assets in book data are accessible before export.
+ * Checks: image IDs, stickers, background images.
+ * Early fail if any asset is missing or inaccessible.
+ */
+async function validateExportAssets(bookData, userId, isAdmin = false) {
+  const checkedImageIds = new Set();
+  const checkedStickerSlugs = new Set();
+  const checkedBgImageIds = new Set();
+
+  // Check all element images and stickers across all pages
+  for (const page of bookData.pages || []) {
+    const pageInfo = `page_number=${page.page_number}, page_id=${page.id}`;
+    
+    for (const element of page.elements || []) {
+      if (element.type === 'image' && element.imageId && !checkedImageIds.has(element.imageId)) {
+        checkedImageIds.add(element.imageId);
+        const imgResult = await pool.query(
+          'SELECT id FROM public.images WHERE id = $1',
+          [element.imageId]
+        );
+        if (imgResult.rows.length === 0) {
+          const errorMsg = isAdmin 
+            ? `Image asset not found: ${element.imageId} (${pageInfo})` 
+            : 'Image asset not found on one of your pages';
+          throw new Error(errorMsg);
+        }
+      }
+
+      if (element.type === 'sticker' && element.src && !checkedStickerSlugs.has(element.src)) {
+        checkedStickerSlugs.add(element.src);
+        const stickerSlug = element.src.match(/\/api\/stickers\/([^/]+)\//)?.[1];
+        if (stickerSlug) {
+          const stickerResult = await stickersService.getSticker(decodeURIComponent(stickerSlug));
+          if (!stickerResult) {
+            const errorMsg = isAdmin 
+              ? `Sticker asset not found: ${stickerSlug} (${pageInfo})` 
+              : 'Sticker asset not found on one of your pages';
+            throw new Error(errorMsg);
+          }
+        }
+      }
+    }
+
+    // Check page background image
+    if (page.background?.type === 'image' && page.background?.backgroundImageId && !checkedBgImageIds.has(page.background.backgroundImageId)) {
+      checkedBgImageIds.add(page.background.backgroundImageId);
+      const bgResult = await backgroundImagesService.getBackgroundImage(page.background.backgroundImageId);
+      if (!bgResult) {
+        const errorMsg = isAdmin 
+          ? `Background image not found: ${page.background.backgroundImageId} (${pageInfo})` 
+          : 'Background image not found on one of your pages';
+        throw new Error(errorMsg);
+      }
+    }
+
+    // Check designer canvas assets if present
+    const designerPayload = extractDesignerCanvasPayload(page.background);
+    if (designerPayload?.structure?.items) {
+      for (const item of designerPayload.structure.items) {
+        if (item.type === 'sticker' && item.stickerId && !checkedStickerSlugs.has(item.stickerId)) {
+          checkedStickerSlugs.add(item.stickerId);
+          const stickerResult = await stickersService.getSticker(item.stickerId);
+          if (!stickerResult) {
+            const errorMsg = isAdmin 
+              ? `Designer sticker asset not found: ${item.stickerId} (${pageInfo})` 
+              : 'Designer sticker asset not found on one of your pages';
+            throw new Error(errorMsg);
+          }
+        }
+      }
+    }
+  }
+
+  console.log('[PDF Export] Asset validation passed:', {
+    imageCount: checkedImageIds.size,
+    stickerCount: checkedStickerSlugs.size,
+    backgroundImageCount: checkedBgImageIds.size
+  });
+}
+
+// Helper to extract designer canvas payload (same logic as used in enrichment)
+function extractDesignerCanvasPayload(background) {
+  if (typeof background !== 'object' || background === null) {
+    return null;
+  }
+  
+  if (background.designerCanvas && typeof background.designerCanvas === 'object') {
+    return background.designerCanvas;
+  }
+  
+  return null;
+}
+
 // Create new PDF export
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -929,6 +1023,20 @@ router.post('/', authenticateToken, async (req, res) => {
       if (bookRole === 'author' && !isAdmin) {
         return res.status(403).json({ error: 'Authors cannot export in printing quality' });
       }
+    }
+
+    // Load book data and validate all assets upfront (access check at export start)
+    console.log(`[PDF Export] Starting validation for book ${bookId} by user ${userId}`);
+    const bookData = await loadBookDataFromDB(bookId, userId);
+    if (!bookData) {
+      return res.status(403).json({ error: 'Not authorized to export this book' });
+    }
+
+    try {
+      await validateExportAssets(bookData, userId, isAdmin);
+    } catch (validationError) {
+      console.error(`[PDF Export] Asset validation failed for book ${bookId}:`, validationError.message);
+      return res.status(400).json({ error: `Cannot export: ${validationError.message}` });
     }
 
     // Create export record

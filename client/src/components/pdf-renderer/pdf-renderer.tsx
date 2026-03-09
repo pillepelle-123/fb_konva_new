@@ -324,6 +324,7 @@ export function PDFRenderer({
   // Access editor context - this should work with PDFExportEditorProvider
   const { state } = useEditor();
   const stageRef = useRef<Konva.Stage>(null);
+  const renderCompleteNotifiedRef = useRef(false);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   const [patternImage, setPatternImage] = useState<HTMLCanvasElement | null>(null);
 
@@ -414,43 +415,9 @@ export function PDFRenderer({
     }
   }, [page.background, palettePatternStroke]);
 
-  // Notify when rendering is complete (called after stage is ready)
   useEffect(() => {
-    if (!stageRef.current || !onRenderComplete) return;
-    
-    // Wait for stage to be fully rendered
-    const checkComplete = () => {
-      if (stageRef.current) {
-        const layers = stageRef.current.getLayers();
-        if (layers.length > 0) {
-          // Force a draw to ensure everything is rendered
-          layers.forEach(layer => layer.draw());
-          stageRef.current.draw();
-          const pendingQr = typeof window !== 'undefined'
-            ? Number((window as any).__PDF_QR_PENDING__ || 0)
-            : 0;
-
-          if (pendingQr > 0) {
-            setTimeout(checkComplete, 200);
-            return;
-          }
-
-          // Small delay to ensure all images are loaded and rendered
-          setTimeout(() => {
-            if (onRenderComplete) {
-              onRenderComplete();
-            }
-          }, 500);
-        }
-      }
-    };
-    
-    // Check immediately and also after a short delay
-    checkComplete();
-    const timeoutId = setTimeout(checkComplete, 1000);
-    
-    return () => clearTimeout(timeoutId);
-  }, [stageRef.current, onRenderComplete]);
+    renderCompleteNotifiedRef.current = false;
+  }, [page.id, page.background, page.elements?.length]);
 
   // Render page background
   const renderBackground = () => {
@@ -882,7 +849,7 @@ export function PDFRenderer({
 
             const src = item.type === 'image'
               ? normalizeDesignerAssetUrl(item.uploadPath)
-              : `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+              : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
 
             const imagePromise = new Promise<void>((resolve) => {
               const img = new window.Image();
@@ -4247,6 +4214,47 @@ export function PDFRenderer({
         
         layer.draw();
         stageRef.current?.draw();
+
+        let qrWaitAttempts = 0;
+        const notifyRenderComplete = () => {
+          if (renderCompleteNotifiedRef.current) {
+            return;
+          }
+
+          const pendingQr = typeof window !== 'undefined'
+            ? Number((window as any).__PDF_QR_PENDING__ || 0)
+            : 0;
+
+          // Do not block forever if QR bookkeeping gets stuck.
+          // Wait up to ~3s (15 * 200ms), then continue with rendering completion.
+          if (pendingQr > 0 && qrWaitAttempts < 15) {
+            qrWaitAttempts += 1;
+            setTimeout(notifyRenderComplete, 200);
+            return;
+          }
+
+          renderCompleteNotifiedRef.current = true;
+
+          if (typeof window !== 'undefined') {
+            (window as any).renderComplete = true;
+            (window as any).renderCompleteMeta = {
+              pageId: page.id,
+              elementCount: sortedElements.length,
+              pendingQr,
+              qrWaitAttempts,
+              at: Date.now(),
+            };
+            console.log(`[PDFRenderer] renderComplete signaled (pendingQr=${pendingQr}, qrWaitAttempts=${qrWaitAttempts})`);
+          }
+
+          setTimeout(() => {
+            if (onRenderComplete) {
+              onRenderComplete();
+            }
+          }, 100);
+        };
+
+        notifyRenderComplete();
         // console.log('[DEBUG z-order PDFRenderer] Z-order fix complete');
       }).catch((error) => {
         console.error('[DEBUG z-order PDFRenderer] Error waiting for images:', error);
