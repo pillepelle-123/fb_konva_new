@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+﻿import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Group, Shape } from 'react-konva';
 import Konva from 'konva';
 import { useEditor } from '../../context/editor-context.tsx';
@@ -354,20 +354,9 @@ export function PDFRenderer({
         paletteColors: bgPaletteColors,
         palette: normalizedPalette,
       };
-      console.log('[PDF Debug] resolveBackgroundImageUrl called with:', {
-        hasOptions: !!options,
-        hasPaletteColors: !!options.paletteColors,
-        paletteId: options.paletteId,
-        valuePrefix: background.value?.substring(0, 60),
-      });
       const imageUrl = resolveBackgroundImageUrl(background, options);
 
       if (imageUrl) {
-        const wasModified = imageUrl !== background.value;
-        console.log('[PDF Debug] Background image URL resolved:', {
-          wasModified,
-          resultPrefix: imageUrl?.substring(0, 60),
-        });
 
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -679,23 +668,7 @@ export function PDFRenderer({
 
   // Log rendering info for debugging
   useEffect(() => {
-    console.log('[PDFRenderer] Component mounted, rendering with:', {
-      width,
-      height,
-      scale,
-      elementsCount: sortedElements.length,
-      hasBackground: !!page.background,
-      stageRef: !!stageRef.current,
-    });
-    
-    // Debug PDF export environment detection
-    console.log('[PDF Debug] Environment detection:', {
-      __PDF_EXPORT__: (window as any).__PDF_EXPORT__,
-      pathname: window.location.pathname,
-      search: window.location.search,
-      userAgent: navigator.userAgent.includes('HeadlessChrome'),
-      windowDefined: typeof window !== 'undefined'
-    });
+    // Component mounted - minimal logging
   }, [width, height, scale, sortedElements.length, page.background]);
 
   // Ensure stage is exposed globally after mount
@@ -703,7 +676,6 @@ export function PDFRenderer({
     if (stageRef.current) {
       (window as any).konvaStage = stageRef.current;
       const layers = stageRef.current.getLayers();
-      console.log('[PDFRenderer] Stage exposed globally, layers:', layers.length);
       
       // If no layers after a delay, log warning
       setTimeout(() => {
@@ -737,8 +709,6 @@ export function PDFRenderer({
       bgLayerRef.current?.moveToBottom();
       layerRef.current?.moveToTop();
 
-      console.log('[PDFRenderer] Manually created layers, stage now has', stageRef.current.getLayers().length, 'layers');
-
       (window as any).konvaStage = stageRef.current;
       setLayerReady(true);
     }
@@ -759,12 +729,6 @@ export function PDFRenderer({
   // Render content to manually created layer
   useEffect(() => {
     if (!layerRef.current || !bgLayerRef.current || !layerReady || !stageRef.current) {
-      console.log('[PDFRenderer] Rendering skipped - waiting for layers:', {
-        hasLayerRef: !!layerRef.current,
-        hasBgLayerRef: !!bgLayerRef.current,
-        layerReady,
-        hasStageRef: !!stageRef.current
-      });
       return;
     }
     
@@ -774,8 +738,6 @@ export function PDFRenderer({
     // Clear existing content
     bgLayer.destroyChildren();
     layer.destroyChildren();
-    
-    console.log('[PDFRenderer] Rendering to manual layer');
     
     // Render background using Konva directly
     const background: PageBackground | undefined = page.background;
@@ -810,17 +772,6 @@ export function PDFRenderer({
           listening: false,
         });
         bgLayer.add(bgRect);
-        
-        // Debug: Log background rendering
-        console.log('[DEBUG PDFRenderer] Background rendered:', {
-          type: 'color',
-          color: bgColor,
-          opacity: opacity,
-          width: width,
-          height: height,
-          layerIndex: layer.getZIndex(),
-          childrenCount: layer.getChildren().length
-        });
       } else if (background.type === 'pattern' && patternImage) {
         const pattern = PATTERNS.find(p => p.id === background.value);
         if (pattern) {
@@ -997,14 +948,6 @@ export function PDFRenderer({
     
     // Render page elements
     const elements = sortedElements;
-    const shapeElements = elements.filter(el => ['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(el.type));
-    console.log('[PDFRenderer] Rendering', elements.length, 'elements (', shapeElements.length, 'shapes)');
-    console.log('[PDFRenderer] Shape elements:', shapeElements.map(el => ({ id: el.id, type: el.type, x: el.x, y: el.y, width: el.width, height: el.height })));
-    
-    // Debug: Log all element positions (serialize to JSON string to ensure it's printed)
-    elements.forEach((el, idx) => {
-      console.log(`[DEBUG PDFRenderer] Element ${idx}:`, el.type, 'x='+el.x, 'y='+el.y, 'w='+el.width, 'h='+el.height);
-    });
     
     // Create a map of element IDs to their z-order index in the sorted array
     const elementIdToZOrder = new Map<string, number>();
@@ -1114,27 +1057,9 @@ export function PDFRenderer({
 
           // DEBUG: Log font loading context
           if (ctx) {
-            console.log('[PDF Layout] Canvas context created:', {
-              canvasWidth: canvas.width,
-              canvasHeight: canvas.height,
-              contextAvailable: !!ctx
-            });
           }
           
           // DEBUG: Log elementWidth and elementHeight before createLayout
-          console.log('[DEBUG PDFRenderer] Before createLayout:',
-            'elementId:', element.id,
-            'elementWidth:', Math.round(elementWidth * 100) / 100,
-            'elementHeight:', Math.round(elementHeight * 100) / 100,
-            'elementRotation:', Math.round(elementRotation * 100) / 100,
-            'padding:', Math.round(padding * 100) / 100,
-            'baseWidth:', Math.round(baseWidth * 100) / 100,
-            'baseHeight:', Math.round(baseHeight * 100) / 100,
-            'scaleX:', Math.round(scaleX * 100) / 100,
-            'scaleY:', Math.round(scaleY * 100) / 100,
-            'width passed to createLayout:', Math.round(elementWidth * 100) / 100,
-            'height passed to createLayout:', Math.round(elementHeight * 100) / 100
-          );
           
           const layout = sharedCreateLayout({
             questionText: questionText || '',
@@ -1180,26 +1105,9 @@ export function PDFRenderer({
           const linePositions = layout.linePositions;
           const contentHeight = layout.contentHeight;
           
-          // Debug: Log QnA Inline text extraction
-          console.log('[DEBUG PDFRenderer] QnA Inline text extraction:', {
-            elementId: element.id,
-            pageNumber: page.pageNumber,
-            hasQuestionId: !!element.questionId,
-            questionTextFromProperty: (element as any).questionText,
-            questionText: questionText,
-            answerTextFromProperty: (element as any).answerText,
-            answerTextFromText: element.text,
-            answerText: answerText,
-            willSkip: !questionText && !answerText
-          });
-          
           // Calculate dynamic height based on content
           const calculateHeight = () => {
             if (!questionText && !answerText) {
-              console.warn('[DEBUG PDFRenderer] ⚠️ Skipping QnA Inline - no text:', {
-                elementId: element.id,
-                pageNumber: page.pageNumber
-              });
               return elementHeight;
             }
             
@@ -1394,17 +1302,7 @@ export function PDFRenderer({
           // Track how many lines are rendered (defined outside if block for debug logging)
           let ruledLinesRenderedCount = 0;
           
-          // Debug: Log ruled lines check (first path)
-          console.log('[DEBUG PDFRenderer] Ruled lines check (first path):');
-          console.log('  elementId:', element.id);
-          console.log('  element.ruledLines:', element.ruledLines);
-          console.log('  answerRuledLines:', answerRuledLines);
-          
           if (answerRuledLines) {
-            // Debug: Log starting ruled lines rendering
-            console.log('[DEBUG PDFRenderer] Starting ruled lines rendering (first path):');
-            console.log('  elementId:', element.id);
-            console.log('  layoutVariant:', layoutVariant);
             const aStyle = element.ruledLinesStyle || 'rough';
             const aColor = element.ruledLinesColor || '#1f2937';
             const aWidth = element.ruledLinesWidth || 0.8;
@@ -1476,7 +1374,7 @@ export function PDFRenderer({
               
               // Block layout: use linePositions from layout (same as app) instead of extracting from runs
               // This ensures ruled lines are rendered for empty lines too
-              // RULED_LINE_BASELINE_OFFSET für PDF Export (muss mit shared/utils/qna-layout.ts übereinstimmen)
+              // RULED_LINE_BASELINE_OFFSET fÃ¼r PDF Export (muss mit shared/utils/qna-layout.ts Ã¼bereinstimmen)
               const RULED_LINE_BASELINE_OFFSET = -20;
               // CRITICAL FIX: Removed RULED_LINE_TOP_OFFSET workaround (was 28)
               // This workaround shifted ALL ruled lines down, worsening the positioning problem
@@ -1501,18 +1399,6 @@ export function PDFRenderer({
               );
               
               // DEBUG: Log first ruled line position
-              if (filteredLinePositions.length > 0) {
-                const firstLinePos = filteredLinePositions[0];
-                const firstLineY = firstLinePos.y; // Relative to Group
-                console.log('[DEBUG pdf-renderer.tsx Block] First Ruled Line:', {
-                  elementId: element.id,
-                  elementY,
-                  linePosY: firstLinePos.y,
-                  firstLineY,
-                  totalLinePositions: filteredLinePositions.length,
-                  layoutVariant: 'block'
-                });
-              }
               
               filteredLinePositions.forEach((linePos) => {
                 // Calculate line Y position: linePos.y (relative to Group)
@@ -1767,10 +1653,6 @@ export function PDFRenderer({
                 }
               }
               
-              // Debug: Log block layout ruled lines count
-              console.log('[DEBUG PDFRenderer] Block layout ruled lines rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  linesCount:', ruledLinesRenderedCount);
             } else {
               // Inline layout: use linePositions from layout (same as app) instead of extracting from runs
               // This ensures ruled lines are rendered for empty lines too
@@ -1787,13 +1669,6 @@ export function PDFRenderer({
               if (linePositions.length > 0) {
                 const firstLinePos = linePositions[0];
                 const firstLineY = elementY + firstLinePos.y;
-                console.log('[DEBUG pdf-renderer.tsx Inline] First Ruled Line:', {
-                  elementId: element.id,
-                  elementY,
-                  linePosY: firstLinePos.y,
-                  firstLineY,
-                  totalLinePositions: linePositions.length
-                });
               }
               
               linePositions.forEach((linePos) => {
@@ -2055,15 +1930,9 @@ export function PDFRenderer({
               }
               
               // Debug: Log inline layout ruled lines count
-              console.log('[DEBUG PDFRenderer] Inline layout ruled lines rendered:');
-              console.log('  elementId:', element.id);
-              console.log('  linesCount:', ruledLinesRenderedCount);
             }
             
             // Debug: Log total ruled lines rendered
-            console.log('[DEBUG PDFRenderer] Total ruled lines rendered (first path):');
-            console.log('  elementId:', element.id);
-            console.log('  totalLinesCount:', ruledLinesRenderedCount);
           }
           
           // Render text using shared layout runs (matches textbox-qna.tsx RichTextShape)
@@ -2960,17 +2829,6 @@ export function PDFRenderer({
         // Render image elements (including stickers and placeholders)
         else if (element.type === 'image' || element.type === 'sticker' || element.type === 'placeholder') {
           // Debug: Log all crop properties for image elements
-          console.log('DEBUG: [PDFRenderer] Element crop properties for', element.id, ':', {
-            cropX: element.cropX,
-            cropY: element.cropY,
-            cropWidth: element.cropWidth,
-            cropHeight: element.cropHeight,
-            hasCropX: element.cropX !== undefined,
-            hasCropY: element.cropY !== undefined,
-            hasCropWidth: element.cropWidth !== undefined,
-            hasCropHeight: element.cropHeight !== undefined,
-            imageClipPosition: element.imageClipPosition
-          });
 
           // console.log('[PDFRenderer] Rendering image element:', {
           //   elementId: element.id,
@@ -3032,10 +2890,6 @@ export function PDFRenderer({
           };
           
           img.onload = () => {
-            console.log('[DEBUG PDFRenderer] Image loaded:', element.id, 
-              'url='+imageUrl,
-              'w='+img.width+'/'+img.naturalWidth, 
-              'h='+img.height+'/'+img.naturalHeight);
             try {
               // For simple images/stickers, only use Group if rotation is needed
               // Without rotation, render directly with absolute coordinates (like before)
@@ -3110,11 +2964,6 @@ export function PDFRenderer({
                 });
               }
               
-              // Debug: Log actual image node coordinates
-              console.log('[DEBUG PDFRenderer] Creating image node:', element.id, 
-                'drawX='+imageDrawX, 'drawY='+imageDrawY, 'drawW='+imageDrawWidth, 'drawH='+imageDrawHeight,
-                'needsRotation='+needsRotation, 'elementX='+elementX, 'elementY='+elementY);
-              
               // Create image node
               const imageNode = new Konva.Image({
                 x: imageDrawX,
@@ -3137,40 +2986,20 @@ export function PDFRenderer({
               if (needsRotation && imageGroup) {
                 imageGroup.add(imageNode);
                 layer.add(imageGroup);
-                console.log('[DEBUG PDFRenderer] Image added to Group:', element.id, 
-                  'groupX='+imageGroup.x(), 'groupY='+imageGroup.y(),
-                  'imgX='+imageNode.x(), 'imgY='+imageNode.y(),
-                  'imgW='+imageNode.width(), 'imgH='+imageNode.height());
                 if (zOrderIndex !== undefined) {
                   imageGroup.setAttr('__zOrderIndex', zOrderIndex);
                   imageGroup.setAttr('__elementId', element.id);
                 }
               } else {
                 layer.add(imageNode);
-                console.log('[DEBUG PDFRenderer] Image added directly:', element.id,
-                  'imgX='+imageNode.x(), 'imgY='+imageNode.y(),
-                  'imgW='+imageNode.width(), 'imgH='+imageNode.height());
                 if (zOrderIndex !== undefined) {
                   imageNode.setAttr('__zOrderIndex', zOrderIndex);
                   imageNode.setAttr('__elementId', element.id);
                 }
               }
               
-              console.log('[PDFRenderer] Image node added to layer:', {
-                elementId: element.id,
-                layerChildrenCount: layer.getChildren().length,
-                zOrderIndex: zOrderIndex
-              });
               
               // Render frame if enabled (stickers never get frames)
-              console.log('[PDFRenderer] Frame check for element:', {
-                elementId: element.id,
-                elementType: element.type,
-                hasFrameEnabled: element.frameEnabled !== undefined,
-                frameEnabled: element.frameEnabled,
-                strokeWidth: element.strokeWidth,
-                willShowFrame: element.type !== 'sticker' && (element.frameEnabled !== undefined ? element.frameEnabled : (element.strokeWidth || 0) > 0)
-              });
 
               const frameEnabled = element.type === 'sticker'
                 ? false
@@ -3181,7 +3010,6 @@ export function PDFRenderer({
 
               if (frameEnabled && strokeWidth > 0) {
                 try {
-                  console.log('[PDFRenderer] Rendering frame for element:', element.id, element.type);
                   // Get color palette defaults for consistent frame coloring (same as QnA borders)
                   const currentPage = state.currentBook?.pages?.find(p => p.id === page.id) || page;
                   const pageTheme = currentPage?.themeId || currentPage?.background?.pageTheme;
@@ -3205,19 +3033,6 @@ export function PDFRenderer({
                 const borderOpacity = element.borderOpacity !== undefined ? element.borderOpacity : 1;
                 const frameStyle = element.frameStyle || element.theme || element.style || 'default';
                 const cornerRadius = element.cornerRadius || 0;
-                
-                // Debug: Log frame rendering details
-                console.log('[PDFRenderer] Frame rendering details:', {
-                  elementId: element.id,
-                  frameEnabled: frameEnabled,
-                  strokeWidth: strokeWidth,
-                  borderOpacity: borderOpacity,
-                  elementOpacity: elementOpacity,
-                  finalOpacity: borderOpacity * elementOpacity,
-                  stroke: stroke,
-                  frameStyle: frameStyle,
-                  cornerRadius: cornerRadius
-                });
                 
                 // Use centralized border rendering for frames
                     const frameRoughness = frameStyle === 'rough' ? 8 : (frameStyle === 'sketchy' ? 2 : (frameStyle === 'wobbly' ? 3 : undefined));
@@ -3356,12 +3171,6 @@ export function PDFRenderer({
                     }
                   }
                   
-                  console.log('[PDFRenderer] Frame added to layer:', {
-                    elementId: element.id,
-                    frameStyle: frameStyle,
-                    frameOpacity: borderOpacity * elementOpacity,
-                    layerChildrenCount: layer.getChildren().length
-                  });
                 }
                 } catch (frameError) {
                   console.error('[PDFRenderer] Error rendering frame for element:', element.id, frameError);
@@ -3506,7 +3315,6 @@ export function PDFRenderer({
         }
         // Render shape elements (rect, circle, etc.)
         else if (['rect', 'circle', 'line', 'triangle', 'polygon', 'heart', 'star', 'speech-bubble', 'dog', 'cat', 'smiley'].includes(element.type)) {
-          console.log('[PDFRenderer] ⭐ RENDERING SHAPE:', element.type, 'id:', element.id, 'x:', element.x, 'y:', element.y, 'width:', element.width, 'height:', element.height);
           
           const fill = element.fill !== undefined ? element.fill : 'transparent';
           const stroke = element.stroke || '#000000';
@@ -3535,38 +3343,13 @@ export function PDFRenderer({
             : 1;
           
           // Check if theme renderer should be used
-          console.log('[PDFRenderer] Getting style renderer for:', shapeStyle);
           const styleRenderer = getStyleRenderer(shapeStyle);
-          console.log('[PDFRenderer] Style renderer obtained:', !!styleRenderer, typeof styleRenderer);
           const hasBorder = borderWidth > 0;
           const hasFill = fill !== 'transparent' && fill !== undefined;
           const requiresPathShape = !['rect', 'circle', 'line'].includes(element.type);
           const useStyle = Boolean(styleRenderer) && (shapeStyle !== 'default' || requiresPathShape) && (hasBorder || hasFill || requiresPathShape);
-          console.log('[PDFRenderer] Will use styled rendering:', useStyle);
 
-          console.log('[PDFRenderer] Shape analysis:',
-            'elementId:', String(element.id),
-            'style:', String(shapeStyle),
-            'borderWidth:', Number(borderWidth),
-            'strokeWidth:', Number(strokeWidth),
-            'fill:', String(fill),
-            'hasBorder:', Boolean(hasBorder),
-            'hasFill:', Boolean(hasFill),
-            'useStyle:', Boolean(useStyle),
-            'hasStyleRenderer:', Boolean(!!styleRenderer),
-            'elementType:', String(element.type),
-            'elementRotation:', Number(elementRotation),
-            'needsRotation:', Boolean(elementRotation !== 0 && elementRotation !== undefined)
-          );
 
-          console.log('[PDFRenderer] Shape rendering:',
-            'elementId:', String(element.id),
-            'elementType:', String(element.type),
-            'style:', String(shapeStyle),
-            'borderWidth:', Number(borderWidth),
-            'useStyle:', Boolean(useStyle),
-            'hasStyleRenderer:', Boolean(!!styleRenderer)
-          );
           
           // For shapes, always calculate offset based on scaled size (matching base-canvas-item.tsx)
           // Position is stored without offset, so we need to add it back
@@ -3584,19 +3367,6 @@ export function PDFRenderer({
             // Set offsetX and offsetY to center the rotation pivot point (already calculated above)
             
             // DEBUG: Log Group positioning
-            console.log('[PDFRenderer] Shape Group positioning:', 
-              'elementId:', String(element.id),
-              'elementType:', String(element.type),
-              'elementX:', Number(elementX),
-              'elementY:', Number(elementY),
-              'elementWidth:', Number(elementWidth),
-              'elementHeight:', Number(elementHeight),
-              'offsetX:', Number(offsetX),
-              'offsetY:', Number(offsetY),
-              'adjustedX:', Number(adjustedX),
-              'adjustedY:', Number(adjustedY),
-              'rotation:', Number(elementRotation)
-            );
             
             // Create Group for shape (rotates as a unit)
             shapeGroup = new Konva.Group({
@@ -3609,14 +3379,6 @@ export function PDFRenderer({
               listening: false,
             });
           }
-          
-          // DEBUG: Log which path we're taking
-          console.log('[PDFRenderer] Shape rendering path decision:',
-            'elementId:', String(element.id),
-            'useStyle:', Boolean(useStyle),
-            'willEnterIfBlock:', Boolean(useStyle),
-            'willEnterElseBlock:', Boolean(!useStyle)
-          );
           
             if (useStyle) {
             // Use theme renderer for themed borders
@@ -3639,20 +3401,8 @@ export function PDFRenderer({
               roughness: shapeStyle === 'rough' ? 8 : element.roughness
             } as CanvasElement;
 
-            console.log('[PDFRenderer] Calling styleRenderer.generatePath...');
             const pathData = styleRenderer.generatePath(shapeElement);
-            console.log('[PDFRenderer] Path data generated:', pathData ? pathData.substring(0, 50) : 'null');
-            console.log('[PDFRenderer] Calling styleRenderer.getStrokeProps...');
             const strokeProps = styleRenderer.getStrokeProps(shapeElement);
-            console.log('[PDFRenderer] Stroke props obtained:', !!strokeProps);
-            
-            // DEBUG: Log pathData
-            console.log('[PDFRenderer] Theme renderer result:',
-              'elementId:', String(element.id),
-              'useStyle:', Boolean(useStyle),
-              'hasPathData:', Boolean(pathData),
-              'pathDataPreview:', pathData ? String(pathData).substring(0, 100) : 'null'
-            );
 
             // Debug: Log theme rendering
             // console.log('[PDFRenderer] Theme rendering:', {
@@ -3680,10 +3430,6 @@ export function PDFRenderer({
             // }
             
             if (pathData) {
-              console.log('[PDFRenderer] pathData exists, entering themed rendering block:',
-                'elementId:', String(element.id),
-                'style:', String(shapeStyle)
-              );
               // Special handling for Candy and Wobbly themes - use borderElement exactly like textbox-qna.tsx
               if ((shapeStyle === 'candy' || shapeStyle === 'wobbly') && strokeProps.strokeWidth > 0) {
                 // Get raw borderWidth value (not converted), exactly like textbox-qna.tsx does
@@ -3734,21 +3480,6 @@ export function PDFRenderer({
                     const fillPathX = needsRotation ? 0 : elementX;
                     const fillPathY = needsRotation ? 0 : elementY;
                     
-                    // DEBUG: Log Fill Path positioning
-                    if (needsRotation) {
-                      console.log('[PDFRenderer] Fill Path positioning (rotated):',
-                        'elementId:', String(element.id),
-                        'elementType:', String(element.type),
-                        'pathX:', Number(fillPathX),
-                        'pathY:', Number(fillPathY),
-                        'elementX:', Number(elementX),
-                        'elementY:', Number(elementY),
-                        'offsetX:', Number(offsetX),
-                        'offsetY:', Number(offsetY),
-                        'pathDataPreview:', String(pathData || '').substring(0, 100)
-                      );
-                    }
-                    
                     const fillPath = new Konva.Path({
                       data: pathData,
                       // Position based on whether we're using a Group or not
@@ -3770,30 +3501,6 @@ export function PDFRenderer({
                     
                     if (needsRotation && shapeGroup) {
                       shapeGroup.add(fillPath);
-                      // DEBUG: Log actual absolute position after adding to Group
-                      const groupX = shapeGroup.x();
-                      const groupY = shapeGroup.y();
-                      const groupOffsetX = shapeGroup.offsetX();
-                      const groupOffsetY = shapeGroup.offsetY();
-                      const pathRelativeX = fillPath.x();
-                      const pathRelativeY = fillPath.y();
-                      const absoluteX = groupX - groupOffsetX + pathRelativeX;
-                      const absoluteY = groupY - groupOffsetY + pathRelativeY;
-                      console.log('[PDFRenderer] Fill Path absolute position after Group:',
-                        'elementId:', String(element.id),
-                        'groupX:', Number(groupX),
-                        'groupY:', Number(groupY),
-                        'groupOffsetX:', Number(groupOffsetX),
-                        'groupOffsetY:', Number(groupOffsetY),
-                        'pathRelativeX:', Number(pathRelativeX),
-                        'pathRelativeY:', Number(pathRelativeY),
-                        'calculatedAbsoluteX:', Number(absoluteX),
-                        'calculatedAbsoluteY:', Number(absoluteY),
-                        'expectedAbsoluteX:', Number(elementX),
-                        'expectedAbsoluteY:', Number(elementY),
-                        'differenceX:', Number(absoluteX - elementX),
-                        'differenceY:', Number(absoluteY - elementY)
-                      );
                     } else {
                       layer.add(fillPath);
                       const themedZOrderIndex = elementIdToZOrder.get(element.id);
@@ -3887,18 +3594,6 @@ export function PDFRenderer({
                       // DEBUG: Log Border Path positioning before setting
                       const initialBorderX = borderPath.x();
                       const initialBorderY = borderPath.y();
-                      console.log('[PDFRenderer] Border Path positioning (rotated):',
-                        'elementId:', String(element.id),
-                        'elementType:', String(element.type),
-                        'initialX:', Number(initialBorderX),
-                        'initialY:', Number(initialBorderY),
-                        'elementX:', Number(elementX),
-                        'elementY:', Number(elementY),
-                        'offsetX:', Number(offsetX),
-                        'offsetY:', Number(offsetY),
-                        'settingToX:', 0,
-                        'settingToY:', 0
-                      );
                       
                       borderPath.x(0);
                       borderPath.y(0);
@@ -3933,21 +3628,6 @@ export function PDFRenderer({
                       const borderPathRelativeY = borderPath.y();
                       const borderAbsoluteX = borderGroupX - borderGroupOffsetX + borderPathRelativeX;
                       const borderAbsoluteY = borderGroupY - borderGroupOffsetY + borderPathRelativeY;
-                      console.log('[PDFRenderer] Border Path absolute position after Group:',
-                        'elementId:', String(element.id),
-                        'groupX:', Number(borderGroupX),
-                        'groupY:', Number(borderGroupY),
-                        'groupOffsetX:', Number(borderGroupOffsetX),
-                        'groupOffsetY:', Number(borderGroupOffsetY),
-                        'pathRelativeX:', Number(borderPathRelativeX),
-                        'pathRelativeY:', Number(borderPathRelativeY),
-                        'calculatedAbsoluteX:', Number(borderAbsoluteX),
-                        'calculatedAbsoluteY:', Number(borderAbsoluteY),
-                        'expectedAbsoluteX:', Number(elementX),
-                        'expectedAbsoluteY:', Number(elementY),
-                        'differenceX:', Number(borderAbsoluteX - elementX),
-                        'differenceY:', Number(borderAbsoluteY - elementY)
-                      );
                     } else {
                       layer.add(borderPath);
                       const borderZOrderIndex = elementIdToZOrder.get(element.id);
@@ -4006,17 +3686,6 @@ export function PDFRenderer({
                 
                 // DEBUG: Log Shape Path positioning
                 if (needsRotation) {
-                  console.log('[PDFRenderer] Shape Path positioning (rotated, regular theme):',
-                    'elementId:', String(element.id),
-                    'elementType:', String(element.type),
-                    'pathX:', Number(shapePathX),
-                    'pathY:', Number(shapePathY),
-                    'elementX:', Number(elementX),
-                    'elementY:', Number(elementY),
-                    'offsetX:', Number(offsetX),
-                    'offsetY:', Number(offsetY),
-                    'pathDataPreview:', String(pathData || '').substring(0, 100)
-                  );
                 }
                 
                 const shapePath = new Konva.Path({
@@ -4052,21 +3721,6 @@ export function PDFRenderer({
                   const shapePathRelativeY = shapePath.y();
                   const shapeAbsoluteX = shapeGroupX - shapeGroupOffsetX + shapePathRelativeX;
                   const shapeAbsoluteY = shapeGroupY - shapeGroupOffsetY + shapePathRelativeY;
-                  console.log('[PDFRenderer] Shape Path absolute position after Group:',
-                    'elementId:', String(element.id),
-                    'groupX:', Number(shapeGroupX),
-                    'groupY:', Number(shapeGroupY),
-                    'groupOffsetX:', Number(shapeGroupOffsetX),
-                    'groupOffsetY:', Number(shapeGroupOffsetY),
-                    'pathRelativeX:', Number(shapePathRelativeX),
-                    'pathRelativeY:', Number(shapePathRelativeY),
-                    'calculatedAbsoluteX:', Number(shapeAbsoluteX),
-                    'calculatedAbsoluteY:', Number(shapeAbsoluteY),
-                    'expectedAbsoluteX:', Number(elementX),
-                    'expectedAbsoluteY:', Number(elementY),
-                    'differenceX:', Number(shapeAbsoluteX - elementX),
-                    'differenceY:', Number(shapeAbsoluteY - elementY)
-                  );
                 } else {
                   layer.add(shapePath);
                   const themedZOrderIndex = elementIdToZOrder.get(element.id);
@@ -4078,16 +3732,6 @@ export function PDFRenderer({
             }
           } else {
               // Fallback to regular shape
-              console.log('[PDFRenderer] ✅ ENTERING ELSE BLOCK - Using non-themed rendering path:',
-                'elementId:', String(element.id),
-                'elementType:', String(element.type),
-                'needsRotation:', Boolean(needsRotation),
-                'hasShapeGroup:', Boolean(shapeGroup),
-                'elementX:', Number(elementX),
-                'elementY:', Number(elementY),
-                'elementWidth:', Number(elementWidth),
-                'elementHeight:', Number(elementHeight)
-              );
               let shapeNode;
               if (element.type === 'circle') {
                 const circleRadius = Math.min(elementWidth, elementHeight) / 2;
@@ -4120,15 +3764,6 @@ export function PDFRenderer({
                 });
               } else {
                 // For rect elements, apply backgroundOpacity to fill color (RGBA) instead of using opacity property
-                console.log('[PDFRenderer] ✅ ENTERING RECT CREATION - Creating Rect node (non-themed):',
-                  'elementId:', String(element.id),
-                  'needsRotation:', Boolean(needsRotation),
-                  'hasShapeGroup:', Boolean(shapeGroup),
-                  'elementX:', Number(elementX),
-                  'elementY:', Number(elementY),
-                  'elementWidth:', Number(elementWidth),
-                  'elementHeight:', Number(elementHeight)
-                );
                 let rectFill = fill !== 'transparent' ? fill : undefined;
                 if (element.type === 'rect' && rectFill && backgroundOpacity < 1) {
                   if (rectFill.startsWith('#')) {
@@ -4172,30 +3807,6 @@ export function PDFRenderer({
               }
               if (needsRotation && shapeGroup) {
                 shapeGroup.add(shapeNode);
-                // DEBUG: Log actual absolute position after adding to Group
-                const rectGroupX = shapeGroup.x();
-                const rectGroupY = shapeGroup.y();
-                const rectGroupOffsetX = shapeGroup.offsetX();
-                const rectGroupOffsetY = shapeGroup.offsetY();
-                const rectRelativeX = shapeNode.x();
-                const rectRelativeY = shapeNode.y();
-                const rectAbsoluteX = rectGroupX - rectGroupOffsetX + rectRelativeX;
-                const rectAbsoluteY = rectGroupY - rectGroupOffsetY + rectRelativeY;
-                console.log('[PDFRenderer] Rect absolute position after Group:',
-                  'elementId:', String(element.id),
-                  'groupX:', Number(rectGroupX),
-                  'groupY:', Number(rectGroupY),
-                  'groupOffsetX:', Number(rectGroupOffsetX),
-                  'groupOffsetY:', Number(rectGroupOffsetY),
-                  'rectRelativeX:', Number(rectRelativeX),
-                  'rectRelativeY:', Number(rectRelativeY),
-                  'calculatedAbsoluteX:', Number(rectAbsoluteX),
-                  'calculatedAbsoluteY:', Number(rectAbsoluteY),
-                  'expectedAbsoluteX:', Number(elementX),
-                  'expectedAbsoluteY:', Number(elementY),
-                  'differenceX:', Number(rectAbsoluteX - elementX),
-                  'differenceY:', Number(rectAbsoluteY - elementY)
-                );
               } else {
                 layer.add(shapeNode);
                 const zOrderIndex = elementIdToZOrder.get(element.id);
@@ -4298,15 +3909,6 @@ export function PDFRenderer({
           // Add shapeGroup to layer only if it exists (i.e., needsRotation is true)
           if (needsRotation && shapeGroup) {
             // DEBUG: Log Group before adding to layer
-            console.log('[PDFRenderer] Adding Group to layer:',
-              'elementId:', String(element.id),
-              'groupX:', Number(shapeGroup.x()),
-              'groupY:', Number(shapeGroup.y()),
-              'groupOffsetX:', Number(shapeGroup.offsetX()),
-              'groupOffsetY:', Number(shapeGroup.offsetY()),
-              'groupRotation:', Number(shapeGroup.rotation()),
-              'childrenCount:', Number(shapeGroup.children.length)
-            );
             
             layer.add(shapeGroup);
             
@@ -4320,7 +3922,7 @@ export function PDFRenderer({
           }
         }
       } catch (error) {
-        console.error('[PDFRenderer] ❌ ERROR rendering element:', element.id);
+        console.error('[PDFRenderer] âŒ ERROR rendering element:', element.id);
         console.error('[PDFRenderer] Error type:', typeof error);
         console.error('[PDFRenderer] Error message:', error instanceof Error ? error.message : String(error));
         console.error('[PDFRenderer] Error stack:', error instanceof Error ? error.stack : 'No stack');
@@ -4542,7 +4144,6 @@ export function PDFRenderer({
     }
   }, [layerReady, width, height, backgroundImage, patternImage, page.background, page.backgroundTransform, pagePaletteId, palette, normalizedPalette, palettePatternFill, sortedElements]);
 
-  console.log('[PDFRenderer] About to render Stage');
 
   return (
     <Stage

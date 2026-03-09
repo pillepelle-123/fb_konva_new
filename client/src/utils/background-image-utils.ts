@@ -381,13 +381,6 @@ export function resolveBackgroundImageUrl(
         // Don't use backgroundColorOverride for palette mode - let it use the current paletteId
         // backgroundColorOverride would derive colors from a single color, overriding the palette
       };
-      console.log('[PDF Debug] resolveBackgroundImageUrl calling getBackgroundImageUrl:', {
-        backgroundImageId: background.backgroundImageId,
-        paletteMode: mergedOptions.paletteMode,
-        hasPaletteColors: !!mergedOptions.paletteColors,
-        paletteColorsKeys: mergedOptions.paletteColors ? Object.keys(mergedOptions.paletteColors) : [],
-        paletteId: mergedOptions.paletteId
-      });
       const result = getBackgroundImageUrl(background.backgroundImageId, mergedOptions, true);
       return result;
     }

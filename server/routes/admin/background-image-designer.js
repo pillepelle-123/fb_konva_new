@@ -44,18 +44,14 @@ function normalizeDesignerAssetUrl(uploadPath) {
     return uploadPath;
   }
 
-  const appendPngForSvg = (url) => {
-    if (!/\.svg(?:\?.*)?$/i.test(url)) {
-      return url;
-    }
-    return `${url}${url.includes('?') ? '&' : '?'}format=png`;
-  };
+  // SVGs are rendered natively in the PDF renderer (like stickers).
+  // No format conversion needed – assets are served as-is.
 
   const uploadsMatch = uploadPath.match(/^https?:\/\/[^/]+\/uploads\/background-images\/(.+)$/i)
     || uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
 
   if (uploadsMatch && uploadsMatch[1]) {
-    return appendPngForSvg(`/api/background-images/designer/assets/${uploadsMatch[1]}`);
+    return `/api/background-images/designer/assets/${uploadsMatch[1]}`;
   }
 
   const rawPath = uploadPath.replace(/^\/+/u, '');
@@ -64,11 +60,11 @@ function normalizeDesignerAssetUrl(uploadPath) {
     || rawPath.startsWith('designer/')
     || rawPath.startsWith('_image_assets/')
   ) {
-    return appendPngForSvg(`/api/background-images/designer/assets/${rawPath}`);
+    return `/api/background-images/designer/assets/${rawPath}`;
   }
 
   if (/^\/api\/background-images\/designer\/assets\//i.test(uploadPath)) {
-    return appendPngForSvg(uploadPath);
+    return uploadPath;
   }
 
   return uploadPath;
