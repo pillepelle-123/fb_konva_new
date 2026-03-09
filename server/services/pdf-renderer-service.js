@@ -722,50 +722,74 @@ class PDFRendererService {
       
       // console.log('[PDFRendererService] Stage debug info:', JSON.stringify(stageDebugInfo, null, 2));
 
-      // Derive completion from either explicit signal or concrete stage content.
-      // This avoids brittle polling/fallback loops when callback timing is flaky.
-      await page.waitForFunction(() => {
-        if ((window.renderComplete === true)) {
-          return true;
-        }
-
-        const stage = window.konvaStage;
-        if (!stage || typeof stage.getLayers !== 'function') {
-          return false;
-        }
-
-        const layers = stage.getLayers();
-        if (!Array.isArray(layers) || layers.length === 0) {
-          return false;
-        }
-
-        const hasContent = layers.some(layer => layer.getChildren().length > 0);
-        if (!hasContent) {
-          return false;
-        }
-
-        // Promote stage-ready state to renderComplete so downstream logs and flow stay consistent.
-        window.renderComplete = true;
-        if (!window.renderCompleteMeta) {
-          window.renderCompleteMeta = {
-            source: 'service-stage-detection',
-            layersCount: layers.length,
-            totalChildren: layers.reduce((sum, l) => sum + l.getChildren().length, 0),
-            at: Date.now(),
-          };
-        }
-        return true;
-      }, { timeout: 12000, polling: 100 });
-
-      const renderCompleteDebug = await page.evaluate(() => ({
-        renderComplete: window.renderComplete === true,
-        renderCompleteMeta: window.renderCompleteMeta || null,
-        hasStage: !!window.konvaStage,
-        stageLayers: window.konvaStage && typeof window.konvaStage.getLayers === 'function'
-          ? window.konvaStage.getLayers().length
-          : 0,
-      }));
-      console.log('[DEBUG PDFRendererService] ✅ RENDER COMPLETE - Proceeding to screenshot:', renderCompleteDebug);
+      // Wait for renderComplete flag OR layers (fallback if callback doesn't fire)
+      await page.evaluate(() => {
+        return new Promise((resolve, reject) => {
+          let attempts = 0;
+          const checkRenderComplete = setInterval(() => {
+            attempts++;
+            
+            // Check if renderComplete is set
+            if (window.renderComplete === true) {
+              clearInterval(checkRenderComplete);
+              
+              // Debug: Log render complete
+              console.log('[DEBUG PDFRendererService] ✅ RENDER COMPLETE - Proceeding to screenshot:', {
+                attempts: attempts,
+                stageExists: !!window.konvaStage,
+                layersCount: window.konvaStage ? window.konvaStage.getLayers().length : 0
+              });
+              
+              resolve();
+              return;
+            }
+            
+            // Fallback: Check if stage has layers (rendering might be complete even without callback)
+            const stage = window.konvaStage;
+            if (stage && typeof stage.getLayers === 'function') {
+              const layers = stage.getLayers();
+              if (layers.length > 0) {
+                // Check if layers have children (actual content)
+                const hasContent = layers.some(layer => layer.getChildren().length > 0);
+                if (hasContent && attempts > 30) {
+                  // Keep waiting longer for explicit renderComplete signal.
+                  if (attempts > 80) {
+                    clearInterval(checkRenderComplete);
+                    console.log('[DEBUG PDFRendererService] ⚠️ USING FALLBACK - Stage has content, proceeding:', {
+                      attempts: attempts,
+                      layersCount: layers.length,
+                      totalChildren: layers.reduce((sum, l) => sum + l.getChildren().length, 0),
+                      renderComplete: window.renderComplete,
+                      renderCompleteMeta: window.renderCompleteMeta || null
+                    });
+                    resolve();
+                    return;
+                  }
+                }
+              }
+            }
+            
+            // Debug every 10 attempts
+            if (attempts % 10 === 0) {
+              console.log(`[DEBUG PDFRendererService] Waiting for renderComplete (attempt ${attempts}):`, {
+                renderComplete: window.renderComplete,
+                renderCompleteMeta: window.renderCompleteMeta || null,
+                hasStage: !!window.konvaStage,
+                stageLayers: window.konvaStage ? window.konvaStage.getLayers().length : 0,
+                renderError: window.renderError || null
+              });
+            }
+            
+            // Timeout after 30 seconds
+            if (attempts > 300) {
+              clearInterval(checkRenderComplete);
+              // Don't reject, just resolve with warning - layers might still be there
+              console.warn('[DEBUG PDFRendererService] ⚠️ TIMEOUT - Proceeding anyway, renderComplete not set');
+              resolve();
+            }
+          }, 100);
+        });
+      });
       
       // Wait for layers to be mounted (React-Konva needs time to mount Layer components)
       await page.evaluate(() => {

@@ -2982,9 +2982,10 @@ export function PDFRenderer({
 
               // Images use cover-crop. Stickers use contain-fit so their full shape stays visible.
               let cropProps: { cropX: number; cropY: number; cropWidth: number; cropHeight: number } | null = null;
-              // When in Group (needsRotation), image coords are relative to Group's offset point
-              let imageDrawX = needsRotation ? -offsetX : elementX;
-              let imageDrawY = needsRotation ? -offsetY : elementY;
+              // When in Group (needsRotation), image coords are relative to Group origin (0,0)
+              // When not in Group, use absolute coordinates
+              let imageDrawX = needsRotation ? 0 : elementX;
+              let imageDrawY = needsRotation ? 0 : elementY;
               let imageDrawWidth = elementWidth;
               let imageDrawHeight = elementHeight;
 
@@ -3002,9 +3003,9 @@ export function PDFRenderer({
 
                 const centerOffsetX = (elementWidth - imageDrawWidth) / 2;
                 const centerOffsetY = (elementHeight - imageDrawHeight) / 2;
-                // Apply center offset relative to Group offset or absolute coordinates
-                imageDrawX = (needsRotation ? -offsetX : elementX) + centerOffsetX;
-                imageDrawY = (needsRotation ? -offsetY : elementY) + centerOffsetY;
+                // Apply center offset relative to Group origin or absolute coordinates
+                imageDrawX = (needsRotation ? 0 : elementX) + centerOffsetX;
+                imageDrawY = (needsRotation ? 0 : elementY) + centerOffsetY;
               } else {
                 // Designer background assets are stretched to their box in the editor (no cover-crop).
                 if ((element as any).designerBackgroundAsset) {

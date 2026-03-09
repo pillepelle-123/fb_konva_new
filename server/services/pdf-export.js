@@ -50,9 +50,13 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
     // Determine which pages to export
     let pagesToExport = bookData.pages || [];
     if (options.pageRange === 'range' && options.startPage && options.endPage) {
-      const start = Math.max(1, options.startPage) - 1;
-      const end = Math.min(pagesToExport.length, options.endPage);
-      pagesToExport = pagesToExport.slice(start, end);
+      // User input is pageNumber (DB field), not array position
+      // Filter pages by pageNumber field
+      pagesToExport = pagesToExport.filter(page => 
+        page.pageNumber >= options.startPage && page.pageNumber <= options.endPage
+      );
+      console.log(`[PDF Export] Page range: User selected pageNumber ${options.startPage}-${options.endPage}`);
+      console.log(`[PDF Export] Exporting ${pagesToExport.length} pages:`, pagesToExport.map(p => `id=${p.id} pageNumber=${p.pageNumber}`));
     } else if (options.pageRange === 'current') {
       // Prefer currentPageNumber over currentPageIndex for accuracy
       // This fixes issues when pages are added and array order doesn't match pageNumber
