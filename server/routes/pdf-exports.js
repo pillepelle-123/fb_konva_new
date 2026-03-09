@@ -10,6 +10,7 @@ const { getUploadsDir, getUploadsSubdir, isPathWithinUploads } = require('../uti
 const { formatLayoutIdForResponse } = require('../utils/layout-utils');
 const stickersService = require('../services/stickers');
 const backgroundImagesService = require('../services/background-images');
+const backgroundImageDesignerService = require('../services/background-image-designer');
 const themesPalettesService = require('../services/themes-palettes-layouts');
 
 const router = express.Router();
@@ -250,6 +251,7 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
     if (!image || !image.storage?.filePath) return null;
 
     const relPath = image.storage.filePath.replace(/^\/+/, '');
+
     const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relPath));
     if (!isPathWithinUploads(fullPath)) return null;
 
@@ -342,6 +344,231 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
   return bookData;
 }
 
+async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions = {}) {
+  const isLiveDesignerQuality = exportOptions.quality === 'excellent' || exportOptions.quality === 'printing';
+  if (!isLiveDesignerQuality || !Array.isArray(bookData.pages)) {
+    return bookData;
+  }
+
+  const designerCache = new Map();
+  const pages = await Promise.all(
+    bookData.pages.map(async (page) => {
+      const background = page?.background;
+      if (background?.type !== 'image' || !background.backgroundImageId) {
+        return page;
+      }
+
+      const key = String(background.backgroundImageId);
+      if (!designerCache.has(key)) {
+        const designerImage = await backgroundImageDesignerService.getDesignerImageByIdentifier(key);
+        designerCache.set(key, designerImage || null);
+      }
+
+      const designerImage = designerCache.get(key);
+      if (!designerImage?.canvas?.structure) {
+        return page;
+      }
+
+      const rawStructure = designerImage.canvas.structure;
+      const structure = {
+        ...rawStructure,
+        items: Array.isArray(rawStructure.items)
+          ? rawStructure.items.map((item) => {
+              if (item?.type !== 'image') {
+                return item;
+              }
+
+              const dataUrl = designerAssetPathToDataUrl(item.uploadPath);
+              return {
+                ...item,
+                // Keep live rendering branch, but avoid protected endpoint fetches (403)
+                // by embedding local asset files directly.
+                uploadPath: dataUrl || normalizeDesignerAssetUrl(item.uploadPath),
+              };
+            })
+          : [],
+      };
+
+      return {
+        ...page,
+        background: {
+          ...background,
+          backgroundImageType: 'designer',
+          designerCanvas: {
+            structure,
+            canvasWidth: designerImage.canvas.canvasWidth,
+            canvasHeight: designerImage.canvas.canvasHeight,
+          },
+        },
+      };
+    })
+  );
+
+  return {
+    ...bookData,
+    pages,
+  };
+}
+
+function normalizeDesignerAssetUrl(uploadPath) {
+  if (!uploadPath || typeof uploadPath !== 'string') {
+    return uploadPath;
+  }
+
+  const uploadsMatch = uploadPath.match(/^https?:\/\/[^/]+\/uploads\/background-images\/(.+)$/i)
+    || uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
+
+  if (uploadsMatch && uploadsMatch[1]) {
+    return `/api/background-images/designer/assets/${uploadsMatch[1]}`;
+  }
+
+  const rawPath = uploadPath.replace(/^\/+/, '');
+  if (
+    rawPath.startsWith('_designer/')
+    || rawPath.startsWith('designer/')
+    || rawPath.startsWith('_image_assets/')
+  ) {
+    return `/api/background-images/designer/assets/${rawPath}`;
+  }
+
+  if (/^\/api\/background-images\/designer\/assets\//i.test(uploadPath)) {
+    return uploadPath;
+  }
+
+  return uploadPath;
+}
+
+function designerAssetPathToDataUrl(uploadPath) {
+  if (!uploadPath || typeof uploadPath !== 'string') {
+    return null;
+  }
+
+  let relativePath = null;
+  const apiMatch = uploadPath.match(/^\/api\/background-images\/designer\/assets\/(.+)$/i);
+  const uploadsMatch = uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
+
+  if (apiMatch && apiMatch[1]) {
+    relativePath = apiMatch[1];
+  } else if (uploadsMatch && uploadsMatch[1]) {
+    relativePath = uploadsMatch[1];
+  } else {
+    const rawPath = uploadPath.replace(/^\/+/, '');
+    if (
+      rawPath.startsWith('_designer/') ||
+      rawPath.startsWith('designer/') ||
+      rawPath.startsWith('_image_assets/')
+    ) {
+      relativePath = rawPath;
+    }
+  }
+
+  if (!relativePath) {
+    return null;
+  }
+
+  const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relativePath));
+  if (!isPathWithinUploads(fullPath)) {
+    return null;
+  }
+
+  return fileToDataUrl(fullPath);
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function toAbsolutePosition(value, canvasSize) {
+  const numeric = toFiniteNumber(value, 0);
+  if (numeric >= 0 && numeric <= 1) {
+    return numeric * canvasSize;
+  }
+  return numeric;
+}
+
+function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, targetHeight) {
+  const items = Array.isArray(canvasStructure?.items) ? canvasStructure.items : [];
+
+  return items
+    .map((item, index) => {
+      const x = toAbsolutePosition(item?.x, targetWidth);
+      const y = toAbsolutePosition(item?.y, targetHeight);
+      const width = toFiniteNumber(item?.width, 100);
+      const height = toFiniteNumber(item?.height, 100);
+      const rawRotation = toFiniteNumber(item?.rotation, 0);
+      const rotation = Math.abs(rawRotation) < 0.01 ? 0 : rawRotation;
+      const opacity = Math.max(0, Math.min(1, toFiniteNumber(item?.opacity, 1)));
+
+      if (item?.type === 'image') {
+        const normalizedSrc =
+          designerAssetPathToDataUrl(item.uploadPath) ||
+          normalizeDesignerAssetUrl(item.uploadPath);
+        return {
+          id: item.id || `designer-image-${index}`,
+          type: 'image',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          src: normalizedSrc,
+          url: normalizedSrc,
+          scaleX: 1,
+          scaleY: 1,
+          designerBackgroundAsset: true,
+          imageClipPosition: 'top-left',
+        };
+      }
+
+      if (item?.type === 'text') {
+        return {
+          id: item.id || `designer-text-${index}`,
+          type: 'text',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          text: item.text || '',
+          fontFamily: item.fontFamily || 'Arial, sans-serif',
+          fontSize: Math.max(1, toFiniteNumber(item.fontSize, 48)),
+          fontBold: Boolean(item.fontBold),
+          fontItalic: Boolean(item.fontItalic),
+          fontColor: item.fontColor || '#000000',
+          fontOpacity: Math.max(0, Math.min(1, toFiniteNumber(item.fontOpacity, 1))),
+          align: item.textAlign || 'left',
+          textAlign: item.textAlign || 'left',
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+
+      if (item?.type === 'sticker') {
+        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+        return {
+          id: item.id || `designer-sticker-${index}`,
+          type: 'sticker',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          src: stickerSrc,
+          url: stickerSrc,
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+
+      return null;
+    })
+    .filter((item) => item !== null);
+}
+
 // Parse schema from DATABASE_URL
 const url = new URL(process.env.DATABASE_URL);
 const schema = url.searchParams.get('schema') || 'public';
@@ -423,9 +650,12 @@ async function processExport(job) {
   // Apply palette to backgrounds and embed colorPalettes (no client fetch, avoids 403 in Puppeteer)
   const bookDataWithPalette = await applyPaletteToBookData(bookData);
 
+  // For excellent/printing quality, render designer backgrounds live from canvas payload.
+  const bookDataForRender = await enrichDesignerCanvasForLiveDesignerExport(bookDataWithPalette, options);
+
   // Generate PDF
   const pdfPath = await generatePDFFromBook(
-    bookDataWithPalette,
+    bookDataForRender,
     options,
     exportId,
     (progress) => {

@@ -672,6 +672,7 @@ async function renameDesignerFiles(oldFilePath, newSlug, uuid, categorySlug) {
     if (thumbExists) {
       await fs.rename(oldThumbAbsPath, newThumbAbsPath);
     }
+
   } catch (error) {
     console.error('Error renaming designer files:', error);
     // Don't throw - we'll update DB paths even if physical rename fails

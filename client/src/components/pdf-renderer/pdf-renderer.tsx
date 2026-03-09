@@ -13,6 +13,8 @@ import { getStyleRenderer, generateLinePath, type Style } from '../../utils/styl
 import { renderStyledBorderKonvaWithFallback, createLinePath, createRectPath, createCirclePath } from '../../utils/styled-border.ts';
 import { getCrop } from '../features/editor/canvas-items/image.tsx';
 import type { PageBackground } from '../../context/editor-context.tsx';
+import { DesignerBackgroundGroup } from '../features/editor/canvas/DesignerBackgroundGroup';
+import { hasDesignerCanvasPayload, extractDesignerCanvasPayload, mapDesignerCanvasToPage } from '../../services/canvas-structure-to-konva-group';
 import { FEATURE_FLAGS } from '../../utils/feature-flags';
 import type { RichTextStyle } from '../../../../shared/types/text-layout';
 import { buildFont as sharedBuildFont, getLineHeight as sharedGetLineHeight, measureText as sharedMeasureText, calculateTextX as sharedCalculateTextX, wrapText as sharedWrapText, getBaselineOffset as sharedGetBaselineOffset } from '../../../../shared/utils/text-layout';
@@ -263,6 +265,19 @@ const readBlobAsDataUrl = (blob: Blob) =>
     reader.readAsDataURL(blob);
   });
 
+function normalizeDesignerAssetUrl(uploadPath: string): string {
+  if (!uploadPath) {
+    return uploadPath;
+  }
+
+  const match = uploadPath.match(/^\/uploads\/background-images\/(.+)$/);
+  if (match && match[1]) {
+    return `/api/background-images/designer/assets/${match[1]}`;
+  }
+
+  return uploadPath;
+}
+
 const updatePdfQrPending = (delta: number) => {
   if (typeof window === 'undefined') return;
   const pdfWindow = window as any;
@@ -349,6 +364,11 @@ export function PDFRenderer({
   useEffect(() => {
     const background = page.background;
     if (background?.type === 'image') {
+      if (hasDesignerCanvasPayload(background)) {
+        setBackgroundImage(null);
+        return;
+      }
+
       const options = {
         paletteId: pagePaletteId || undefined,
         paletteColors: bgPaletteColors,
@@ -508,7 +528,20 @@ export function PDFRenderer({
       }
     }
 
+    if (background.type === 'image' && hasDesignerCanvasPayload(background)) {
+      return (
+        <DesignerBackgroundGroup
+          background={background}
+          offsetX={0}
+          pageOffsetY={0}
+          canvasWidth={width}
+          canvasHeight={height}
+        />
+      );
+    }
+
     if (background.type === 'image' && backgroundImage) {
+
       const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
       const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
       const baseBackgroundColor = hasBackgroundColor
@@ -740,6 +773,7 @@ export function PDFRenderer({
     layer.destroyChildren();
     
     // Render background using Konva directly
+    const imagePromises: Promise<void>[] = [];
     const background: PageBackground | undefined = page.background;
     const backgroundTransform = page.backgroundTransform;
     const transformScale = backgroundTransform?.scale ?? 1;
@@ -806,6 +840,83 @@ export function PDFRenderer({
           listening: false,
         });
         bgLayer.add(bgRect2);
+        }
+      } else if (background.type === 'image' && hasDesignerCanvasPayload(background)) {
+        const payload = extractDesignerCanvasPayload(background);
+        if (payload) {
+          const mapped = mapDesignerCanvasToPage(payload, width, height, 0, 0);
+          const backgroundOpacityMultiplier = typeof background.opacity === 'number' ? background.opacity : 1;
+
+          const mappedBgRect = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width,
+            height,
+            fill: mapped.backgroundColor,
+            opacity: Math.max(0, Math.min(1, mapped.backgroundOpacity * backgroundOpacityMultiplier)),
+            listening: false,
+          });
+          bgLayer.add(mappedBgRect);
+
+          for (const item of mapped.items) {
+            if (item.type === 'text') {
+              const fontStyle = `${item.fontBold ? 'bold' : ''} ${item.fontItalic ? 'italic' : ''}`.trim() || 'normal';
+              const textNode = new Konva.Text({
+                x: item.x,
+                y: item.y,
+                width: item.width,
+                height: item.height,
+                text: item.text,
+                fontFamily: item.fontFamily,
+                fontSize: item.fontSize,
+                fontStyle,
+                fill: item.fontColor,
+                opacity: Math.max(0, Math.min(1, item.fontOpacity * item.opacity * backgroundOpacityMultiplier)),
+                align: item.textAlign || 'left',
+                rotation: item.rotation,
+                listening: false,
+              });
+              bgLayer.add(textNode);
+              continue;
+            }
+
+            const src = item.type === 'image'
+              ? normalizeDesignerAssetUrl(item.uploadPath)
+              : `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+
+            const imagePromise = new Promise<void>((resolve) => {
+              const img = new window.Image();
+              img.onload = () => {
+                const imageNode = new Konva.Image({
+                  image: img,
+                  x: item.x,
+                  y: item.y,
+                  width: item.width,
+                  height: item.height,
+                  rotation: item.rotation,
+                  opacity: Math.max(0, Math.min(1, item.opacity * backgroundOpacityMultiplier)),
+                  listening: false,
+                });
+                bgLayer.add(imageNode);
+                resolve();
+              };
+              img.onerror = () => resolve();
+              img.src = src;
+            });
+
+            imagePromises.push(imagePromise);
+          }
+        } else {
+          const bgRect = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width,
+            height,
+            fill: '#ffffff',
+            opacity,
+            listening: false,
+          });
+          bgLayer.add(bgRect);
         }
       } else if (background.type === 'image' && backgroundImage) {
         const hasBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
@@ -955,8 +1066,7 @@ export function PDFRenderer({
       elementIdToZOrder.set(el.id, idx);
     });
     
-    // Track image loading promises for final z-order fix
-    const imagePromises: Promise<void>[] = [];
+    // imagePromises already initialized before background rendering.
     
     for (const element of elements) {
       try {
