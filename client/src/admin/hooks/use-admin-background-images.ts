@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../context/auth-context'
+import { loadBackgroundImageRegistry } from '../../data/templates/background-images'
 import {
   fetchAdminBackgroundImages,
   fetchAdminBackgroundImage,
@@ -63,7 +64,7 @@ export function useAdminBackgroundImages(params?: AdminBackgroundImageListParams
   const updateImageMutation = useMutation({
     mutationFn: ({ identifier, data }: { identifier: string; data: Partial<AdminBackgroundImageInput> }) =>
       updateAdminBackgroundImage(token, identifier, data),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'background-images'] })
       if (updated) {
         queryClient.setQueryData(['admin', 'background-image', updated.slug], { image: updated })
@@ -142,6 +143,8 @@ export function useAdminBackgroundImages(params?: AdminBackgroundImageListParams
     refetchImage: (identifier: string) => fetchAdminBackgroundImage(token, identifier),
   }
 }
+  // Reload background image registry for editor-side cache
+  await loadBackgroundImageRegistry(true)
 
 export type { AdminBackgroundImage, AdminBackgroundImageCategory, AdminBackgroundImageInput }
 

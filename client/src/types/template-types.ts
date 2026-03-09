@@ -159,9 +159,11 @@ export interface BackgroundImage {
   paletteSlotOpacities?: Partial<Record<PaletteSlot, number>>;
   /** true = use background/surface for large areas, false = only primary/secondary/accent, undefined = heuristic */
   useBackgroundSlots?: boolean;
-  designerCanvasStructure?: unknown;
-  designerCanvasWidth?: number;
-  designerCanvasHeight?: number;
+  designerCanvas?: {
+    structure?: unknown;
+    canvasWidth?: number;
+    canvasHeight?: number;
+  };
   designerId?: string;
   description?: string;
   tags?: string[];

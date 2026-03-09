@@ -8,10 +8,13 @@ const multer = require('multer');
 const { authenticateToken } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const designerService = require('../../services/background-image-designer');
-const { saveBackgroundImageFile } = require('../../services/file-storage');
 const path = require('path');
 const fs = require('fs/promises');
+const sharp = require('sharp');
+const { randomUUID } = require('crypto');
 const { getUploadsSubdir } = require('../../utils/uploads-path');
+const { validateImageMagicBytes } = require('../../utils/image-validation');
+const PDFRendererService = require('../../services/pdf-renderer-service');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,6 +27,150 @@ const upload = multer({
 const router = express.Router();
 
 router.use(authenticateToken, requireAdmin);
+
+function isLikelySvg(buffer) {
+  if (!buffer || !buffer.length) return false;
+  const sample = buffer.slice(0, 4096).toString('utf8').trimStart();
+  return sample.startsWith('<svg') || (sample.startsWith('<?xml') && sample.includes('<svg'));
+}
+
+function getSafeSvgExt(originalName = '') {
+  const ext = path.extname(originalName).toLowerCase();
+  return ext === '.svg' ? '.svg' : '.svg';
+}
+
+function normalizeDesignerAssetUrl(uploadPath) {
+  if (!uploadPath || typeof uploadPath !== 'string') {
+    return uploadPath;
+  }
+
+  const appendPngForSvg = (url) => {
+    if (!/\.svg(?:\?.*)?$/i.test(url)) {
+      return url;
+    }
+    return `${url}${url.includes('?') ? '&' : '?'}format=png`;
+  };
+
+  const uploadsMatch = uploadPath.match(/^https?:\/\/[^/]+\/uploads\/background-images\/(.+)$/i)
+    || uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
+
+  if (uploadsMatch && uploadsMatch[1]) {
+    return appendPngForSvg(`/api/background-images/designer/assets/${uploadsMatch[1]}`);
+  }
+
+  const rawPath = uploadPath.replace(/^\/+/u, '');
+  if (
+    rawPath.startsWith('_designer/')
+    || rawPath.startsWith('designer/')
+    || rawPath.startsWith('_image_assets/')
+  ) {
+    return appendPngForSvg(`/api/background-images/designer/assets/${rawPath}`);
+  }
+
+  if (/^\/api\/background-images\/designer\/assets\//i.test(uploadPath)) {
+    return appendPngForSvg(uploadPath);
+  }
+
+  return uploadPath;
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function toAbsolutePosition(value, canvasSize) {
+  const numeric = toFiniteNumber(value, 0);
+  // Support both normalized (0..1) and already-absolute values.
+  if (numeric >= 0 && numeric <= 1) {
+    return numeric * canvasSize;
+  }
+  return numeric;
+}
+
+function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, targetHeight) {
+  const items = Array.isArray(canvasStructure?.items) ? canvasStructure.items : [];
+
+  return items
+    .map((item, index) => {
+      // Positions are normalized (0-1), convert to absolute in target dimensions
+      const x = toAbsolutePosition(item?.x, targetWidth);
+      const y = toAbsolutePosition(item?.y, targetHeight);
+      
+      // Sizes are already absolute pixels - use as-is
+      const width = toFiniteNumber(item?.width, 100);
+      const height = toFiniteNumber(item?.height, 100);
+      const rawRotation = toFiniteNumber(item?.rotation, 0);
+      const rotation = Math.abs(rawRotation) < 0.01 ? 0 : rawRotation;
+      const opacity = Math.max(0, Math.min(1, toFiniteNumber(item?.opacity, 1)));
+
+      if (item?.type === 'image') {
+        const normalizedSrc = normalizeDesignerAssetUrl(item.uploadPath);
+        return {
+          id: item.id || `designer-image-${index}`,
+          type: 'image',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          src: normalizedSrc,
+          url: normalizedSrc,
+          scaleX: 1,
+          scaleY: 1,
+          // Preserve designer behavior in export renderer (no cover-crop).
+          designerBackgroundAsset: true,
+          imageClipPosition: 'top-left',
+        };
+      }
+
+      if (item?.type === 'text') {
+        return {
+          id: item.id || `designer-text-${index}`,
+          type: 'text',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          text: item.text || '',
+          fontFamily: item.fontFamily || 'Arial, sans-serif',
+          fontSize: Math.max(1, toFiniteNumber(item.fontSize, 48)),
+          fontBold: Boolean(item.fontBold),
+          fontItalic: Boolean(item.fontItalic),
+          fontColor: item.fontColor || '#000000',
+          fontOpacity: Math.max(0, Math.min(1, toFiniteNumber(item.fontOpacity, 1))),
+          align: item.textAlign || 'left',
+          textAlign: item.textAlign || 'left',
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+
+      if (item?.type === 'sticker') {
+        const stickerSrc = `/api/stickers/${encodeURIComponent(item.stickerId)}/image`;
+        return {
+          id: item.id || `designer-sticker-${index}`,
+          type: 'sticker',
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          opacity,
+          src: stickerSrc,
+          url: stickerSrc,
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+
+      return null;
+    })
+    .filter((item) => item !== null);
+}
 
 /**
  * List designer background images
@@ -83,6 +230,27 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * List global designer image assets
+ * GET /api/admin/background-images/designer/assets
+ */
+router.get('/assets', async (req, res) => {
+  try {
+    const { page = '1', pageSize = '100', search } = req.query;
+
+    const result = await designerService.listDesignerImageAssets({
+      page: Number(page) || 1,
+      pageSize: Math.min(Number(pageSize) || 100, 500),
+      search,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('List designer assets error:', error);
+    res.status(500).json({ error: 'Failed to list designer assets' });
+  }
+});
+
+/**
  * Get designer background image by ID
  * GET /api/admin/background-images/designer/:id
  */
@@ -109,7 +277,13 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, slug, categoryId, description, canvasStructure, tags, metadata, defaultOpacity } = req.body;
 
-    const updated = await designerService.updateDesignerImage(req.params.id, {
+    // Check if slug changed to trigger file rename
+    const existingImage = await designerService.getDesignerImage(req.params.id);
+    if (!existingImage) {
+      return res.status(404).json({ error: 'Designer image not found' });
+    }
+
+    const updateData = {
       name,
       slug,
       categoryId,
@@ -118,12 +292,39 @@ router.put('/:id', async (req, res) => {
       tags,
       metadata,
       defaultOpacity,
-    });
+    };
 
-    if (!updated) {
-      return res.status(404).json({ error: 'Designer image not found' });
+    // If slug changed and files exist, rename them
+    if (slug && slug !== existingImage.slug && existingImage.storage?.filePath) {
+      try {
+        // Get new category slug if category changed
+        let targetCategorySlug = existingImage.category?.slug;
+        if (categoryId && categoryId !== existingImage.category?.id) {
+          // Fetch category slug from DB
+          const pool = require('../../utils/db');
+          const catResult = await pool.query(
+            'SELECT slug FROM background_image_categories WHERE id = $1',
+            [categoryId]
+          );
+          targetCategorySlug = catResult.rows[0]?.slug || targetCategorySlug;
+        }
+
+        const { filePath, thumbnailPath } = await renameDesignerFiles(
+          existingImage.storage.filePath,
+          slug,
+          existingImage.id,
+          targetCategorySlug
+        );
+
+        updateData.filePath = filePath;
+        updateData.thumbnailPath = thumbnailPath;
+      } catch (error) {
+        console.error('Error renaming files during slug update:', error);
+        // Continue with update even if file rename fails
+      }
     }
 
+    const updated = await designerService.updateDesignerImage(req.params.id, updateData);
     res.json({ image: updated });
   } catch (error) {
     console.error('Update designer image error:', error);
@@ -160,26 +361,68 @@ router.post('/assets/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Save file to uploads/background-images/_designer/
-    const stored = await saveBackgroundImageFile({
-      category: '_designer',
-      originalName: req.file.originalname,
-      buffer: req.file.buffer,
-      mimetype: req.file.mimetype,
+    const originalName = req.file.originalname || 'asset';
+    const mimeType = String(req.file.mimetype || '').toLowerCase();
+    const isSvgMime = mimeType === 'image/svg+xml';
+
+    let ext = '';
+    let width = null;
+    let height = null;
+
+    if (isSvgMime || isLikelySvg(req.file.buffer)) {
+      ext = getSafeSvgExt(originalName);
+      if (!/\.svg$/i.test(originalName) && !isSvgMime) {
+        return res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPG, SVG.' });
+      }
+    } else {
+      const validation = validateImageMagicBytes(req.file.buffer);
+      if (!validation.valid || !['png', 'jpg'].includes(validation.ext)) {
+        return res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPG, SVG.' });
+      }
+      ext = validation.ext === 'jpg' ? '.jpg' : `.${validation.ext}`;
+
+      const metadata = await sharp(req.file.buffer).metadata();
+      width = metadata.width || null;
+      height = metadata.height || null;
+    }
+
+    const baseDir = getUploadsSubdir('background-images');
+    const assetsDir = path.join(baseDir, '_image_assets');
+    const thumbsDir = path.join(assetsDir, '_thumbnails');
+    await fs.mkdir(assetsDir, { recursive: true });
+    await fs.mkdir(thumbsDir, { recursive: true });
+
+    const fileId = randomUUID();
+    const mainFileName = `${fileId}${ext}`;
+    const thumbFileName = `${fileId}_thumb${ext}`;
+
+    const mainAbsolutePath = path.join(assetsDir, mainFileName);
+    const thumbAbsolutePath = path.join(thumbsDir, thumbFileName);
+
+    await fs.writeFile(mainAbsolutePath, req.file.buffer);
+
+    let thumbnailPath = `_image_assets/_thumbnails/${thumbFileName}`;
+
+    if (ext === '.svg') {
+      thumbnailPath = `_image_assets/${mainFileName}`;
+    } else {
+      await sharp(req.file.buffer)
+        .resize(200, 200, { fit: 'cover' })
+        .toFile(thumbAbsolutePath);
+    }
+
+    const createdAsset = await designerService.createDesignerImageAsset({
+      fileName: originalName,
+      filePath: `_image_assets/${mainFileName}`,
+      thumbnailPath,
+      mimeType: ext === '.svg' ? 'image/svg+xml' : mimeType,
+      fileSizeBytes: req.file.size,
+      width,
+      height,
+      uploadedBy: req.user?.id ?? null,
     });
 
-    const apiPublicUrl = `/api/background-images/designer/assets/${stored.filePath.replace(/^\/+/, '')}`;
-
-    res.status(201).json({
-      asset: {
-        originalName: req.file.originalname,
-        storage: {
-          ...stored,
-          publicUrl: apiPublicUrl,
-          thumbnailUrl: apiPublicUrl,
-        },
-      },
-    });
+    res.status(201).json({ asset: createdAsset });
   } catch (error) {
     console.error('Upload designer asset error:', error);
     res.status(500).json({ error: 'Failed to upload asset' });
@@ -188,19 +431,19 @@ router.post('/assets/upload', upload.single('file'), async (req, res) => {
 
 /**
  * Delete designer asset
- * DELETE /api/admin/background-images/designer/assets/:filename
+ * DELETE /api/admin/background-images/designer/assets/:assetId
  */
-router.delete('/assets/:filename', async (req, res) => {
+router.delete('/assets/:assetId', async (req, res) => {
   try {
-    const filename = req.params.filename;
-    const filePath = path.join(getUploadsSubdir('background-images/designer'), filename);
-
-    await fs.unlink(filePath);
+    const deleted = await designerService.deleteDesignerImageAsset(req.params.assetId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
 
     res.status(204).end();
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      return res.status(404).json({ error: 'Asset not found' });
+    if (error.code === '23503') {
+      return res.status(409).json({ error: 'Asset is used in at least one design and cannot be deleted' });
     }
     console.error('Delete designer asset error:', error);
     res.status(500).json({ error: 'Failed to delete asset' });
@@ -214,6 +457,7 @@ router.delete('/assets/:filename', async (req, res) => {
  * Body: { width, height } - Optional target dimensions
  */
 router.post('/:id/generate', async (req, res) => {
+  let renderer = null;
   try {
     const designerImage = await designerService.getDesignerImage(req.params.id);
     
@@ -221,55 +465,121 @@ router.post('/:id/generate', async (req, res) => {
       return res.status(404).json({ error: 'Designer image not found' });
     }
 
-    // Get target dimensions (default to canvas dimensions)
-    const targetWidth = req.body?.width || designerImage.canvas.canvasWidth;
-    const targetHeight = req.body?.height || designerImage.canvas.canvasHeight;
+    // Get target render dimensions (default to standard A4 @ 300 DPI)
+    const defaultWidth = 2480;
+    const defaultHeight = 3508;
+    const requestedWidth = Number(req.body?.width || defaultWidth);
+    const requestedHeight = Number(req.body?.height || defaultHeight);
+    const targetWidth = Number.isFinite(requestedWidth) && requestedWidth > 0 ? Math.round(requestedWidth) : defaultWidth;
+    const targetHeight = Number.isFinite(requestedHeight) && requestedHeight > 0 ? Math.round(requestedHeight) : defaultHeight;
 
-    // TODO: Implement canvas-to-image generation
-    // For now, return placeholder response
-    res.status(501).json({
-      message: 'Image generation not yet implemented',
-      designerId: designerImage.id,
-      targetSize: { width: targetWidth, height: targetHeight },
+    const renderElements = mapDesignerCanvasToRenderableElements(
+      designerImage.canvas.structure,
+      targetWidth,
+      targetHeight,
+    );
+
+    console.log('[Designer Generate] Target dimensions:', { targetWidth, targetHeight });
+    console.log('[Designer Generate] Mapped elements:', JSON.stringify(renderElements, null, 2));
+
+    renderer = new PDFRendererService();
+    await renderer.initialize();
+
+    const renderPage = {
+      id: 1,
+      pageNumber: 1,
+      elements: renderElements,
+      background: {
+        type: 'color',
+        value: designerImage.canvas.structure?.backgroundColor || '#ffffff',
+        opacity: Number(designerImage.canvas.structure?.backgroundOpacity ?? 1),
+      },
+    };
+
+    // The PDF renderer app expects a complete book contract, including pages[].
+    const renderBook = {
+      id: `designer-${designerImage.id}`,
+      name: designerImage.name || 'Designer Background',
+      pageSize: 'A4',
+      orientation: targetWidth > targetHeight ? 'landscape' : 'portrait',
+      pages: [renderPage],
+      questions: [],
+      answers: [],
+      pageAssignments: [],
+      colorPalettes: [],
+      backgroundImages: [],
+    };
+
+    const imageBuffer = await renderer.renderPage({
+      page: renderPage,
+      book: renderBook,
+      canvasWidth: targetWidth,
+      canvasHeight: targetHeight,
+    }, {
+      scale: 1,
     });
 
-    // Future implementation:
-    // const canvasGenerator = require('../../services/canvas-image-generator');
-    // const imageBuffer = await canvasGenerator.generateImage(
-    //   designerImage.canvas.structure,
-    //   targetWidth,
-    //   targetHeight
-    // );
-    // 
-    // // Save generated image
-    // const outputPath = path.join(
-    //   getUploadsSubdir('background-images/generated'),
-    //   `${designerImage.id}_v${designerImage.canvas.version}.webp`
-    // );
-    // await fs.writeFile(outputPath, imageBuffer);
-    //
-    // // Generate thumbnail
-    // const thumbnailBuffer = await canvasGenerator.createThumbnail(imageBuffer, 300, 400);
-    // const thumbnailPath = outputPath.replace('.webp', '_thumb.webp');
-    // await fs.writeFile(thumbnailPath, thumbnailBuffer);
-    //
-    // // Mark as generated in database
-    // await designerService.markAsGenerated(
-    //   designerImage.id,
-    //   `/uploads/background-images/generated/${path.basename(outputPath)}`,
-    //   `/uploads/background-images/generated/${path.basename(thumbnailPath)}`
-    // );
-    //
-    // res.json({
-    //   success: true,
-    //   image: {
-    //     url: `/api/background-images/${designerImage.slug}/file`,
-    //     thumbnailUrl: `/api/background-images/${designerImage.slug}/thumbnail`,
-    //   },
-    // });
+    // Generate filename: {slug}_{uuid-prefix}.webp
+    const baseDir = getUploadsSubdir('background-images');
+    const categoryFolder = getCategoryFolder(designerImage.category?.slug);
+    const categoryDir = path.join(baseDir, categoryFolder);
+    await fs.mkdir(categoryDir, { recursive: true });
+
+    const fileBaseName = generateDesignerFilename(designerImage.slug, designerImage.id);
+    const outputFileName = `${fileBaseName}.webp`;
+    const thumbnailFileName = `${fileBaseName}_thumb.webp`;
+    const outputAbsolutePath = path.join(categoryDir, outputFileName);
+    const thumbnailAbsolutePath = path.join(categoryDir, thumbnailFileName);
+
+    // Delete old files if they exist (for re-generation)
+    try {
+      await fs.unlink(outputAbsolutePath).catch(() => {});
+      await fs.unlink(thumbnailAbsolutePath).catch(() => {});
+    } catch (error) {
+      // Ignore deletion errors
+    }
+
+    await sharp(imageBuffer)
+      .webp({ quality: 92 })
+      .toFile(outputAbsolutePath);
+
+    await sharp(imageBuffer)
+      .resize(300, 400, { fit: 'cover' })
+      .webp({ quality: 85 })
+      .toFile(thumbnailAbsolutePath);
+
+    const dbFilePath = `${categoryFolder}/${outputFileName}`;
+    const dbThumbnailPath = `${categoryFolder}/${thumbnailFileName}`;
+    const imageIdentifier = encodeURIComponent(designerImage.slug || designerImage.id);
+
+    await designerService.markAsGenerated(designerImage.id, dbFilePath, dbThumbnailPath);
+
+    res.json({
+      success: true,
+      image: {
+        id: designerImage.id,
+        slug: designerImage.slug,
+        filePath: dbFilePath,
+        thumbnailPath: dbThumbnailPath,
+        url: `/api/background-images/${imageIdentifier}/file`,
+        thumbnailUrl: `/api/background-images/${imageIdentifier}/thumbnail`,
+      },
+      targetSize: {
+        width: targetWidth,
+        height: targetHeight,
+      },
+    });
   } catch (error) {
     console.error('Generate image error:', error);
     res.status(500).json({ error: 'Failed to generate image' });
+  } finally {
+    if (renderer) {
+      try {
+        await renderer.cleanup();
+      } catch (cleanupError) {
+        console.error('Generate cleanup error:', cleanupError);
+      }
+    }
   }
 });
 
@@ -296,3 +606,83 @@ router.get('/:id/preview', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * Generate filename for designer background image
+ * Format: {slug}_{uuid-prefix}.webp
+ * @param {string} slug - Image slug
+ * @param {string} uuid - Full UUID
+ * @returns {string} Filename without extension
+ */
+function generateDesignerFilename(slug, uuid) {
+  const sanitizedSlug = slug.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+  const uuidPrefix = uuid.substring(0, 8);
+  return `${sanitizedSlug}-${uuidPrefix}`;
+}
+
+/**
+ * Get category folder path for designer images
+ * @param {string|null} categorySlug - Category slug or null
+ * @returns {string} Relative folder path
+ */
+function getCategoryFolder(categorySlug) {
+  if (!categorySlug) {
+    return 'uncategorized';
+  }
+  return categorySlug.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+}
+
+/**
+ * Rename designer image files when slug changes
+ * @param {string} oldFilePath - Old relative file path
+ * @param {string} newSlug - New slug
+ * @param {string} uuid - Image UUID
+ * @param {string} categorySlug - Category slug
+ * @returns {Promise<{filePath: string, thumbnailPath: string}>} New paths
+ */
+async function renameDesignerFiles(oldFilePath, newSlug, uuid, categorySlug) {
+  if (!oldFilePath) {
+    return { filePath: null, thumbnailPath: null };
+  }
+
+  const baseDir = getUploadsSubdir('background-images');
+  const categoryFolder = getCategoryFolder(categorySlug);
+  const newBaseName = generateDesignerFilename(newSlug, uuid);
+
+  // Parse old paths
+  const oldFileAbsPath = path.join(baseDir, oldFilePath.replace(/^\/+/, ''));
+  const oldDir = path.dirname(oldFilePath);
+  const oldExt = path.extname(oldFilePath);
+  const oldThumbnailPath = oldFilePath.replace(oldExt, `_thumb${oldExt}`);
+  const oldThumbAbsPath = path.join(baseDir, oldThumbnailPath.replace(/^\/+/, ''));
+
+  // Generate new paths
+  const newFilePath = `${categoryFolder}/${newBaseName}${oldExt}`;
+  const newThumbnailPath = `${categoryFolder}/${newBaseName}_thumb${oldExt}`;
+  const newFileAbsPath = path.join(baseDir, newFilePath);
+  const newThumbAbsPath = path.join(baseDir, newThumbnailPath);
+
+  // Create target directory
+  await fs.mkdir(path.dirname(newFileAbsPath), { recursive: true });
+
+  // Rename files if they exist
+  try {
+    const fileExists = await fs.access(oldFileAbsPath).then(() => true).catch(() => false);
+    if (fileExists) {
+      await fs.rename(oldFileAbsPath, newFileAbsPath);
+    }
+
+    const thumbExists = await fs.access(oldThumbAbsPath).then(() => true).catch(() => false);
+    if (thumbExists) {
+      await fs.rename(oldThumbAbsPath, newThumbAbsPath);
+    }
+  } catch (error) {
+    console.error('Error renaming designer files:', error);
+    // Don't throw - we'll update DB paths even if physical rename fails
+  }
+
+  return {
+    filePath: newFilePath,
+    thumbnailPath: newThumbnailPath,
+  };
+}

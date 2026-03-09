@@ -3,17 +3,18 @@
  * Main component for creating and editing designer background images
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDesignerCanvas } from './hooks/useDesignerCanvas';
 import { DesignerCanvas } from './designer-canvas';
 import { DesignerToolbar } from './designer-toolbar';
 import { DesignerPropertyPanel } from './designer-property-panel';
-import { ImageUploadDialog } from './image-upload-dialog';
+import { DesignerImageAssetModal, type DesignerImageAsset } from './designer-image-asset-modal';
 import { StickerSelectorDialog } from './sticker-selector-dialog';
 import { Button } from '../../../ui/primitives/button';
 import { ArrowLeft } from 'lucide-react';
 import type { CanvasStructure } from '../../../../../../shared/types/background-designer';
+import { loadBackgroundImageRegistry } from '../../../../data/templates/background-images';
 
 interface BackgroundImageDesignerProps {
   designerId?: string;
@@ -29,11 +30,56 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
   // State
   const [initialStructure, setInitialStructure] = useState<CanvasStructure | undefined>();
   const [isLoading, setIsLoading] = useState(!!id);
-  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [showImageAssetModal, setShowImageAssetModal] = useState(false);
   const [showStickerSelector, setShowStickerSelector] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState('New Background Design');
   const [designData, setDesignData] = useState<any>(null);
+  const [designerCategoryId, setDesignerCategoryId] = useState<number | null>(null);
+
+  const resolveDesignerCategoryId = useCallback(async () => {
+    if (designerCategoryId) {
+      return designerCategoryId;
+    }
+
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const categoriesResponse = await fetch('/api/admin/background-images/categories', { headers });
+    if (!categoriesResponse.ok) {
+      throw new Error(`Failed to load categories (${categoriesResponse.status})`);
+    }
+
+    const categoriesData = await categoriesResponse.json();
+    const firstCategoryId = Number(categoriesData?.items?.[0]?.id);
+    if (Number.isFinite(firstCategoryId) && firstCategoryId > 0) {
+      setDesignerCategoryId(firstCategoryId);
+      return firstCategoryId;
+    }
+
+    const createCategoryResponse = await fetch('/api/admin/background-images/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ name: 'Designer' }),
+    });
+
+    if (!createCategoryResponse.ok) {
+      throw new Error(`Failed to create category (${createCategoryResponse.status})`);
+    }
+
+    const createCategoryData = await createCategoryResponse.json();
+    const createdCategoryId = Number(createCategoryData?.category?.id);
+    if (!Number.isFinite(createdCategoryId) || createdCategoryId <= 0) {
+      throw new Error('Invalid category id returned by server');
+    }
+
+    setDesignerCategoryId(createdCategoryId);
+    return createdCategoryId;
+  }, [designerCategoryId]);
 
   // Load existing design if ID provided (only for actual IDs, not for 'new')
   useEffect(() => {
@@ -114,50 +160,65 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
     onSave: (id && id !== 'new' && designData) ? onSaveCallback : undefined,
   });
 
-  // Handlers
-  const handleAddImage = () => {
-    setShowImageUpload(true);
-  };
-
-  const handleImageUpload = async (file: File) => {
+  const handleCreateDesign = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('file', file);
+      setIsCreating(true);
 
-      const response = await fetch(
-        `/api/admin/background-images/designer/assets/upload`,
-        {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: formData,
-        }
-      );
+      const token = localStorage.getItem('token');
+      const categoryId = await resolveDesignerCategoryId();
+      const slugTitle = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'designer-background';
+      const uniqueSlug = `${slugTitle}-${Date.now()}`;
+
+      const response = await fetch('/api/admin/background-images/designer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: title,
+          slug: uniqueSlug,
+          categoryId,
+          canvasStructure: designer.canvasStructure,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      const uploadPath = data.asset.storage.publicUrl;
-
-      // Get image dimensions from file
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        // Aspect ratio preserved, max 300px width
-        const maxWidth = 300;
-        const ratio = img.height / img.width;
-        const height = maxWidth * ratio;
-
-        designer.addImageItem(uploadPath, maxWidth, height);
-        URL.revokeObjectURL(url);
-      };
-      img.src = url;
+      setDesignData(data.image);
+      setTitle(data.image?.name || title);
+      navigate(`/admin/background-images/designer/${data.image.id}`, { replace: true });
+      alert('Design saved. You can now upload image assets.');
     } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
+      console.error('Failed to create design:', error);
+      alert('Failed to save design');
+    } finally {
+      setIsCreating(false);
     }
+  }, [designer.canvasStructure, navigate, resolveDesignerCategoryId, title]);
+
+  const handleSave = useCallback(async () => {
+    if (!id || id === 'new') {
+      await handleCreateDesign();
+      return;
+    }
+
+    await designer.save();
+  }, [designer, handleCreateDesign, id]);
+
+  // Handlers
+  const handleAddImage = () => {
+    setShowImageAssetModal(true);
+  };
+
+  const handleImageAssetSelect = (asset: DesignerImageAsset) => {
+    const maxWidth = 300;
+    const ratio = asset.width && asset.height ? asset.height / asset.width : 1;
+    const height = Math.max(120, maxWidth * ratio);
+    designer.addImageAsset(asset.storage.publicUrl, maxWidth, height, asset.id);
   };
 
   const handleAddSticker = () => {
@@ -165,7 +226,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
   };
 
   const handleStickerSelect = (stickerId: string) => {
-    designer.addStickerItem(stickerId);
+    designer.addStickerAsset(stickerId);
   };
 
   const handleGenerate = async () => {
@@ -173,7 +234,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
     try {
       const token = localStorage.getItem('token');
 
-      if (!id) {
+      if (!id || id === 'new') {
         alert('Please save the design first');
         return;
       }
@@ -197,6 +258,11 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
         throw new Error(`HTTP ${response.status}`);
       }
 
+      const data = await response.json();
+      
+      // Reload background image registry to reflect new/updated image
+      await loadBackgroundImageRegistry(true);
+      
       alert('Image generated successfully!');
     } catch (error) {
       console.error('Failed to generate image:', error);
@@ -206,7 +272,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
     }
   };
 
-  const selectedItem = designer.getSelectedItem();
+  const selectedAsset = designer.getSelectedAsset();
 
   if (isLoading) {
     return (
@@ -239,11 +305,11 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
       {/* Toolbar */}
       <DesignerToolbar
         onAddImage={handleAddImage}
-        onAddText={() => designer.addTextItem()}
+        onAddText={() => designer.addTextAsset()}
         onAddSticker={handleAddSticker}
-        onSave={() => designer.save()}
+        onSave={handleSave}
         onGenerate={handleGenerate}
-        isSaving={designer.isSaving}
+        isSaving={designer.isSaving || isCreating}
         isGenerating={isGenerating}
         isDirty={designer.isDirty}
       />
@@ -255,50 +321,51 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
           canvasWidth={designer.canvasWidth}
           canvasHeight={designer.canvasHeight}
           canvasStructure={designer.canvasStructure}
-          selectedItemId={designer.selectedItemId}
-          onItemUpdate={(itemId, updates) => designer.updateItem(itemId, updates)}
-          onItemSelect={(itemId) => designer.setSelectedItemId(itemId)}
-          onCanvasClick={() => designer.setSelectedItemId(null)}
+          selectedAssetId={designer.selectedAssetId}
+          onAssetUpdate={(assetId, updates) => designer.updateAsset(assetId, updates)}
+          onAssetSelect={(assetId) => designer.setSelectedAssetId(assetId)}
+          onCanvasClick={() => designer.setSelectedAssetId(null)}
         />
 
         {/* Property Panel */}
         <DesignerPropertyPanel
-          item={selectedItem || null}
+          asset={selectedAsset || null}
           canvasWidth={designer.canvasWidth}
           canvasHeight={designer.canvasHeight}
-          onItemUpdate={(updates) => {
-            if (designer.selectedItemId) {
-              designer.updateItem(designer.selectedItemId, updates);
+          onAssetUpdate={(updates) => {
+            if (designer.selectedAssetId) {
+              designer.updateAsset(designer.selectedAssetId, updates);
             }
           }}
-          onItemDelete={() => {
-            if (designer.selectedItemId) {
-              designer.deleteItem(designer.selectedItemId);
+          onAssetDelete={() => {
+            if (designer.selectedAssetId) {
+              designer.deleteAsset(designer.selectedAssetId);
             }
           }}
-          onItemDuplicate={() => {
-            if (designer.selectedItemId) {
-              designer.duplicateItem(designer.selectedItemId);
+          onAssetDuplicate={() => {
+            if (designer.selectedAssetId) {
+              designer.duplicateAsset(designer.selectedAssetId);
             }
           }}
           onPositionPreset={(preset) => {
-            if (designer.selectedItemId) {
-              designer.applyPositionPreset(designer.selectedItemId, preset);
+            if (designer.selectedAssetId) {
+              designer.applyPositionPreset(designer.selectedAssetId, preset);
             }
           }}
           onLayerChange={(direction) => {
-            if (designer.selectedItemId) {
-              designer.changeZIndex(designer.selectedItemId, direction);
+            if (designer.selectedAssetId) {
+              designer.changeZIndex(designer.selectedAssetId, direction);
             }
           }}
         />
       </div>
 
       {/* Dialogs */}
-      <ImageUploadDialog
-        open={showImageUpload}
-        onOpenChange={setShowImageUpload}
-        onUpload={handleImageUpload}
+      <DesignerImageAssetModal
+        open={showImageAssetModal}
+        onClose={() => setShowImageAssetModal(false)}
+        canUpload={Boolean(id && id !== 'new')}
+        onSelectAsset={handleImageAssetSelect}
       />
 
       <StickerSelectorDialog

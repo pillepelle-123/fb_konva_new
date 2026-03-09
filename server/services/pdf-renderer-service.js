@@ -871,18 +871,18 @@ class PDFRendererService {
         console.log('[DEBUG PDFRendererService] ⚠️ TAKING SCREENSHOT - Detailed Layer Info:');
         layers.forEach((layer, idx) => {
           const children = layer.getChildren();
-          console.log(`[DEBUG PDFRendererService] Layer ${idx}:`, {
-            childrenCount: children.length,
-            childrenTypes: children.map(c => c.getClassName()).slice(0, 10),
-            childrenDetails: children.slice(0, 10).map(c => ({
-              type: c.getClassName(),
-              visible: c.visible(),
-              x: c.x ? c.x() : null,
-              y: c.y ? c.y() : null,
-              width: c.width ? c.width() : null,
-              height: c.height ? c.height() : null,
-              opacity: c.opacity ? c.opacity() : null
-            }))
+          console.log(`[DEBUG PDFRendererService] Layer ${idx}: ${children.length} children`);
+          children.slice(0, 10).forEach((c, cIdx) => {
+            const isGroup = c.getClassName() === 'Group';
+            let childInfo = `  Child ${cIdx}: ${c.getClassName()} x=${c.x?c.x():null} y=${c.y?c.y():null} w=${c.width?c.width():null} h=${c.height?c.height():null} visible=${c.visible()} opacity=${c.opacity?c.opacity():null}`;
+            if (isGroup) {
+              const groupChildren = c.getChildren();
+              childInfo += ` groupChildren=${groupChildren.length}`;
+              groupChildren.slice(0, 3).forEach((gc, gcIdx) => {
+                childInfo += ` [${gcIdx}:${gc.getClassName()} x=${gc.x?gc.x():0} y=${gc.y?gc.y():0} w=${gc.width?gc.width():0} h=${gc.height?gc.height():0}]`;
+              });
+            }
+            console.log(childInfo);
           });
         });
         console.log('[DEBUG PDFRendererService] Total children across all layers:', 

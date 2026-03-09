@@ -46,36 +46,19 @@ export function extractDesignerCanvasPayload(background: unknown): DesignerCanva
     return null;
   }
 
-  const directStructure = asCanvasStructure(background.designerCanvasStructure);
-  const legacyStructure = asCanvasStructure(background.canvasStructure);
-  const designerCanvasStructure = isRecord(background.designerCanvas)
+  const structure = isRecord(background.designerCanvas)
     ? asCanvasStructure(background.designerCanvas.structure)
     : null;
-  const nestedDesignerStructure = isRecord(background.designer) && isRecord(background.designer.canvas)
-    ? asCanvasStructure(background.designer.canvas.structure)
-    : null;
-
-  const structure = directStructure || legacyStructure || designerCanvasStructure || nestedDesignerStructure;
   if (!structure) {
     return null;
   }
 
   const baseWidth =
-    asNumber(background.designerCanvasWidth) ??
-    asNumber(background.canvasWidth) ??
     (isRecord(background.designerCanvas) ? asNumber(background.designerCanvas.canvasWidth) : undefined) ??
-    (isRecord(background.designer) && isRecord(background.designer.canvas)
-      ? asNumber(background.designer.canvas.canvasWidth)
-      : undefined) ??
     DEFAULT_DESIGNER_CANVAS.width;
 
   const baseHeight =
-    asNumber(background.designerCanvasHeight) ??
-    asNumber(background.canvasHeight) ??
     (isRecord(background.designerCanvas) ? asNumber(background.designerCanvas.canvasHeight) : undefined) ??
-    (isRecord(background.designer) && isRecord(background.designer.canvas)
-      ? asNumber(background.designer.canvas.canvasHeight)
-      : undefined) ??
     DEFAULT_DESIGNER_CANVAS.height;
 
   return { structure, baseWidth, baseHeight };

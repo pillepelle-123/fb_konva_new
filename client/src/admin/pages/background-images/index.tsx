@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Download, Edit, FileDown, Image as ImageIcon, Plus, Trash2, Upload } from 'lucide-react'
+import { Download, Edit, FileDown, Image as ImageIcon, Plus, Trash2, Upload, Wand2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
   Badge,
@@ -112,7 +112,7 @@ export default function AdminBackgroundImagesPage() {
       },
       {
         accessorKey: 'format',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">format</span>,
+        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</span>,
         cell: ({ row }) => <span className="text-sm capitalize text-muted-foreground">{row.original.format}</span>,
       },
       {
@@ -138,6 +138,19 @@ export default function AdminBackgroundImagesPage() {
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
+        
+            {row.original.format === 'designer' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Open in Designer"
+                onClick={() => {
+                  navigate(`/admin/background-images/designer/${row.original.id}`)
+                }}
+              >
+                <Wand2 className="h-4 w-4" />
+              </Button>
+            )}
         
             <Button
               variant="ghost"
@@ -166,7 +179,7 @@ export default function AdminBackgroundImagesPage() {
         ),
       },
     ],
-    [deleteImage],
+    [deleteImage, navigate],
   )
 
   const bulkActions = useMemo<DataTableBulkAction<AdminBackgroundImage>[]>(

@@ -56,6 +56,79 @@ function mapDesignerRow(row) {
   };
 }
 
+function mapDesignerAssetRow(row) {
+  return {
+    id: row.id,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    fileSizeBytes: row.file_size_bytes,
+    width: row.width,
+    height: row.height,
+    storage: {
+      filePath: row.file_path,
+      thumbnailPath: row.thumbnail_path,
+      publicUrl: `/api/background-images/designer/assets/${row.file_path.replace(/^\/+/, '')}`,
+      thumbnailUrl: `/api/background-images/designer/assets/${(row.thumbnail_path || row.file_path).replace(/^\/+/, '')}`,
+    },
+    uploadedBy: row.uploaded_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function isUuid(value) {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function extractCanvasAssetIds(canvasStructure) {
+  if (!canvasStructure || !Array.isArray(canvasStructure.items)) {
+    return [];
+  }
+
+  const ids = new Set();
+  for (const item of canvasStructure.items) {
+    if (item?.type === 'image' && isUuid(item.assetId)) {
+      ids.add(item.assetId);
+    }
+  }
+
+  return Array.from(ids);
+}
+
+async function syncDesignAssetLinks(client, designId, canvasStructure) {
+  const assetIds = extractCanvasAssetIds(canvasStructure);
+
+  await client.query(
+    `DELETE FROM background_image_design_asset_links WHERE design_id = $1`,
+    [designId],
+  );
+
+  if (assetIds.length === 0) {
+    return;
+  }
+
+  const { rows: existingAssets } = await client.query(
+    `SELECT id FROM background_image_designer_image_assets WHERE id = ANY($1::uuid[])`,
+    [assetIds],
+  );
+
+  if (!existingAssets.length) {
+    return;
+  }
+
+  for (const row of existingAssets) {
+    await client.query(
+      `
+        INSERT INTO background_image_design_asset_links (design_id, asset_id)
+        VALUES ($1, $2)
+        ON CONFLICT (design_id, asset_id) DO NOTHING
+      `,
+      [designId, row.id],
+    );
+  }
+}
+
 async function listDesignerImages({
   page = 1,
   pageSize = 50,
@@ -160,6 +233,8 @@ async function createDesignerImage(data) {
     const backgroundImage = imageResult.rows[0];
 
     // Insert into background_image_designs
+    const initialCanvasStructure = data.canvasStructure || { backgroundColor: '#ffffff', backgroundOpacity: 1, items: [] };
+
     const designResult = await client.query(
       `
         INSERT INTO background_image_designs (
@@ -170,12 +245,14 @@ async function createDesignerImage(data) {
       `,
       [
         backgroundImage.id,
-        JSON.stringify(data.canvasStructure || { backgroundColor: '#ffffff', backgroundOpacity: 1, items: [] }),
+        JSON.stringify(initialCanvasStructure),
         data.canvasWidth || 1200,
         data.canvasHeight || 1600,
         1,
       ]
     );
+
+    await syncDesignAssetLinks(client, backgroundImage.id, initialCanvasStructure);
 
     await client.query('COMMIT');
 
@@ -324,6 +401,8 @@ async function updateDesignerImage(id, data) {
         `,
         [JSON.stringify(data.canvasStructure), id]
       );
+
+      await syncDesignAssetLinks(client, id, data.canvasStructure);
     }
 
     await client.query('COMMIT');
@@ -448,6 +527,122 @@ async function markAsGenerated(id, filePath, thumbnailPath) {
   );
 }
 
+async function listDesignerImageAssets({ page = 1, pageSize = 100, search } = {}) {
+  const offset = (page - 1) * pageSize;
+  const values = [];
+  let whereClause = '';
+
+  if (search) {
+    values.push(`%${String(search).toLowerCase()}%`);
+    whereClause = `WHERE LOWER(file_name) LIKE $${values.length}`;
+  }
+
+  const totalQuery = await pool.query(
+    `
+      SELECT COUNT(*) AS total
+      FROM background_image_designer_image_assets
+      ${whereClause}
+    `,
+    values,
+  );
+
+  values.push(pageSize);
+  values.push(offset);
+
+  const { rows } = await pool.query(
+    `
+      SELECT *
+      FROM background_image_designer_image_assets
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT $${values.length - 1}
+      OFFSET $${values.length}
+    `,
+    values,
+  );
+
+  return {
+    items: rows.map(mapDesignerAssetRow),
+    total: Number(totalQuery.rows[0]?.total || 0),
+    page,
+    pageSize,
+  };
+}
+
+async function createDesignerImageAsset({
+  fileName,
+  filePath,
+  thumbnailPath,
+  mimeType,
+  fileSizeBytes,
+  width,
+  height,
+  uploadedBy,
+}) {
+  const { rows } = await pool.query(
+    `
+      INSERT INTO background_image_designer_image_assets (
+        file_name,
+        file_path,
+        thumbnail_path,
+        mime_type,
+        file_size_bytes,
+        width,
+        height,
+        uploaded_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `,
+    [fileName, filePath, thumbnailPath, mimeType, fileSizeBytes ?? null, width ?? null, height ?? null, uploadedBy ?? null],
+  );
+
+  return mapDesignerAssetRow(rows[0]);
+}
+
+async function deleteDesignerImageAsset(assetId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `SELECT file_path, thumbnail_path FROM background_image_designer_image_assets WHERE id = $1 LIMIT 1`,
+      [assetId],
+    );
+
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    await client.query(
+      `DELETE FROM background_image_designer_image_assets WHERE id = $1`,
+      [assetId],
+    );
+
+    await client.query('COMMIT');
+
+    const filePaths = [rows[0].file_path, rows[0].thumbnail_path].filter(Boolean);
+    for (const relPath of filePaths) {
+      const absolutePath = path.join(getUploadsSubdir('background-images'), relPath);
+      try {
+        await fs.unlink(absolutePath);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.warn('Could not delete designer asset file:', relPath, err.message);
+        }
+      }
+    }
+
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listDesignerImages,
   createDesignerImage,
@@ -457,4 +652,7 @@ module.exports = {
   deleteDesignerImage,
   getDesignerAssets,
   markAsGenerated,
+  listDesignerImageAssets,
+  createDesignerImageAsset,
+  deleteDesignerImageAsset,
 };

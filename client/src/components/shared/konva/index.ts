@@ -3,14 +3,14 @@
  * Reusable components for Konva canvas rendering
  */
 
-export { ImageItem } from './image-item';
-export type { ImageItemProps } from './image-item';
+export { DesignerBackgroundImageNode } from './designer-background/designer-background-image-node';
+export type { DesignerBackgroundImageNodeProps } from './designer-background/designer-background-image-node';
 
-export { TextItem } from './text-item';
-export type { TextItemProps } from './text-item';
+export { DesignerBackgroundTextNode } from './designer-background/designer-background-text-node';
+export type { DesignerBackgroundTextNodeProps } from './designer-background/designer-background-text-node';
 
-export { StickerItem } from './sticker-item';
-export type { StickerItemProps } from './sticker-item';
+export { DesignerBackgroundStickerNode } from './designer-background/designer-background-sticker-node';
+export type { DesignerBackgroundStickerNodeProps } from './designer-background/designer-background-sticker-node';
 
 export { useKonvaStage, useItemSelection, useItemTransform } from './hooks';
 export type { UseKonvaStageOptions, UseItemSelectionOptions, UseItemTransformOptions } from './hooks';

@@ -60,13 +60,10 @@ export function applyBackgroundImageTemplate(
       paletteMode: 'monochrome',
       backgroundImageType: 'designer',
       backgroundImageDesignerId: (template as any).designerId || template.id,
-      designerCanvasStructure: (template as any).designerCanvasStructure,
-      designerCanvasWidth: (template as any).designerCanvasWidth,
-      designerCanvasHeight: (template as any).designerCanvasHeight,
       designerCanvas: {
-        structure: (template as any).designerCanvasStructure,
-        canvasWidth: (template as any).designerCanvasWidth,
-        canvasHeight: (template as any).designerCanvasHeight,
+        structure: (template as any).designerCanvas?.structure,
+        canvasWidth: (template as any).designerCanvas?.canvasWidth,
+        canvasHeight: (template as any).designerCanvas?.canvasHeight,
       },
     } as PageBackground;
 

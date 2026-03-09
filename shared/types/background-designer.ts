@@ -51,6 +51,7 @@ export interface DesignerItemBase {
  */
 export interface DesignerImageItem extends DesignerItemBase {
   type: 'image';
+  assetId?: string; // UUID reference to background_image_designer_image_assets
   uploadPath: string; // Relative path: /uploads/background-images/designer/file_123.svg
   aspectRatioLocked: boolean;
 }

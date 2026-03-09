@@ -1,11 +1,12 @@
 /**
- * Shared Text Item Component for Konva
- * Used in Background Designer (similar to sticker text)
+ * Designer Background Text Node for Konva.
+ * Used by the background designer renderer, not directly by app canvas items.
  */
 import { useEffect, useRef } from 'react';
-import { Text as KonvaText, Transformer } from 'react-konva';
+import { Text as KonvaText } from 'react-konva';
+import { DesignerBackgroundTransformer } from './designer-background-transformer';
 
-export interface TextItemProps {
+export interface DesignerBackgroundTextNodeProps {
   id: string;
   text: string;
   x: number;
@@ -33,7 +34,7 @@ export interface TextItemProps {
   displayScale?: number; // Zoom-independent display scale for selection UI
 }
 
-export function TextItem({
+export function DesignerBackgroundTextNode({
   id,
   text,
   x,
@@ -53,12 +54,9 @@ export function TextItem({
   onTransform,
   draggable = true,
   displayScale = 1,
-}: TextItemProps) {
+}: DesignerBackgroundTextNodeProps) {
   const textRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
-
-  // Inverse scale to keep selection UI constant size regardless of zoom
-  const inverseScale = displayScale > 0 ? 1 / displayScale : 1;
 
   // Build font style string
   const fontStyle = [
@@ -127,24 +125,12 @@ export function TextItem({
         }}
       />
       {isSelected && (
-        <Transformer
-          ref={transformerRef}
+        <DesignerBackgroundTransformer
+          transformerRef={transformerRef}
           keepRatio={false}
-          rotateEnabled={true}
-          borderStroke="#0066ff"
-          borderStrokeWidth={2 * inverseScale}
-          anchorStroke="#0066ff"
-          anchorFill="#ffffff"
-          anchorSize={8 * inverseScale}
-          scaleX={inverseScale}
-          scaleY={inverseScale}
-          boundBoxFunc={(oldBox, newBox) => {
-            // Minimum size constraints
-            if (newBox.width < 50 || newBox.height < 20) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          displayScale={displayScale}
+          minWidth={50}
+          minHeight={20}
         />
       )}
     </>

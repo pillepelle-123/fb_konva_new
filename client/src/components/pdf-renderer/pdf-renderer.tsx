@@ -1001,6 +1001,11 @@ export function PDFRenderer({
     console.log('[PDFRenderer] Rendering', elements.length, 'elements (', shapeElements.length, 'shapes)');
     console.log('[PDFRenderer] Shape elements:', shapeElements.map(el => ({ id: el.id, type: el.type, x: el.x, y: el.y, width: el.width, height: el.height })));
     
+    // Debug: Log all element positions (serialize to JSON string to ensure it's printed)
+    elements.forEach((el, idx) => {
+      console.log(`[DEBUG PDFRenderer] Element ${idx}:`, el.type, 'x='+el.x, 'y='+el.y, 'w='+el.width, 'h='+el.height);
+    });
+    
     // Create a map of element IDs to their z-order index in the sorted array
     const elementIdToZOrder = new Map<string, number>();
     elements.forEach((el, idx) => {
@@ -2679,26 +2684,32 @@ export function PDFRenderer({
             const fontStyle = element.fontStyle || element.font?.fontStyle || (fontItalic ? 'italic' : 'normal');
             const textOpacity = element.fontOpacity ?? element.opacity ?? 1;
             
+            // Tiny rotation noise from designer data should behave as 0.
+            const normalizedTextRotation = Math.abs(elementRotation) < 0.01 ? 0 : elementRotation;
+            const needsTextRotationGroup = normalizedTextRotation !== 0;
+            
             // Set offsetX and offsetY to center the rotation pivot point
             const offsetX = elementWidth / 2;
             const offsetY = elementHeight / 2;
             const adjustedX = elementX + offsetX;
             const adjustedY = elementY + offsetY;
             
-            // Create Group for text (rotates as a unit)
-            const textGroup = new Konva.Group({
-              x: adjustedX,
-              y: adjustedY,
-              offsetX: offsetX,
-              offsetY: offsetY,
-              rotation: elementRotation,
-              opacity: textOpacity,
-              listening: false,
-            });
+            // Create Group only when rotation is actually needed.
+            const textGroup = needsTextRotationGroup
+              ? new Konva.Group({
+                  x: adjustedX,
+                  y: adjustedY,
+                  offsetX: offsetX,
+                  offsetY: offsetY,
+                  rotation: normalizedTextRotation,
+                  opacity: textOpacity,
+                  listening: false,
+                })
+              : null;
             
             const textNode = new Konva.Text({
-              x: -offsetX, // Relative to Group
-              y: -offsetY, // Relative to Group
+              x: needsTextRotationGroup ? -offsetX : elementX,
+              y: needsTextRotationGroup ? -offsetY : elementY,
               text: textContent,
               fontSize: fontSize,
               fontFamily: fontFamily,
@@ -2710,21 +2721,27 @@ export function PDFRenderer({
               align: element.align || 'left',
               verticalAlign: element.verticalAlign || 'top',
               wrap: 'word',
-              // rotation removed - inherited from Group
-              opacity: 1,
+              // For grouped text, rotation/opacity come from group.
+              rotation: needsTextRotationGroup ? 0 : normalizedTextRotation,
+              opacity: needsTextRotationGroup ? 1 : textOpacity,
               visible: true,
               listening: false
             });
             
-            textGroup.add(textNode);
-            layer.add(textGroup);
+            if (textGroup) {
+              textGroup.add(textNode);
+              layer.add(textGroup);
+            } else {
+              layer.add(textNode);
+            }
             
-            // Store z-order on Group
+            // Store z-order on Group/Text
             const zOrderIndex = elementIdToZOrder.get(element.id);
             if (zOrderIndex !== undefined) {
-              textGroup.setAttr('__zOrderIndex', zOrderIndex);
-              textGroup.setAttr('__elementId', element.id);
-              textGroup.setAttr('__nodeType', 'text-group');
+              const targetNode: Konva.Node = textGroup || textNode;
+              targetNode.setAttr('__zOrderIndex', zOrderIndex);
+              targetNode.setAttr('__elementId', element.id);
+              targetNode.setAttr('__nodeType', textGroup ? 'text-group' : 'text-node');
             }
           }
         }
@@ -3009,23 +3026,34 @@ export function PDFRenderer({
           });
           imagePromises.push(imagePromise);
           
+          img.onerror = () => {
+            console.error('[PDFRenderer] Image FAILED to load:', element.id, imageUrl);
+            if (imageReject) imageReject(new Error(`Failed to load image: ${imageUrl}`));
+          };
+          
           img.onload = () => {
-            console.log('[PDFRenderer] Image loaded successfully:', {
-              elementId: element.id,
-              imageWidth: img.width,
-              imageHeight: img.height,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight
-            });
+            console.log('[DEBUG PDFRenderer] Image loaded:', element.id, 
+              'url='+imageUrl,
+              'w='+img.width+'/'+img.naturalWidth, 
+              'h='+img.height+'/'+img.naturalHeight);
             try {
               // For simple images/stickers, only use Group if rotation is needed
               // Without rotation, render directly with absolute coordinates (like before)
               const needsRotation = elementRotation !== 0 && elementRotation !== undefined;
 
+              // Calculate offset early - used both for Group pivot and image positioning within Group
+              let offsetX = 0;
+              let offsetY = 0;
+              if (needsRotation) {
+                offsetX = elementWidth / 2;
+                offsetY = elementHeight / 2;
+              }
+
               // Images use cover-crop. Stickers use contain-fit so their full shape stays visible.
               let cropProps: { cropX: number; cropY: number; cropWidth: number; cropHeight: number } | null = null;
-              let imageDrawX = needsRotation ? 0 : elementX;
-              let imageDrawY = needsRotation ? 0 : elementY;
+              // When in Group (needsRotation), image coords are relative to Group's offset point
+              let imageDrawX = needsRotation ? -offsetX : elementX;
+              let imageDrawY = needsRotation ? -offsetY : elementY;
               let imageDrawWidth = elementWidth;
               let imageDrawHeight = elementHeight;
 
@@ -3043,11 +3071,14 @@ export function PDFRenderer({
 
                 const centerOffsetX = (elementWidth - imageDrawWidth) / 2;
                 const centerOffsetY = (elementHeight - imageDrawHeight) / 2;
-                imageDrawX = (needsRotation ? 0 : elementX) + centerOffsetX;
-                imageDrawY = (needsRotation ? 0 : elementY) + centerOffsetY;
+                // Apply center offset relative to Group offset or absolute coordinates
+                imageDrawX = (needsRotation ? -offsetX : elementX) + centerOffsetX;
+                imageDrawY = (needsRotation ? -offsetY : elementY) + centerOffsetY;
               } else {
-                // Use stored crop values from database if available, otherwise calculate via getCrop.
-                if (element.cropX !== undefined && element.cropY !== undefined &&
+                // Designer background assets are stretched to their box in the editor (no cover-crop).
+                if ((element as any).designerBackgroundAsset) {
+                  cropProps = null;
+                } else if (element.cropX !== undefined && element.cropY !== undefined &&
                     element.cropWidth !== undefined && element.cropHeight !== undefined) {
                   cropProps = {
                     cropX: element.cropX,
@@ -3062,13 +3093,8 @@ export function PDFRenderer({
               }
               
               let imageGroup: Konva.Group | null = null;
-              let offsetX = 0;
-              let offsetY = 0;
               
               if (needsRotation) {
-                // Set offsetX and offsetY to center the rotation pivot point
-                offsetX = elementWidth / 2;
-                offsetY = elementHeight / 2;
                 const adjustedX = elementX + offsetX;
                 const adjustedY = elementY + offsetY;
                 
@@ -3083,6 +3109,11 @@ export function PDFRenderer({
                   listening: false,
                 });
               }
+              
+              // Debug: Log actual image node coordinates
+              console.log('[DEBUG PDFRenderer] Creating image node:', element.id, 
+                'drawX='+imageDrawX, 'drawY='+imageDrawY, 'drawW='+imageDrawWidth, 'drawH='+imageDrawHeight,
+                'needsRotation='+needsRotation, 'elementX='+elementX, 'elementY='+elementY);
               
               // Create image node
               const imageNode = new Konva.Image({
@@ -3105,8 +3136,20 @@ export function PDFRenderer({
               
               if (needsRotation && imageGroup) {
                 imageGroup.add(imageNode);
+                layer.add(imageGroup);
+                console.log('[DEBUG PDFRenderer] Image added to Group:', element.id, 
+                  'groupX='+imageGroup.x(), 'groupY='+imageGroup.y(),
+                  'imgX='+imageNode.x(), 'imgY='+imageNode.y(),
+                  'imgW='+imageNode.width(), 'imgH='+imageNode.height());
+                if (zOrderIndex !== undefined) {
+                  imageGroup.setAttr('__zOrderIndex', zOrderIndex);
+                  imageGroup.setAttr('__elementId', element.id);
+                }
               } else {
                 layer.add(imageNode);
+                console.log('[DEBUG PDFRenderer] Image added directly:', element.id,
+                  'imgX='+imageNode.x(), 'imgY='+imageNode.y(),
+                  'imgW='+imageNode.width(), 'imgH='+imageNode.height());
                 if (zOrderIndex !== undefined) {
                   imageNode.setAttr('__zOrderIndex', zOrderIndex);
                   imageNode.setAttr('__elementId', element.id);

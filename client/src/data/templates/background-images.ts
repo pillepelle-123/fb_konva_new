@@ -61,7 +61,8 @@ const apiRecordSchema = z.object({
   description: z.string().nullable().optional(),
   category: apiCategorySchema,
   type: z.enum(['template', 'designer']).optional(),
-  format: z.enum(['vector', 'pixel']).optional(),
+  // Legacy payloads use vector/pixel, newer payloads may carry template/designer in this field.
+  format: z.enum(['vector', 'pixel', 'template', 'designer']).optional(),
   storage: apiStorageSchema,
   defaults: apiDefaultsSchema,
   paletteSlots: z.string().nullable().optional(),
@@ -146,13 +147,13 @@ function transformApiRecord(record: z.infer<typeof apiRecordSchema>): Background
   const filePath = storage.filePath ?? undefined
   const thumbnailPath = storage.thumbnailPath ?? storage.filePath ?? undefined
 
-  // Determine format from file extension if format field not available
-  const format: 'vector' | 'pixel' = 
-    record.format 
-      ? (record.format as 'vector' | 'pixel')
-      : (filePath && filePath.toLowerCase().endsWith('.svg')) 
-        ? 'vector' 
-        : 'pixel';
+  // Keep runtime format stable for editor consumers even if API returns template/designer.
+  const format: 'vector' | 'pixel' =
+    record.format === 'vector' || record.format === 'pixel'
+      ? record.format
+      : filePath && filePath.toLowerCase().endsWith('.svg')
+        ? 'vector'
+        : 'pixel'
 
   const backgroundImage: BackgroundImage = {
     id: record.slug ?? (record.id != null ? String(record.id) : undefined) ?? record.name,
@@ -210,9 +211,11 @@ function transformDesignerApiRecord(record: z.infer<typeof apiDesignerRecordSche
     thumbnail: thumbnailPath,
     defaultSize: 'cover',
     defaultOpacity: record.defaults?.opacity ?? 1,
-    designerCanvasStructure: record.canvas?.structure,
-    designerCanvasWidth: record.canvas?.canvasWidth ?? undefined,
-    designerCanvasHeight: record.canvas?.canvasHeight ?? undefined,
+    designerCanvas: {
+      structure: record.canvas?.structure,
+      canvasWidth: record.canvas?.canvasWidth ?? undefined,
+      canvasHeight: record.canvas?.canvasHeight ?? undefined,
+    },
     designerId: String(record.id),
     description: record.description ?? undefined,
     tags: record.tags ?? undefined,

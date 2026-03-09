@@ -6,21 +6,25 @@
 import { Stage, Layer } from 'react-konva';
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import type Konva from 'konva';
-import { ImageItem, TextItem, StickerItem } from '../../../shared/konva';
+import {
+  DesignerBackgroundImageNode,
+  DesignerBackgroundTextNode,
+  DesignerBackgroundStickerNode,
+} from '../../../shared/konva';
 import { canvasStructureToAbsolute } from '../../../../../../shared/types/background-designer';
 import type {
   CanvasStructure,
-  DesignerItem,
-  DesignerItemAbsolute,
+  DesignerItem as DesignerAsset,
+  DesignerItemAbsolute as DesignerAssetAbsolute,
 } from '../../../../../../shared/types/background-designer';
 
 interface DesignerCanvasProps {
   canvasWidth: number;
   canvasHeight: number;
   canvasStructure: CanvasStructure;
-  selectedItemId: string | null;
-  onItemUpdate: (itemId: string, updates: Partial<DesignerItem>) => void;
-  onItemSelect: (itemId: string | null) => void;
+  selectedAssetId: string | null;
+  onAssetUpdate: (assetId: string, updates: Partial<DesignerAsset>) => void;
+  onAssetSelect: (assetId: string | null) => void;
   onCanvasClick?: () => void;
 }
 
@@ -50,9 +54,9 @@ export function DesignerCanvas({
   canvasWidth,
   canvasHeight,
   canvasStructure,
-  selectedItemId,
-  onItemUpdate,
-  onItemSelect,
+  selectedAssetId,
+  onAssetUpdate,
+  onAssetSelect,
   onCanvasClick,
 }: DesignerCanvasProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -82,10 +86,10 @@ export function DesignerCanvas({
   // Convert normalized structure to absolute positions
   const canvasAbsolute = canvasStructureToAbsolute(canvasStructure, canvasWidth, canvasHeight);
 
-  // Normalize item updates (convert absolute coordinates to normalized 0-1 range)
-  const normalizeAndUpdateItem = useCallback(
-    (itemId: string, updates: Partial<DesignerItem>) => {
-      const normalized: Partial<DesignerItem> = { ...updates };
+  // Normalize asset updates (convert absolute coordinates to normalized 0-1 range)
+  const normalizeAndUpdateAsset = useCallback(
+    (assetId: string, updates: Partial<DesignerAsset>) => {
+      const normalized: Partial<DesignerAsset> = { ...updates };
 
       // Only normalize x, y if they're present and absolute
       // x and y from Konva are absolute pixel coordinates, we need to convert to 0-1 range
@@ -96,9 +100,9 @@ export function DesignerCanvas({
         normalized.y = Math.max(0, Math.min(1, normalized.y / canvasHeight));
       }
 
-      onItemUpdate(itemId, normalized);
+      onAssetUpdate(assetId, normalized);
     },
-    [canvasWidth, canvasHeight, onItemUpdate]
+    [canvasWidth, canvasHeight, onAssetUpdate]
   );
 
   useEffect(() => {
@@ -254,44 +258,44 @@ export function DesignerCanvas({
           onClick={(e) => {
             // Deselect if clicking on canvas background
             if (e.target === e.target.getStage()) {
-              onItemSelect(null);
+              onAssetSelect(null);
               onCanvasClick?.();
             }
           }}
         >
           <Layer>
-            {/* Render items in order (order matters for z-index) */}
-            {canvasAbsolute.items.map((item: DesignerItemAbsolute) => {
-              const isSelected = item.id === selectedItemId;
+            {/* Render assets in order (order matters for z-index) */}
+            {canvasAbsolute.items.map((asset: DesignerAssetAbsolute) => {
+              const isSelected = asset.id === selectedAssetId;
 
-              switch (item.type) {
+              switch (asset.type) {
                 case 'image': {
-                  const imageItem = item as DesignerItemAbsolute & {
+                  const imageAsset = asset as DesignerAssetAbsolute & {
                     uploadPath: string;
                     aspectRatioLocked?: boolean;
                   };
                   return (
-                    <ImageItem
-                      key={item.id}
-                      id={item.id}
-                      src={normalizeDesignerAssetUrl(imageItem.uploadPath)}
-                      x={item.x}
-                      y={item.y}
-                      width={item.width}
-                      height={item.height}
-                      rotation={item.rotation}
-                      opacity={item.opacity}
+                    <DesignerBackgroundImageNode
+                      key={asset.id}
+                      id={asset.id}
+                      src={normalizeDesignerAssetUrl(imageAsset.uploadPath)}
+                      x={asset.x}
+                      y={asset.y}
+                      width={asset.width}
+                      height={asset.height}
+                      rotation={asset.rotation}
+                      opacity={asset.opacity}
                       isSelected={isSelected}
-                      onSelect={() => onItemSelect(item.id)}
-                      onTransform={(updates) => normalizeAndUpdateItem(item.id, updates)}
-                      aspectRatioLocked={imageItem.aspectRatioLocked}
+                      onSelect={() => onAssetSelect(asset.id)}
+                      onTransform={(updates) => normalizeAndUpdateAsset(asset.id, updates)}
+                      aspectRatioLocked={imageAsset.aspectRatioLocked}
                       displayScale={displayScale}
                     />
                   );
                 }
 
                 case 'text': {
-                  const textItem = item as DesignerItemAbsolute & {
+                  const textAsset = asset as DesignerAssetAbsolute & {
                     text: string;
                     fontFamily: string;
                     fontSize: number;
@@ -302,59 +306,59 @@ export function DesignerCanvas({
                     textAlign?: 'left' | 'center' | 'right';
                   };
                   return (
-                    <TextItem
-                      key={item.id}
-                      id={item.id}
-                      text={textItem.text}
-                      x={item.x}
-                      y={item.y}
-                      width={item.width}
-                      height={item.height}
-                      fontFamily={textItem.fontFamily}
-                      fontSize={textItem.fontSize || 16}
-                      fontBold={textItem.fontBold}
-                      fontItalic={textItem.fontItalic}
-                      fontColor={textItem.fontColor}
-                      fontOpacity={textItem.fontOpacity}
-                      rotation={item.rotation}
-                      textAlign={textItem.textAlign}
+                    <DesignerBackgroundTextNode
+                      key={asset.id}
+                      id={asset.id}
+                      text={textAsset.text}
+                      x={asset.x}
+                      y={asset.y}
+                      width={asset.width}
+                      height={asset.height}
+                      fontFamily={textAsset.fontFamily}
+                      fontSize={textAsset.fontSize || 16}
+                      fontBold={textAsset.fontBold}
+                      fontItalic={textAsset.fontItalic}
+                      fontColor={textAsset.fontColor}
+                      fontOpacity={textAsset.fontOpacity}
+                      rotation={asset.rotation}
+                      textAlign={textAsset.textAlign}
                       isSelected={isSelected}
-                      onSelect={() => onItemSelect(item.id)}
-                      onTransform={(updates) => normalizeAndUpdateItem(item.id, updates)}
+                      onSelect={() => onAssetSelect(asset.id)}
+                      onTransform={(updates) => normalizeAndUpdateAsset(asset.id, updates)}
                       displayScale={displayScale}
                     />
                   );
                 }
 
                 case 'sticker': {
-                  const stickerItem = item as DesignerItemAbsolute & {
+                  const stickerAsset = asset as DesignerAssetAbsolute & {
                     stickerId: string;
                     stickerColor?: string;
                   };
-                  const stickerUrl = getStickerUrl(stickerItem.stickerId);
+                  const stickerUrl = getStickerUrl(stickerAsset.stickerId);
 
                   if (!stickerUrl) {
-                    console.warn('Sticker URL not found:', stickerItem.stickerId);
+                    console.warn('Sticker URL not found:', stickerAsset.stickerId);
                     return null;
                   }
 
                   return (
-                    <StickerItem
-                      key={item.id}
-                      id={item.id}
-                      stickerId={stickerItem.stickerId}
+                    <DesignerBackgroundStickerNode
+                      key={asset.id}
+                      id={asset.id}
+                      stickerId={stickerAsset.stickerId}
                       stickerUrl={stickerUrl}
-                      x={item.x}
-                      y={item.y}
-                      width={item.width}
-                      height={item.height}
-                      rotation={item.rotation}
-                      opacity={item.opacity}
-                      stickerColor={stickerItem.stickerColor}
+                      x={asset.x}
+                      y={asset.y}
+                      width={asset.width}
+                      height={asset.height}
+                      rotation={asset.rotation}
+                      opacity={asset.opacity}
+                      stickerColor={stickerAsset.stickerColor}
                       isSelected={isSelected}
-                      onSelect={() => onItemSelect(item.id)}
+                      onSelect={() => onAssetSelect(asset.id)}
                       displayScale={displayScale}
-                      onTransform={(updates) => normalizeAndUpdateItem(item.id, updates)}
+                      onTransform={(updates) => normalizeAndUpdateAsset(asset.id, updates)}
                     />
                   );
                 }

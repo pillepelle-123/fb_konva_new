@@ -7,18 +7,18 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   CanvasStructure,
-  DesignerItem,
+  DesignerItem as DesignerAsset,
   DesignerImageItem,
   DesignerTextItem,
   DesignerStickerItem,
-  DesignerItemPosition,
+  DesignerItemPosition as DesignerAssetPosition,
   DEFAULT_DESIGNER_CANVAS,
 } from '../../../../../../../shared/types/background-designer';
 import { calculatePositionFromPreset } from '../../../../../../../shared/types/background-designer';
 
 export interface DesignerCanvasHookState {
   canvasStructure: CanvasStructure;
-  selectedItemId: string | null;
+  selectedAssetId: string | null;
   canvasWidth: number;
   canvasHeight: number;
   isDirty: boolean;
@@ -42,7 +42,7 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
     }
   );
 
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,7 +60,7 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
   useEffect(() => {
     if (initialStructure) {
       setCanvasStructure(initialStructure);
-      setSelectedItemId(null);
+      setSelectedAssetId(null);
       setIsDirty(false);
     }
   }, [initialStructure]);
@@ -86,10 +86,11 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Add new image item
    * Size parameters are absolute pixels, position is normalized (0-1)
    */
-  const addImageItem = useCallback((uploadPath: string, width: number = 400, height: number = 400) => {
-    const newItem: DesignerImageItem = {
+  const addImageAsset = useCallback((uploadPath: string, width: number = 400, height: number = 400, assetId?: string) => {
+    const newAsset: DesignerImageItem = {
       id: uuidv4(),
       type: 'image',
+      assetId,
       uploadPath,
       x: 0.1, // Normalized position
       y: 0.1, // Normalized position
@@ -103,10 +104,10 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
 
     setCanvasStructure((prev) => ({
       ...prev,
-      items: [...prev.items, newItem],
+      items: [...prev.items, newAsset],
     }));
 
-    setSelectedItemId(newItem.id);
+    setSelectedAssetId(newAsset.id);
     setIsDirty(true);
   }, []);
 
@@ -114,8 +115,8 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Add new text item
    * All sizes are absolute pixels, position is normalized (0-1)
    */
-  const addTextItem = useCallback((text: string = 'Sample Text') => {
-    const newItem: DesignerTextItem = {
+  const addTextAsset = useCallback((text: string = 'Sample Text') => {
+    const newAsset: DesignerTextItem = {
       id: uuidv4(),
       type: 'text',
       text,
@@ -137,10 +138,10 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
 
     setCanvasStructure((prev) => ({
       ...prev,
-      items: [...prev.items, newItem],
+      items: [...prev.items, newAsset],
     }));
 
-    setSelectedItemId(newItem.id);
+    setSelectedAssetId(newAsset.id);
     setIsDirty(true);
   }, []);
 
@@ -148,8 +149,8 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Add new sticker item
    * Size parameters are absolute pixels, position is normalized (0-1)
    */
-  const addStickerItem = useCallback((stickerId: string, width: number = 300, height: number = 300) => {
-    const newItem: DesignerStickerItem = {
+  const addStickerAsset = useCallback((stickerId: string, width: number = 300, height: number = 300) => {
+    const newAsset: DesignerStickerItem = {
       id: uuidv4(),
       type: 'sticker',
       stickerId,
@@ -164,20 +165,20 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
 
     setCanvasStructure((prev) => ({
       ...prev,
-      items: [...prev.items, newItem],
+      items: [...prev.items, newAsset],
     }));
 
-    setSelectedItemId(newItem.id);
+    setSelectedAssetId(newAsset.id);
     setIsDirty(true);
   }, []);
 
   /**
    * Update item properties
    */
-  const updateItem = useCallback((itemId: string, updates: Partial<DesignerItem>) => {
+  const updateAsset = useCallback((assetId: string, updates: Partial<DesignerAsset>) => {
     setCanvasStructure((prev) => ({
       ...prev,
-      items: prev.items.map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
+      items: prev.items.map((asset) => (asset.id === assetId ? { ...asset, ...updates } : asset)),
     }));
     setIsDirty(true);
   }, []);
@@ -185,14 +186,14 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
   /**
    * Delete item
    */
-  const deleteItem = useCallback((itemId: string) => {
+  const deleteAsset = useCallback((assetId: string) => {
     setCanvasStructure((prev) => ({
       ...prev,
-      items: prev.items.filter((item) => item.id !== itemId),
+      items: prev.items.filter((asset) => asset.id !== assetId),
     }));
 
-    // Deselect if the deleted item was selected
-    setSelectedItemId((prevId) => (prevId === itemId ? null : prevId));
+    // Deselect if the deleted asset was selected
+    setSelectedAssetId((prevId) => (prevId === assetId ? null : prevId));
 
     setIsDirty(true);
   }, []);
@@ -201,15 +202,15 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Apply position preset to item
    * Sizes are already absolute, only positions are calculated
    */
-  const applyPositionPreset = useCallback((itemId: string, preset: DesignerItemPosition) => {
+  const applyPositionPreset = useCallback((assetId: string, preset: DesignerAssetPosition) => {
     setCanvasStructure((prev) => {
-      const item = prev.items.find((i) => i.id === itemId);
-      if (!item) return prev;
+      const asset = prev.items.find((i) => i.id === assetId);
+      if (!asset) return prev;
 
       const pos = calculatePositionFromPreset(
         preset,
-        item.width, // Already absolute
-        item.height, // Already absolute
+        asset.width, // Already absolute
+        asset.height, // Already absolute
         canvasWidth,
         canvasHeight
       );
@@ -217,7 +218,7 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
       return {
         ...prev,
         items: prev.items.map((i) =>
-          i.id === itemId
+          i.id === assetId
             ? {
                 ...i,
                 x: pos.x,
@@ -236,42 +237,42 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Change z-index (layer order)
    */
   const changeZIndex = useCallback(
-    (itemId: string, direction: 'forward' | 'backward' | 'front' | 'back') => {
+    (assetId: string, direction: 'forward' | 'backward' | 'front' | 'back') => {
       setCanvasStructure((prev) => {
-        const newItems = [...prev.items];
-        const index = newItems.findIndex((item) => item.id === itemId);
+        const newAssets = [...prev.items];
+        const index = newAssets.findIndex((asset) => asset.id === assetId);
 
         if (index === -1) return prev;
 
         switch (direction) {
           case 'forward':
-            if (index < newItems.length - 1) {
-              [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+            if (index < newAssets.length - 1) {
+              [newAssets[index], newAssets[index + 1]] = [newAssets[index + 1], newAssets[index]];
             }
             break;
 
           case 'backward':
             if (index > 0) {
-              [newItems[index], newItems[index - 1]] = [newItems[index - 1], newItems[index]];
+              [newAssets[index], newAssets[index - 1]] = [newAssets[index - 1], newAssets[index]];
             }
             break;
 
           case 'front':
-            if (index < newItems.length - 1) {
-              const item = newItems.splice(index, 1)[0];
-              newItems.push(item);
+            if (index < newAssets.length - 1) {
+              const asset = newAssets.splice(index, 1)[0];
+              newAssets.push(asset);
             }
             break;
 
           case 'back':
             if (index > 0) {
-              const item = newItems.splice(index, 1)[0];
-              newItems.unshift(item);
+              const asset = newAssets.splice(index, 1)[0];
+              newAssets.unshift(asset);
             }
             break;
         }
 
-        return { ...prev, items: newItems };
+        return { ...prev, items: newAssets };
       });
 
       setIsDirty(true);
@@ -282,27 +283,27 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
   /**
    * Duplicate item
    */
-  const duplicateItem = useCallback((itemId: string) => {
-    const newItemId = uuidv4();
+  const duplicateAsset = useCallback((assetId: string) => {
+    const newAssetId = uuidv4();
 
     setCanvasStructure((prev) => {
-      const item = prev.items.find((i) => i.id === itemId);
-      if (!item) return prev;
+      const asset = prev.items.find((i) => i.id === assetId);
+      if (!asset) return prev;
 
-      const newItem = {
-        ...item,
-        id: newItemId,
-        x: item.x + 0.05,
-        y: item.y + 0.05,
+      const newAsset = {
+        ...asset,
+        id: newAssetId,
+        x: asset.x + 0.05,
+        y: asset.y + 0.05,
       };
 
       return {
         ...prev,
-        items: [...prev.items, newItem],
+        items: [...prev.items, newAsset],
       };
     });
 
-    setSelectedItemId(newItemId);
+    setSelectedAssetId(newAssetId);
     setIsDirty(true);
   }, []);
 
@@ -361,21 +362,21 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
         items: [],
       }
     );
-    setSelectedItemId(null);
+    setSelectedAssetId(null);
     setIsDirty(false);
   }, [initialStructure]);
 
   /**
    * Get selected item
    */
-  const getSelectedItem = useCallback(() => {
-    return canvasStructure.items.find((item) => item.id === selectedItemId);
-  }, [canvasStructure.items, selectedItemId]);
+  const getSelectedAsset = useCallback(() => {
+    return canvasStructure.items.find((asset) => asset.id === selectedAssetId);
+  }, [canvasStructure.items, selectedAssetId]);
 
   return {
     // State
     canvasStructure,
-    selectedItemId,
+    selectedAssetId,
     isDirty,
     isSaving,
     canvasWidth,
@@ -385,18 +386,18 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
     updateCanvasBackground,
 
     // Item operations
-    addImageItem,
-    addTextItem,
-    addStickerItem,
-    updateItem,
-    deleteItem,
+    addImageAsset,
+    addTextAsset,
+    addStickerAsset,
+    updateAsset,
+    deleteAsset,
     applyPositionPreset,
     changeZIndex,
-    duplicateItem,
+    duplicateAsset,
 
     // Selection
-    setSelectedItemId,
-    getSelectedItem,
+    setSelectedAssetId,
+    getSelectedAsset,
 
     // Persistence
     save,

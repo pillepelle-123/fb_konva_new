@@ -11,16 +11,19 @@ import { Separator } from '../../../ui/primitives/separator';
 import { Trash2, Copy, ArrowUp, ArrowDown, ChevronsDown, ChevronsUp } from 'lucide-react';
 import { ColorSelector } from '../../../features/editor/tool-settings/color-selector';
 import { PositionButtons } from './position-buttons';
-import type { DesignerItem, DesignerItemPosition } from '../../../../../../shared/types/background-designer';
+import type {
+  DesignerItem as DesignerAsset,
+  DesignerItemPosition as DesignerAssetPosition,
+} from '../../../../../../shared/types/background-designer';
 
 interface DesignerPropertyPanelProps {
-  item: DesignerItem | null;
+  asset: DesignerAsset | null;
   canvasWidth: number;
   canvasHeight: number;
-  onItemUpdate: (updates: Partial<DesignerItem>) => void;
-  onItemDelete: () => void;
-  onItemDuplicate: () => void;
-  onPositionPreset: (position: DesignerItemPosition) => void;
+  onAssetUpdate: (updates: Partial<DesignerAsset>) => void;
+  onAssetDelete: () => void;
+  onAssetDuplicate: () => void;
+  onPositionPreset: (position: DesignerAssetPosition) => void;
   onLayerChange: (direction: 'forward' | 'backward' | 'front' | 'back') => void;
   favoriteColors?: string[];
   onAddFavoriteColor?: (color: string) => void;
@@ -28,12 +31,12 @@ interface DesignerPropertyPanelProps {
 }
 
 export function DesignerPropertyPanel({
-  item,
+  asset,
   canvasWidth,
   canvasHeight,
-  onItemUpdate,
-  onItemDelete,
-  onItemDuplicate,
+  onAssetUpdate,
+  onAssetDelete,
+  onAssetDuplicate,
   onPositionPreset,
   onLayerChange,
   favoriteColors,
@@ -42,39 +45,39 @@ export function DesignerPropertyPanel({
 }: DesignerPropertyPanelProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
 
-  if (!item) {
+  if (!asset) {
     return (
       <div className="w-80 border-l border-gray-200 bg-gray-50 p-4 flex items-center justify-center h-full">
-        <p className="text-sm text-gray-500">Select an item to edit properties</p>
+        <p className="text-sm text-gray-500">Select an asset to edit properties</p>
       </div>
     );
   }
 
-  const itemX = Math.round(item.x * canvasWidth);
-  const itemY = Math.round(item.y * canvasHeight);
-  const itemWidth = Math.round(item.width);
-  const itemHeight = Math.round(item.height);
+  const assetX = Math.round(asset.x * canvasWidth);
+  const assetY = Math.round(asset.y * canvasHeight);
+  const assetWidth = Math.round(asset.width);
+  const assetHeight = Math.round(asset.height);
 
   return (
     <div className="w-80 border-l border-gray-200 bg-white overflow-y-auto max-h-full">
       <div className="p-4 space-y-4">
         {/* Header */}
         <div>
-          <p className="text-sm font-semibold text-gray-900 capitalize">{item.type} Item</p>
-          <p className="text-xs text-gray-500">{item.id.slice(0, 8)}</p>
+          <p className="text-sm font-semibold text-gray-900 capitalize">{asset.type} Asset</p>
+          <p className="text-xs text-gray-500">{asset.id.slice(0, 8)}</p>
         </div>
 
         <Separator />
 
         {/* Type-specific properties */}
-        {item.type === 'image' && (
+        {asset.type === 'image' && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="aspect-ratio"
-                checked={(item as any).aspectRatioLocked || false}
-                onChange={(e) => onItemUpdate({ aspectRatioLocked: e.target.checked })}
+                checked={(asset as any).aspectRatioLocked || false}
+                onChange={(e) => onAssetUpdate({ aspectRatioLocked: e.target.checked })}
                 className="w-4 h-4 rounded border-gray-300"
               />
               <label htmlFor="aspect-ratio" className="text-sm text-gray-700">
@@ -84,14 +87,14 @@ export function DesignerPropertyPanel({
           </div>
         )}
 
-        {item.type === 'text' && (
+        {asset.type === 'text' && (
           <div className="space-y-3">
             <div>
               <Label size="sm">Text</Label>
               <input
                 type="text"
-                value={(item as any).text || ''}
-                onChange={(e) => onItemUpdate({ text: e.target.value })}
+                value={(asset as any).text || ''}
+                onChange={(e) => onAssetUpdate({ text: e.target.value })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               />
             </div>
@@ -100,8 +103,8 @@ export function DesignerPropertyPanel({
               <div>
                 <Label size="sm">Font Family</Label>
                 <select
-                  value={(item as any).fontFamily || 'Arial'}
-                  onChange={(e) => onItemUpdate({ fontFamily: e.target.value })}
+                  value={(asset as any).fontFamily || 'Arial'}
+                  onChange={(e) => onAssetUpdate({ fontFamily: e.target.value })}
                   className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
                 >
                   <option value="Arial">Arial</option>
@@ -116,9 +119,9 @@ export function DesignerPropertyPanel({
                 <Label size="sm">Font Size</Label>
                 <input
                   type="number"
-                   value={Math.round((item as any).fontSize || 0)}
+                   value={Math.round((asset as any).fontSize || 0)}
                   onChange={(e) =>
-                    onItemUpdate({
+                    onAssetUpdate({
                        fontSize: Math.max(12, Math.min(200, Number(e.target.value))),
                     })
                   }
@@ -131,9 +134,9 @@ export function DesignerPropertyPanel({
 
             <div className="flex gap-2">
               <button
-                onClick={() => onItemUpdate({ fontBold: !(item as any).fontBold })}
+                onClick={() => onAssetUpdate({ fontBold: !(asset as any).fontBold })}
                 className={`flex-1 px-2 py-1.5 text-sm font-bold rounded border ${
-                  (item as any).fontBold
+                  (asset as any).fontBold
                     ? 'bg-blue-100 border-blue-300 text-blue-700'
                     : 'bg-gray-100 border-gray-300 text-gray-700'
                 }`}
@@ -141,9 +144,9 @@ export function DesignerPropertyPanel({
                 B
               </button>
               <button
-                onClick={() => onItemUpdate({ fontItalic: !(item as any).fontItalic })}
+                onClick={() => onAssetUpdate({ fontItalic: !(asset as any).fontItalic })}
                 className={`flex-1 px-2 py-1.5 text-sm italic rounded border ${
-                  (item as any).fontItalic
+                  (asset as any).fontItalic
                     ? 'bg-blue-100 border-blue-300 text-blue-700'
                     : 'bg-gray-100 border-gray-300 text-gray-700'
                 }`}
@@ -158,7 +161,7 @@ export function DesignerPropertyPanel({
                 <div
                   onClick={() => setShowColorPicker(!showColorPicker)}
                   className="flex-1 h-10 rounded border-2 border-gray-300 cursor-pointer"
-                  style={{ backgroundColor: (item as any).fontColor || '#000000' }}
+                  style={{ backgroundColor: (asset as any).fontColor || '#000000' }}
                 />
                 <button
                   className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
@@ -171,13 +174,13 @@ export function DesignerPropertyPanel({
               {showColorPicker && (
                 <div className="mt-2">
                   <ColorSelector
-                    value={(item as any).fontColor || '#000000'}
+                    value={(asset as any).fontColor || '#000000'}
                     onChange={(color) => {
-                      onItemUpdate({ fontColor: color });
+                      onAssetUpdate({ fontColor: color });
                     }}
-                    opacity={(item as any).fontOpacity || 1}
+                    opacity={(asset as any).fontOpacity || 1}
                     onOpacityChange={(opacity) => {
-                      onItemUpdate({ fontOpacity: opacity });
+                      onAssetUpdate({ fontOpacity: opacity });
                     }}
                     onBack={() => setShowColorPicker(false)}
                     showOpacitySlider={true}
@@ -191,13 +194,13 @@ export function DesignerPropertyPanel({
           </div>
         )}
 
-        {item.type === 'sticker' && (
+        {asset.type === 'sticker' && (
           <div>
             <Label size="sm">Sticker ID</Label>
             <input
               type="text"
               disabled
-              value={(item as any).stickerId || ''}
+              value={(asset as any).stickerId || ''}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 text-gray-500"
             />
           </div>
@@ -219,8 +222,8 @@ export function DesignerPropertyPanel({
               <Label size="sm">X</Label>
               <input
                 type="number"
-                value={itemX}
-                onChange={(e) => onItemUpdate({ x: Number(e.target.value) / canvasWidth })}
+                value={assetX}
+                onChange={(e) => onAssetUpdate({ x: Number(e.target.value) / canvasWidth })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               />
             </div>
@@ -228,8 +231,8 @@ export function DesignerPropertyPanel({
               <Label size="sm">Y</Label>
               <input
                 type="number"
-                value={itemY}
-                onChange={(e) => onItemUpdate({ y: Number(e.target.value) / canvasHeight })}
+                value={assetY}
+                onChange={(e) => onAssetUpdate({ y: Number(e.target.value) / canvasHeight })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               />
             </div>
@@ -240,8 +243,8 @@ export function DesignerPropertyPanel({
               <Label size="sm">Width</Label>
               <input
                 type="number"
-                value={itemWidth}
-                 onChange={(e) => onItemUpdate({ width: Number(e.target.value) })}
+                value={assetWidth}
+                 onChange={(e) => onAssetUpdate({ width: Number(e.target.value) })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               />
             </div>
@@ -249,8 +252,8 @@ export function DesignerPropertyPanel({
               <Label size="sm">Height</Label>
               <input
                 type="number"
-                value={itemHeight}
-                 onChange={(e) => onItemUpdate({ height: Number(e.target.value) })}
+                value={assetHeight}
+                 onChange={(e) => onAssetUpdate({ height: Number(e.target.value) })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               />
             </div>
@@ -260,8 +263,8 @@ export function DesignerPropertyPanel({
             <Label size="sm">Rotation</Label>
             <input
               type="number"
-              value={Math.round(item.rotation)}
-              onChange={(e) => onItemUpdate({ rotation: Number(e.target.value) })}
+              value={Math.round(asset.rotation)}
+              onChange={(e) => onAssetUpdate({ rotation: Number(e.target.value) })}
               min="0"
               max="360"
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
@@ -275,11 +278,11 @@ export function DesignerPropertyPanel({
               min="0"
               max="1"
               step="0.1"
-              value={item.opacity}
-              onChange={(e) => onItemUpdate({ opacity: Number(e.target.value) })}
+              value={asset.opacity}
+              onChange={(e) => onAssetUpdate({ opacity: Number(e.target.value) })}
               className="w-full"
             />
-            <p className="text-xs text-gray-500 mt-1">{Math.round(item.opacity * 100)}%</p>
+            <p className="text-xs text-gray-500 mt-1">{Math.round(asset.opacity * 100)}%</p>
           </div>
         </div>
 
@@ -337,8 +340,8 @@ export function DesignerPropertyPanel({
             size="sm"
             variant="outline"
             className="flex-1"
-            onClick={onItemDuplicate}
-            title="Duplicate Item"
+            onClick={onAssetDuplicate}
+            title="Duplicate Asset"
           >
             <Copy size={16} className="mr-1" />
             Duplicate
@@ -348,8 +351,8 @@ export function DesignerPropertyPanel({
             size="sm"
             variant="destructive"
             className="flex-1"
-            onClick={onItemDelete}
-            title="Delete Item"
+            onClick={onAssetDelete}
+            title="Delete Asset"
           >
             <Trash2 size={16} className="mr-1" />
             Delete

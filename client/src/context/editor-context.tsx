@@ -579,9 +579,6 @@ export interface PageBackground {
   backgroundImageId?: string; // Reference to background image by UUID
   backgroundImageType?: 'template' | 'designer';
   backgroundImageDesignerId?: string;
-  designerCanvasStructure?: unknown;
-  designerCanvasWidth?: number;
-  designerCanvasHeight?: number;
   designerCanvas?: {
     structure?: unknown;
     canvasWidth?: number;

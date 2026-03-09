@@ -1,12 +1,13 @@
 /**
- * Shared Sticker Item Component for Konva
- * Used in Background Designer
+ * Designer Background Sticker Node for Konva.
+ * Used by the background designer renderer, not directly by app canvas items.
  */
 import { useEffect, useRef } from 'react';
-import { Image as KonvaImage, Transformer } from 'react-konva';
+import { Image as KonvaImage } from 'react-konva';
 import useImage from 'use-image';
+import { DesignerBackgroundTransformer } from './designer-background-transformer';
 
-export interface StickerItemProps {
+export interface DesignerBackgroundStickerNodeProps {
   id: string;
   stickerId: string;
   stickerUrl: string;
@@ -30,7 +31,7 @@ export interface StickerItemProps {
   displayScale?: number; // Zoom-independent display scale for selection UI
 }
 
-export function StickerItem({
+export function DesignerBackgroundStickerNode({
   id,
   stickerUrl,
   x,
@@ -44,13 +45,10 @@ export function StickerItem({
   onTransform,
   draggable = true,
   displayScale = 1,
-}: StickerItemProps) {
+}: DesignerBackgroundStickerNodeProps) {
   const [image] = useImage(stickerUrl);
   const stickerRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
-
-  // Inverse scale to keep selection UI constant size regardless of zoom
-  const inverseScale = displayScale > 0 ? 1 / displayScale : 1;
 
   useEffect(() => {
     if (isSelected && transformerRef.current && stickerRef.current) {
@@ -109,24 +107,12 @@ export function StickerItem({
         }}
       />
       {isSelected && (
-        <Transformer
-          ref={transformerRef}
+        <DesignerBackgroundTransformer
+          transformerRef={transformerRef}
           keepRatio={true}
-          rotateEnabled={true}
-          borderStroke="#0066ff"
-          borderStrokeWidth={2 * inverseScale}
-          anchorStroke="#0066ff"
-          anchorFill="#ffffff"
-          anchorSize={8 * inverseScale}
-          scaleX={inverseScale}
-          scaleY={inverseScale}
-          boundBoxFunc={(oldBox, newBox) => {
-            // Minimum size constraint
-            if (newBox.width < 20 || newBox.height < 20) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          displayScale={displayScale}
+          minWidth={20}
+          minHeight={20}
         />
       )}
     </>

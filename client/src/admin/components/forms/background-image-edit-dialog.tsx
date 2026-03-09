@@ -28,22 +28,50 @@ import { cn } from '../../../lib/utils'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-function BackgroundImagePreview({ slug, token }: { slug: string; token: string | null }) {
+function BackgroundImagePreview({ image, token }: { image: AdminBackgroundImage | null; token: string | null }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState(false)
   const urlRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!slug || !token || !slug.trim()) {
+    const slug = image?.slug?.trim() ?? ''
+    const previewUrl = image?.storage?.thumbnailUrl || image?.storage?.publicUrl
+    const hasStoredFile = Boolean(image?.storage?.filePath)
+    const isDesigner = image?.format === 'designer'
+    const isLegacyBackgroundApiPreview =
+      typeof previewUrl === 'string' && /\/api\/background-images\/.+\/(file|thumbnail)$/.test(previewUrl)
+
+    if (!image || !slug) {
       setObjectUrl(null)
       setError(false)
       return
     }
+
+    // Designer entries can exist without a generated binary file yet.
+    if (isDesigner && (!hasStoredFile || !previewUrl || isLegacyBackgroundApiPreview)) {
+      setObjectUrl(null)
+      setError(false)
+      return
+    }
+
+    if (!token && !previewUrl) {
+      setObjectUrl(null)
+      setError(false)
+      return
+    }
+
     let cancelled = false
     setError(false)
-    fetch(`${API_BASE_URL}/background-images/${encodeURIComponent(slug)}/file`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+
+    const targetUrl = previewUrl || (isDesigner ? '' : `${API_BASE_URL}/background-images/${encodeURIComponent(slug)}/file`)
+    if (!targetUrl) {
+      setObjectUrl(null)
+      setError(false)
+      return
+    }
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+
+    fetch(targetUrl, { headers })
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load')
         return res.blob()
@@ -65,9 +93,12 @@ function BackgroundImagePreview({ slug, token }: { slug: string; token: string |
         urlRef.current = null
       }
     }
-  }, [slug, token])
+  }, [image, token])
 
-  if (!slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">No image</div>
+  if (!image?.slug?.trim()) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">No image</div>
+  if (image.format === 'designer' && (!image.storage?.filePath || !image.storage?.thumbnailUrl || !image.storage?.publicUrl)) {
+    return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">No generated preview yet</div>
+  }
   if (error) return <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Preview unavailable</div>
   if (!objectUrl) return <div className="flex aspect-square animate-pulse items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">Loading…</div>
   return (
@@ -286,7 +317,7 @@ export function AdminBackgroundImageEditDialog({
               </div>
               <div className="flex flex-col gap-2">
                 <Label>Preview</Label>
-                <BackgroundImagePreview slug={slug} token={token} />
+                <BackgroundImagePreview image={image} token={token} />
               </div>
             </div>
 

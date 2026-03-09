@@ -1,6 +1,7 @@
 const express = require('express')
 const path = require('path')
 const fs = require('fs')
+const sharp = require('sharp')
 const backgroundImagesService = require('../services/background-images')
 const backgroundImageDesignerService = require('../services/background-image-designer')
 const { requireAppOrigin } = require('../middleware/require-app-origin')
@@ -144,7 +145,11 @@ router.get('/designer/assets/*', requireAppOrigin, async (req, res) => {
       return res.status(400).json({ error: 'Missing asset path' })
     }
 
-    if (!relativePath.startsWith('_designer/') && !relativePath.startsWith('designer/')) {
+    if (
+      !relativePath.startsWith('_designer/') &&
+      !relativePath.startsWith('designer/') &&
+      !relativePath.startsWith('_image_assets/')
+    ) {
       return res.status(403).json({ error: 'Invalid designer asset path' })
     }
 
@@ -157,7 +162,17 @@ router.get('/designer/assets/*', requireAppOrigin, async (req, res) => {
       return res.status(404).json({ error: 'Designer asset not found' })
     }
 
+    const requestedFormat = String(req.query.format || '').toLowerCase()
     const ext = path.extname(fullPath).toLowerCase()
+
+    // Headless canvas rendering is more robust with raster images than SVG.
+    if (requestedFormat === 'png' && ext === '.svg') {
+      const pngBuffer = await sharp(fullPath, { density: 300 }).png().toBuffer()
+      res.setHeader('Content-Type', 'image/png')
+      res.setHeader('Cache-Control', 'private, max-age=3600')
+      return res.send(pngBuffer)
+    }
+
     const mimeTypes = {
       '.svg': 'image/svg+xml',
       '.png': 'image/png',
