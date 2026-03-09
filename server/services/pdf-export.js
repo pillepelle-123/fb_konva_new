@@ -156,6 +156,9 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
       // Optimize image based on quality setting and CMYK option
       let optimizedImage = pageImage;
       let useJpeg = false;
+      const isPrinting = options.quality === 'printing';
+      const isExcellent = options.quality === 'excellent';
+      const isPrintQuality = isPrinting || isExcellent;
       
       // Check if CMYK export is requested
       const useCMYK = options.useCMYK === true;
@@ -196,7 +199,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         // CMYK export with selected ICC profile
         // PNG mit CMYK ist in vielen Viewern problematisch; nutze JPEG ohne Alpha
         // Verwende 4:2:0 Subsampling und Qualität 88 für bessere Dateigröße bei dennoch hoher Druckqualität
-        const jpegQuality = 88;
+        const jpegQuality = isExcellent ? 96 : (isPrinting ? 92 : 88);
+        const jpegSubsampling = isPrintQuality ? '4:4:4' : '4:2:0';
 
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
@@ -206,10 +210,10 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
           })
           .flatten({ background: '#ffffff' }) // remove alpha before CMYK JPEG
           .toColorspace('cmyk') // Convert to CMYK color space
-          .withMetadata({ icc: iccProfilePath }) // Apply selected ICC profile (use file path, not buffer)
+          .withMetadata({ icc: iccProfilePath, density: targetDpi }) // Keep ICC and write explicit density metadata
           .jpeg({
             quality: jpegQuality,
-            chromaSubsampling: '4:2:0',
+            chromaSubsampling: jpegSubsampling,
             mozjpeg: true
           })
           .toBuffer();
@@ -218,7 +222,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         // CMYK export without ICC profile (fallback)
         console.warn(`[PDF Export] CMYK export requested but ICC profile not found. Converting to CMYK without profile.`);
         // Gleiche Einstellungen wie oben: 4:2:0 Subsampling und Qualität 88
-        const jpegQuality = 88;
+        const jpegQuality = isExcellent ? 96 : (isPrinting ? 92 : 88);
+        const jpegSubsampling = isPrintQuality ? '4:4:4' : '4:2:0';
 
         optimizedImage = await sharp(pageImage)
           .resize(targetWidthPx, targetHeightPx, {
@@ -228,9 +233,10 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
           })
           .flatten({ background: '#ffffff' }) // remove alpha before CMYK JPEG
           .toColorspace('cmyk') // Convert to CMYK color space without ICC profile
+          .withMetadata({ density: targetDpi })
           .jpeg({
             quality: jpegQuality,
-            chromaSubsampling: '4:2:0',
+            chromaSubsampling: jpegSubsampling,
             mozjpeg: true
           })
           .toBuffer();
@@ -253,6 +259,7 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
             brightness: 0.97
           })
           .flatten({ background: '#ffffff' }) // entferne Alpha, da JPEG keinen Alphakanal unterstützt
+          .withMetadata({ density: targetDpi })
           .jpeg({
             quality: jpegQuality,
             chromaSubsampling: '4:2:0',
@@ -262,8 +269,8 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
         useJpeg = true;
       } else {
         // RGB export for printing/excellent quality
-        // Verwende JPEG (sRGB) mit höherer Qualität für druckfertige PDFs
-        const jpegQuality = 92;
+        // Keep excellent as highest quality, and slightly compress printing
+        const jpegQuality = isExcellent ? 97 : 93;
 
         optimizedImage = await sharp(pageImage)
           .gamma(2.15)
@@ -278,9 +285,10 @@ async function generatePDFFromBook(bookData, options, exportId, updateProgress) 
             brightness: 0.97
           })
           .flatten({ background: '#ffffff' })
+          .withMetadata({ density: targetDpi })
           .jpeg({
             quality: jpegQuality,
-            chromaSubsampling: '4:2:0',
+            chromaSubsampling: '4:4:4',
             mozjpeg: true
           })
           .toBuffer();
