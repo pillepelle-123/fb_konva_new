@@ -167,6 +167,26 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
 
   if (background.type === 'image') {
     if (hasDesignerCanvasPayload(background)) {
+      const shouldApplyPalette = background.applyPalette !== false;
+      const paletteMode = background.paletteMode ?? 'monochrome';
+      const backgroundColorOverride = (background as any).backgroundColorEnabled && (background as any).backgroundColor
+        ? (background as any).backgroundColor
+        : undefined;
+      const designerPaletteOptions = {
+        paletteId,
+        paletteColors: palette?.colors,
+        palette: palette ?? undefined,
+        paletteMode,
+        backgroundColorOverride,
+      };
+      const designerPaletteCacheKey = JSON.stringify({
+        applyPalette: shouldApplyPalette,
+        paletteId: paletteId ?? null,
+        paletteMode,
+        backgroundColorOverride: backgroundColorOverride ?? null,
+        paletteColors: Object.entries(palette?.colors ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+      });
+
       return (
         <DesignerBackgroundGroup
           background={background}
@@ -174,6 +194,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           pageOffsetY={pageOffsetY}
           canvasWidth={canvasWidth}
           canvasHeight={canvasHeight}
+          paletteOptions={designerPaletteOptions}
+          applyPalette={shouldApplyPalette}
+          paletteCacheKey={designerPaletteCacheKey}
         />
       );
     }

@@ -350,6 +350,23 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
     return bookData;
   }
 
+  const paletteById = Object.fromEntries(
+    (Array.isArray(bookData.colorPalettes) ? bookData.colorPalettes : [])
+      .map((palette) => [String(palette.id), palette])
+  );
+
+  const getPalettePartColor = (palette, partName, fallbackSlot, fallbackColor) => {
+    if (!palette || !palette.colors) return fallbackColor;
+    const slot = (palette.parts && palette.parts[partName]) || fallbackSlot;
+    return palette.colors[slot] || palette.colors[fallbackSlot] || fallbackColor;
+  };
+
+  const getPagePalette = (page) => {
+    const paletteId = page?.colorPaletteId ?? bookData.colorPaletteId ?? null;
+    if (paletteId == null) return null;
+    return paletteById[String(paletteId)] || null;
+  };
+
   const designerCache = new Map();
   const pages = await Promise.all(
     bookData.pages.map(async (page) => {
@@ -369,23 +386,40 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
         return page;
       }
 
+      const palette = getPagePalette(page);
+      const pageBackgroundColor =
+        getPalettePartColor(palette, 'pageBackground', 'background', palette?.colors?.background) ||
+        palette?.colors?.background ||
+        '#ffffff';
+      const toneColor =
+        (background.backgroundColorEnabled && background.backgroundColor)
+          ? background.backgroundColor
+          : pageBackgroundColor;
+      const paletteOptions = {
+        applyPalette: background.applyPalette !== false,
+        paletteMode: background.paletteMode || 'monochrome',
+        toneColor,
+        backgroundColorOverride: (background.backgroundColorEnabled && background.backgroundColor) ? background.backgroundColor : undefined,
+        pageBackgroundColor,
+      };
+
       const rawStructure = designerImage.canvas.structure;
       const structure = {
         ...rawStructure,
         items: Array.isArray(rawStructure.items)
-          ? rawStructure.items.map((item) => {
+          ? await Promise.all(rawStructure.items.map(async (item) => {
               if (item?.type !== 'image') {
                 return item;
               }
 
-              const dataUrl = designerAssetPathToDataUrl(item.uploadPath);
+              const dataUrl = await designerAssetPathToDataUrlWithPalette(item.uploadPath, paletteOptions);
               return {
                 ...item,
                 // Keep live rendering branch, but avoid protected endpoint fetches (403)
                 // by embedding local asset files directly.
                 uploadPath: dataUrl || normalizeDesignerAssetUrl(item.uploadPath),
               };
-            })
+            }))
           : [],
       };
 
@@ -472,6 +506,357 @@ function designerAssetPathToDataUrl(uploadPath) {
   }
 
   return fileToDataUrl(fullPath);
+}
+
+function resolveDesignerAssetRelativePath(uploadPath) {
+  if (!uploadPath || typeof uploadPath !== 'string') {
+    return null;
+  }
+
+  const apiMatch = uploadPath.match(/^\/api\/background-images\/designer\/assets\/(.+)$/i);
+  const uploadsMatch = uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
+
+  if (apiMatch && apiMatch[1]) {
+    return apiMatch[1];
+  }
+  if (uploadsMatch && uploadsMatch[1]) {
+    return uploadsMatch[1];
+  }
+
+  const rawPath = uploadPath.replace(/^\/+/, '');
+  if (
+    rawPath.startsWith('_designer/') ||
+    rawPath.startsWith('designer/') ||
+    rawPath.startsWith('_image_assets/')
+  ) {
+    return rawPath;
+  }
+
+  return null;
+}
+
+function resolveDesignerAssetAbsolutePath(uploadPath) {
+  const relativePath = resolveDesignerAssetRelativePath(uploadPath);
+  if (!relativePath) {
+    return null;
+  }
+  const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relativePath));
+  if (!isPathWithinUploads(fullPath)) {
+    return null;
+  }
+  return fullPath;
+}
+
+function normalizeHexColor(value) {
+  if (!value || typeof value !== 'string' || !value.startsWith('#')) {
+    return null;
+  }
+  const hex = value.slice(1);
+  if (hex.length === 3) {
+    return `#${hex.split('').map((char) => char + char).join('').toLowerCase()}`;
+  }
+  if (hex.length === 6 || hex.length === 8) {
+    return `#${hex.slice(0, 6).toLowerCase()}`;
+  }
+  return null;
+}
+
+function ensureHexHash(color) {
+  if (!color || typeof color !== 'string') {
+    return '#ffffff';
+  }
+  const trimmed = color.trim();
+  if (!trimmed) {
+    return '#ffffff';
+  }
+  return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+}
+
+function hexToRgb(hexColor) {
+  const normalized = normalizeHexColor(hexColor);
+  const hex = normalized ? normalized.slice(1) : '000000';
+  const bigint = parseInt(hex, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  };
+}
+
+function getRelativeLuminance(hexColor) {
+  const { r, g, b } = hexToRgb(hexColor);
+  const convert = (channel) => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const R = convert(r);
+  const G = convert(g);
+  const B = convert(b);
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
+function hexToHsl(hexColor) {
+  const { r, g, b } = hexToRgb(hexColor);
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rn:
+        h = (gn - bn) / d + (gn < bn ? 6 : 0);
+        break;
+      case gn:
+        h = (bn - rn) / d + 2;
+        break;
+      default:
+        h = (rn - gn) / d + 4;
+    }
+    h /= 6;
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function rgbToHex(r, g, b) {
+  const clamp = (c) => Math.min(255, Math.max(0, Math.round(c)));
+  return (
+    '#' +
+    [r, g, b]
+      .map((channel) => clamp(channel).toString(16).padStart(2, '0'))
+      .join('')
+  ).toLowerCase();
+}
+
+function hslToHex(h, s, l) {
+  h /= 360;
+  s /= 100;
+  l /= 100;
+  let r;
+  let g;
+  let b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return rgbToHex(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
+}
+
+function escapeForRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractHexColorOccurrences(svgContent) {
+  const regex = /#([0-9a-fA-F]{3,8})\b/g;
+  const occurrences = new Map();
+  let match;
+  while ((match = regex.exec(svgContent)) !== null) {
+    const original = match[0];
+    const normalized = normalizeHexColor(original);
+    if (!normalized) continue;
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized).add(original);
+  }
+  return occurrences;
+}
+
+function extractRgbColorOccurrences(svgContent) {
+  const regex = /rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})(?:\s*,\s*(0|0?\.\d+|1(?:\.0+)?))?\s*\)/gi;
+  const occurrences = new Map();
+  let match;
+  while ((match = regex.exec(svgContent)) !== null) {
+    const original = match[0];
+    const r = Number(match[1]);
+    const g = Number(match[2]);
+    const b = Number(match[3]);
+    if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) continue;
+    const normalized = rgbToHex(r, g, b);
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized).add(original);
+  }
+  return occurrences;
+}
+
+function extractGradientStopColors(svgContent) {
+  const occurrences = new Map();
+  const stopColorRegex = /stop-color:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/g;
+  const stopColorAttrRegex = /stop-color\s*=\s*["']([^"']+)["']/gi;
+  const addColor = (original) => {
+    let normalized = null;
+    if (original.startsWith('#')) {
+      normalized = normalizeHexColor(original);
+    } else if (original.startsWith('rgb')) {
+      const rgbMatch = original.match(/rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})/);
+      if (rgbMatch) {
+        normalized = rgbToHex(Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3]));
+      }
+    }
+    if (!normalized) return;
+    if (!occurrences.has(normalized)) {
+      occurrences.set(normalized, new Set());
+    }
+    occurrences.get(normalized).add(original);
+  };
+
+  let match;
+  while ((match = stopColorRegex.exec(svgContent)) !== null) {
+    addColor(match[1]);
+  }
+  while ((match = stopColorAttrRegex.exec(svgContent)) !== null) {
+    addColor(match[1]);
+  }
+  return occurrences;
+}
+
+function mergeColorOccurrences(maps) {
+  const merged = new Map();
+  maps.forEach((map) => {
+    map.forEach((originals, normalized) => {
+      if (!merged.has(normalized)) {
+        merged.set(normalized, new Set());
+      }
+      const target = merged.get(normalized);
+      originals.forEach((value) => target.add(value));
+    });
+  });
+  return merged;
+}
+
+function sortColorsByDominanceAndLuminance(colorOccurrences) {
+  return Array.from(colorOccurrences.entries())
+    .map(([color, originals]) => ({ color, count: originals.size, luminance: getRelativeLuminance(color) }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return b.luminance - a.luminance;
+    })
+    .map((item) => item.color);
+}
+
+function replaceCurrentColor(svgContent, replacementColor) {
+  return svgContent
+    .replace(/\bfill\s*=\s*["']currentColor["']/gi, `fill="${replacementColor}"`)
+    .replace(/\bstroke\s*=\s*["']currentColor["']/gi, `stroke="${replacementColor}"`)
+    .replace(/\bfill:\s*currentColor\b/gi, `fill:${replacementColor}`)
+    .replace(/\bstroke:\s*currentColor\b/gi, `stroke:${replacementColor}`);
+}
+
+function stripSvgEditorMetadata(svg) {
+  return svg
+    .replace(/<sodipodi:namedview[\s\S]*?<\/sodipodi:namedview>/gi, '')
+    .replace(/<inkscape:page[^>]*\/>/gi, '')
+    .replace(/<inkscape:page[\s\S]*?<\/inkscape:page>/gi, '')
+    .replace(/<bx:export[\s\S]*?<\/bx:export>/gi, '')
+    .replace(/<bx:file[^>]*\/>/gi, '')
+    .replace(/\s*sodipodi:docname="[^"]*"/gi, '');
+}
+
+function svgStringToDataUrl(svgContent) {
+  const stripped = stripSvgEditorMetadata(svgContent);
+  const cleaned = stripped.replace(/\s+/g, ' ').trim();
+  return `data:image/svg+xml;base64,${Buffer.from(cleaned, 'utf-8').toString('base64')}`;
+}
+
+function applyMonochromeToneToSvgServer(svgContent, targetColor, options = {}) {
+  if (!svgContent || !targetColor) {
+    return svgStringToDataUrl(svgContent || '');
+  }
+
+  const normalizedTarget = ensureHexHash(targetColor);
+  const normalizedEdgeBg = options.edgeBackgroundColor ? ensureHexHash(options.edgeBackgroundColor) : undefined;
+  const targetHsl = hexToHsl(normalizedTarget);
+  const colorOccurrences = mergeColorOccurrences([
+    extractHexColorOccurrences(svgContent),
+    extractRgbColorOccurrences(svgContent),
+    extractGradientStopColors(svgContent),
+  ]);
+
+  let processed = replaceCurrentColor(svgContent, normalizedTarget);
+  const edgeColorToReplace =
+    normalizedEdgeBg && colorOccurrences.size > 0
+      ? sortColorsByDominanceAndLuminance(colorOccurrences)[0]
+      : undefined;
+  const invertBrightness =
+    typeof options.pageBackgroundColor === 'string' &&
+    options.pageBackgroundColor.startsWith('#') &&
+    getRelativeLuminance(options.pageBackgroundColor) <= 0.15;
+
+  colorOccurrences.forEach((originals, normalizedColor) => {
+    let replacement;
+    if (
+      edgeColorToReplace &&
+      normalizedColor === edgeColorToReplace &&
+      getRelativeLuminance(normalizedColor) >= 0.15
+    ) {
+      replacement = normalizedEdgeBg;
+    } else {
+      const origHsl = hexToHsl(normalizedColor);
+      const lightness = invertBrightness ? 100 - origHsl.l : origHsl.l;
+      replacement = hslToHex(targetHsl.h, targetHsl.s, lightness);
+    }
+    if (!replacement || !/^#[0-9a-fA-F]{6}$/.test(replacement)) {
+      return;
+    }
+
+    originals.forEach((originalColor) => {
+      const pattern = new RegExp(escapeForRegex(originalColor), 'gi');
+      processed = processed.replace(pattern, replacement);
+    });
+  });
+
+  return svgStringToDataUrl(processed);
+}
+
+async function designerAssetPathToDataUrlWithPalette(uploadPath, paletteOptions = {}) {
+  const fullPath = resolveDesignerAssetAbsolutePath(uploadPath);
+  if (!fullPath) {
+    return null;
+  }
+
+  const ext = path.extname(fullPath).toLowerCase();
+  if (ext !== '.svg') {
+    return fileToDataUrl(fullPath);
+  }
+
+  const svgContent = await fs.readFile(fullPath, 'utf-8');
+  const shouldApplyPalette = paletteOptions.applyPalette !== false;
+  if (!shouldApplyPalette) {
+    return svgStringToDataUrl(svgContent);
+  }
+
+  if (paletteOptions.paletteMode && paletteOptions.paletteMode !== 'monochrome') {
+    return svgStringToDataUrl(svgContent);
+  }
+
+  const targetColor =
+    paletteOptions.backgroundColorOverride ||
+    paletteOptions.toneColor ||
+    '#ffffff';
+  return applyMonochromeToneToSvgServer(svgContent, targetColor, {
+    edgeBackgroundColor: paletteOptions.backgroundColorOverride,
+    pageBackgroundColor: paletteOptions.pageBackgroundColor,
+  });
 }
 
 function toFiniteNumber(value, fallback = 0) {

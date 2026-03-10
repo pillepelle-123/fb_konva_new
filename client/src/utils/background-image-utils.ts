@@ -537,6 +537,109 @@ export function resolveBackgroundImageUrl(
 
 export { getBackgroundImageWithUrl } from '../data/templates/background-images.ts';
 
+const designerAssetPaletteCache = new Map<string, Promise<string>>();
+
+export async function resolveDesignerAssetUrlWithPalette(
+  assetUrl: string,
+  options?: BackgroundImagePaletteOptions & {
+    applyPalette?: boolean;
+    paletteMode?: BackgroundPaletteMode;
+  }
+): Promise<string> {
+  if (!assetUrl) return assetUrl;
+
+  const shouldApplyPalette = options?.applyPalette !== false;
+  if (!shouldApplyPalette || !isSvgSource(assetUrl)) {
+    return assetUrl;
+  }
+
+  const paletteColors = resolvePaletteColors(options);
+  if (!paletteColors) {
+    return assetUrl;
+  }
+
+  const paletteMode = options?.paletteMode ?? 'monochrome';
+  const paletteColorEntries = Object.entries(paletteColors)
+    .filter(([, value]) => typeof value === 'string')
+    .sort(([a], [b]) => a.localeCompare(b));
+  const cacheKey = JSON.stringify({
+    assetUrl,
+    paletteMode,
+    paletteId: options?.paletteId ?? null,
+    backgroundColorOverride: options?.backgroundColorOverride ?? null,
+    paletteColors: paletteColorEntries,
+  });
+
+  const cached = designerAssetPaletteCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const resolvePromise = (async () => {
+    try {
+      let rawSvg: string | null = null;
+
+      if (assetUrl.startsWith('data:image/svg+xml')) {
+        const base64Match = assetUrl.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
+        const urlEncodedMatch = assetUrl.match(/^data:image\/svg\+xml,(.+)$/);
+        if (base64Match) {
+          const binary = atob(base64Match[1]);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          rawSvg = new TextDecoder().decode(bytes);
+        } else if (urlEncodedMatch) {
+          rawSvg = decodeURIComponent(urlEncodedMatch[1]);
+        }
+      } else {
+        const response = await fetch(assetUrl, { credentials: 'same-origin' });
+        if (!response.ok) {
+          return assetUrl;
+        }
+        rawSvg = await response.text();
+      }
+
+      if (!rawSvg) {
+        return assetUrl;
+      }
+
+      if (paletteMode === 'monochrome') {
+        const toneColor = getToneColorFromPalette(options);
+        const edgeBgColor = options?.backgroundColorOverride
+          ? undefined
+          : getPageBackgroundColor(options);
+        if (toneColor) {
+          const monoResult = applyMonochromeToneToSvg(rawSvg, toneColor, {
+            cacheKey: `designer-asset::${cacheKey}::mono`,
+            asDataUrl: true,
+            edgeBackgroundColor: edgeBgColor,
+            pageBackgroundColor: getPageBackgroundColor(options),
+          });
+          if (monoResult?.startsWith('data:')) {
+            return monoResult;
+          }
+        }
+
+        return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+          cacheKey: `designer-asset::${cacheKey}::auto-fallback`,
+          asDataUrl: true,
+          pageBackgroundColor: getPageBackgroundColor(options),
+        });
+      }
+
+      return applyAutoPaletteToSvg(rawSvg, paletteColors, {
+        cacheKey: `designer-asset::${cacheKey}::auto`,
+        asDataUrl: true,
+        pageBackgroundColor: getPageBackgroundColor(options),
+      });
+    } catch {
+      return assetUrl;
+    }
+  })();
+
+  designerAssetPaletteCache.set(cacheKey, resolvePromise);
+  return resolvePromise;
+}
+
 /**
  * Check if background uses a background image by UUID
  */

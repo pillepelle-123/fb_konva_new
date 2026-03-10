@@ -205,7 +205,7 @@ function transformDesignerApiRecord(record: z.infer<typeof apiDesignerRecordSche
     id: record.slug,
     name: record.name,
     category: categoryName,
-    format: 'pixel',
+    format: 'vector',
     imageType: 'designer',
     filePath,
     thumbnail: thumbnailPath,

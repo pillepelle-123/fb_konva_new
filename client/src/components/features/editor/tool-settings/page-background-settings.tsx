@@ -306,8 +306,11 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
 
   const isDesignerImage =
     background.type === 'image' && background.backgroundImageType === 'designer';
+  // paintWithPalette muss für Designer-Images den echten Wert aus background.applyPalette lesen
   const paintWithPalette =
-    background.type === 'image' && !isDesignerImage ? background.applyPalette !== false : true;
+    background.type === 'image'
+      ? (background.applyPalette !== false)
+      : true;
   
   const isPattern = background.type === 'pattern';
   const isImage = background.type === 'image';
@@ -865,9 +868,48 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="paint-with-palette-designer"
-                        checked={paintWithPalette}
+                        checked={background.applyPalette !== false}
                         onCheckedChange={(checked) => {
-                          updateBackground({ applyPalette: checked !== false });
+                          const usePalette = checked === true;
+                          if (background?.type === 'image' && background.backgroundImageId) {
+                            if (!usePalette) {
+                              // Palette deaktivieren: stelle auf Originalbilder zurück
+                              const template = getBackgroundImageWithUrl(background.backgroundImageId);
+                              let directUrl = template?.url;
+                              if (!directUrl) {
+                                directUrl = getBackgroundImageUrl(background.backgroundImageId, undefined, false);
+                              }
+                              if (!directUrl) {
+                                directUrl = `/api/background-images/${encodeURIComponent(background.backgroundImageId)}/file`;
+                              }
+                              const valueFallback =
+                                background.value && !background.value.startsWith('data:')
+                                  ? background.value
+                                  : undefined;
+                              const finalUrl = directUrl || valueFallback;
+                              updateBackground({
+                                applyPalette: false,
+                                value: finalUrl,
+                                backgroundColorEnabled: background.backgroundColorEnabled ?? true,
+                              });
+                            } else {
+                              // Palette aktivieren: SVG einfärben wie bei normalen Templates
+                              const template = getBackgroundImageWithUrl(background.backgroundImageId);
+                              const preservedBackgroundColor =
+                                background.backgroundColor ??
+                                getTemplateDefaultBackgroundColor(template) ??
+                                getDefaultBackgroundColor();
+                              updateBackground({
+                                applyPalette: true,
+                                paletteMode: 'monochrome',
+                                backgroundColorEnabled: background.backgroundColorEnabled ?? true,
+                                backgroundColor: preservedBackgroundColor,
+                                value: undefined, // Reset, damit resolveBackgroundImageUrl Palette nutzt
+                              });
+                            }
+                          } else {
+                            updateBackground({ applyPalette: usePalette });
+                          }
                         }}
                       />
                       <label htmlFor="paint-with-palette-designer" className="text-xs text-muted-foreground">

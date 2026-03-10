@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Group, Image as KonvaImage, Rect, Text } from 'react-konva';
 import useImage from 'use-image';
 import {
@@ -6,6 +6,10 @@ import {
   mapDesignerCanvasToPage,
   type DesignerRenderItem,
 } from '../../../../services/canvas-structure-to-konva-group';
+import {
+  resolveDesignerAssetUrlWithPalette,
+  type BackgroundImagePaletteOptions,
+} from '../../../../utils/background-image-utils';
 
 interface DesignerBackgroundGroupProps {
   background: unknown;
@@ -13,14 +17,26 @@ interface DesignerBackgroundGroupProps {
   pageOffsetY: number;
   canvasWidth: number;
   canvasHeight: number;
+  paletteOptions?: BackgroundImagePaletteOptions;
+  applyPalette?: boolean;
+  paletteCacheKey?: string;
 }
 
 interface StaticImageItemProps {
   item: Extract<DesignerRenderItem, { type: 'image' | 'sticker' }>;
   opacityMultiplier: number;
+  paletteOptions?: BackgroundImagePaletteOptions;
+  applyPalette?: boolean;
+  paletteCacheKey?: string;
 }
 
-const StaticImageItem = React.memo(function StaticImageItem({ item, opacityMultiplier }: StaticImageItemProps) {
+const StaticImageItem = React.memo(function StaticImageItem({
+  item,
+  opacityMultiplier,
+  paletteOptions,
+  applyPalette = false,
+  paletteCacheKey,
+}: StaticImageItemProps) {
   // Normalize uploadPath to use API endpoint
   const normalizeUploadPath = (path: string): string => {
     if (!path) return path;
@@ -34,7 +50,35 @@ const StaticImageItem = React.memo(function StaticImageItem({ item, opacityMulti
   const src = item.type === 'image'
     ? normalizeUploadPath(item.uploadPath)
     : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
-  const [image] = useImage(src);
+
+  const [resolvedSrc, setResolvedSrc] = useState(src);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (item.type !== 'image') {
+      setResolvedSrc(src);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    resolveDesignerAssetUrlWithPalette(src, {
+      ...paletteOptions,
+      applyPalette,
+      paletteMode: paletteOptions?.paletteMode ?? 'monochrome',
+    }).then((nextUrl) => {
+      if (!cancelled) {
+        setResolvedSrc(nextUrl || src);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.type, src, applyPalette, paletteCacheKey]);
+
+  const [image] = useImage(resolvedSrc);
 
   if (!image) {
     return null;
@@ -60,6 +104,9 @@ export const DesignerBackgroundGroup = React.memo(function DesignerBackgroundGro
   pageOffsetY,
   canvasWidth,
   canvasHeight,
+  paletteOptions,
+  applyPalette = false,
+  paletteCacheKey,
 }: DesignerBackgroundGroupProps) {
   const payload = useMemo(() => extractDesignerCanvasPayload(background), [background]);
 
@@ -126,6 +173,9 @@ export const DesignerBackgroundGroup = React.memo(function DesignerBackgroundGro
             key={item.id}
             item={item}
             opacityMultiplier={backgroundOpacityMultiplier}
+            paletteOptions={paletteOptions}
+            applyPalette={applyPalette}
+            paletteCacheKey={paletteCacheKey}
           />
         );
       })}
