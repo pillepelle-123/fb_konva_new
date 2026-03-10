@@ -21,8 +21,18 @@ interface StaticImageItemProps {
 }
 
 const StaticImageItem = React.memo(function StaticImageItem({ item, opacityMultiplier }: StaticImageItemProps) {
+  // Normalize uploadPath to use API endpoint
+  const normalizeUploadPath = (path: string): string => {
+    if (!path) return path;
+    const match = path.match(/^\/uploads\/background-images\/designer\/(.+)$/);
+    if (match && match[1]) {
+      return `/api/background-images/designer/assets/${match[1]}`;
+    }
+    return path;
+  };
+
   const src = item.type === 'image'
-    ? item.uploadPath
+    ? normalizeUploadPath(item.uploadPath)
     : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
   const [image] = useImage(src);
 

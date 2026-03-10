@@ -854,9 +854,31 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               <Image className="h-4 w-4 mr-2" />
               Select Image
             </Button>
-            {background?.type === 'image' && background.backgroundImageId && !isDesignerImage && (() => {
+            {background?.type === 'image' && background.backgroundImageId && (() => {
               const template = getBackgroundImageWithUrl(background.backgroundImageId);
               const isVectorImage = template?.format === 'vector';
+              
+              // Designer images: show opacity slider and paint with palette checkbox
+              if (isDesignerImage) {
+                return (
+                  <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="paint-with-palette-designer"
+                        checked={paintWithPalette}
+                        onCheckedChange={(checked) => {
+                          updateBackground({ applyPalette: checked !== false });
+                        }}
+                      />
+                      <label htmlFor="paint-with-palette-designer" className="text-xs text-muted-foreground">
+                        Paint with Color Palette
+                      </label>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Vector template images: show paint with palette checkbox
               return isVectorImage ? (
               <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
                 <div className="flex items-center gap-2">
