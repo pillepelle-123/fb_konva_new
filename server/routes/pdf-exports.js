@@ -11,6 +11,7 @@ const { formatLayoutIdForResponse } = require('../utils/layout-utils');
 const stickersService = require('../services/stickers');
 const backgroundImagesService = require('../services/background-images');
 const backgroundImageDesignerService = require('../services/background-image-designer');
+const sharp = require('sharp');
 const themesPalettesService = require('../services/themes-palettes-layouts');
 
 const router = express.Router();
@@ -342,6 +343,143 @@ async function resolveProtectedImageUrls(bookData, bookId, userId) {
   }
 
   return bookData;
+}
+
+/**
+ * Applies monochrome toning to a pixel image (JPG/PNG) using sharp.
+ * Returns a base64 PNG data URL, or null on failure.
+ */
+async function applyMonochromeToneToPixelImageServer(fullPath, toneColorHex) {
+  try {
+    const { r, g, b } = hexToRgb(toneColorHex);
+    const { data, info } = await sharp(fullPath).raw().toBuffer({ resolveWithObject: true });
+    const channels = info.channels;
+    for (let i = 0; i < data.length; i += channels) {
+      const gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      data[i]     = Math.min(255, Math.max(0, Math.round((gray * r) / 255)));
+      data[i + 1] = Math.min(255, Math.max(0, Math.round((gray * g) / 255)));
+      data[i + 2] = Math.min(255, Math.max(0, Math.round((gray * b) / 255)));
+      // channels > 3 → alpha untouched
+    }
+    const tonedBuffer = await sharp(data, {
+      raw: { width: info.width, height: info.height, channels },
+    }).png().toBuffer();
+    return `data:image/png;base64,${tonedBuffer.toString('base64')}`;
+  } catch (err) {
+    console.warn('[pdf-exports] applyMonochromeToneToPixelImageServer failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Applies server-side monochrome toning to pixel (non-SVG) background images
+ * that have applyPalette !== false.  Runs after applyPaletteToBookData so that
+ * bookData.colorPalettes and bookData.backgroundImages are already populated.
+ */
+async function applyPixelImagePaletteToBookData(bookData) {
+  if (!Array.isArray(bookData.pages)) return bookData;
+
+  const paletteById = Object.fromEntries(
+    (Array.isArray(bookData.colorPalettes) ? bookData.colorPalettes : [])
+      .map((p) => [String(p.id), p])
+  );
+
+  const bgImagesById = {};
+  for (const img of (Array.isArray(bookData.backgroundImages) ? bookData.backgroundImages : [])) {
+    if (img?.id != null) {
+      bgImagesById[String(img.id)] = img;
+    }
+    if (img?.slug) {
+      bgImagesById[String(img.slug)] = img;
+    }
+  }
+
+  function palettePart(palette, partName, fallbackSlot, fallbackColor) {
+    if (!palette || !palette.colors) return fallbackColor;
+    const slot = (palette.parts && palette.parts[partName]) || fallbackSlot;
+    return palette.colors[slot] || palette.colors[fallbackSlot] || fallbackColor;
+  }
+
+  function getPageToneColor(page, bg) {
+    if (bg.backgroundColorEnabled && bg.backgroundColor) return bg.backgroundColor;
+    const paletteId = page?.colorPaletteId ?? bookData.colorPaletteId ?? null;
+    const palette = paletteId ? paletteById[String(paletteId)] : null;
+    return (
+      palettePart(palette, 'pageBackground', 'background', palette?.colors?.background) ||
+      palette?.colors?.background ||
+      '#ffffff'
+    );
+  }
+
+  const pages = await Promise.all(
+    bookData.pages.map(async (page) => {
+      const bg = page.background;
+      if (!bg || bg.type !== 'image') return page;
+      if (bg.applyPalette === false) return page;
+      if ((bg.paletteMode ?? 'monochrome') !== 'monochrome') return page;
+
+      const bgId = bg.backgroundImageId ? String(bg.backgroundImageId) : null;
+      if (!bgId) return page;
+
+      let entry = bgImagesById[bgId];
+      if (!entry) {
+        try {
+          entry = await backgroundImagesService.getBackgroundImage(bgId);
+          if (entry?.id != null) {
+            bgImagesById[String(entry.id)] = entry;
+          }
+          if (entry?.slug) {
+            bgImagesById[String(entry.slug)] = entry;
+          }
+        } catch {
+          entry = null;
+        }
+      }
+      if (!entry) return page;
+
+      // Skip SVG/vector — those are handled by the client renderer via embedded SVG + palette
+      const isSvg =
+        (entry.storage?.publicUrl?.startsWith('data:image/svg+xml')) ||
+        entry.format === 'vector' ||
+        /\.svg$/i.test(entry.storage?.filePath || '') ||
+        /\.svg$/i.test(entry.storage?.publicUrl || '');
+      if (isSvg) return page;
+
+      // Resolve absolute file path (same strategy as applyPaletteToBookData)
+      const rawFilePath = String(entry.storage?.filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!rawFilePath) return page;
+      const withoutUploads = rawFilePath.replace(/^uploads\//i, '');
+      const withoutBg = withoutUploads.replace(/^background-images\//i, '');
+      const candidates = [
+        path.resolve(path.join(getUploadsSubdir('background-images'), withoutBg)),
+        path.resolve(path.join(getUploadsDir(), withoutUploads)),
+        path.resolve(path.join(getUploadsDir(), rawFilePath)),
+      ];
+      let fullPath = null;
+      for (const candidate of candidates) {
+        if (!isPathWithinUploads(candidate)) continue;
+        try { await fs.access(candidate); fullPath = candidate; break; } catch { /* try next */ }
+      }
+      if (!fullPath) return page;
+
+      const toneColor = getPageToneColor(page, bg);
+      const tonedDataUrl = await applyMonochromeToneToPixelImageServer(fullPath, toneColor);
+      if (!tonedDataUrl) return page;
+
+      // Force renderer to use pre-toned value instead of template/backgroundImageId resolution
+      return {
+        ...page,
+        background: {
+          ...bg,
+          value: tonedDataUrl,
+          applyPalette: false,
+          backgroundImageId: undefined,
+        },
+      };
+    })
+  );
+
+  return { ...bookData, pages };
 }
 
 async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions = {}) {
@@ -1035,8 +1173,11 @@ async function processExport(job) {
   // Apply palette to backgrounds and embed colorPalettes (no client fetch, avoids 403 in Puppeteer)
   const bookDataWithPalette = await applyPaletteToBookData(bookData);
 
+  // Apply monochrome toning to non-SVG pixel background images server-side
+  const bookDataWithPixelTone = await applyPixelImagePaletteToBookData(bookDataWithPalette);
+
   // For excellent/printing quality, render designer backgrounds live from canvas payload.
-  const bookDataForRender = await enrichDesignerCanvasForLiveDesignerExport(bookDataWithPalette, options);
+  const bookDataForRender = await enrichDesignerCanvasForLiveDesignerExport(bookDataWithPixelTone, options);
 
   // Generate PDF
   const pdfPath = await generatePDFFromBook(

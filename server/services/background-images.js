@@ -88,6 +88,23 @@ function mapCategoryRow(row) {
   }
 }
 
+function inferTemplateFormat({ filePath, thumbnailPath, metadata }) {
+  const metaFormat =
+    metadata && typeof metadata === 'object' && typeof metadata.format === 'string'
+      ? metadata.format.toLowerCase()
+      : null
+
+  if (metaFormat === 'vector' || metaFormat === 'pixel') {
+    return metaFormat
+  }
+
+  const source = (filePath || thumbnailPath || '').toLowerCase()
+  if (source.endsWith('.svg')) {
+    return 'vector'
+  }
+  return 'pixel'
+}
+
 function mapImageRow(row) {
   const id = row.id
   const slug = row.slug
@@ -114,7 +131,12 @@ function mapImageRow(row) {
       createdAt: row.category_created_at,
       updatedAt: row.category_updated_at,
     },
-    format: row.type,
+    type: row.type || 'template',
+    format: inferTemplateFormat({
+      filePath: row.file_path,
+      thumbnailPath: row.thumbnail_path,
+      metadata: row.metadata,
+    }),
     storage: {
       filePath: row.file_path,
       thumbnailPath: row.thumbnail_path,
@@ -293,6 +315,14 @@ async function createBackgroundImage(payload) {
   } = payload
 
   const slug = await ensureUniqueSlug(providedSlug || slugify(name))
+  const normalizedFormat =
+    typeof format === 'string' && format.toLowerCase() === 'vector' ? 'vector' :
+      typeof format === 'string' && format.toLowerCase() === 'pixel' ? 'pixel' :
+        inferTemplateFormat({ filePath, thumbnailPath, metadata })
+  const normalizedMetadata = {
+    ...(metadata || {}),
+    format: normalizedFormat,
+  }
 
   const { rows } = await pool.query(
     `
@@ -332,7 +362,7 @@ async function createBackgroundImage(payload) {
       name,
       categoryId,
       description || null,
-      format || 'vector',
+      'template',
       filePath || null,
       thumbnailPath || null,
       defaults.size || null,
@@ -343,7 +373,7 @@ async function createBackgroundImage(payload) {
       defaults.backgroundColor ? JSON.stringify(defaults.backgroundColor) : null,
       paletteSlots || null,
       Array.isArray(tags) && tags.length > 0 ? tags : null,
-      JSON.stringify(metadata),
+      JSON.stringify(normalizedMetadata),
     ],
   )
 
@@ -383,7 +413,20 @@ async function updateBackgroundImage(identifier, payload) {
         : existing.defaults.backgroundColor,
   }
 
-  const metadata = payload.metadata ? { ...existing.metadata, ...payload.metadata } : existing.metadata
+  const nextFormat =
+    typeof payload.format === 'string' && payload.format.toLowerCase() === 'vector' ? 'vector' :
+      typeof payload.format === 'string' && payload.format.toLowerCase() === 'pixel' ? 'pixel' :
+        existing.format || inferTemplateFormat({
+          filePath: payload.filePath !== undefined ? payload.filePath : existing.storage.filePath,
+          thumbnailPath:
+            payload.thumbnailPath !== undefined ? payload.thumbnailPath : existing.storage.thumbnailPath,
+          metadata: payload.metadata || existing.metadata,
+        })
+
+  const metadata = {
+    ...(payload.metadata ? { ...existing.metadata, ...payload.metadata } : existing.metadata),
+    format: nextFormat,
+  }
 
   const { rows } = await pool.query(
     `
@@ -414,7 +457,7 @@ async function updateBackgroundImage(identifier, payload) {
       name,
       categoryId,
       payload.description || existing.description,
-      payload.format || existing.type,
+      existing.type === 'designer' ? 'designer' : 'template',
       payload.filePath !== undefined ? payload.filePath : existing.storage.filePath,
       payload.thumbnailPath !== undefined ? payload.thumbnailPath : existing.storage.thumbnailPath,
       defaults.size,

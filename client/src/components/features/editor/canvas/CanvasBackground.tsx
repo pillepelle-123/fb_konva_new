@@ -1,8 +1,184 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Rect, Group, Image as KonvaImage } from 'react-konva';
 import { createPatternTile } from './canvas-utils';
 import { DesignerBackgroundGroup } from './DesignerBackgroundGroup';
 import { hasDesignerCanvasPayload } from '../../../../services/canvas-structure-to-konva-group';
+
+function isSvgLikeUrl(url?: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  if (url.startsWith('data:image/svg+xml')) return true;
+  try {
+    const parsed = new URL(url, window.location.href);
+    return /\.svg$/i.test(parsed.pathname);
+  } catch {
+    return /\.svg(\?|$)/i.test(url);
+  }
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.trim().replace('#', '');
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized.slice(0, 6);
+  const int = parseInt(full, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+}
+
+// Module-level cache: pre-toned images keyed by "src::toneColor"
+const toneCache = new Map<string, Promise<HTMLImageElement>>();
+
+function preToneImage(image: HTMLImageElement, toneColorHex: string): Promise<HTMLImageElement> {
+  const key = `${image.src}::${toneColorHex}`;
+  if (toneCache.has(key)) return toneCache.get(key)!;
+  const promise = new Promise<HTMLImageElement>((resolve) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth || image.width || 1;
+    canvas.height = image.naturalHeight || image.height || 1;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { resolve(image); return; }
+    ctx.drawImage(image, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { r: tr, g: tg, b: tb } = hexToRgb(toneColorHex);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      data[i]     = Math.max(0, Math.min(255, (gray * tr) / 255));
+      data[i + 1] = Math.max(0, Math.min(255, (gray * tg) / 255));
+      data[i + 2] = Math.max(0, Math.min(255, (gray * tb) / 255));
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = canvas.toDataURL('image/png');
+  });
+  toneCache.set(key, promise);
+  return promise;
+}
+
+function useTonedImage(
+  sourceImage: HTMLImageElement | null | undefined,
+  toneColorHex: string | undefined
+): HTMLImageElement | null {
+  const [tonedImage, setTonedImage] = useState<HTMLImageElement | null>(null);
+  const activeKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sourceImage || !sourceImage.complete || !toneColorHex) {
+      setTonedImage(null);
+      activeKeyRef.current = null;
+      return;
+    }
+    const key = `${sourceImage.src}::${toneColorHex}`;
+    if (key === activeKeyRef.current) return;
+    activeKeyRef.current = key;
+    let cancelled = false;
+    preToneImage(sourceImage, toneColorHex).then((img) => {
+      if (!cancelled && activeKeyRef.current === key) {
+        setTonedImage(img);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [sourceImage?.src, toneColorHex]);
+
+  return tonedImage;
+}
+
+interface PreTonedKonvaImageProps {
+  sourceImage: HTMLImageElement;
+  toneColorHex?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
+  listening: boolean;
+  scaleX?: number;
+  scaleY?: number;
+}
+
+const PreTonedKonvaImage: React.FC<PreTonedKonvaImageProps> = ({
+  sourceImage,
+  toneColorHex,
+  x,
+  y,
+  width,
+  height,
+  opacity,
+  listening,
+  scaleX = 1,
+  scaleY = 1,
+}) => {
+  const tonedImage = useTonedImage(sourceImage, toneColorHex);
+  const renderImage = toneColorHex ? tonedImage : sourceImage;
+  if (!renderImage) return null;
+  return (
+    <KonvaImage
+      image={renderImage}
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      opacity={opacity}
+      listening={listening}
+      scaleX={scaleX}
+      scaleY={scaleY}
+    />
+  );
+};
+
+interface PreTonedRepeatRectProps {
+  sourceImage: HTMLImageElement;
+  toneColorHex?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillPatternScaleX: number;
+  fillPatternScaleY: number;
+  fillPatternOffsetX: number;
+  fillPatternOffsetY: number;
+  fillPatternRepeat: string;
+  opacity: number;
+}
+
+const PreTonedRepeatRect: React.FC<PreTonedRepeatRectProps> = ({
+  sourceImage,
+  toneColorHex,
+  x,
+  y,
+  width,
+  height,
+  fillPatternScaleX,
+  fillPatternScaleY,
+  fillPatternOffsetX,
+  fillPatternOffsetY,
+  fillPatternRepeat,
+  opacity,
+}) => {
+  const tonedImage = useTonedImage(sourceImage, toneColorHex);
+  // Fall back to original while toning is in progress so the pattern is always visible
+  const patternImage = toneColorHex ? (tonedImage ?? sourceImage) : sourceImage;
+  return (
+    <Rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      fillPatternImage={patternImage}
+      fillPatternScaleX={fillPatternScaleX}
+      fillPatternScaleY={fillPatternScaleY}
+      fillPatternOffsetX={fillPatternOffsetX}
+      fillPatternOffsetY={fillPatternOffsetY}
+      fillPatternRepeat={fillPatternRepeat as 'repeat' | 'no-repeat'}
+      opacity={opacity}
+      listening={false}
+    />
+  );
+};
 
 // Local copy of getPalettePartColor to avoid import issues
 function getPalettePartColor(
@@ -216,6 +392,11 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     const baseBackgroundColor = hasBackgroundColor
       ? (background as any).backgroundColor || paletteBackgroundColor
       : '#ffffff';
+    const shouldApplyPixelMonochrome =
+      background.applyPalette !== false &&
+      (background.paletteMode ?? 'monochrome') === 'monochrome' &&
+      !isSvgLikeUrl(imageUrl);
+    const pixelToneColor = baseBackgroundColor;
     const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
     const imageOpacity = background.opacity ?? 1;
 
@@ -272,8 +453,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
                 opacity={backgroundColorOpacity}
                 listening={false}
               />
-              <KonvaImage
-                image={img}
+              <PreTonedKonvaImage
+                sourceImage={img}
+                toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
                 x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
                 y={imageY + transformOffsetY}
                 width={finalWidth}
@@ -310,6 +492,41 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           fillPatternScaleX = -fillPatternScaleX;
           fillPatternOffsetX -= canvasWidth * transformScale;
         }
+        if (fillPatternRepeat === 'repeat') {
+          return (
+            <Group listening={false}>
+              <Rect
+                x={offsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fill={baseBackgroundColor}
+                opacity={backgroundColorOpacity}
+                listening={false}
+              />
+              <PreTonedRepeatRect
+                sourceImage={img}
+                toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+                x={offsetX}
+                y={pageOffsetY}
+                width={canvasWidth}
+                height={canvasHeight}
+                fillPatternScaleX={fillPatternScaleX}
+                fillPatternScaleY={fillPatternScaleY}
+                fillPatternOffsetX={fillPatternOffsetX}
+                fillPatternOffsetY={fillPatternOffsetY}
+                fillPatternRepeat={fillPatternRepeat}
+                opacity={imageOpacity}
+              />
+            </Group>
+          );
+        }
+
+        const drawWidth = canvasWidth * transformScale;
+        const drawHeight = canvasHeight * transformScale;
+        const drawX = mirrorBackground ? offsetX + drawWidth + transformOffsetX : offsetX + transformOffsetX;
+        const drawY = pageOffsetY + transformOffsetY;
+
         return (
           <Group listening={false}>
             <Rect
@@ -321,19 +538,17 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
               opacity={backgroundColorOpacity}
               listening={false}
             />
-            <Rect
-              x={offsetX}
-              y={pageOffsetY}
-              width={canvasWidth}
-              height={canvasHeight}
-              fillPatternImage={img}
-              fillPatternScaleX={fillPatternScaleX}
-              fillPatternScaleY={fillPatternScaleY}
-              fillPatternOffsetX={fillPatternOffsetX}
-              fillPatternOffsetY={fillPatternOffsetY}
-              fillPatternRepeat={fillPatternRepeat}
+            <PreTonedKonvaImage
+              sourceImage={img}
+              toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+              x={drawX}
+              y={drawY}
+              width={drawWidth}
+              height={drawHeight}
               opacity={imageOpacity}
               listening={false}
+              scaleX={mirrorBackground ? -1 : 1}
+              scaleY={1}
             />
           </Group>
         );
@@ -360,7 +575,6 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
 
     const imageWidth = displayImage.naturalWidth || displayImage.width || 1;
     const imageHeight = displayImage.naturalHeight || displayImage.height || 1;
-
     if (background.imageSize === 'cover') {
       const scaleX = canvasWidth / imageWidth;
       const scaleY = canvasHeight / imageHeight;
@@ -395,8 +609,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
         const finalWidth = scaledImageWidth * transformScale;
         const finalHeight = scaledImageHeight * transformScale;
         const imageElement = (
-          <KonvaImage
-            image={displayImage}
+          <PreTonedKonvaImage
+            sourceImage={displayImage}
+            toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
             x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
             y={imageY + transformOffsetY}
             width={finalWidth}
@@ -439,7 +654,42 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       fillPatternOffsetX -= canvasWidth * transformScale;
     }
 
-    // Background color layer behind the image (visible in transparent SVG areas)
+    if (fillPatternRepeat === 'repeat') {
+      // Konva filters do not apply to Rect fill patterns; keep legacy repeat behavior.
+      return (
+        <Group listening={false}>
+          <Rect
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fill={baseBackgroundColor}
+            opacity={backgroundColorOpacity}
+            listening={false}
+          />
+          <PreTonedRepeatRect
+            sourceImage={displayImage}
+            toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fillPatternScaleX={fillPatternScaleX}
+            fillPatternScaleY={fillPatternScaleY}
+            fillPatternOffsetX={fillPatternOffsetX}
+            fillPatternOffsetY={fillPatternOffsetY}
+            fillPatternRepeat={fillPatternRepeat}
+            opacity={imageOpacity}
+          />
+        </Group>
+      );
+    }
+
+    const drawWidth = canvasWidth * transformScale;
+    const drawHeight = canvasHeight * transformScale;
+    const drawX = mirrorBackground ? offsetX + drawWidth + transformOffsetX : offsetX + transformOffsetX;
+    const drawY = pageOffsetY + transformOffsetY;
+
     return (
       <Group listening={false}>
         <Rect
@@ -451,19 +701,17 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           opacity={backgroundColorOpacity}
           listening={false}
         />
-        <Rect
-          x={offsetX}
-          y={pageOffsetY}
-          width={canvasWidth}
-          height={canvasHeight}
-          fillPatternImage={displayImage}
-          fillPatternScaleX={fillPatternScaleX}
-          fillPatternScaleY={fillPatternScaleY}
-          fillPatternOffsetX={fillPatternOffsetX}
-          fillPatternOffsetY={fillPatternOffsetY}
-          fillPatternRepeat={fillPatternRepeat}
+        <PreTonedKonvaImage
+          sourceImage={displayImage}
+          toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+          x={drawX}
+          y={drawY}
+          width={drawWidth}
+          height={drawHeight}
           opacity={imageOpacity}
           listening={false}
+          scaleX={mirrorBackground ? -1 : 1}
+          scaleY={1}
         />
       </Group>
     );

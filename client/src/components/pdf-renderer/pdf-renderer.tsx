@@ -513,7 +513,7 @@ export function PDFRenderer({
       const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
       const baseBackgroundColor = hasBackgroundColor
         ? (background as any).backgroundColor || paletteBackgroundColor
-        : paletteBackgroundColor;
+        : '#ffffff';
       const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
       const imageOpacity = background.opacity ?? 1;
 

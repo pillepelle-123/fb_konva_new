@@ -525,8 +525,6 @@ export function resolveBackgroundImageUrl(
       } else {
         console.log('[PDF Debug] SVG base64 regex did not match – returning original value');
       }
-    } else {
-      console.log('[PDF Debug] Skipping palette: shouldApplyPalette=', shouldApplyPalette, 'hasOptions=', !!options);
     }
     return background.value;
   }

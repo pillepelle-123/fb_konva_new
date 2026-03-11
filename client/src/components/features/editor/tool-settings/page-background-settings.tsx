@@ -89,7 +89,6 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const {
     showColorSelector,
     setShowColorSelector,
-    showBackgroundSettings,
     setShowBackgroundSettings,
     showPatternSettings,
     setShowPatternSettings,
@@ -858,8 +857,6 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
               Select Image
             </Button>
             {background?.type === 'image' && background.backgroundImageId && (() => {
-              const template = getBackgroundImageWithUrl(background.backgroundImageId);
-              const isVectorImage = template?.format === 'vector';
               
               // Designer images: show opacity slider and paint with palette checkbox
               if (isDesignerImage) {
@@ -920,8 +917,8 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                 );
               }
               
-              // Vector template images: show paint with palette checkbox
-              return isVectorImage ? (
+              // Template images (vector + pixel): show paint with palette checkbox
+              return (
               <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -996,7 +993,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                 </div>
 
               </div>
-              ) : null;
+              );
             })()}
           </div>
         )}
