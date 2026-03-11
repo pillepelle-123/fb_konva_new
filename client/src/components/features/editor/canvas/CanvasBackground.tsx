@@ -113,7 +113,8 @@ const PreTonedKonvaImage: React.FC<PreTonedKonvaImageProps> = ({
   scaleY = 1,
 }) => {
   const tonedImage = useTonedImage(sourceImage, toneColorHex);
-  const renderImage = toneColorHex ? tonedImage : sourceImage;
+  // Keep original visible while async toning is pending/fails to avoid "only color background" frames.
+  const renderImage = toneColorHex ? (tonedImage ?? sourceImage) : sourceImage;
   if (!renderImage) return null;
   return (
     <KonvaImage

@@ -85,6 +85,31 @@ const debugBackground = (label: string, data?: unknown): void => {
   console.log(`[BG-DEBUG][settings] ${label}`);
 };
 
+const isSvgLikeUrl = (url?: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  if (url.startsWith('data:image/svg+xml')) return true;
+  try {
+    const parsed = new URL(url, window.location.href);
+    return /\.svg$/i.test(parsed.pathname);
+  } catch {
+    return /\.svg(\?|$)/i.test(url);
+  }
+};
+
+const shouldInvalidateBackgroundImageCache = (bg?: PageBackground): boolean => {
+  if (!bg || bg.type !== 'image') return false;
+  if (bg.applyPalette === false) return false;
+  if (bg.backgroundImageType === 'designer') return false;
+
+  if (bg.backgroundImageId) {
+    const template = getBackgroundImageWithUrl(bg.backgroundImageId) as { format?: string; url?: string } | undefined;
+    if (template?.format === 'vector') return true;
+    if (isSvgLikeUrl(template?.url)) return true;
+  }
+
+  return isSvgLikeUrl(bg.value);
+};
+
 export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
   const {
     showColorSelector,
@@ -135,7 +160,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         if (pending) {
           // Check current background state BEFORE updateBackground
           const currentBg = state.currentBook?.pages[state.activePageIndex]?.background;
-          const shouldInvalidateCache = currentBg?.type === 'image' && currentBg.applyPalette !== false;
+          const shouldInvalidateCache = shouldInvalidateBackgroundImageCache(currentBg);
           updateBackground({ backgroundColor: pending, backgroundColorEnabled: true });
           // Only invalidate cache if palette is applied (image URL will change)
           // When applyPalette is false, backgroundColor doesn't affect the image URL
@@ -571,7 +596,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
             imageBgColorDebounceRef.current = null;
             // Check BEFORE updateBackground whether palette is applied
             // (after update, we might read stale state due to async updates)
-            const shouldInvalidateCache = background.type === 'image' && background.applyPalette !== false;
+            const shouldInvalidateCache = shouldInvalidateBackgroundImageCache(background);
             updateBackground({ backgroundColor: color, backgroundColorEnabled: true });
             setPendingImageBackgroundColor(null);
             // Only invalidate cache if palette is applied (image URL will change)
