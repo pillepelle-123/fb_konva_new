@@ -1,45 +1,66 @@
 /**
- * Designer Toolbar
- * Top toolbar with quick actions (Add Image, Add Text, Add Sticker, Save, Generate)
+ * Designer Header
+ * Merged header + toolbar row with navigation, title and quick actions.
  */
 
+import { ArrowLeft, Image, Type, Smile, Save, Settings, Zap, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '../../../ui/primitives/button';
-import { Image, Type, Smile, Save, Zap, Undo2, Redo2 } from 'lucide-react';
 
-interface DesignerToolbarProps {
+interface DesignerHeaderProps {
+  title: string;
+  isDirty?: boolean;
+  onBack: () => void;
   onAddImage: () => void;
   onAddText: () => void;
   onAddSticker: () => void;
+  onOpenCanvasSettings: () => void;
   onSave: () => void;
   onGenerate: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   isSaving?: boolean;
   isGenerating?: boolean;
-  isDirty?: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
 }
 
-export function DesignerToolbar({
+export function DesignerHeader({
+  title,
+  isDirty = false,
+  onBack,
   onAddImage,
   onAddText,
   onAddSticker,
+  onOpenCanvasSettings,
   onSave,
   onGenerate,
   onUndo,
   onRedo,
   isSaving = false,
   isGenerating = false,
-  isDirty = false,
   canUndo = false,
   canRedo = false,
-}: DesignerToolbarProps) {
+}: DesignerHeaderProps) {
   return (
     <div className="border-b border-gray-200 bg-white px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          {/* Add items */}
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={onBack}
+            className="gap-1.5"
+          >
+            <ArrowLeft size={14} />
+            Back
+          </Button>
+
+          <h1 className="text-lg font-semibold text-gray-900 leading-none">{title}</h1>
+          {isDirty && <span className="text-xs text-amber-600 font-medium leading-none">*</span>}
+
+          <div className="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true" />
+
           <Button
             type="button"
             size="xs"
@@ -76,11 +97,9 @@ export function DesignerToolbar({
             Sticker
           </Button>
 
-          <div className="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true" />
-
-          {/* Undo/Redo (if implemented) */}
           {(onUndo || onRedo) && (
             <>
+              <div className="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true" />
               <Button
                 type="button"
                 size="xs"
@@ -106,12 +125,22 @@ export function DesignerToolbar({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Status indicator */}
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            onClick={onOpenCanvasSettings}
+            className="gap-1.5"
+            title="Canvas Settings"
+          >
+            <Settings size={14} />
+            Settings
+          </Button>
+
           {isDirty && (
             <p className="text-[11px] text-amber-600 font-medium">Unsaved changes</p>
           )}
 
-          {/* Save button */}
           <Button
             type="button"
             size="xs"
@@ -124,7 +153,6 @@ export function DesignerToolbar({
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
 
-          {/* Generate button */}
           <Button
             type="button"
             size="xs"

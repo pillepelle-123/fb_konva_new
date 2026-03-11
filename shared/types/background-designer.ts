@@ -93,6 +93,7 @@ export interface CanvasStructure {
   // Canvas background
   backgroundColor: string; // Hex color
   backgroundOpacity: number; // 0-1
+  transparentBackground?: boolean;
   
   // All items on canvas (normalized positions)
   items: DesignerItem[];
@@ -105,6 +106,7 @@ export interface CanvasStructure {
 export interface CanvasStructureAbsolute {
   backgroundColor: string;
   backgroundOpacity: number;
+  transparentBackground?: boolean;
   canvasWidth: number;
   canvasHeight: number;
   items: DesignerItemAbsolute[];
@@ -204,6 +206,7 @@ export function canvasStructureToAbsolute(
   return {
     backgroundColor: structure.backgroundColor,
     backgroundOpacity: structure.backgroundOpacity,
+    transparentBackground: Boolean(structure.transparentBackground),
     canvasWidth,
     canvasHeight,
     items: structure.items.map((item) =>
@@ -221,6 +224,7 @@ export function canvasStructureToNormalized(
   return {
     backgroundColor: structure.backgroundColor,
     backgroundOpacity: structure.backgroundOpacity,
+    transparentBackground: Boolean(structure.transparentBackground),
     items: structure.items.map((item) =>
       absoluteToNormalized(item, structure.canvasWidth, structure.canvasHeight)
     ),
@@ -236,31 +240,60 @@ export function calculatePositionFromPreset(
   itemWidth: number, // absolute pixels
   itemHeight: number, // absolute pixels
   canvasWidth: number, // absolute pixels
-  canvasHeight: number // absolute pixels
+  canvasHeight: number, // absolute pixels
+  rotationDegrees: number = 0 // item rotation around top-left pivot
 ): { x: number; y: number } {
-  // Calculate normalized center offset of item
-  const normalizedWidth = itemWidth / canvasWidth;
-  const normalizedHeight = itemHeight / canvasHeight;
+  const rotationRadians = (rotationDegrees * Math.PI) / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+
+  // Konva rotates around node origin (top-left here). Presets should align
+  // the rotated visual bounds, so we position by rotated AABB instead.
+  const corners = [
+    { x: 0, y: 0 },
+    { x: itemWidth, y: 0 },
+    { x: 0, y: itemHeight },
+    { x: itemWidth, y: itemHeight },
+  ].map((point) => ({
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos,
+  }));
+
+  const minX = Math.min(...corners.map((corner) => corner.x));
+  const maxX = Math.max(...corners.map((corner) => corner.x));
+  const minY = Math.min(...corners.map((corner) => corner.y));
+  const maxY = Math.max(...corners.map((corner) => corner.y));
+
+  const boundsWidth = maxX - minX;
+  const boundsHeight = maxY - minY;
+
+  const normalizedWidth = boundsWidth / canvasWidth;
+  const normalizedHeight = boundsHeight / canvasHeight;
+
+  const toNormalizedOrigin = (targetBoundsX: number, targetBoundsY: number) => ({
+    x: (targetBoundsX - minX) / canvasWidth,
+    y: (targetBoundsY - minY) / canvasHeight,
+  });
 
   switch (preset) {
     case 'top-left':
-      return { x: 0, y: 0 };
+      return toNormalizedOrigin(0, 0);
     case 'top-center':
-      return { x: 0.5 - normalizedWidth / 2, y: 0 };
+      return toNormalizedOrigin((canvasWidth - boundsWidth) / 2, 0);
     case 'top-right':
-      return { x: 1 - normalizedWidth, y: 0 };
+      return toNormalizedOrigin(canvasWidth - boundsWidth, 0);
     case 'center-left':
-      return { x: 0, y: 0.5 - normalizedHeight / 2 };
+      return toNormalizedOrigin(0, (canvasHeight - boundsHeight) / 2);
     case 'center':
-      return { x: 0.5 - normalizedWidth / 2, y: 0.5 - normalizedHeight / 2 };
+      return toNormalizedOrigin((canvasWidth - boundsWidth) / 2, (canvasHeight - boundsHeight) / 2);
     case 'center-right':
-      return { x: 1 - normalizedWidth, y: 0.5 - normalizedHeight / 2 };
+      return toNormalizedOrigin(canvasWidth - boundsWidth, (canvasHeight - boundsHeight) / 2);
     case 'bottom-left':
-      return { x: 0, y: 1 - normalizedHeight };
+      return toNormalizedOrigin(0, canvasHeight - boundsHeight);
     case 'bottom-center':
-      return { x: 0.5 - normalizedWidth / 2, y: 1 - normalizedHeight };
+      return toNormalizedOrigin((canvasWidth - boundsWidth) / 2, canvasHeight - boundsHeight);
     case 'bottom-right':
-      return { x: 1 - normalizedWidth, y: 1 - normalizedHeight };
+      return toNormalizedOrigin(canvasWidth - boundsWidth, canvasHeight - boundsHeight);
     case 'custom':
     default:
       return { x: 0, y: 0 }; // Should not be used, item keeps current position

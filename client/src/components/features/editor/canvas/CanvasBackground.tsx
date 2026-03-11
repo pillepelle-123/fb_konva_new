@@ -455,35 +455,46 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     if (hasDesignerCanvasPayload(background)) {
       const shouldApplyPalette = background.applyPalette !== false;
       const paletteMode = background.paletteMode ?? 'monochrome';
-      const backgroundColorOverride = (background as any).backgroundColorEnabled && (background as any).backgroundColor
+      const hasDesignerBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
+      const designerBackgroundColor = hasDesignerBackgroundColor
         ? (background as any).backgroundColor
-        : undefined;
+        : pageBackgroundColor;
+      const designerBackgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
       const designerPaletteOptions = {
         paletteId,
         paletteColors: palette?.colors,
         palette: palette ?? undefined,
         paletteMode,
-        backgroundColorOverride,
       };
       const designerPaletteCacheKey = JSON.stringify({
         applyPalette: shouldApplyPalette,
         paletteId: paletteId ?? null,
         paletteMode,
-        backgroundColorOverride: backgroundColorOverride ?? null,
         paletteColors: Object.entries(palette?.colors ?? {}).sort(([a], [b]) => a.localeCompare(b)),
       });
 
       return (
-        <DesignerBackgroundGroup
-          background={background}
-          offsetX={offsetX}
-          pageOffsetY={pageOffsetY}
-          canvasWidth={canvasWidth}
-          canvasHeight={canvasHeight}
-          paletteOptions={designerPaletteOptions}
-          applyPalette={shouldApplyPalette}
-          paletteCacheKey={designerPaletteCacheKey}
-        />
+        <Group listening={false}>
+          <Rect
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
+            fill={designerBackgroundColor}
+            opacity={designerBackgroundColorOpacity}
+            listening={false}
+          />
+          <DesignerBackgroundGroup
+            background={background}
+            offsetX={offsetX}
+            pageOffsetY={pageOffsetY}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
+            paletteOptions={designerPaletteOptions}
+            applyPalette={shouldApplyPalette}
+            paletteCacheKey={designerPaletteCacheKey}
+          />
+        </Group>
       );
     }
 
@@ -501,7 +512,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
     const baseBackgroundColor = hasBackgroundColor
       ? (background as any).backgroundColor || paletteBackgroundColor
-      : '#ffffff';
+      : paletteBackgroundColor;
     const pixelPaletteMode = background.paletteMode ?? 'monochrome';
     const shouldApplyPixelTint =
       background.applyPalette !== false &&

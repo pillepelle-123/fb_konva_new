@@ -16,9 +16,9 @@ interface ColorSelectorProps {
   onChange: (color: string) => void;
   opacity?: number;
   onOpacityChange?: (opacity: number) => void;
-  favoriteColors: string[];
-  onAddFavorite: (color: string) => void;
-  onRemoveFavorite: (color: string) => void;
+  favoriteColors?: string[];
+  onAddFavorite?: (color: string) => void;
+  onRemoveFavorite?: (color: string) => void;
   onBack?: () => void;
   showOpacitySlider?: boolean;
 }
@@ -28,9 +28,9 @@ export function ColorSelector({
   onChange,
   opacity = 1,
   onOpacityChange,
-  favoriteColors,
-  onAddFavorite,
-  onRemoveFavorite,
+  favoriteColors = [],
+  onAddFavorite = () => {},
+  onRemoveFavorite = () => {},
   onBack,
   showOpacitySlider = false
 }: ColorSelectorProps) {

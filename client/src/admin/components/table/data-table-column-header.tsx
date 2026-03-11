@@ -23,9 +23,9 @@ export function DataTableColumnHeader<TData, TValue>({
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="xs"
       className={cn(
-        'flex h-8 items-center gap-2 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground',
+        'flex h-7 items-center gap-2 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground',
         align === 'right' && 'ml-auto',
       )}
       onClick={() => column.toggleSorting(sortDirection === 'asc')}

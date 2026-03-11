@@ -7,12 +7,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDesignerCanvas } from './hooks/useDesignerCanvas';
 import { DesignerCanvas } from './designer-canvas';
-import { DesignerToolbar } from './designer-toolbar';
+import { DesignerHeader } from './designer-header';
 import { DesignerPropertyPanel } from './designer-property-panel';
 import { DesignerImageAssetModal, type DesignerImageAsset } from './designer-image-asset-modal';
 import { StickerSelectorDialog } from './sticker-selector-dialog';
-import { Button } from '../../../ui/primitives/button';
-import { ArrowLeft } from 'lucide-react';
+import AlertDialog from '../../../ui/overlays/alert-dialog';
 import type { CanvasStructure } from '../../../../../../shared/types/background-designer';
 import { loadBackgroundImageRegistry } from '../../../../data/templates/background-images';
 
@@ -34,9 +33,27 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
   const [showStickerSelector, setShowStickerSelector] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [propertyPanelMode, setPropertyPanelMode] = useState<'canvas' | 'asset'>('canvas');
   const [title, setTitle] = useState('New Background Design');
   const [designData, setDesignData] = useState<any>(null);
   const [designerCategoryId, setDesignerCategoryId] = useState<number | null>(null);
+  const [alertState, setAlertState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = useCallback((title: string, message: string) => {
+    setAlertState({
+      open: true,
+      title,
+      message,
+    });
+  }, []);
 
   const resolveDesignerCategoryId = useCallback(async () => {
     if (designerCategoryId) {
@@ -109,14 +126,14 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
         setTitle(data.image.name);
       } catch (error) {
         console.error('Failed to load designer image:', error);
-        alert('Failed to load design');
+        showAlert('Error', 'Failed to load design');
       } finally {
         setIsLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, showAlert]);
 
-  // Memoized onSave callback to prevent constant recreation
+  // Save callback used by explicit Save action
   const onSaveCallback = useCallback(
     async (structure: CanvasStructure) => {
       try {
@@ -143,8 +160,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
             throw new Error(`HTTP ${response.status}`);
           }
         }
-        // For 'new' (create) mode, do nothing - auto-save is not enabled for new designs
-        // User must manually save/create first
+        // For 'new' mode, Save triggers create flow via handleSave/handleCreateDesign.
       } catch (error) {
         console.error('Failed to save design:', error);
         throw error;
@@ -156,7 +172,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
   // Designer canvas hook
   const designer = useDesignerCanvas({
     initialStructure,
-    // Only enable auto-save for existing designs, not for new ones in creation mode
+    // Save callback is invoked only when user clicks Save.
     onSave: (id && id !== 'new' && designData) ? onSaveCallback : undefined,
   });
 
@@ -191,14 +207,14 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
       setDesignData(data.image);
       setTitle(data.image?.name || title);
       navigate(`/admin/background-images/designer/${data.image.id}`, { replace: true });
-      alert('Design saved. You can now upload image assets.');
+      showAlert('Success', 'Design saved. You can now upload image assets.');
     } catch (error) {
       console.error('Failed to create design:', error);
-      alert('Failed to save design');
+      showAlert('Error', 'Failed to save design');
     } finally {
       setIsCreating(false);
     }
-  }, [designer.canvasStructure, navigate, resolveDesignerCategoryId, title]);
+  }, [designer.canvasStructure, navigate, resolveDesignerCategoryId, showAlert, title]);
 
   const handleSave = useCallback(async () => {
     if (!id || id === 'new') {
@@ -235,7 +251,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
       const token = localStorage.getItem('token');
 
       if (!id || id === 'new') {
-        alert('Please save the design first');
+        showAlert('Save Required', 'Please save the design first');
         return;
       }
 
@@ -258,15 +274,15 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json();
+      await response.json();
       
       // Reload background image registry to reflect new/updated image
       await loadBackgroundImageRegistry(true);
       
-      alert('Image generated successfully!');
+      showAlert('Success', 'Image generated successfully!');
     } catch (error) {
       console.error('Failed to generate image:', error);
-      alert('Failed to generate image');
+      showAlert('Error', 'Failed to generate image');
     } finally {
       setIsGenerating(false);
     }
@@ -284,29 +300,16 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden bg-gray-100">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={() => onCancel?.() || navigate(-1)}
-            className="gap-1.5"
-          >
-            <ArrowLeft size={14} />
-            Back
-          </Button>
-          <h1 className="text-lg font-semibold text-gray-900 leading-none">{title}</h1>
-          {designer.isDirty && <span className="text-xs text-amber-600 font-medium leading-none">*</span>}
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <DesignerToolbar
+      <DesignerHeader
+        title={title}
+        onBack={() => onCancel?.() || navigate(-1)}
         onAddImage={handleAddImage}
         onAddText={() => designer.addTextAsset()}
         onAddSticker={handleAddSticker}
+        onOpenCanvasSettings={() => {
+          setPropertyPanelMode('canvas');
+          designer.setSelectedAssetId(null);
+        }}
         onSave={handleSave}
         onGenerate={handleGenerate}
         isSaving={designer.isSaving || isCreating}
@@ -323,18 +326,9 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
           canvasStructure={designer.canvasStructure}
           selectedAssetId={designer.selectedAssetId}
           onAssetUpdate={(assetId, updates) => designer.updateAsset(assetId, updates)}
-          onAssetSelect={(assetId) => designer.setSelectedAssetId(assetId)}
-          onCanvasClick={() => designer.setSelectedAssetId(null)}
-        />
-
-        {/* Property Panel */}
-        <DesignerPropertyPanel
-          asset={selectedAsset || null}
-          canvasWidth={designer.canvasWidth}
-          canvasHeight={designer.canvasHeight}
-          onAssetUpdate={(updates) => {
+          onAssetDuplicate={() => {
             if (designer.selectedAssetId) {
-              designer.updateAsset(designer.selectedAssetId, updates);
+              designer.duplicateAsset(designer.selectedAssetId);
             }
           }}
           onAssetDelete={() => {
@@ -342,19 +336,46 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
               designer.deleteAsset(designer.selectedAssetId);
             }
           }}
-          onAssetDuplicate={() => {
+          onLayerChange={(direction) => {
             if (designer.selectedAssetId) {
-              designer.duplicateAsset(designer.selectedAssetId);
+              designer.changeZIndex(designer.selectedAssetId, direction);
+            }
+          }}
+          onAssetSelect={(assetId) => {
+            designer.setSelectedAssetId(assetId);
+            if (assetId) {
+              setPropertyPanelMode('asset');
+            }
+          }}
+          onCanvasClick={() => designer.setSelectedAssetId(null)}
+        />
+
+        {/* Property Panel */}
+        <DesignerPropertyPanel
+          mode={propertyPanelMode}
+          asset={selectedAsset || null}
+          canvasWidth={designer.canvasWidth}
+          canvasHeight={designer.canvasHeight}
+          backgroundColor={designer.canvasStructure.backgroundColor}
+          transparentBackground={Boolean(designer.canvasStructure.transparentBackground)}
+          onBackgroundColorChange={(color) =>
+            designer.updateCanvasBackground({
+              backgroundColor: color,
+            })
+          }
+          onToggleTransparentBackground={(enabled) =>
+            designer.updateCanvasBackground({
+              transparentBackground: enabled,
+            })
+          }
+          onAssetUpdate={(updates) => {
+            if (designer.selectedAssetId) {
+              designer.updateAsset(designer.selectedAssetId, updates);
             }
           }}
           onPositionPreset={(preset) => {
             if (designer.selectedAssetId) {
               designer.applyPositionPreset(designer.selectedAssetId, preset);
-            }
-          }}
-          onLayerChange={(direction) => {
-            if (designer.selectedAssetId) {
-              designer.changeZIndex(designer.selectedAssetId, direction);
             }
           }}
         />
@@ -373,6 +394,14 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
         onOpenChange={setShowStickerSelector}
         onStickerSelect={handleStickerSelect}
         stickers={[]} // TODO: Load stickers from library
+      />
+
+      <AlertDialog
+        open={alertState.open}
+        onOpenChange={(open) => setAlertState((prev) => ({ ...prev, open }))}
+        title={alertState.title}
+        message={alertState.message}
+        onClose={() => setAlertState((prev) => ({ ...prev, open: false }))}
       />
     </div>
   );

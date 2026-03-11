@@ -106,7 +106,7 @@ export function DataTable<TData>({
 
   return (
     <div className="rounded-xl border bg-card shadow-sm">
-      <div className="border-b p-4">
+      <div className="border-b p-2">
         <DataTableToolbar
           table={table}
           filterFields={filterFields}
@@ -146,7 +146,7 @@ export function DataTable<TData>({
                   className={cn('hover:bg-muted/40', row.getIsSelected() && 'bg-muted/50')}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-middle text-sm">
+                    <td key={cell.id} className="px-2 py-2 align-middle text-sm">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -180,7 +180,7 @@ export function DataTable<TData>({
           </tbody>
         </table>
       </div>
-      <div className="border-t p-4">
+      <div className="border-t p-2">
         <DataTablePagination table={table} />
       </div>
     </div>

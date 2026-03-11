@@ -5,7 +5,7 @@ import { DataTable, DataTableColumnHeader } from '../../components/table'
 import { JsonEditor } from '../../components/JsonEditor'
 import { useAdminLayouts } from '../../hooks'
 import type { AdminLayout } from '../../services/themes-palettes-layouts'
-import { Edit2, LayoutPanelLeft, LayoutTemplate } from 'lucide-react'
+import { Edit2, LayoutPanelLeft } from 'lucide-react'
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—'
@@ -48,7 +48,7 @@ export default function AdminLayoutsPage() {
         id: 'actions',
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <Button variant="ghost" size="icon" onClick={() => { setEditingLayout(row.original); setEditData(row.original as unknown as Record<string, unknown>); }}>
+          <Button variant="ghost" size="xs" onClick={() => { setEditingLayout(row.original); setEditData(row.original as unknown as Record<string, unknown>); }}>
             <Edit2 className="h-4 w-4" />
           </Button>
         ),
@@ -96,8 +96,8 @@ export default function AdminLayoutsPage() {
             />
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingLayout(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isUpdating}>Save</Button>
+            <Button variant="outline" size="xs" onClick={() => setEditingLayout(null)}>Cancel</Button>
+            <Button size="xs" onClick={handleSave} disabled={isUpdating}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

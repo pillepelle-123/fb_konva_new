@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui'
+import { Badge, Button, Tooltip, TooltipTrigger } from '../../../components/ui'
 import { DataTable, DataTableColumnHeader } from '../../components/table'
 import type { DataTableBulkAction, DataTableFilterField } from '../../components/table'
 import { PageAssignmentDialog } from '../../components/forms'
 import type { AdminPageRecord, AdminUser } from '../../types'
 import { useAdminPageRecords, useAdminUsers } from '../../hooks'
-import { CheckCircle2, PenSquare, UserPlus, UserX } from 'lucide-react'
+import { CheckCircle2, UserPen, UserPlus, UserX } from 'lucide-react'
 
 const STATUS_LABELS: Record<AdminPageRecord['status'], string> = {
   draft: 'Draft',
@@ -89,7 +89,7 @@ export default function AdminPageRecordsPage() {
       },
       {
         accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="updatedAt" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="updated" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
@@ -97,18 +97,18 @@ export default function AdminPageRecordsPage() {
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Tooltip>
+            <Tooltip content="Assign page" side="left" >
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="xs"
                   onClick={() => setAssignmentState({ open: true, rows: [row.original], mode: 'assign' })}
                 >
-                  <PenSquare className="h-4 w-4" />
-                  <span className="sr-only">Assign page</span>
+                  <UserPen className="h-4 w-4" />
+                  {/* <span className="sr-only">Assign page</span> */}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Assign</TooltipContent>
+              {/* <TooltipContent>Assign</TooltipContent> */}
             </Tooltip>
           </div>
         ),
@@ -173,7 +173,7 @@ export default function AdminPageRecordsPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Page Status</h1>
         <p className="text-sm text-muted-foreground">

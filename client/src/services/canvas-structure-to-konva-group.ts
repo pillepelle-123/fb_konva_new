@@ -72,7 +72,9 @@ export function mapDesignerCanvasToPage(
   offsetY = 0,
 ): DesignerRenderMapped {
   const backgroundColor = payload.structure.backgroundColor || '#ffffff';
-  const backgroundOpacity = clampOpacity(payload.structure.backgroundOpacity ?? 1);
+  const backgroundOpacity = payload.structure.transparentBackground
+    ? 0
+    : clampOpacity(payload.structure.backgroundOpacity ?? 1);
 
   const mappedItems = payload.structure.items
     .map((item, index) => mapItemToPage(item, payload.baseWidth, payload.baseHeight, pageWidth, pageHeight, offsetX, offsetY, index))
@@ -188,10 +190,12 @@ function asCanvasStructure(value: unknown): CanvasStructure | null {
 
   const backgroundColor = typeof value.backgroundColor === 'string' ? value.backgroundColor : '#ffffff';
   const backgroundOpacity = asNumber(value.backgroundOpacity) ?? 1;
+  const transparentBackground = value.transparentBackground === true;
 
   return {
     backgroundColor,
     backgroundOpacity,
+    transparentBackground,
     items: value.items as DesignerItem[],
   };
 }

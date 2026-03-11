@@ -1,6 +1,6 @@
 import { useEditor } from '../../../../context/editor-context';
 import { Button } from '../../../ui/primitives/button';
-import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog, UserCog, Hash } from 'lucide-react';
+import { ChevronLeft, PaintBucket, LayoutPanelLeft, Paintbrush2, Palette, MessagesSquare, Columns3Cog, UserPen, Hash } from 'lucide-react';
 import { Separator } from '../../../ui/primitives/separator';
 import { Label } from '../../../ui/primitives/label';
 import { getGlobalThemeDefaults, getGlobalTheme, getThemePaletteId, getThemePageBackgroundColors } from '../../../../utils/global-themes';
@@ -286,7 +286,7 @@ export const GeneralSettings = forwardRef<GeneralSettingsRef, GeneralSettingsPro
                   onClick={() => setShowPageAssignmentSettings(true)}
                   className="w-full justify-start"
                 >
-                  <UserCog className="h-4 w-4 mr-2" />
+                  <UserPen className="h-4 w-4 mr-2" />
                   Page Assignment
                 </Button>
                 <Button

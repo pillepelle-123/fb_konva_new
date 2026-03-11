@@ -22,6 +22,7 @@ export interface CreatableComboboxProps {
   createLabel?: (label: string) => string
   disabled?: boolean
   allowClear?: boolean
+  className?: string
 }
 
 /**
@@ -43,6 +44,7 @@ export function CreatableCombobox({
   createLabel = (label) => `Invite "${label}"`,
   disabled = false,
   allowClear = true,
+  className,
 }: CreatableComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -126,6 +128,7 @@ export function CreatableCombobox({
             'w-full justify-between',
             !selectedOption && 'text-muted-foreground',
             disabled && 'cursor-not-allowed opacity-70',
+            className,
           )}
         >
           <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>

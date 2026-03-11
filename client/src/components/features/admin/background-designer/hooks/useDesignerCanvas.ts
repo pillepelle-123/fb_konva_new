@@ -38,6 +38,7 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
     initialStructure || {
       backgroundColor: '#ffffff',
       backgroundOpacity: 1,
+      transparentBackground: false,
       items: [],
     }
   );
@@ -76,6 +77,10 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
           updates.backgroundColor !== undefined ? updates.backgroundColor : prev.backgroundColor,
         backgroundOpacity:
           updates.backgroundOpacity !== undefined ? updates.backgroundOpacity : prev.backgroundOpacity,
+        transparentBackground:
+          updates.transparentBackground !== undefined
+            ? updates.transparentBackground
+            : prev.transparentBackground,
       };
       setIsDirty(true);
       return updated;
@@ -212,7 +217,8 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
         asset.width, // Already absolute
         asset.height, // Already absolute
         canvasWidth,
-        canvasHeight
+        canvasHeight,
+        asset.rotation || 0
       );
 
       return {
@@ -327,31 +333,6 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
   }, [canvasStructure, isDirty, isSaving, onSave]);
 
   /**
-   * Auto-save with debounce
-   */
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!isDirty || !onSave) return;
-
-    // Clear existing timer
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-
-    // Set new timer
-    autoSaveTimer.current = setTimeout(() => {
-      save();
-    }, 2000); // Auto-save after 2 seconds of inactivity
-
-    return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
-    };
-  }, [isDirty, save, onSave]);
-
-  /**
    * Reset to initial state
    */
   const reset = useCallback(() => {
@@ -359,6 +340,7 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
       initialStructure || {
         backgroundColor: '#ffffff',
         backgroundOpacity: 1,
+        transparentBackground: false,
         items: [],
       }
     );

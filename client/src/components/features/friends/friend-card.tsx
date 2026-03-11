@@ -4,7 +4,7 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/composites/card';
 import { Checkbox } from '../../ui/primitives/checkbox';
 import ProfilePicture from '../users/profile-picture';
-import { MessageCircle, UserCog, UserMinus, Ban, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
+import { MessageCircle, UserPen, UserMinus, Ban, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
 import { List } from '../../shared';
 import { Tooltip } from '../../ui/composites/tooltip';
 
@@ -144,7 +144,7 @@ export default function FriendsCard({
                   className="w-full space-x-2"
                   onClick={() => onRoleChange?.(friend)}
                 >
-                  <UserCog className="h-5 w-5" />
+                  <UserPen className="h-5 w-5" />
                   <span>Change Role</span>
                 </Button>
                 

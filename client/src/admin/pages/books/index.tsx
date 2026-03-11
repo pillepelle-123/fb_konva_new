@@ -93,13 +93,13 @@ export default function AdminBooksPage() {
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, book: row.original })}>
+            <Button variant="ghost" size="xs" onClick={() => setDialogState({ open: true, book: row.original })}>
               <Edit2 className="h-4 w-4" />
               <span className="sr-only">Edit</span>
             </Button>
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               className="text-destructive hover:text-destructive"
               onClick={async () => {
                 if (confirm(`Permanently delete book "${row.original.name}"? All pages, answers and related data will be deleted.`)) {
@@ -173,7 +173,7 @@ export default function AdminBooksPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Book Management</h1>
         <p className="text-sm text-muted-foreground">

@@ -7,7 +7,7 @@ interface ContextMenuProps {
   visible: boolean;
   onDuplicate?: () => void;
   onDelete: () => void;
-  onCopy: () => void;
+  onCopy?: () => void;
   onPaste?: () => void;
   onMoveToFront: () => void;
   onMoveToBack: () => void;
@@ -27,7 +27,7 @@ interface ContextMenuProps {
 const ContextMenu = React.forwardRef<
   HTMLDivElement,
   ContextMenuProps
->(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, onGroup, onUngroup, hasSelection, hasClipboard, canGroup, canUngroup, canCopy, canDuplicate, canDelete }, ref) => {
+>(({ x, y, visible, onDuplicate, onDelete, onCopy, onPaste, onMoveToFront, onMoveToBack, onMoveUp, onMoveDown, onGroup, onUngroup, hasSelection, hasClipboard = false, canGroup, canUngroup, canCopy, canDuplicate, canDelete }, ref) => {
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = React.useState({ x, y });
 
@@ -74,12 +74,14 @@ const ContextMenu = React.forwardRef<
         left: adjustedPosition.x,
       }}
     >
-      <ContextMenuItem
-        disabled={!hasSelection || canCopy === false}
-        onClick={hasSelection && canCopy !== false ? onCopy : undefined}
-      >
-        Copy
-      </ContextMenuItem>
+      {onCopy && (
+        <ContextMenuItem
+          disabled={!hasSelection || canCopy === false}
+          onClick={hasSelection && canCopy !== false ? onCopy : undefined}
+        >
+          Copy
+        </ContextMenuItem>
+      )}
       {onPaste && (
         <ContextMenuItem
           disabled={!hasClipboard}

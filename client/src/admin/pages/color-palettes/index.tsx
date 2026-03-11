@@ -5,7 +5,7 @@ import { DataTable, DataTableColumnHeader } from '../../components/table'
 import { JsonEditor } from '../../components/JsonEditor'
 import { useAdminColorPalettes } from '../../hooks'
 import type { AdminColorPalette } from '../../services/themes-palettes-layouts'
-import { Droplets, Edit2, Palette } from 'lucide-react'
+import { Edit2, Palette } from 'lucide-react'
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—'
@@ -48,7 +48,7 @@ export default function AdminColorPalettesPage() {
         id: 'actions',
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
-          <Button variant="ghost" size="icon" onClick={() => { setEditingPalette(row.original); setEditData(row.original as unknown as Record<string, unknown>); }}>
+          <Button variant="ghost" size="xs" onClick={() => { setEditingPalette(row.original); setEditData(row.original as unknown as Record<string, unknown>); }}>
             <Edit2 className="h-4 w-4" />
           </Button>
         ),
@@ -68,7 +68,7 @@ export default function AdminColorPalettesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <section className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Palette className="h-6 w-6" />
@@ -96,11 +96,11 @@ export default function AdminColorPalettesPage() {
             />
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingPalette(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isUpdating}>Save</Button>
+            <Button variant="outline" size="xs" onClick={() => setEditingPalette(null)}>Cancel</Button>
+            <Button size="xs" onClick={handleSave} disabled={isUpdating}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   )
 }

@@ -77,8 +77,10 @@ function toFiniteNumber(value, fallback = 0) {
 
 function toAbsolutePosition(value, canvasSize) {
   const numeric = toFiniteNumber(value, 0);
-  // Support both normalized (0..1) and already-absolute values.
-  if (numeric >= 0 && numeric <= 1) {
+  // Support normalized coordinates, including positions outside page bounds
+  // (e.g. -0.2 or 1.3 means partly/fully outside the page).
+  // Legacy absolute payloads are typically much larger than this range.
+  if (numeric >= -2 && numeric <= 2) {
     return numeric * canvasSize;
   }
   return numeric;
@@ -212,6 +214,7 @@ router.post('/', async (req, res) => {
       canvasStructure: canvasStructure || {
         backgroundColor: '#ffffff',
         backgroundOpacity: 1,
+        transparentBackground: false,
         items: [],
       },
       tags,
@@ -485,11 +488,17 @@ router.post('/:id/generate', async (req, res) => {
       id: 1,
       pageNumber: 1,
       elements: renderElements,
-      background: {
-        type: 'color',
-        value: designerImage.canvas.structure?.backgroundColor || '#ffffff',
-        opacity: Number(designerImage.canvas.structure?.backgroundOpacity ?? 1),
-      },
+      background: designerImage.canvas.structure?.transparentBackground
+        ? {
+            type: 'color',
+            value: 'transparent',
+            opacity: 0,
+          }
+        : {
+            type: 'color',
+            value: designerImage.canvas.structure?.backgroundColor || '#ffffff',
+            opacity: Number(designerImage.canvas.structure?.backgroundOpacity ?? 1),
+          },
     };
 
     // The PDF renderer app expects a complete book contract, including pages[].

@@ -15,7 +15,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../../../components/ui'
-import { DataTable } from '../../components/table'
+import { DataTable, DataTableColumnHeader } from '../../components/table'
 import type { DataTableBulkAction } from '../../components/table'
 import { CreatableCombobox } from '../../../components/ui/primitives/creatable-combobox'
 import {
@@ -107,7 +107,7 @@ export default function AdminStickersPage() {
     () => [
       {
         accessorKey: 'name',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.original.name}</span>
@@ -117,18 +117,18 @@ export default function AdminStickersPage() {
       },
       {
         id: 'category',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">category</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Category" />,
         accessorFn: (row) => row.category.name,
         cell: ({ row }) => <Badge variant="secondary">{row.original.category.name}</Badge>,
       },
       {
         accessorKey: 'format',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">format</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Format" />,
         cell: ({ row }) => <span className="text-sm capitalize text-muted-foreground">{row.original.format}</span>,
       },
       {
         accessorKey: 'updatedAt',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">updatedAt</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
@@ -138,7 +138,7 @@ export default function AdminStickersPage() {
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={() => {
                 setEditingSticker(row.original)
                 setIsEditOpen(true)
@@ -148,7 +148,7 @@ export default function AdminStickersPage() {
             </Button>
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={async () => {
                 if (confirm(`Delete sticker "${row.original.name}"?`)) {
                   await deleteSticker(row.original.slug)
@@ -194,7 +194,7 @@ export default function AdminStickersPage() {
   const selectedCategoryOption = categoryOptions.find((option) => option.slug === selectedCategory)
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
@@ -206,7 +206,7 @@ export default function AdminStickersPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
+          <Button variant="outline" size="xs" onClick={() => importInputRef.current?.click()} className="gap-2">
             <FileDown className="h-4 w-4" />
             Import
           </Button>
@@ -233,7 +233,7 @@ export default function AdminStickersPage() {
               }
             }}
           />
-          <Button onClick={() => setIsUploadOpen(true)} className="gap-2">
+          <Button size="xs" onClick={() => setIsUploadOpen(true)} className="gap-2">
             <Upload className="h-4 w-4" />
             New stickers
           </Button>

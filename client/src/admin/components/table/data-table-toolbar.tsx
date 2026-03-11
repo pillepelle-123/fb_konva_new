@@ -72,12 +72,12 @@ export function DataTableToolbar<TData>({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-72 lg:w-80">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-1.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={(table.getState().globalFilter as string) ?? ''}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="pl-8"
+            className="h-7 pl-8"
           />
         </div>
         {filterComponents.map((filter) => {
@@ -89,7 +89,7 @@ export function DataTableToolbar<TData>({
             return (
               <Popover key={filter.id}>
                 <PopoverTrigger asChild>
-                  <Button variant={activeValues.length > 0 ? 'default' : 'outline'} size="sm" className="gap-2">
+                  <Button variant={activeValues.length > 0 ? 'default' : 'outline'} size="xs" className="gap-2">
                     {filter.icon ?? <Filter className="h-4 w-4" />}
                     {filter.label}
                     {activeValues.length > 0 ? ` (${activeValues.length})` : null}
@@ -121,7 +121,7 @@ export function DataTableToolbar<TData>({
                     {activeValues.length > 0 ? (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="xs"
                         className="mt-2 justify-start px-0 text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => column.setFilterValue(undefined)}
                       >
@@ -140,7 +140,7 @@ export function DataTableToolbar<TData>({
               value={(filterValue as string) ?? ''}
               onValueChange={(value) => column.setFilterValue(value || undefined)}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="h-7 w-44">
                 <SelectValue placeholder={filter.placeholder ?? filter.label} />
               </SelectTrigger>
               <SelectContent>
@@ -158,7 +158,7 @@ export function DataTableToolbar<TData>({
         {isFiltered ? (
           <Button
             variant="ghost"
-            size="sm"
+            size="xs"
             onClick={() => {
               table.resetColumnFilters()
               table.setGlobalFilter('')
@@ -180,7 +180,7 @@ export function DataTableToolbar<TData>({
                 <Button
                   key={action.id}
                   variant={action.intent === 'destructive' ? 'destructive' : 'secondary'}
-                  size="sm"
+                  size="xs"
                   className="gap-1"
                   onClick={() => action.onAction(selectedRows.map((row) => row.original))}
                 >
@@ -192,7 +192,7 @@ export function DataTableToolbar<TData>({
           </div>
         ) : null}
         {onCreate ? (
-          <Button onClick={onCreate} className={cn('flex items-center gap-2')}>
+          <Button onClick={onCreate} size="xs" className={cn('flex items-center gap-2')}>
             <Plus className="h-4 w-4" />
             {createLabel}
           </Button>

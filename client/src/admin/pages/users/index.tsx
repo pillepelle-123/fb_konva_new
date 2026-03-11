@@ -101,7 +101,7 @@ export default function AdminUsersPage() {
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             
-            <Button variant="ghost" size="icon" onClick={() => setDialogState({ open: true, user: row.original })}>
+            <Button variant="ghost" size="xs" onClick={() => setDialogState({ open: true, user: row.original })}>
               <Edit2 className="h-4 w-4" />
               {/* <span className="sr-only">Bearbeiten</span> */}
             </Button>
@@ -179,7 +179,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">User Management</h1>
         <p className="text-sm text-muted-foreground">

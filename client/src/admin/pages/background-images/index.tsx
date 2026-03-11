@@ -6,7 +6,7 @@ import {
   Badge,
   Button,
 } from '../../../components/ui'
-import { DataTable } from '../../components/table'
+import { DataTable, DataTableColumnHeader } from '../../components/table'
 import type { DataTableBulkAction } from '../../components/table'
 import { CreatableCombobox } from '../../../components/ui/primitives/creatable-combobox'
 import {
@@ -93,7 +93,7 @@ export default function AdminBackgroundImagesPage() {
     () => [
       {
         accessorKey: 'name',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.original.name}</span>
@@ -103,14 +103,14 @@ export default function AdminBackgroundImagesPage() {
       },
       {
         id: 'category',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">category</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Category" />,
         accessorFn: (row) => row.category.name,
         cell: ({ row }) => <Badge variant="secondary">{row.original.category.name}</Badge>,
       },
       {
         id: 'typeLabel',
         accessorFn: (row) => (row.type === 'designer' ? 'designer' : row.format),
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
         cell: ({ row }) => (
           <span className="text-sm capitalize text-muted-foreground">
             {row.original.type === 'designer' ? 'Designer' : row.original.format}
@@ -132,7 +132,7 @@ export default function AdminBackgroundImagesPage() {
       // },
       {
         accessorKey: 'updatedAt',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">updated</span>,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
@@ -144,7 +144,7 @@ export default function AdminBackgroundImagesPage() {
             {(row.original.type === 'designer' || row.original.format === 'designer') && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="xs"
                 title="Open in Designer"
                 onClick={() => {
                   navigate(`/admin/background-images/designer/${row.original.id}`)
@@ -156,7 +156,7 @@ export default function AdminBackgroundImagesPage() {
         
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={() => {
                 setEditingImage(row.original)
                 setIsEditOpen(true)
@@ -167,7 +167,7 @@ export default function AdminBackgroundImagesPage() {
         
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={async () => {
                 if (confirm(`Delete background image "${row.original.name}"?`)) {
                   await deleteImage(row.original.slug)
@@ -230,7 +230,7 @@ export default function AdminBackgroundImagesPage() {
   const selectedCategoryOption = categoryOptions.find((option) => option.slug === selectedCategory)
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
@@ -267,16 +267,17 @@ export default function AdminBackgroundImagesPage() {
               placeholder="Filter by category"
               inputPlaceholder="Search or create category"
               allowClear
+              className="h-7"
             />
           </div>
         )}
         extraToolbarActions={(
           <>
-            <Button variant="outline" onClick={() => navigate('/admin/background-images/designer/new')} className="gap-2">
+            <Button variant="outline" size="xs" onClick={() => navigate('/admin/background-images/designer/new')} className="gap-2">
               <Plus className="h-4 w-4" />
               New Design
             </Button>
-            <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
+            <Button variant="outline" size="xs" onClick={() => importInputRef.current?.click()} className="gap-2">
               <FileDown className="h-4 w-4" />
               Import
             </Button>

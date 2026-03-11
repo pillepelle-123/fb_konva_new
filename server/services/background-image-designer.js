@@ -233,7 +233,12 @@ async function createDesignerImage(data) {
     const backgroundImage = imageResult.rows[0];
 
     // Insert into background_image_designs
-    const initialCanvasStructure = data.canvasStructure || { backgroundColor: '#ffffff', backgroundOpacity: 1, items: [] };
+    const initialCanvasStructure = data.canvasStructure || {
+      backgroundColor: '#ffffff',
+      backgroundOpacity: 1,
+      transparentBackground: false,
+      items: [],
+    };
 
     const designResult = await client.query(
       `

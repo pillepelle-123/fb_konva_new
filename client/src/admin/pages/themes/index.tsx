@@ -58,7 +58,7 @@ export default function AdminThemesPage() {
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={() => setBackgroundImageTheme(row.original)}
               title="Background image"
             >
@@ -66,7 +66,7 @@ export default function AdminThemesPage() {
             </Button>
             <Button
               variant="ghost"
-              size="icon"
+              size="xs"
               onClick={() => {
                 setEditingTheme(row.original)
                 setEditData(row.original as unknown as Record<string, unknown>)
@@ -92,7 +92,7 @@ export default function AdminThemesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <section className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Palette className="h-6 w-6" />
@@ -127,11 +127,11 @@ export default function AdminThemesPage() {
             />
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTheme(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isUpdating}>Save</Button>
+            <Button variant="outline" size="xs" onClick={() => setEditingTheme(null)}>Cancel</Button>
+            <Button size="xs" onClick={handleSave} disabled={isUpdating}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   )
 }
