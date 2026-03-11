@@ -231,10 +231,9 @@ export function DesignerCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex-1 bg-gray-50 border border-gray-300 rounded-lg overflow-hidden relative ${
+      className={`flex-1 min-h-0 bg-gray-50 border border-gray-300 rounded-lg overflow-hidden relative ${
         isPanning ? 'cursor-grabbing' : 'cursor-default'
       }`}
-      style={{ minHeight: '600px' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={stopPanning}

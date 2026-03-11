@@ -45,6 +45,7 @@ export interface AdminBackgroundImage {
   name: string
   description: string | null
   category: AdminBackgroundImageCategory
+  type: string
   format: string
   storage: {
     filePath: string | null

@@ -276,29 +276,29 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full min-h-0">
         <p className="text-gray-500">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-gray-100">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="border-b border-gray-200 bg-white px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="xs"
             onClick={() => onCancel?.() || navigate(-1)}
-            className="gap-2"
+            className="gap-1.5"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
             Back
           </Button>
-          <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-          {designer.isDirty && <span className="text-sm text-amber-600 font-medium">*</span>}
+          <h1 className="text-lg font-semibold text-gray-900 leading-none">{title}</h1>
+          {designer.isDirty && <span className="text-xs text-amber-600 font-medium leading-none">*</span>}
         </div>
       </div>
 
@@ -315,7 +315,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
       />
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Canvas */}
         <DesignerCanvas
           canvasWidth={designer.canvasWidth}

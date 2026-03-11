@@ -550,15 +550,15 @@ export interface BackgroundTransform {
   scale?: number;
 }
 
-/** How to apply color palette to SVG background images */
-export type BackgroundPaletteMode = 'palette' | 'monochrome';
+/** How to apply color palette to background images */
+export type BackgroundPaletteMode = 'palette' | 'monochrome' | 'palette-ramp';
 
 export interface PageBackground {
   type: 'color' | 'pattern' | 'image';
   value: string; // color hex, pattern name, or image URL
   opacity?: number;
   applyPalette?: boolean;
-  /** When applyPalette: 'palette' = multi-color mapping, 'monochrome' = single-tone (Color Toning) */
+  /** When applyPalette: 'palette' = token/slot mapping, 'monochrome' = single-tone, 'palette-ramp' = luminance to 6-color ramp */
   paletteMode?: BackgroundPaletteMode;
   imageSize?: 'cover' | 'contain' | 'stretch';
   imageRepeat?: boolean; // for contain mode

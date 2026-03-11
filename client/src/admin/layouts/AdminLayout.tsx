@@ -1,5 +1,5 @@
 import { useMemo, type PropsWithChildren } from 'react'
-import { Menu, Settings, Users, LibraryBig, FileText, Image, Sticker, Palette, Droplets, LayoutTemplate, FlaskConical, PaintbrushVertical, LayoutPanelLeft } from 'lucide-react'
+import { Menu, Settings, Users, LibraryBig, FileText, Image, Sticker, Palette, FlaskConical, PaintbrushVertical, LayoutPanelLeft } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Button, Sheet, SheetContent, SheetTrigger } from '../../components/ui'
 import { useAuth } from '../../context/auth-context'
@@ -111,10 +111,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
   )
 
   const isSandbox = location.pathname.startsWith('/admin/sandbox');
+  const isBackgroundDesigner = location.pathname.startsWith('/admin/background-images/designer');
+  const isFullBleedPage = isSandbox || isBackgroundDesigner;
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col bg-muted/30 text-foreground">
-      <div className={cn('grid w-full lg:grid-cols-[260px_1fr] min-h-0', isSandbox ? 'flex-1' : 'flex-1')}>
+      <div className={cn('grid w-full lg:grid-cols-[260px_1fr] min-h-0', 'flex-1')}>
         <aside className="hidden border-r bg-background/90 lg:flex lg:flex-col lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -128,7 +130,7 @@ export function AdminLayout({ children }: PropsWithChildren) {
           {renderNav('desktop')}
         </aside>
         <div className="flex flex-col min-w-0 min-h-0 h-full">
-          <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+          {/* <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
             <div className="flex h-16 items-center justify-between gap-3 px-4">
               <div className="flex items-center gap-2">
                 <Sheet>
@@ -185,12 +187,12 @@ export function AdminLayout({ children }: PropsWithChildren) {
                 ) : null}
               </div>
             </div>
-          </header>
-          <main className={`flex-1 flex flex-col min-h-0 min-w-0 ${location.pathname.startsWith('/admin/sandbox') ? 'overflow-hidden p-0' : 'overflow-y-auto bg-muted/20'}`}>
-            {location.pathname.startsWith('/admin/sandbox') ? (
+          </header> */}
+          <main className={`flex-1 flex flex-col min-h-0 min-w-0 ${isFullBleedPage ? 'overflow-hidden p-0' : 'overflow-y-auto bg-muted/20'}`}>
+            {isFullBleedPage ? (
               <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">{children}</div>
             ) : (
-              <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">{children}</div>
+              <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-4">{children}</div>
             )}
           </main>
         </div>

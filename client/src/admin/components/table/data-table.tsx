@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { ColumnDef, ColumnFiltersState, RowSelectionState, SortingState } from '@tanstack/react-table'
 import {
   flexRender,
@@ -24,6 +25,8 @@ export interface DataTableProps<TData> {
   emptyState?: { title: string; description?: string; actionLabel?: string; onAction?: () => void }
   onCreate?: () => void
   createLabel?: string
+  extraFilterToolbarActions?: ReactNode
+  extraToolbarActions?: ReactNode
   enableRowSelection?: boolean
 }
 
@@ -37,6 +40,8 @@ export function DataTable<TData>({
   emptyState,
   onCreate,
   createLabel,
+  extraFilterToolbarActions,
+  extraToolbarActions,
   enableRowSelection = true,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
@@ -109,6 +114,8 @@ export function DataTable<TData>({
           onCreate={onCreate}
           createLabel={createLabel}
           bulkActions={bulkActions}
+          extraFilterActions={extraFilterToolbarActions}
+          extraActions={extraToolbarActions}
         />
       </div>
       <div className="relative overflow-x-auto">

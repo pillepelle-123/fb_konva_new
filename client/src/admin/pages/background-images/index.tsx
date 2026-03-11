@@ -1,12 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Download, Edit, FileDown, Image as ImageIcon, Plus, Trash2, Upload, Wand2 } from 'lucide-react'
+import { Download, Edit, FileDown, Image as ImageIcon, Plus, Trash2, Wand2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
   Badge,
   Button,
-  Input,
-  Label,
 } from '../../../components/ui'
 import { DataTable } from '../../components/table'
 import type { DataTableBulkAction } from '../../components/table'
@@ -18,6 +16,7 @@ import {
 import { AdminBackgroundImageEditDialog } from '../../components/forms/background-image-edit-dialog'
 import { ImportConflictDialog } from '../../components/forms/import-conflict-dialog'
 import { UploadBackgroundImagesDialog } from '../../components/forms/upload-background-images-dialog'
+import type { DataTableFilterField } from '../../components/table'
 
 const DEFAULT_PAGE_SIZE = 100
 
@@ -34,7 +33,6 @@ function formatDate(value: string) {
 
 export default function AdminBackgroundImagesPage() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
@@ -50,10 +48,9 @@ export default function AdminBackgroundImagesPage() {
     () => ({
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
-      search: search.trim() || undefined,
       category: selectedCategory,
     }),
-    [search, selectedCategory],
+    [selectedCategory],
   )
 
   const {
@@ -111,26 +108,31 @@ export default function AdminBackgroundImagesPage() {
         cell: ({ row }) => <Badge variant="secondary">{row.original.category.name}</Badge>,
       },
       {
-        accessorKey: 'format',
+        id: 'typeLabel',
+        accessorFn: (row) => (row.type === 'designer' ? 'designer' : row.format),
         header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</span>,
-        cell: ({ row }) => <span className="text-sm capitalize text-muted-foreground">{row.original.format}</span>,
+        cell: ({ row }) => (
+          <span className="text-sm capitalize text-muted-foreground">
+            {row.original.type === 'designer' ? 'Designer' : row.original.format}
+          </span>
+        ),
       },
-      {
-        id: 'defaults',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Defaults</span>,
-        cell: ({ row }) => {
-          const defaults = row.original.defaults
-          return (
-            <div className="text-xs text-muted-foreground">
-              <div>Size: {defaults.size ?? '–'}</div>
-              <div>Opacity: {defaults.opacity?.toFixed(2)}</div>
-            </div>
-          )
-        },
-      },
+      // {
+      //   id: 'defaults',
+      //   header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Defaults</span>,
+      //   cell: ({ row }) => {
+      //     const defaults = row.original.defaults
+      //     return (
+      //       <div className="text-xs text-muted-foreground">
+      //         <div>Size: {defaults.size ?? '–'}</div>
+      //         <div>Opacity: {defaults.opacity?.toFixed(2)}</div>
+      //       </div>
+      //     )
+      //   },
+      // },
       {
         accessorKey: 'updatedAt',
-        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">updatedAt</span>,
+        header: () => <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">updated</span>,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {
@@ -139,7 +141,7 @@ export default function AdminBackgroundImagesPage() {
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
         
-            {row.original.format === 'designer' && (
+            {(row.original.type === 'designer' || row.original.format === 'designer') && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -209,6 +211,22 @@ export default function AdminBackgroundImagesPage() {
     [bulkDelete, exportImages],
   )
 
+  const filterFields = useMemo<DataTableFilterField[]>(
+    () => [
+      {
+        id: 'typeLabel',
+        label: 'Filter by type',
+        options: [
+          { value: 'designer', label: 'Designer' },
+          { value: 'pixel', label: 'Pixel' },
+          { value: 'vector', label: 'Vector' },
+        ],
+        placeholder: 'Filter by type',
+      },
+    ],
+    [],
+  )
+
   const selectedCategoryOption = categoryOptions.find((option) => option.slug === selectedCategory)
 
   return (
@@ -223,82 +241,70 @@ export default function AdminBackgroundImagesPage() {
             Manage existing backgrounds, update metadata or upload new illustrations.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/admin/background-images/designer/new')} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New designer background
-          </Button>
-          <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
-            <FileDown className="h-4 w-4" />
-            Import
-          </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".zip"
-            className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (!file) return
-              try {
-                const result = await importImages({ file })
-                if ('conflicts' in result && result.conflicts.length > 0) {
-                  setImportConflict({
-                    file,
-                    conflicts: result.conflicts,
-                    totalItems: result.totalItems,
-                  })
-                }
-              } catch (err) {
-                console.error('Import failed:', err)
-              }
-            }}
-          />
-          <Button onClick={() => setIsUploadOpen(true)} className="gap-2">
-            <Upload className="h-4 w-4" />
-            New background images
-          </Button>
-        </div>
       </header>
-
-      <div className="grid gap-4 rounded-lg border bg-card p-4 md:grid-cols-4">
-        <div className="flex flex-col gap-2 md:col-span-2">
-          <Label htmlFor="background-search">Search</Label>
-          <Input
-            id="background-search"
-            placeholder="Search by name or slug..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>category</Label>
-          <CreatableCombobox
-            options={categoryOptions.map(({ value, label, description }) => ({ value, label, description }))}
-            value={selectedCategoryOption ? selectedCategoryOption.value : undefined}
-            onChange={(value) => {
-              const option = categoryOptions.find((item) => item.value === value)
-              setSelectedCategory(option?.slug)
-            }}
-            onCreateOption={async (label) => {
-              const category = await createCategory(label)
-              setSelectedCategory(category.slug)
-              return String(category.id)
-            }}
-            placeholder="Filter by category"
-            inputPlaceholder="Search or create category"
-            allowClear
-          />
-        </div>
-      </div>
 
       <DataTable
         data={tableData}
         columns={columns}
         isLoading={imagesQuery.isLoading}
+        filterFields={filterFields}
         bulkActions={bulkActions}
         searchPlaceholder="Filter results using the search field above..."
+        extraFilterToolbarActions={(
+          <div className="w-full sm:w-64 lg:w-72">
+            <CreatableCombobox
+              options={categoryOptions.map(({ value, label, description }) => ({ value, label, description }))}
+              value={selectedCategoryOption ? selectedCategoryOption.value : undefined}
+              onChange={(value) => {
+                const option = categoryOptions.find((item) => item.value === value)
+                setSelectedCategory(option?.slug)
+              }}
+              onCreateOption={async (label) => {
+                const category = await createCategory(label)
+                setSelectedCategory(category.slug)
+                return String(category.id)
+              }}
+              placeholder="Filter by category"
+              inputPlaceholder="Search or create category"
+              allowClear
+            />
+          </div>
+        )}
+        extraToolbarActions={(
+          <>
+            <Button variant="outline" onClick={() => navigate('/admin/background-images/designer/new')} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Design
+            </Button>
+            <Button variant="outline" onClick={() => importInputRef.current?.click()} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              Import
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file) return
+                try {
+                  const result = await importImages({ file })
+                  if ('conflicts' in result && result.conflicts.length > 0) {
+                    setImportConflict({
+                      file,
+                      conflicts: result.conflicts,
+                      totalItems: result.totalItems,
+                    })
+                  }
+                } catch (err) {
+                  console.error('Import failed:', err)
+                }
+              }}
+            />
+          </>
+        )}
         emptyState={{
           title: imagesQuery.isLoading
             ? 'Loading background images...'

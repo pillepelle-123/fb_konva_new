@@ -75,17 +75,17 @@ export default function AdminBooksPage() {
       },
       {
         accessorKey: 'pageCount',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="pageCount" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="pages" />,
         cell: ({ row }) => <span>{row.original.pageCount}</span>,
       },
       {
         accessorKey: 'collaboratorCount',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="collaboratorCount" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="friends" />,
         cell: ({ row }) => <span>{row.original.collaboratorCount}</span>,
       },
       {
         accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="updatedAt" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="updated" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
       },
       {

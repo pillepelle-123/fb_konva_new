@@ -1,4 +1,5 @@
-import { ReactNode, useMemo } from 'react'
+import { useMemo } from 'react'
+import type { ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
 import { Filter, Plus, Search, Trash2 } from 'lucide-react'
 import {
@@ -47,6 +48,8 @@ interface DataTableToolbarProps<TData> {
   onCreate?: () => void
   createLabel?: string
   bulkActions?: DataTableBulkAction<TData>[]
+  extraFilterActions?: ReactNode
+  extraActions?: ReactNode
 }
 
 export function DataTableToolbar<TData>({
@@ -56,6 +59,8 @@ export function DataTableToolbar<TData>({
   onCreate,
   createLabel = 'Create new',
   bulkActions = [],
+  extraFilterActions,
+  extraActions,
 }: DataTableToolbarProps<TData>) {
   const selectedRows = table.getSelectedRowModel().flatRows
   const isFiltered =
@@ -64,9 +69,9 @@ export function DataTableToolbar<TData>({
   const filterComponents = useMemo(() => filterFields, [filterFields])
 
   return (
-    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        <div className="relative w-full max-w-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-72 lg:w-80">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
@@ -149,6 +154,7 @@ export function DataTableToolbar<TData>({
             </Select>
           )
         })}
+        {extraFilterActions}
         {isFiltered ? (
           <Button
             variant="ghost"
@@ -162,9 +168,9 @@ export function DataTableToolbar<TData>({
           </Button>
         ) : null}
       </div>
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {selectedRows.length > 0 ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <div className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
               {selectedRows.length} selected
             </div>
@@ -191,6 +197,7 @@ export function DataTableToolbar<TData>({
             {createLabel}
           </Button>
         ) : null}
+        {extraActions}
       </div>
     </div>
   )

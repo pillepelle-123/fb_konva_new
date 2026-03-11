@@ -371,6 +371,92 @@ async function applyMonochromeToneToPixelImageServer(fullPath, toneColorHex) {
   }
 }
 
+function getSimpleLuminanceFromRgb(r, g, b) {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function collectPaletteHexColorsForRamp(palette) {
+  if (!palette || !palette.colors || typeof palette.colors !== 'object') return [];
+  const values = Object.values(palette.colors);
+  const unique = new Set();
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const normalized = normalizeHexColor(ensureHexHash(value));
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+  return Array.from(unique);
+}
+
+function getBrightPaletteColorHex(palette, fallbackColor) {
+  const colors = collectPaletteHexColorsForRamp(palette);
+  if (colors.length === 0) {
+    return normalizeHexColor(ensureHexHash(fallbackColor || '#ffffff')) || '#ffffff';
+  }
+  return [...colors].sort((a, b) => {
+    const aRgb = hexToRgb(a);
+    const bRgb = hexToRgb(b);
+    return getSimpleLuminanceFromRgb(bRgb.r, bRgb.g, bRgb.b) - getSimpleLuminanceFromRgb(aRgb.r, aRgb.g, aRgb.b);
+  })[0] || '#ffffff';
+}
+
+function buildPaletteRampLutServer(paletteHexColors) {
+  const sorted = [...(paletteHexColors || [])]
+    .map((color) => normalizeHexColor(ensureHexHash(color)))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aRgb = hexToRgb(a);
+      const bRgb = hexToRgb(b);
+      return getSimpleLuminanceFromRgb(aRgb.r, aRgb.g, aRgb.b) - getSimpleLuminanceFromRgb(bRgb.r, bRgb.g, bRgb.b);
+    });
+
+  const ramp = sorted.length > 0 ? sorted : ['#000000', '#ffffff'];
+  const lut = new Uint8ClampedArray(256 * 3);
+
+  for (let i = 0; i < 256; i += 1) {
+    const t = i / 255;
+    const scaled = t * (ramp.length - 1);
+    const leftIndex = Math.floor(scaled);
+    const rightIndex = Math.min(ramp.length - 1, leftIndex + 1);
+    const mix = scaled - leftIndex;
+
+    const left = hexToRgb(ramp[leftIndex] || '#000000');
+    const right = hexToRgb(ramp[rightIndex] || '#ffffff');
+
+    lut[i * 3] = Math.round(left.r + (right.r - left.r) * mix);
+    lut[i * 3 + 1] = Math.round(left.g + (right.g - left.g) * mix);
+    lut[i * 3 + 2] = Math.round(left.b + (right.b - left.b) * mix);
+  }
+
+  return lut;
+}
+
+async function applyPaletteRampToPixelImageServer(fullPath, paletteHexColors) {
+  try {
+    const lut = buildPaletteRampLutServer(paletteHexColors);
+    const { data, info } = await sharp(fullPath).raw().toBuffer({ resolveWithObject: true });
+    const channels = info.channels;
+
+    for (let i = 0; i < data.length; i += channels) {
+      const gray = Math.round(getSimpleLuminanceFromRgb(data[i], data[i + 1], data[i + 2]));
+      data[i] = lut[gray * 3];
+      data[i + 1] = lut[gray * 3 + 1];
+      data[i + 2] = lut[gray * 3 + 2];
+      // channels > 3 -> alpha untouched
+    }
+
+    const tonedBuffer = await sharp(data, {
+      raw: { width: info.width, height: info.height, channels },
+    }).png().toBuffer();
+
+    return `data:image/png;base64,${tonedBuffer.toString('base64')}`;
+  } catch (err) {
+    console.warn('[pdf-exports] applyPaletteRampToPixelImageServer failed:', err.message);
+    return null;
+  }
+}
+
 /**
  * Applies server-side monochrome toning to pixel (non-SVG) background images
  * that have applyPalette !== false.  Runs after applyPaletteToBookData so that
@@ -400,15 +486,18 @@ async function applyPixelImagePaletteToBookData(bookData) {
     return palette.colors[slot] || palette.colors[fallbackSlot] || fallbackColor;
   }
 
-  function getPageToneColor(page, bg) {
-    if (bg.backgroundColorEnabled && bg.backgroundColor) return bg.backgroundColor;
+  function getPagePalette(page) {
     const paletteId = page?.colorPaletteId ?? bookData.colorPaletteId ?? null;
-    const palette = paletteId ? paletteById[String(paletteId)] : null;
-    return (
-      palettePart(palette, 'pageBackground', 'background', palette?.colors?.background) ||
-      palette?.colors?.background ||
-      '#ffffff'
-    );
+    if (paletteId == null) return null;
+    return paletteById[String(paletteId)] || null;
+  }
+
+  function getPageToneColor(page, bg) {
+    const palette = getPagePalette(page);
+    const fallback = (bg.backgroundColorEnabled && bg.backgroundColor)
+      ? bg.backgroundColor
+      : '#ffffff';
+    return getBrightPaletteColorHex(palette, fallback);
   }
 
   const pages = await Promise.all(
@@ -416,7 +505,8 @@ async function applyPixelImagePaletteToBookData(bookData) {
       const bg = page.background;
       if (!bg || bg.type !== 'image') return page;
       if (bg.applyPalette === false) return page;
-      if ((bg.paletteMode ?? 'monochrome') !== 'monochrome') return page;
+      const paletteMode = bg.paletteMode ?? 'monochrome';
+      if (paletteMode !== 'monochrome' && paletteMode !== 'palette-ramp') return page;
 
       const bgId = bg.backgroundImageId ? String(bg.backgroundImageId) : null;
       if (!bgId) return page;
@@ -462,8 +552,11 @@ async function applyPixelImagePaletteToBookData(bookData) {
       }
       if (!fullPath) return page;
 
+      const palette = getPagePalette(page);
       const toneColor = getPageToneColor(page, bg);
-      const tonedDataUrl = await applyMonochromeToneToPixelImageServer(fullPath, toneColor);
+      const tonedDataUrl = paletteMode === 'palette-ramp'
+        ? await applyPaletteRampToPixelImageServer(fullPath, collectPaletteHexColorsForRamp(palette))
+        : await applyMonochromeToneToPixelImageServer(fullPath, toneColor);
       if (!tonedDataUrl) return page;
 
       // Force renderer to use pre-toned value instead of template/backgroundImageId resolution

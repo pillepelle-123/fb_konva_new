@@ -28,11 +28,85 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
+function isHexColor(value?: string): boolean {
+  if (!value || typeof value !== 'string') return false;
+  const normalized = value.trim();
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized);
+}
+
+function toHex6(value: string): string {
+  const normalized = value.trim().replace('#', '');
+  if (normalized.length === 3) {
+    return `#${normalized.split('').map((char) => `${char}${char}`).join('').toLowerCase()}`;
+  }
+  return `#${normalized.slice(0, 6).toLowerCase()}`;
+}
+
+function getLuminance(hex: string): number {
+  const { r, g, b } = hexToRgb(hex);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function collectPaletteHexColors(palette: any): string[] {
+  const colors = Object.values(palette?.colors ?? {})
+    .filter((value): value is string => typeof value === 'string' && isHexColor(value))
+    .map((value) => toHex6(value));
+  return Array.from(new Set(colors));
+}
+
+function getBrightPaletteColor(palette: any, fallbackColor: string): string {
+  const colors = collectPaletteHexColors(palette);
+  if (colors.length === 0) return fallbackColor;
+  return [...colors].sort((a, b) => getLuminance(b) - getLuminance(a))[0] || fallbackColor;
+}
+
+function buildPaletteRampLut(paletteHexColors: string[]): Uint8ClampedArray {
+  const sorted = [...paletteHexColors]
+    .filter((color) => isHexColor(color))
+    .map((color) => toHex6(color))
+    .sort((a, b) => getLuminance(a) - getLuminance(b));
+
+  const ramp = sorted.length > 0 ? sorted : ['#000000', '#ffffff'];
+  const lut = new Uint8ClampedArray(256 * 3);
+
+  for (let i = 0; i < 256; i += 1) {
+    const t = i / 255;
+    const scaled = t * (ramp.length - 1);
+    const leftIndex = Math.floor(scaled);
+    const rightIndex = Math.min(ramp.length - 1, leftIndex + 1);
+    const mix = scaled - leftIndex;
+    const left = hexToRgb(ramp[leftIndex] || '#000000');
+    const right = hexToRgb(ramp[rightIndex] || '#ffffff');
+
+    lut[i * 3] = Math.round(left.r + (right.r - left.r) * mix);
+    lut[i * 3 + 1] = Math.round(left.g + (right.g - left.g) * mix);
+    lut[i * 3 + 2] = Math.round(left.b + (right.b - left.b) * mix);
+  }
+
+  return lut;
+}
+
 // Module-level cache: pre-toned images keyed by "src::toneColor"
 const toneCache = new Map<string, Promise<HTMLImageElement>>();
 
-function preToneImage(image: HTMLImageElement, toneColorHex: string): Promise<HTMLImageElement> {
-  const key = `${image.src}::${toneColorHex}`;
+type PixelTintMode = 'monochrome' | 'palette-ramp';
+
+interface PixelToneRequest {
+  mode: PixelTintMode;
+  toneColorHex?: string;
+  paletteHexColors?: string[];
+}
+
+function buildToneCacheKey(image: HTMLImageElement, request: PixelToneRequest): string {
+  if (request.mode === 'palette-ramp') {
+    const paletteKey = (request.paletteHexColors || []).join('|');
+    return `${image.src}::palette-ramp::${paletteKey}`;
+  }
+  return `${image.src}::monochrome::${request.toneColorHex || 'none'}`;
+}
+
+function preToneImage(image: HTMLImageElement, request: PixelToneRequest): Promise<HTMLImageElement> {
+  const key = buildToneCacheKey(image, request);
   if (toneCache.has(key)) return toneCache.get(key)!;
   const promise = new Promise<HTMLImageElement>((resolve) => {
     const canvas = document.createElement('canvas');
@@ -42,14 +116,27 @@ function preToneImage(image: HTMLImageElement, toneColorHex: string): Promise<HT
     if (!ctx) { resolve(image); return; }
     ctx.drawImage(image, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const { r: tr, g: tg, b: tb } = hexToRgb(toneColorHex);
     const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-      data[i]     = Math.max(0, Math.min(255, (gray * tr) / 255));
-      data[i + 1] = Math.max(0, Math.min(255, (gray * tg) / 255));
-      data[i + 2] = Math.max(0, Math.min(255, (gray * tb) / 255));
+
+    if (request.mode === 'palette-ramp') {
+      const lut = buildPaletteRampLut(request.paletteHexColors || []);
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = Math.round(0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]);
+        data[i] = lut[gray * 3];
+        data[i + 1] = lut[gray * 3 + 1];
+        data[i + 2] = lut[gray * 3 + 2];
+      }
+    } else {
+      const color = isHexColor(request.toneColorHex) ? toHex6(request.toneColorHex as string) : '#ffffff';
+      const { r: tr, g: tg, b: tb } = hexToRgb(color);
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+        data[i] = Math.max(0, Math.min(255, (gray * tr) / 255));
+        data[i + 1] = Math.max(0, Math.min(255, (gray * tg) / 255));
+        data[i + 2] = Math.max(0, Math.min(255, (gray * tb) / 255));
+      }
     }
+
     ctx.putImageData(imageData, 0, 0);
     const img = new Image();
     img.onload = () => resolve(img);
@@ -61,28 +148,28 @@ function preToneImage(image: HTMLImageElement, toneColorHex: string): Promise<HT
 
 function useTonedImage(
   sourceImage: HTMLImageElement | null | undefined,
-  toneColorHex: string | undefined
+  request: PixelToneRequest | null
 ): HTMLImageElement | null {
   const [tonedImage, setTonedImage] = useState<HTMLImageElement | null>(null);
   const activeKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!sourceImage || !sourceImage.complete || !toneColorHex) {
+    if (!sourceImage || !sourceImage.complete || !request) {
       setTonedImage(null);
       activeKeyRef.current = null;
       return;
     }
-    const key = `${sourceImage.src}::${toneColorHex}`;
+    const key = buildToneCacheKey(sourceImage, request);
     if (key === activeKeyRef.current) return;
     activeKeyRef.current = key;
     let cancelled = false;
-    preToneImage(sourceImage, toneColorHex).then((img) => {
+    preToneImage(sourceImage, request).then((img) => {
       if (!cancelled && activeKeyRef.current === key) {
         setTonedImage(img);
       }
     });
     return () => { cancelled = true; };
-  }, [sourceImage?.src, toneColorHex]);
+  }, [sourceImage?.src, request ? JSON.stringify(request) : null]);
 
   return tonedImage;
 }
@@ -90,6 +177,8 @@ function useTonedImage(
 interface PreTonedKonvaImageProps {
   sourceImage: HTMLImageElement;
   toneColorHex?: string;
+  tintMode?: PixelTintMode;
+  paletteHexColors?: string[];
   x: number;
   y: number;
   width: number;
@@ -103,6 +192,8 @@ interface PreTonedKonvaImageProps {
 const PreTonedKonvaImage: React.FC<PreTonedKonvaImageProps> = ({
   sourceImage,
   toneColorHex,
+  tintMode,
+  paletteHexColors,
   x,
   y,
   width,
@@ -112,9 +203,16 @@ const PreTonedKonvaImage: React.FC<PreTonedKonvaImageProps> = ({
   scaleX = 1,
   scaleY = 1,
 }) => {
-  const tonedImage = useTonedImage(sourceImage, toneColorHex);
+  const toneRequest: PixelToneRequest | null = (() => {
+    if (!tintMode) return null;
+    if (tintMode === 'palette-ramp') {
+      return { mode: 'palette-ramp', paletteHexColors: paletteHexColors || [] };
+    }
+    return toneColorHex ? { mode: 'monochrome', toneColorHex } : null;
+  })();
+  const tonedImage = useTonedImage(sourceImage, toneRequest);
   // Keep original visible while async toning is pending/fails to avoid "only color background" frames.
-  const renderImage = toneColorHex ? (tonedImage ?? sourceImage) : sourceImage;
+  const renderImage = toneRequest ? (tonedImage ?? sourceImage) : sourceImage;
   if (!renderImage) return null;
   return (
     <KonvaImage
@@ -134,6 +232,8 @@ const PreTonedKonvaImage: React.FC<PreTonedKonvaImageProps> = ({
 interface PreTonedRepeatRectProps {
   sourceImage: HTMLImageElement;
   toneColorHex?: string;
+  tintMode?: PixelTintMode;
+  paletteHexColors?: string[];
   x: number;
   y: number;
   width: number;
@@ -149,6 +249,8 @@ interface PreTonedRepeatRectProps {
 const PreTonedRepeatRect: React.FC<PreTonedRepeatRectProps> = ({
   sourceImage,
   toneColorHex,
+  tintMode,
+  paletteHexColors,
   x,
   y,
   width,
@@ -160,9 +262,16 @@ const PreTonedRepeatRect: React.FC<PreTonedRepeatRectProps> = ({
   fillPatternRepeat,
   opacity,
 }) => {
-  const tonedImage = useTonedImage(sourceImage, toneColorHex);
+  const toneRequest: PixelToneRequest | null = (() => {
+    if (!tintMode) return null;
+    if (tintMode === 'palette-ramp') {
+      return { mode: 'palette-ramp', paletteHexColors: paletteHexColors || [] };
+    }
+    return toneColorHex ? { mode: 'monochrome', toneColorHex } : null;
+  })();
+  const tonedImage = useTonedImage(sourceImage, toneRequest);
   // Fall back to original while toning is in progress so the pattern is always visible
-  const patternImage = toneColorHex ? (tonedImage ?? sourceImage) : sourceImage;
+  const patternImage = toneRequest ? (tonedImage ?? sourceImage) : sourceImage;
   return (
     <Rect
       x={x}
@@ -393,11 +502,14 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
     const baseBackgroundColor = hasBackgroundColor
       ? (background as any).backgroundColor || paletteBackgroundColor
       : '#ffffff';
-    const shouldApplyPixelMonochrome =
+    const pixelPaletteMode = background.paletteMode ?? 'monochrome';
+    const shouldApplyPixelTint =
       background.applyPalette !== false &&
-      (background.paletteMode ?? 'monochrome') === 'monochrome' &&
       !isSvgLikeUrl(imageUrl);
-    const pixelToneColor = baseBackgroundColor;
+    const pixelTintMode: PixelTintMode =
+      pixelPaletteMode === 'monochrome' ? 'monochrome' : 'palette-ramp';
+    const pixelToneColor = getBrightPaletteColor(normalizedPalette, baseBackgroundColor);
+    const pixelPaletteRampColors = collectPaletteHexColors(normalizedPalette);
     const backgroundColorOpacity = (background as any).backgroundColorOpacity ?? 1;
     const imageOpacity = background.opacity ?? 1;
 
@@ -456,7 +568,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
               />
               <PreTonedKonvaImage
                 sourceImage={img}
-                toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+                tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+                toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+                paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
                 x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
                 y={imageY + transformOffsetY}
                 width={finalWidth}
@@ -507,7 +621,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
               />
               <PreTonedRepeatRect
                 sourceImage={img}
-                toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+                tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+                toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+                paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
                 x={offsetX}
                 y={pageOffsetY}
                 width={canvasWidth}
@@ -541,7 +657,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
             />
             <PreTonedKonvaImage
               sourceImage={img}
-              toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+              tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+              toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+              paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
               x={drawX}
               y={drawY}
               width={drawWidth}
@@ -612,7 +730,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
         const imageElement = (
           <PreTonedKonvaImage
             sourceImage={displayImage}
-            toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+            tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+            toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+            paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
             x={mirrorBackground ? imageX + finalWidth + transformOffsetX : imageX + transformOffsetX}
             y={imageY + transformOffsetY}
             width={finalWidth}
@@ -670,7 +790,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           />
           <PreTonedRepeatRect
             sourceImage={displayImage}
-            toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+            tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+            toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+            paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
             x={offsetX}
             y={pageOffsetY}
             width={canvasWidth}
@@ -704,7 +826,9 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
         />
         <PreTonedKonvaImage
           sourceImage={displayImage}
-          toneColorHex={shouldApplyPixelMonochrome ? pixelToneColor : undefined}
+          tintMode={shouldApplyPixelTint ? pixelTintMode : undefined}
+          toneColorHex={shouldApplyPixelTint && pixelTintMode === 'monochrome' ? pixelToneColor : undefined}
+          paletteHexColors={shouldApplyPixelTint && pixelTintMode === 'palette-ramp' ? pixelPaletteRampColors : undefined}
           x={drawX}
           y={drawY}
           width={drawWidth}

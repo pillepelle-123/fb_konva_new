@@ -63,6 +63,7 @@ const adminBackgroundImageSchema = z.object({
         updatedAt: '',
       },
     ),
+  type: z.string().nullable().optional().transform((value) => value ?? 'template'),
   format: z.string().nullable().optional().transform((value) => value ?? 'designer'),
   storage: storageSchema,
   defaults: defaultsSchema.optional().transform((value) => value ?? normalizedDefaultsFallback),
