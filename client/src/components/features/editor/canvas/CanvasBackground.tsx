@@ -480,6 +480,15 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
             y={pageOffsetY}
             width={canvasWidth}
             height={canvasHeight}
+            fill="#ffffff"
+            opacity={1}
+            listening={false}
+          />
+          <Rect
+            x={offsetX}
+            y={pageOffsetY}
+            width={canvasWidth}
+            height={canvasHeight}
             fill={designerBackgroundColor}
             opacity={designerBackgroundColorOpacity}
             listening={false}

@@ -1009,7 +1009,7 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
         )}
         
         {/* Opacity: for image mode show two sliders (background color + image), otherwise single slider */}
-        {backgroundMode === 'image' && !isDesignerImage ? (
+        {backgroundMode === 'image' ? (
           <>
             <div>
               <Label variant="xs" className="mt-2 block">Background Color Opacity</Label>
@@ -1025,13 +1025,14 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
                 max={100}
                 step={5}
                 unit="%"
-                hasLabel={false}
+                tooltipPosition="left"
+                hasLabel={isDesignerImage}
               />
             </div>
             <div>
-              <Label variant="xs" className="mt-2 block">Image Opacity</Label>
+              <Label variant="xs" className="mt-2 block">{isDesignerImage ? 'Opacity' : 'Image Opacity'}</Label>
               <Slider
-                label="Image Opacity"
+                label={isDesignerImage ? 'Opacity' : 'Image Opacity'}
                 value={Math.round((background.opacity ?? 1) * 100)}
                 displayValue={Math.round((background.opacity ?? 1) * 100)}
                 onChange={(value) => {

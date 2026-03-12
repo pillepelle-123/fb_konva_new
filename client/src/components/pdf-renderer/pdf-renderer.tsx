@@ -500,14 +500,44 @@ export function PDFRenderer({
     }
 
     if (background.type === 'image' && hasDesignerCanvasPayload(background)) {
+      const hasDesignerBackgroundColor = (background as any).backgroundColorEnabled && (background as any).backgroundColor;
+      const paletteBackgroundColor = getPalettePartColor(normalizedPalette, 'pageBackground', 'background', '#ffffff') || '#ffffff';
+      const designerBackgroundColor = hasDesignerBackgroundColor
+        ? (background as any).backgroundColor
+        : paletteBackgroundColor;
+      const designerBackgroundColorOpacity = Math.max(
+        0,
+        Math.min(1, (background as any).backgroundColorOpacity ?? 1)
+      );
+
       return (
-        <DesignerBackgroundGroup
-          background={background}
-          offsetX={0}
-          pageOffsetY={0}
-          canvasWidth={width}
-          canvasHeight={height}
-        />
+        <Group listening={false}>
+          <Rect
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            fill="#ffffff"
+            opacity={1}
+            listening={false}
+          />
+          <Rect
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            fill={designerBackgroundColor}
+            opacity={designerBackgroundColorOpacity}
+            listening={false}
+          />
+          <DesignerBackgroundGroup
+            background={background}
+            offsetX={0}
+            pageOffsetY={0}
+            canvasWidth={width}
+            canvasHeight={height}
+          />
+        </Group>
       );
     }
 
@@ -823,10 +853,19 @@ export function PDFRenderer({
           const backgroundOpacityMultiplier = typeof background.opacity === 'number' ? background.opacity : 1;
           const hasBackgroundColorOverride = Boolean((background as any).backgroundColorEnabled && (background as any).backgroundColor);
           const mappedBaseOpacity = Math.max(0, Math.min(1, mapped.backgroundOpacity * backgroundOpacityMultiplier));
-          const backgroundColorOpacity = Math.max(0, Math.min(1, ((background as any).backgroundColorOpacity ?? 1) * backgroundOpacityMultiplier));
-          const baseBackgroundOpacity = mappedBaseOpacity > 0
-            ? mappedBaseOpacity
-            : (hasBackgroundColorOverride ? backgroundColorOpacity : mappedBaseOpacity);
+          const backgroundColorOpacity = Math.max(0, Math.min(1, (background as any).backgroundColorOpacity ?? 1));
+          const baseBackgroundOpacity = hasBackgroundColorOverride ? backgroundColorOpacity : mappedBaseOpacity;
+
+          const whiteBaseRect = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width,
+            height,
+            fill: '#ffffff',
+            opacity: 1,
+            listening: false,
+          });
+          bgLayer.add(whiteBaseRect);
 
           const mappedBgRect = new Konva.Rect({
             x: 0,
