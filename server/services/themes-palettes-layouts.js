@@ -20,7 +20,7 @@ function mapThemeRow(row) {
   const basePageSettings = row.config?.pageSettings || {};
   let backgroundImage = basePageSettings.backgroundImage || { enabled: false, applyPalette: true, paletteMode: 'palette' };
 
-  // If theme_page_backgrounds exists, build backgroundImage from tpb + bi
+  // If theme_backgrounds exists, build backgroundImage from tpb + bi
   if (row.tpb_theme_id != null && row.bi_slug) {
     backgroundImage = {
       enabled: true,
@@ -92,7 +92,7 @@ async function listThemes() {
             tpb.apply_palette AS tpb_apply_palette, tpb.palette_mode AS tpb_palette_mode,
             bi.slug AS bi_slug
      FROM themes t
-     LEFT JOIN theme_page_backgrounds tpb ON tpb.theme_id = t.id
+    LEFT JOIN theme_backgrounds tpb ON tpb.theme_id = t.id
      LEFT JOIN background_images bi ON bi.id = tpb.background_image_id
      ORDER BY t.sort_order ASC, t.name ASC`
   );
@@ -108,7 +108,7 @@ async function getThemeById(id) {
             tpb.apply_palette AS tpb_apply_palette, tpb.palette_mode AS tpb_palette_mode,
             bi.slug AS bi_slug
      FROM themes t
-     LEFT JOIN theme_page_backgrounds tpb ON tpb.theme_id = t.id
+    LEFT JOIN theme_backgrounds tpb ON tpb.theme_id = t.id
      LEFT JOIN background_images bi ON bi.id = tpb.background_image_id
      WHERE t.id = $1`,
     [id]
@@ -261,7 +261,7 @@ async function getThemePageBackground(themeId) {
     `SELECT tpb.theme_id, tpb.background_image_id, tpb.size, tpb.position, tpb.repeat,
             tpb.width, tpb.opacity, tpb.apply_palette, tpb.palette_mode,
             bi.id AS background_image_id, bi.slug, bi.name
-     FROM theme_page_backgrounds tpb
+    FROM theme_backgrounds tpb
      JOIN background_images bi ON bi.id = tpb.background_image_id
      WHERE tpb.theme_id = $1`,
     [themeId]
@@ -286,7 +286,7 @@ async function upsertThemePageBackground(themeId, data) {
   }
 
   const { rows } = await pool.query(
-    `INSERT INTO theme_page_backgrounds (theme_id, background_image_id, size, position, repeat, width, opacity, apply_palette, palette_mode)
+    `INSERT INTO theme_backgrounds (theme_id, background_image_id, size, position, repeat, width, opacity, apply_palette, palette_mode)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (theme_id) DO UPDATE SET
        background_image_id = EXCLUDED.background_image_id,
@@ -305,7 +305,7 @@ async function upsertThemePageBackground(themeId, data) {
 }
 
 async function deleteThemePageBackground(themeId) {
-  const result = await pool.query(`DELETE FROM theme_page_backgrounds WHERE theme_id = $1`, [themeId]);
+  const result = await pool.query(`DELETE FROM theme_backgrounds WHERE theme_id = $1`, [themeId]);
   if (result.rowCount > 0) {
     await pool.query(`UPDATE themes SET updated_at = NOW() WHERE id = $1`, [themeId]);
   }
