@@ -4,7 +4,7 @@ import Konva from 'konva';
 import { useEditor } from '../../context/editor-context.tsx';
 import type { Page, Book, CanvasElement } from '../../context/editor-context.tsx';
 import CanvasItemComponent from '../features/editor/canvas-items/index.tsx';
-import { resolveBackgroundImageUrl } from '../../utils/background-image-utils.ts';
+import { resolveBackgroundImageUrl, resolveDesignerAssetUrlWithPalette } from '../../utils/background-image-utils.ts';
 import { getPalettePartColor } from '../../data/templates/color-palettes.ts';
 import { colorPalettes } from '../../data/templates/color-palettes.ts';
 import { PATTERNS } from '../../utils/patterns.ts';
@@ -350,9 +350,13 @@ export function PDFRenderer({
   }, [stageRef.current]);
 
   // Get palette for page (use loose equality for server-sent numeric IDs)
+  const serverColorPalettes = Array.isArray((bookData as any).colorPalettes)
+    ? (bookData as any).colorPalettes
+    : [];
+  const availableColorPalettes = serverColorPalettes.length > 0 ? serverColorPalettes : colorPalettes;
   const pagePaletteId = page.colorPaletteId ?? bookData.colorPaletteId;
   const palette = pagePaletteId
-    ? colorPalettes.find((p) => p.id == pagePaletteId || String(p.id) === String(pagePaletteId))
+    ? availableColorPalettes.find((p: any) => p.id == pagePaletteId || String(p.id) === String(pagePaletteId))
     : null;
   const normalizedPalette = palette || undefined;
   const palettePatternStroke =
@@ -812,15 +816,25 @@ export function PDFRenderer({
         const payload = extractDesignerCanvasPayload(background);
         if (payload) {
           const mapped = mapDesignerCanvasToPage(payload, width, height, 0, 0);
+          const applyPaletteToDesignerAssets =
+            (background as any).designerApplyPalette !== undefined
+              ? (background as any).designerApplyPalette !== false
+              : background.applyPalette !== false;
           const backgroundOpacityMultiplier = typeof background.opacity === 'number' ? background.opacity : 1;
+          const hasBackgroundColorOverride = Boolean((background as any).backgroundColorEnabled && (background as any).backgroundColor);
+          const mappedBaseOpacity = Math.max(0, Math.min(1, mapped.backgroundOpacity * backgroundOpacityMultiplier));
+          const backgroundColorOpacity = Math.max(0, Math.min(1, ((background as any).backgroundColorOpacity ?? 1) * backgroundOpacityMultiplier));
+          const baseBackgroundOpacity = mappedBaseOpacity > 0
+            ? mappedBaseOpacity
+            : (hasBackgroundColorOverride ? backgroundColorOpacity : mappedBaseOpacity);
 
           const mappedBgRect = new Konva.Rect({
             x: 0,
             y: 0,
             width,
             height,
-            fill: mapped.backgroundColor,
-            opacity: Math.max(0, Math.min(1, mapped.backgroundOpacity * backgroundOpacityMultiplier)),
+            fill: hasBackgroundColorOverride ? (background as any).backgroundColor : mapped.backgroundColor,
+            opacity: baseBackgroundOpacity,
             listening: false,
           });
           bgLayer.add(mappedBgRect);
@@ -847,28 +861,74 @@ export function PDFRenderer({
               continue;
             }
 
-            const src = item.type === 'image'
-              ? normalizeDesignerAssetUrl(item.uploadPath)
-              : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
-
             const imagePromise = new Promise<void>((resolve) => {
-              const img = new window.Image();
-              img.onload = () => {
-                const imageNode = new Konva.Image({
-                  image: img,
-                  x: item.x,
-                  y: item.y,
-                  width: item.width,
-                  height: item.height,
-                  rotation: item.rotation,
-                  opacity: Math.max(0, Math.min(1, item.opacity * backgroundOpacityMultiplier)),
-                  listening: false,
+              (async () => {
+                const src = item.type === 'image'
+                  ? await (async () => {
+                      const resolverInput = {
+                        itemId: item.id,
+                        uploadPathPrefix: typeof item.uploadPath === 'string' ? item.uploadPath.slice(0, 120) : String(item.uploadPath),
+                        applyPalette: applyPaletteToDesignerAssets,
+                        designerApplyPaletteRaw: (background as any).designerApplyPalette,
+                        paletteMode: background.paletteMode ?? 'monochrome',
+                        pagePaletteId: pagePaletteId ?? null,
+                        hasPaletteColors: Boolean(bgPaletteColors),
+                        paletteColorKeys: bgPaletteColors ? Object.keys(bgPaletteColors).sort() : [],
+                      };
+                      console.log('[PUPPETEER_BROWSER][DesignerAssetResolver][before]', JSON.stringify(resolverInput));
+
+                      const resolvedSrc = await resolveDesignerAssetUrlWithPalette(item.uploadPath, {
+                        applyPalette: applyPaletteToDesignerAssets,
+                        paletteMode: background.paletteMode ?? 'monochrome',
+                        paletteId: pagePaletteId || undefined,
+                        paletteColors: bgPaletteColors,
+                        palette: normalizedPalette,
+                      });
+
+                      console.log('[PUPPETEER_BROWSER][DesignerAssetResolver][after]', JSON.stringify({
+                        itemId: item.id,
+                        resolvedIsDataSvg: typeof resolvedSrc === 'string' && resolvedSrc.startsWith('data:image/svg+xml'),
+                        resolvedPrefix: typeof resolvedSrc === 'string' ? resolvedSrc.slice(0, 120) : String(resolvedSrc),
+                        changed: resolvedSrc !== item.uploadPath,
+                      }));
+
+                      return resolvedSrc;
+                    })()
+                  : `/api/stickers/${encodeURIComponent(item.stickerId)}/file`;
+
+                const img = new window.Image();
+                img.onload = () => {
+                  const imageNode = new Konva.Image({
+                    image: img,
+                    x: item.x,
+                    y: item.y,
+                    width: item.width,
+                    height: item.height,
+                    rotation: item.rotation,
+                    opacity: Math.max(0, Math.min(1, item.opacity * backgroundOpacityMultiplier)),
+                    listening: false,
+                  });
+                  bgLayer.add(imageNode);
+                  resolve();
+                };
+                img.onerror = () => {
+                  console.error('[PDFRenderer] Failed to load designer background item image', {
+                    itemId: item.id,
+                    itemType: item.type,
+                    src,
+                  });
+                  resolve();
+                };
+                img.src = src;
+              })().catch((error) => {
+                console.error('[PDFRenderer] Failed to resolve designer background item image', {
+                  itemId: item.id,
+                  itemType: item.type,
+                  uploadPath: item.type === 'image' ? item.uploadPath : undefined,
+                  error: error instanceof Error ? error.message : String(error),
                 });
-                bgLayer.add(imageNode);
                 resolve();
-              };
-              img.onerror = () => resolve();
-              img.src = src;
+              });
             });
 
             imagePromises.push(imagePromise);

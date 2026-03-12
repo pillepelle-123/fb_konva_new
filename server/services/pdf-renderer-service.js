@@ -74,17 +74,50 @@ class PDFRendererService {
 
       // Listen to console messages and errors for debugging
       const consoleMessages = [];
-      page.on('console', msg => {
+      const safeStringify = (value) => {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
+      };
+
+      page.on('console', async (msg) => {
         const text = msg.text();
-        consoleMessages.push(text);
-        
+        let argsText = '';
+
+        try {
+          const rawArgs = msg.args ? msg.args() : [];
+          if (rawArgs.length > 0) {
+            const resolvedArgs = await Promise.all(
+              rawArgs.map(async (arg) => {
+                try {
+                  return await arg.jsonValue();
+                } catch {
+                  try {
+                    return arg.toString();
+                  } catch {
+                    return '[unserializable]';
+                  }
+                }
+              })
+            );
+            argsText = resolvedArgs.length > 0 ? ` | args=${safeStringify(resolvedArgs)}` : '';
+          }
+        } catch {
+          argsText = ' | args=[failed-to-read]';
+        }
+
+        const combined = `${text}${argsText}`;
+        consoleMessages.push(combined);
+
         // Highlight DEBUG logs
         if (text.includes('[DEBUG')) {
           console.log('═══════════════════════════════════════════════════════');
-          console.log('🔍 [DEBUG LOG]', text);
+          console.log('🔍 [DEBUG LOG]', combined);
           console.log('═══════════════════════════════════════════════════════');
         } else {
-          console.log('[Browser Console]', text);
+          console.log('[PUPPETEER_BROWSER]', combined);
         }
       });
       

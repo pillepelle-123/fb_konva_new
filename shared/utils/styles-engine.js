@@ -1665,17 +1665,6 @@ function generatePencilPath(element, options = {}) {
  * @returns {string} SVG path string
  */
 function generateFreehandPath(element, options = {}) {
-  console.log('🎨 [generateFreehandPath] Called with element type:', element.type, 'style:', element.style);
-  console.log('🎨 [generateFreehandPath] Element properties:', {
-    freehandSimplification: element.freehandSimplification,
-    freehandTaperStart: element.freehandTaperStart,
-    freehandTaperEnd: element.freehandTaperEnd,
-    freehandPressure: element.freehandPressure,
-    freehandSeed: element.freehandSeed,
-    borderWidth: element.borderWidth,
-    strokeWidth: element.strokeWidth
-  });
-
   // Try to use perfect-freehand if available (client-side)
   // Server-side fallback: use default path
   
@@ -1683,30 +1672,23 @@ function generateFreehandPath(element, options = {}) {
     // Check if getStroke is available (perfect-freehand on client)
     // For server-side compatibility, we gracefully fall back to default
     const isClientSide = typeof window !== 'undefined' || (typeof require !== 'undefined' && typeof global !== 'undefined');
-    
-    console.log('🎨 [generateFreehandPath] isClientSide:', isClientSide);
 
     if (!isClientSide) {
-      console.log('🎨 [generateFreehandPath] Server-side fallback - returning default path');
       // Server-side: fall back to generateDefaultPath
       return generateDefaultPath(element, options);
     }
 
     // Generate outline points based on element type
     const outlinePoints = generateShapeOutlinePoints(element);
-    console.log('🎨 [generateFreehandPath] Generated outline points:', outlinePoints.length, 'points');
     
     if (outlinePoints.length < 3) {
-      console.log('🎨 [generateFreehandPath] Not enough outline points, falling back to default');
       return generateDefaultPath(element, options);
     }
 
     // getStroke is injected by the client wrapper
     const getStroke = options?.getStroke;
-    console.log('🎨 [generateFreehandPath] perfect-freehand injected:', !!getStroke);
 
     if (!getStroke || typeof getStroke !== 'function') {
-      console.warn('🎨 [generateFreehandPath] getStroke not a function');
       return generateDefaultPath(element, options);
     }
 
@@ -1745,17 +1727,6 @@ function generateFreehandPath(element, options = {}) {
       const jitterY = Math.sin(jitterAngle) * jitterRadius;
 
       return [sourcePoint[0] + jitterX, sourcePoint[1] + jitterY, pressure];
-    });
-
-    console.log('🎨 [generateFreehandPath] Freehand settings:', {
-      size: Math.max(1, size),
-      simplification,
-      taperStart,
-      taperEnd,
-      simulatePressure,
-      seed,
-      pointOffset,
-      jitterAmplitude
     });
 
     // For rect/text without corner radius, render as four open subpaths

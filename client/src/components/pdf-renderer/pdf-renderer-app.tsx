@@ -158,6 +158,7 @@ export function PDFRendererApp({
       hasPaletteColorsForBackground: !!paletteColorsForBackground,
       paletteColorsKeys: paletteColorsForBackground ? Object.keys(paletteColorsForBackground) : [],
       backgroundApplyPalette: pageData.page.background.applyPalette,
+      backgroundDesignerApplyPalette: (pageData.page.background as any).designerApplyPalette,
       backgroundValuePrefix: pageData.page.background.value?.substring(0, 50),
     });
   }

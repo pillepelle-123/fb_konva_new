@@ -67,25 +67,6 @@ const getTemplateDefaultBackgroundColor = (template: unknown): string | undefine
   return (template as TemplateWithDefaultBackground).backgroundColor?.defaultValue;
 };
 
-const isBackgroundDebugEnabled = (): boolean => {
-  try {
-    if (typeof window === 'undefined') return false;
-    const value = window.localStorage.getItem('debug.background.palette');
-    return value === '1' || value === 'true';
-  } catch {
-    return false;
-  }
-};
-
-const debugBackground = (label: string, data?: unknown): void => {
-  if (!isBackgroundDebugEnabled()) return;
-  if (data !== undefined) {
-    console.log(`[BG-DEBUG][settings] ${label}`, data);
-    return;
-  }
-  console.log(`[BG-DEBUG][settings] ${label}`);
-};
-
 const isSvgLikeUrl = (url?: string): boolean => {
   if (!url || typeof url !== 'string') return false;
   if (url.startsWith('data:image/svg+xml')) return true;
@@ -212,33 +193,6 @@ export const PageBackgroundSettings = (props: PageBackgroundSettingsProps) => {
     } else {
       // Type is not changing - merge with existing background
       newBackground = { ...background, ...updates };
-    }
-
-    if (
-      updates.applyPalette !== undefined ||
-      updates.paletteMode !== undefined ||
-      updates.value !== undefined ||
-      updates.backgroundImageId !== undefined
-    ) {
-      debugBackground('updateBackground dispatch', {
-        pageIndex: state.activePageIndex,
-        skipHistory,
-        updates,
-        before: {
-          type: background.type,
-          applyPalette: background.applyPalette,
-          paletteMode: background.paletteMode,
-          valuePrefix: typeof background.value === 'string' ? background.value.slice(0, 80) : undefined,
-          backgroundImageId: background.backgroundImageId,
-        },
-        after: {
-          type: newBackground.type,
-          applyPalette: newBackground.applyPalette,
-          paletteMode: newBackground.paletteMode,
-          valuePrefix: typeof newBackground.value === 'string' ? newBackground.value.slice(0, 80) : undefined,
-          backgroundImageId: newBackground.backgroundImageId,
-        },
-      });
     }
 
     dispatch({

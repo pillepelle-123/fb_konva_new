@@ -566,6 +566,8 @@ async function applyPixelImagePaletteToBookData(bookData) {
           ...bg,
           value: tonedDataUrl,
           applyPalette: false,
+          // Keep designer overlay palette intent independent from base-image pre-toning.
+          designerApplyPalette: bg.applyPalette !== false,
           backgroundImageId: undefined,
         },
       };
@@ -576,8 +578,9 @@ async function applyPixelImagePaletteToBookData(bookData) {
 }
 
 async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions = {}) {
-  const isLiveDesignerQuality = exportOptions.quality === 'excellent' || exportOptions.quality === 'printing';
-  if (!isLiveDesignerQuality || !Array.isArray(bookData.pages)) {
+  // Always enrich designer canvas assets for PDF export to avoid runtime fetch failures
+  // (e.g. origin-protected asset endpoints in headless rendering).
+  if (!Array.isArray(bookData.pages)) {
     return bookData;
   }
 
@@ -602,18 +605,30 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
   const pages = await Promise.all(
     bookData.pages.map(async (page) => {
       const background = page?.background;
-      if (background?.type !== 'image' || !background.backgroundImageId) {
+      if (background?.type !== 'image') {
         return page;
       }
 
-      const key = String(background.backgroundImageId);
-      if (!designerCache.has(key)) {
-        const designerImage = await backgroundImageDesignerService.getDesignerImageByIdentifier(key);
-        designerCache.set(key, designerImage || null);
+      let sourceStructure = background?.designerCanvas?.structure || null;
+      let sourceCanvasWidth = background?.designerCanvas?.canvasWidth;
+      let sourceCanvasHeight = background?.designerCanvas?.canvasHeight;
+
+      if (background.backgroundImageId) {
+        const key = String(background.backgroundImageId);
+        if (!designerCache.has(key)) {
+          const designerImage = await backgroundImageDesignerService.getDesignerImageByIdentifier(key);
+          designerCache.set(key, designerImage || null);
+        }
+
+        const designerImage = designerCache.get(key);
+        if (designerImage?.canvas?.structure) {
+          sourceStructure = designerImage.canvas.structure;
+          sourceCanvasWidth = designerImage.canvas.canvasWidth;
+          sourceCanvasHeight = designerImage.canvas.canvasHeight;
+        }
       }
 
-      const designerImage = designerCache.get(key);
-      if (!designerImage?.canvas?.structure) {
+      if (!sourceStructure || !Array.isArray(sourceStructure.items)) {
         return page;
       }
 
@@ -622,19 +637,17 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
         getPalettePartColor(palette, 'pageBackground', 'background', palette?.colors?.background) ||
         palette?.colors?.background ||
         '#ffffff';
-      const toneColor =
-        (background.backgroundColorEnabled && background.backgroundColor)
-          ? background.backgroundColor
-          : pageBackgroundColor;
       const paletteOptions = {
         applyPalette: background.applyPalette !== false,
         paletteMode: background.paletteMode || 'monochrome',
-        toneColor,
-        backgroundColorOverride: (background.backgroundColorEnabled && background.backgroundColor) ? background.backgroundColor : undefined,
+        // Designer asset tint should follow palette, not the user-selected base layer color.
+        toneColor: pageBackgroundColor,
         pageBackgroundColor,
       };
 
-      const rawStructure = designerImage.canvas.structure;
+      const rawStructure = sourceStructure;
+      let inlinedAssetCount = 0;
+      let unresolvedAssetCount = 0;
       const structure = {
         ...rawStructure,
         items: Array.isArray(rawStructure.items)
@@ -644,6 +657,11 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
               }
 
               const dataUrl = await designerAssetPathToDataUrlWithPalette(item.uploadPath, paletteOptions);
+              if (dataUrl) {
+                inlinedAssetCount += 1;
+              } else {
+                unresolvedAssetCount += 1;
+              }
               return {
                 ...item,
                 // Keep live rendering branch, but avoid protected endpoint fetches (403)
@@ -654,6 +672,15 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
           : [],
       };
 
+      if (inlinedAssetCount > 0 || unresolvedAssetCount > 0) {
+        console.log('[PDF Debug] enrichDesignerCanvasForLiveDesignerExport assets', {
+          pageNumber: page?.pageNumber,
+          inlinedAssetCount,
+          unresolvedAssetCount,
+          hasBackgroundImageId: Boolean(background.backgroundImageId),
+        });
+      }
+
       return {
         ...page,
         background: {
@@ -661,8 +688,8 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
           backgroundImageType: 'designer',
           designerCanvas: {
             structure,
-            canvasWidth: designerImage.canvas.canvasWidth,
-            canvasHeight: designerImage.canvas.canvasHeight,
+            canvasWidth: sourceCanvasWidth,
+            canvasHeight: sourceCanvasHeight,
           },
         },
       };
@@ -680,24 +707,9 @@ function normalizeDesignerAssetUrl(uploadPath) {
     return uploadPath;
   }
 
-  const uploadsMatch = uploadPath.match(/^https?:\/\/[^/]+\/uploads\/background-images\/(.+)$/i)
-    || uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
-
-  if (uploadsMatch && uploadsMatch[1]) {
-    return `/api/background-images/designer/assets/${uploadsMatch[1]}`;
-  }
-
-  const rawPath = uploadPath.replace(/^\/+/, '');
-  if (
-    rawPath.startsWith('_designer/')
-    || rawPath.startsWith('designer/')
-    || rawPath.startsWith('_image_assets/')
-  ) {
-    return `/api/background-images/designer/assets/${rawPath}`;
-  }
-
-  if (/^\/api\/background-images\/designer\/assets\//i.test(uploadPath)) {
-    return uploadPath;
+  const relativePath = resolveDesignerAssetRelativePath(uploadPath);
+  if (relativePath) {
+    return `/api/background-images/designer/assets/${relativePath}`;
   }
 
   return uploadPath;
@@ -708,35 +720,20 @@ function designerAssetPathToDataUrl(uploadPath) {
     return null;
   }
 
-  let relativePath = null;
-  const apiMatch = uploadPath.match(/^\/api\/background-images\/designer\/assets\/(.+)$/i);
-  const uploadsMatch = uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
-
-  if (apiMatch && apiMatch[1]) {
-    relativePath = apiMatch[1];
-  } else if (uploadsMatch && uploadsMatch[1]) {
-    relativePath = uploadsMatch[1];
-  } else {
-    const rawPath = uploadPath.replace(/^\/+/, '');
-    if (
-      rawPath.startsWith('_designer/') ||
-      rawPath.startsWith('designer/') ||
-      rawPath.startsWith('_image_assets/')
-    ) {
-      relativePath = rawPath;
-    }
-  }
-
-  if (!relativePath) {
-    return null;
-  }
-
-  const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relativePath));
-  if (!isPathWithinUploads(fullPath)) {
+  const fullPath = resolveDesignerAssetAbsolutePath(uploadPath);
+  if (!fullPath) {
     return null;
   }
 
   return fileToDataUrl(fullPath);
+}
+
+function decodePathComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function resolveDesignerAssetRelativePath(uploadPath) {
@@ -744,17 +741,32 @@ function resolveDesignerAssetRelativePath(uploadPath) {
     return null;
   }
 
-  const apiMatch = uploadPath.match(/^\/api\/background-images\/designer\/assets\/(.+)$/i);
-  const uploadsMatch = uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
+  let pathValue = uploadPath.trim();
+  if (!pathValue) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(pathValue)) {
+    try {
+      pathValue = new URL(pathValue).pathname || '';
+    } catch {
+      // Ignore URL parse errors and continue with the original value.
+    }
+  }
+
+  pathValue = pathValue.split('#')[0].split('?')[0];
+
+  const apiMatch = pathValue.match(/^\/?api\/background-images\/designer\/assets\/(.+)$/i);
+  const uploadsMatch = pathValue.match(/^\/?uploads\/background-images\/(.+)$/i);
 
   if (apiMatch && apiMatch[1]) {
-    return apiMatch[1];
+    return decodePathComponent(apiMatch[1]).replace(/^\/+/, '');
   }
   if (uploadsMatch && uploadsMatch[1]) {
-    return uploadsMatch[1];
+    return decodePathComponent(uploadsMatch[1]).replace(/^\/+/, '');
   }
 
-  const rawPath = uploadPath.replace(/^\/+/, '');
+  const rawPath = decodePathComponent(pathValue.replace(/^\/+/, ''));
   if (
     rawPath.startsWith('_designer/') ||
     rawPath.startsWith('designer/') ||
@@ -1009,6 +1021,32 @@ function svgStringToDataUrl(svgContent) {
   return `data:image/svg+xml;base64,${Buffer.from(cleaned, 'utf-8').toString('base64')}`;
 }
 
+function svgDataUrlToString(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !/^data:image\/svg\+xml/i.test(dataUrl)) {
+    return null;
+  }
+
+  const base64Match = dataUrl.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?;base64,(.+)$/i);
+  if (base64Match && base64Match[1]) {
+    try {
+      return Buffer.from(base64Match[1], 'base64').toString('utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  const plainMatch = dataUrl.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?,(.+)$/i);
+  if (plainMatch && plainMatch[1]) {
+    try {
+      return decodeURIComponent(plainMatch[1]);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function applyMonochromeToneToSvgServer(svgContent, targetColor, options = {}) {
   if (!svgContent || !targetColor) {
     return svgStringToDataUrl(svgContent || '');
@@ -1060,6 +1098,27 @@ function applyMonochromeToneToSvgServer(svgContent, targetColor, options = {}) {
 }
 
 async function designerAssetPathToDataUrlWithPalette(uploadPath, paletteOptions = {}) {
+  if (typeof uploadPath === 'string' && /^data:image\/svg\+xml/i.test(uploadPath)) {
+    const embeddedSvg = svgDataUrlToString(uploadPath);
+    if (!embeddedSvg) {
+      return uploadPath;
+    }
+
+    const shouldApplyPalette = paletteOptions.applyPalette !== false;
+    if (!shouldApplyPalette || (paletteOptions.paletteMode && paletteOptions.paletteMode !== 'monochrome')) {
+      return svgStringToDataUrl(embeddedSvg);
+    }
+
+    const targetColor =
+      paletteOptions.backgroundColorOverride ||
+      paletteOptions.toneColor ||
+      '#ffffff';
+    return applyMonochromeToneToSvgServer(embeddedSvg, targetColor, {
+      edgeBackgroundColor: paletteOptions.backgroundColorOverride,
+      pageBackgroundColor: paletteOptions.pageBackgroundColor,
+    });
+  }
+
   const fullPath = resolveDesignerAssetAbsolutePath(uploadPath);
   if (!fullPath) {
     return null;

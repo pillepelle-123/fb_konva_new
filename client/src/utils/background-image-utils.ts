@@ -56,8 +56,8 @@ export function applyBackgroundImageTemplate(
       imageSize: 'cover',
       imageRepeat: false,
       backgroundImageId: template.id,
-      applyPalette: false,
-      paletteMode: 'monochrome',
+      applyPalette: customSettings?.applyPalette ?? true,
+      paletteMode: customSettings?.paletteMode ?? 'monochrome',
       backgroundImageType: 'designer',
       backgroundImageDesignerId: (template as any).designerId || template.id,
       designerCanvas: {
@@ -110,9 +110,8 @@ export function applyBackgroundImageTemplate(
   const applyPalette = customSettings?.applyPalette ?? true;
   const background: PageBackground = {
     type: 'image',
-    // Only set value when palette is not applied - when applyPalette is true,
-    // resolveBackgroundImageUrl will use backgroundImageId to generate palette-aware URL
-    value: applyPalette ? undefined : template.url,
+    // Keep a concrete fallback URL; palette-aware resolution can still use backgroundImageId.
+    value: template.url,
     opacity: resolvedOpacity,
     imageSize,
     imageRepeat,
@@ -413,11 +412,6 @@ export function resolveBackgroundImageUrl(
       };
       const match = background.value.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
       const urlEncodedMatch = background.value.match(/^data:image\/svg\+xml,(.+)$/);
-      console.log('[PDF Debug] SVG data URL format:', {
-        matchedBase64: !!match,
-        matchedUrlEncoded: !!urlEncodedMatch,
-        valueLength: background.value.length,
-      });
       if (match) {
         try {
           const binary = atob(match[1]);
@@ -431,18 +425,8 @@ export function resolveBackgroundImageUrl(
             : null;
           const paletteSlots = template?.paletteSlots;
 
-          console.log('[PDF Debug] SVG palette application:', {
-            rawSvgLength: rawSvg?.length ?? 0,
-            hasPaletteColors: !!paletteColors,
-            paletteColorsKeys: paletteColors ? Object.keys(paletteColors) : [],
-            containsPaletteTokens,
-            paletteSlots,
-            backgroundImageId: background.backgroundImageId,
-          });
-
           if (rawSvg && paletteColors) {
             const paletteMode = background.paletteMode ?? options?.paletteMode ?? 'monochrome';
-            let appliedBranch: string;
             let result: string | undefined;
 
             if (paletteMode === 'monochrome') {
@@ -452,7 +436,6 @@ export function resolveBackgroundImageUrl(
                 : getPageBackgroundColor(dataUrlOptions);
               if (toneColor) {
                 try {
-                  appliedBranch = 'monochrome';
                   const monoResult = applyMonochromeToneToSvg(rawSvg, toneColor, {
                     cacheKey: `${background.backgroundImageId || 'bg'}::data::mono`,
                     asDataUrl: true,
@@ -462,7 +445,6 @@ export function resolveBackgroundImageUrl(
                   if (monoResult?.startsWith('data:')) result = monoResult;
                 } catch (e) {
                   console.warn('[resolveBackgroundImageUrl] Monochrome processing failed, using auto fallback:', e);
-                  appliedBranch = 'monochrome-fallback-auto';
                   result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                     cacheKey: `${background.backgroundImageId || 'bg'}::data::auto::fallback`,
                     asDataUrl: true,
@@ -473,7 +455,6 @@ export function resolveBackgroundImageUrl(
                 }
               }
               if (!result) {
-                appliedBranch = 'monochrome-fallback-auto';
                 result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                   cacheKey: `${background.backgroundImageId || 'bg'}::data::auto::fallback`,
                   asDataUrl: true,
@@ -483,7 +464,6 @@ export function resolveBackgroundImageUrl(
                 });
               }
             } else if (paletteSlots === 'standard' && containsPaletteTokens) {
-              appliedBranch = 'standard+slots';
               result = applyPaletteSlotsToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageId || 'bg'}::data`,
                 asDataUrl: true,
@@ -492,7 +472,6 @@ export function resolveBackgroundImageUrl(
               paletteSlots === 'auto' ||
               (paletteSlots === 'standard' && !containsPaletteTokens)
             ) {
-              appliedBranch = 'auto';
               result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageId || 'bg'}::data::auto`,
                 asDataUrl: true,
@@ -501,13 +480,11 @@ export function resolveBackgroundImageUrl(
                 pageBackgroundColor: getPageBackgroundColor(dataUrlOptions),
               });
             } else if (containsPaletteTokens) {
-              appliedBranch = 'fallback-slots';
               result = applyPaletteSlotsToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageId || 'bg'}::data::fallback`,
                 asDataUrl: true,
               });
             } else {
-              appliedBranch = 'fallback-auto';
               result = applyAutoPaletteToSvg(rawSvg, paletteColors, {
                 cacheKey: `${background.backgroundImageId || 'bg'}::data::auto::fallback`,
                 asDataUrl: true,
@@ -515,15 +492,11 @@ export function resolveBackgroundImageUrl(
                 useBackgroundSlots: template?.useBackgroundSlots,
               });
             }
-            console.log('[PDF Debug] Palette applied via branch:', appliedBranch);
             return result;
           }
-          console.log('[PDF Debug] Skipped palette: no rawSvg or no paletteColors');
         } catch (e) {
           console.warn('[resolveBackgroundImageUrl] Failed to apply palette to data URL:', e);
         }
-      } else {
-        console.log('[PDF Debug] SVG base64 regex did not match – returning original value');
       }
     }
     return background.value;

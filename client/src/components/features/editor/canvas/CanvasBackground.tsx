@@ -650,13 +650,34 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           );
         }
 
-        const drawWidth = canvasWidth * transformScale;
-        const drawHeight = canvasHeight * transformScale;
+        let drawWidth = canvasWidth * transformScale;
+        let drawHeight = canvasHeight * transformScale;
+
+        if (background.imageSize === 'cover') {
+          const scaleX = canvasWidth / imageWidth;
+          const scaleY = canvasHeight / imageHeight;
+          const scale = Math.max(scaleX, scaleY);
+          drawWidth = imageWidth * scale * transformScale;
+          drawHeight = imageHeight * scale * transformScale;
+        } else if (background.imageSize === 'contain') {
+          const widthPercent = background.imageContainWidthPercent ?? 100;
+          const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
+          const scale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);
+          drawWidth = imageWidth * scale * transformScale;
+          drawHeight = imageHeight * scale * transformScale;
+        }
+
         const drawX = mirrorBackground ? offsetX + drawWidth + transformOffsetX : offsetX + transformOffsetX;
         const drawY = pageOffsetY + transformOffsetY;
 
         return (
-          <Group listening={false}>
+          <Group
+            listening={false}
+            clipX={offsetX}
+            clipY={pageOffsetY}
+            clipWidth={canvasWidth}
+            clipHeight={canvasHeight}
+          >
             <Rect
               x={offsetX}
               y={pageOffsetY}
@@ -819,13 +840,34 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
       );
     }
 
-    const drawWidth = canvasWidth * transformScale;
-    const drawHeight = canvasHeight * transformScale;
+    let drawWidth = canvasWidth * transformScale;
+    let drawHeight = canvasHeight * transformScale;
+
+    if (background.imageSize === 'cover') {
+      const scaleX = canvasWidth / imageWidth;
+      const scaleY = canvasHeight / imageHeight;
+      const scale = Math.max(scaleX, scaleY);
+      drawWidth = imageWidth * scale * transformScale;
+      drawHeight = imageHeight * scale * transformScale;
+    } else if (background.imageSize === 'contain') {
+      const widthPercent = background.imageContainWidthPercent ?? 100;
+      const widthRatio = Math.max(0.1, Math.min(2, widthPercent / 100));
+      const scale = Math.max(0.01, (canvasWidth * widthRatio) / imageWidth);
+      drawWidth = imageWidth * scale * transformScale;
+      drawHeight = imageHeight * scale * transformScale;
+    }
+
     const drawX = mirrorBackground ? offsetX + drawWidth + transformOffsetX : offsetX + transformOffsetX;
     const drawY = pageOffsetY + transformOffsetY;
 
     return (
-      <Group listening={false}>
+      <Group
+        listening={false}
+        clipX={offsetX}
+        clipY={pageOffsetY}
+        clipWidth={canvasWidth}
+        clipHeight={canvasHeight}
+      >
         <Rect
           x={offsetX}
           y={pageOffsetY}
