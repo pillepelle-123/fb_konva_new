@@ -67,7 +67,7 @@ function mapDesignerAssetRow(row) {
     storage: {
       filePath: row.file_path,
       thumbnailPath: row.thumbnail_path,
-      publicUrl: `/api/background-images/designer/assets/${row.file_path.replace(/^\/+/, '')}`,
+      publicUrl: `/api/background-images/designer/assets/${row.id}`,
       thumbnailUrl: `/api/background-images/designer/assets/${(row.thumbnail_path || row.file_path).replace(/^\/+/, '')}`,
     },
     uploadedBy: row.uploaded_by,
@@ -490,16 +490,16 @@ async function deleteDesignerImage(id) {
  */
 async function getDesignerAssets(id) {
   const designerImage = await getDesignerImage(id);
-  
+
   if (!designerImage || !designerImage.canvas.structure.items) {
     return [];
   }
 
   const assets = [];
-  
+
   for (const item of designerImage.canvas.structure.items) {
-    if (item.type === 'image' && item.uploadPath) {
-      assets.push(item.uploadPath);
+    if (item.type === 'image' && isUuid(item.assetId)) {
+      assets.push(item.assetId);
     }
   }
 
@@ -575,6 +575,7 @@ async function listDesignerImageAssets({ page = 1, pageSize = 100, search } = {}
 }
 
 async function createDesignerImageAsset({
+  id,
   fileName,
   filePath,
   thumbnailPath,
@@ -587,6 +588,7 @@ async function createDesignerImageAsset({
   const { rows } = await pool.query(
     `
       INSERT INTO background_image_designer_image_assets (
+        id,
         file_name,
         file_path,
         thumbnail_path,
@@ -596,13 +598,32 @@ async function createDesignerImageAsset({
         height,
         uploaded_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES (COALESCE($1::uuid, uuid_generate_v4()), $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `,
-    [fileName, filePath, thumbnailPath, mimeType, fileSizeBytes ?? null, width ?? null, height ?? null, uploadedBy ?? null],
+    [
+      id ?? null,
+      fileName,
+      filePath,
+      thumbnailPath,
+      mimeType,
+      fileSizeBytes ?? null,
+      width ?? null,
+      height ?? null,
+      uploadedBy ?? null,
+    ],
   );
 
   return mapDesignerAssetRow(rows[0]);
+}
+
+async function getDesignerImageAsset(assetId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM background_image_designer_image_assets WHERE id = $1 LIMIT 1`,
+    [assetId],
+  );
+
+  return rows.length ? mapDesignerAssetRow(rows[0]) : null;
 }
 
 async function deleteDesignerImageAsset(assetId) {
@@ -659,5 +680,6 @@ module.exports = {
   markAsGenerated,
   listDesignerImageAssets,
   createDesignerImageAsset,
+  getDesignerImageAsset,
   deleteDesignerImageAsset,
 };

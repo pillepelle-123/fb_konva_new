@@ -91,12 +91,11 @@ export function useDesignerCanvas(options: UseDesignerCanvasOptions = {}) {
    * Add new image item
    * Size parameters are absolute pixels, position is normalized (0-1)
    */
-  const addImageAsset = useCallback((uploadPath: string, width: number = 400, height: number = 400, assetId?: string) => {
+  const addImageAsset = useCallback((assetId: string, width: number = 400, height: number = 400) => {
     const newAsset: DesignerImageItem = {
       id: uuidv4(),
       type: 'image',
       assetId,
-      uploadPath,
       x: 0.1, // Normalized position
       y: 0.1, // Normalized position
       width, // Absolute pixels

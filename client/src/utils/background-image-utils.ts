@@ -520,7 +520,7 @@ export async function resolveDesignerAssetUrlWithPalette(
   if (!assetUrl) return assetUrl;
 
   const shouldApplyPalette = options?.applyPalette !== false;
-  if (!shouldApplyPalette || !isSvgSource(assetUrl)) {
+  if (!shouldApplyPalette) {
     return assetUrl;
   }
 
@@ -550,7 +550,10 @@ export async function resolveDesignerAssetUrlWithPalette(
     try {
       let rawSvg: string | null = null;
 
-      if (assetUrl.startsWith('data:image/svg+xml')) {
+      if (assetUrl.startsWith('data:')) {
+        if (!assetUrl.startsWith('data:image/svg+xml')) {
+          return assetUrl;
+        }
         const base64Match = assetUrl.match(/^data:image\/svg\+xml.*;base64,(.+)$/);
         const urlEncodedMatch = assetUrl.match(/^data:image\/svg\+xml,(.+)$/);
         if (base64Match) {
@@ -566,10 +569,29 @@ export async function resolveDesignerAssetUrlWithPalette(
         if (!response.ok) {
           return assetUrl;
         }
-        rawSvg = await response.text();
+
+        const contentType = response.headers.get('content-type')?.toLowerCase() || '';
+        const contentTypeLooksLikeSvg =
+          contentType.includes('image/svg+xml') ||
+          contentType.includes('text/xml') ||
+          contentType.includes('application/xml');
+
+        if (!contentTypeLooksLikeSvg) {
+          if (!contentType || contentType.includes('application/octet-stream') || contentType.startsWith('text/')) {
+            const maybeSvg = await response.text();
+            if (!isLikelySvgMarkup(maybeSvg)) {
+              return assetUrl;
+            }
+            rawSvg = maybeSvg;
+          } else {
+            return assetUrl;
+          }
+        } else {
+          rawSvg = await response.text();
+        }
       }
 
-      if (!rawSvg) {
+      if (!rawSvg || !isLikelySvgMarkup(rawSvg)) {
         return assetUrl;
       }
 
@@ -796,6 +818,11 @@ function isSvgSource(src: string): boolean {
   } catch {
     return /\.svg(\?|$)/i.test(src);
   }
+}
+
+function isLikelySvgMarkup(content: string): boolean {
+  if (!content) return false;
+  return /<svg[\s>]/i.test(content);
 }
 
 /**

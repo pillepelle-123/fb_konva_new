@@ -265,17 +265,8 @@ const readBlobAsDataUrl = (blob: Blob) =>
     reader.readAsDataURL(blob);
   });
 
-function normalizeDesignerAssetUrl(uploadPath: string): string {
-  if (!uploadPath) {
-    return uploadPath;
-  }
-
-  const match = uploadPath.match(/^\/uploads\/background-images\/(.+)$/);
-  if (match && match[1]) {
-    return `/api/background-images/designer/assets/${match[1]}`;
-  }
-
-  return uploadPath;
+function getDesignerAssetUrl(assetId: string): string {
+  return `/api/background-images/designer/assets/${encodeURIComponent(assetId)}`;
 }
 
 const updatePdfQrPending = (delta: number) => {
@@ -904,9 +895,11 @@ export function PDFRenderer({
               (async () => {
                 const src = item.type === 'image'
                   ? await (async () => {
+                      const baseSrc = item.resolvedSrc || getDesignerAssetUrl(item.assetId);
                       const resolverInput = {
                         itemId: item.id,
-                        uploadPathPrefix: typeof item.uploadPath === 'string' ? item.uploadPath.slice(0, 120) : String(item.uploadPath),
+                        assetId: item.assetId,
+                        srcPrefix: typeof baseSrc === 'string' ? baseSrc.slice(0, 120) : String(baseSrc),
                         applyPalette: applyPaletteToDesignerAssets,
                         designerApplyPaletteRaw: (background as any).designerApplyPalette,
                         paletteMode: background.paletteMode ?? 'monochrome',
@@ -916,7 +909,7 @@ export function PDFRenderer({
                       };
                       console.log('[PUPPETEER_BROWSER][DesignerAssetResolver][before]', JSON.stringify(resolverInput));
 
-                      const resolvedSrc = await resolveDesignerAssetUrlWithPalette(item.uploadPath, {
+                      const resolvedSrc = await resolveDesignerAssetUrlWithPalette(baseSrc, {
                         applyPalette: applyPaletteToDesignerAssets,
                         paletteMode: background.paletteMode ?? 'monochrome',
                         paletteId: pagePaletteId || undefined,
@@ -926,9 +919,10 @@ export function PDFRenderer({
 
                       console.log('[PUPPETEER_BROWSER][DesignerAssetResolver][after]', JSON.stringify({
                         itemId: item.id,
+                        assetId: item.assetId,
                         resolvedIsDataSvg: typeof resolvedSrc === 'string' && resolvedSrc.startsWith('data:image/svg+xml'),
                         resolvedPrefix: typeof resolvedSrc === 'string' ? resolvedSrc.slice(0, 120) : String(resolvedSrc),
-                        changed: resolvedSrc !== item.uploadPath,
+                        changed: resolvedSrc !== baseSrc,
                       }));
 
                       return resolvedSrc;
@@ -963,7 +957,7 @@ export function PDFRenderer({
                 console.error('[PDFRenderer] Failed to resolve designer background item image', {
                   itemId: item.id,
                   itemType: item.type,
-                  uploadPath: item.type === 'image' ? item.uploadPath : undefined,
+                  assetId: item.type === 'image' ? item.assetId : undefined,
                   error: error instanceof Error ? error.message : String(error),
                 });
                 resolve();

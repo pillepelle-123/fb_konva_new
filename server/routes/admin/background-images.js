@@ -126,6 +126,19 @@ router.post('/', async (req, res) => {
 
 router.post('/upload', upload.array('files'), async (req, res) => {
   const category = req.body?.category
+  let requestedSlugs = []
+
+  if (typeof req.body?.slugs === 'string') {
+    try {
+      const parsed = JSON.parse(req.body.slugs)
+      if (Array.isArray(parsed)) {
+        requestedSlugs = parsed.map((value) => String(value || ''))
+      }
+    } catch {
+      return res.status(400).json({ error: 'Invalid slugs payload' })
+    }
+  }
+
   if (!category) {
     return res.status(400).json({ error: 'category is required' })
   }
@@ -135,10 +148,11 @@ router.post('/upload', upload.array('files'), async (req, res) => {
 
   try {
     const items = await Promise.all(
-      req.files.map(async (file) => {
+      req.files.map(async (file, index) => {
         const stored = await saveBackgroundImageFile({
           category,
           originalName: file.originalname,
+          preferredName: requestedSlugs[index],
           buffer: file.buffer,
           mimetype: file.mimetype,
         })

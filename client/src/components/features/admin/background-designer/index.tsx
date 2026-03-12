@@ -234,7 +234,7 @@ export function BackgroundImageDesigner({ designerId, onCancel }: BackgroundImag
     const maxWidth = 300;
     const ratio = asset.width && asset.height ? asset.height / asset.width : 1;
     const height = Math.max(120, maxWidth * ratio);
-    designer.addImageAsset(asset.storage.publicUrl, maxWidth, height, asset.id);
+    designer.addImageAsset(asset.id, maxWidth, height);
   };
 
   const handleAddSticker = () => {

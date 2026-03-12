@@ -380,6 +380,7 @@ export default function BooksList() {
           )}
           <Button
             variant={filterBarOpen ? 'secondary' : 'outline'}
+            size="default"
             onClick={() => {
               if (filterBarOpen) {
                 filterBarRef.current?.style.setProperty('overflow', 'hidden');

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronsUpDown, Loader2, Plus, X } from 'lucide-react'
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '../index'
 import { cn } from '../../../lib/utils'
@@ -49,6 +49,34 @@ export function CreatableCombobox({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const triggerInputRef = useRef<HTMLInputElement>(null)
+  const triggerContainerRef = useRef<HTMLDivElement>(null)
+
+  const isEventFromTriggerArea = useCallback((event: unknown) => {
+    const eventTarget = (event as { target?: EventTarget | null })?.target
+    const originalEventTarget = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target
+    const node = (originalEventTarget ?? eventTarget) as Node | null
+
+    return !!(node && triggerContainerRef.current?.contains(node))
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      // Let popover mount first, then focus input and place caret at end.
+      const timeoutId = window.setTimeout(() => {
+        const input = triggerInputRef.current
+        if (input) {
+          input.focus()
+          const caretPosition = input.value.length
+          input.setSelectionRange(caretPosition, caretPosition)
+        }
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [open])
 
   const normalizedOptions = useMemo(() => {
     return options.map((option) => ({
@@ -115,44 +143,74 @@ export function CreatableCombobox({
     [onChange],
   )
 
+  const handleOptionsWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    // Keep wheel scrolling inside the options container instead of bubbling to parent layers.
+    event.stopPropagation()
+  }, [])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            'w-full justify-between',
-            !selectedOption && 'text-muted-foreground',
-            disabled && 'cursor-not-allowed opacity-70',
-            className,
-          )}
-        >
-          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-          <div className="flex items-center gap-1">
-            {allowClear && selectedOption ? (
-              <X
-                className="h-4 w-4 text-muted-foreground hover:text-foreground"
-                onClick={handleClear}
-                role="presentation"
-              />
-            ) : null}
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+      <div ref={triggerContainerRef} className={cn('relative', className)}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="default"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              'w-full justify-between',
+              !selectedOption && 'text-muted-foreground',
+              disabled && 'cursor-not-allowed opacity-70',
+              open && 'opacity-0 pointer-events-none',
+            )}
+          >
+            <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+            <div className="flex items-center gap-1">
+              {allowClear && selectedOption ? (
+                <X
+                  className="h-4 w-4 text-muted-foreground hover:text-foreground"
+                  onClick={handleClear}
+                  role="presentation"
+                />
+              ) : null}
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </div>
+          </Button>
+        </PopoverTrigger>
+        {open && (
+          <div className="absolute inset-0 z-[10003]">
+            <Input
+              ref={triggerInputRef}
+              placeholder={inputPlaceholder}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-9"
+            />
           </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-2 z-[10002]" align="start">
-        <div className="space-y-2">
-          <Input
-            placeholder={inputPlaceholder}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            autoFocus
-          />
-          <div className="max-h-64 overflow-auto rounded-md border bg-background">
+        )}
+      </div>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0 pt-1 z-[10002] border-0 shadow-none"
+        align="start"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onFocusOutside={(event) => {
+          if (isEventFromTriggerArea(event)) {
+            event.preventDefault()
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (isEventFromTriggerArea(event)) {
+            event.preventDefault()
+          }
+        }}
+      >
+        <div className="space-y-2 border-0 shadow-none">
+          <div
+            className="max-h-64 overflow-y-auto rounded-md border bg-background"
+            onWheelCapture={handleOptionsWheel}
+          >
             {filteredOptions.length > 0 || showCreateOption ? (
               <ul className="py-1">
                 {filteredOptions.map((option) => {

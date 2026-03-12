@@ -22,7 +22,7 @@ export interface DesignerRenderMapped {
 }
 
 export type DesignerRenderItem =
-  | ({ type: 'image' } & DesignerRenderItemBase & Pick<DesignerImageItem, 'uploadPath' | 'aspectRatioLocked'>)
+  | ({ type: 'image' } & DesignerRenderItemBase & Pick<DesignerImageItem, 'assetId' | 'aspectRatioLocked'> & { resolvedSrc?: string })
   | ({ type: 'text' } & DesignerRenderItemBase & Pick<DesignerTextItem, 'text' | 'fontFamily' | 'fontSize' | 'fontBold' | 'fontItalic' | 'fontColor' | 'fontOpacity' | 'textAlign'>)
   | ({ type: 'sticker' } & DesignerRenderItemBase & Pick<DesignerStickerItem, 'stickerId' | 'stickerColor'>);
 
@@ -117,10 +117,16 @@ function mapItemToPage(
   };
 
   if (item.type === 'image') {
+    if (!item.assetId) {
+      return null;
+    }
     return {
       ...base,
       type: 'image',
-      uploadPath: item.uploadPath,
+      assetId: item.assetId,
+      resolvedSrc: typeof (item as { resolvedSrc?: unknown }).resolvedSrc === 'string'
+        ? (item as { resolvedSrc: string }).resolvedSrc
+        : undefined,
       aspectRatioLocked: item.aspectRatioLocked,
     };
   }

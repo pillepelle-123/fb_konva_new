@@ -656,7 +656,12 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
                 return item;
               }
 
-              const dataUrl = await designerAssetPathToDataUrlWithPalette(item.uploadPath, paletteOptions);
+              if (!item.assetId || typeof item.assetId !== 'string') {
+                unresolvedAssetCount += 1;
+                return item;
+              }
+
+              const dataUrl = await designerAssetIdToDataUrlWithPalette(item.assetId, paletteOptions);
               if (dataUrl) {
                 inlinedAssetCount += 1;
               } else {
@@ -666,7 +671,7 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
                 ...item,
                 // Keep live rendering branch, but avoid protected endpoint fetches (403)
                 // by embedding local asset files directly.
-                uploadPath: dataUrl || normalizeDesignerAssetUrl(item.uploadPath),
+                resolvedSrc: dataUrl || getDesignerAssetUrlById(item.assetId),
               };
             }))
           : [],
@@ -702,92 +707,54 @@ async function enrichDesignerCanvasForLiveDesignerExport(bookData, exportOptions
   };
 }
 
-function normalizeDesignerAssetUrl(uploadPath) {
-  if (!uploadPath || typeof uploadPath !== 'string') {
-    return uploadPath;
-  }
+const designerAssetRowCache = new Map();
 
-  const relativePath = resolveDesignerAssetRelativePath(uploadPath);
-  if (relativePath) {
-    return `/api/background-images/designer/assets/${relativePath}`;
+function getDesignerAssetUrlById(assetId) {
+  if (!assetId || typeof assetId !== 'string') {
+    return null;
   }
-
-  return uploadPath;
+  return `/api/background-images/designer/assets/${encodeURIComponent(assetId)}`;
 }
 
-function designerAssetPathToDataUrl(uploadPath) {
-  if (!uploadPath || typeof uploadPath !== 'string') {
+async function getDesignerAssetRowById(assetId) {
+  if (!assetId || typeof assetId !== 'string') {
     return null;
   }
 
-  const fullPath = resolveDesignerAssetAbsolutePath(uploadPath);
-  if (!fullPath) {
-    return null;
+  if (designerAssetRowCache.has(assetId)) {
+    return designerAssetRowCache.get(assetId);
   }
 
-  return fileToDataUrl(fullPath);
+  const result = await pool.query(
+    `SELECT id, file_path FROM background_image_designer_image_assets WHERE id = $1 LIMIT 1`,
+    [assetId],
+  );
+  const row = result.rows.length ? result.rows[0] : null;
+  designerAssetRowCache.set(assetId, row);
+  return row;
 }
 
-function decodePathComponent(value) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function resolveDesignerAssetRelativePath(uploadPath) {
-  if (!uploadPath || typeof uploadPath !== 'string') {
+async function resolveDesignerAssetAbsolutePathById(assetId) {
+  const assetRow = await getDesignerAssetRowById(assetId);
+  if (!assetRow?.file_path) {
     return null;
   }
 
-  let pathValue = uploadPath.trim();
-  if (!pathValue) {
-    return null;
-  }
-
-  if (/^https?:\/\//i.test(pathValue)) {
-    try {
-      pathValue = new URL(pathValue).pathname || '';
-    } catch {
-      // Ignore URL parse errors and continue with the original value.
-    }
-  }
-
-  pathValue = pathValue.split('#')[0].split('?')[0];
-
-  const apiMatch = pathValue.match(/^\/?api\/background-images\/designer\/assets\/(.+)$/i);
-  const uploadsMatch = pathValue.match(/^\/?uploads\/background-images\/(.+)$/i);
-
-  if (apiMatch && apiMatch[1]) {
-    return decodePathComponent(apiMatch[1]).replace(/^\/+/, '');
-  }
-  if (uploadsMatch && uploadsMatch[1]) {
-    return decodePathComponent(uploadsMatch[1]).replace(/^\/+/, '');
-  }
-
-  const rawPath = decodePathComponent(pathValue.replace(/^\/+/, ''));
-  if (
-    rawPath.startsWith('_designer/') ||
-    rawPath.startsWith('designer/') ||
-    rawPath.startsWith('_image_assets/')
-  ) {
-    return rawPath;
-  }
-
-  return null;
-}
-
-function resolveDesignerAssetAbsolutePath(uploadPath) {
-  const relativePath = resolveDesignerAssetRelativePath(uploadPath);
-  if (!relativePath) {
-    return null;
-  }
+  const relativePath = String(assetRow.file_path).replace(/^\/+/, '');
   const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relativePath));
   if (!isPathWithinUploads(fullPath)) {
     return null;
   }
   return fullPath;
+}
+
+async function designerAssetIdToDataUrl(assetId) {
+  const fullPath = await resolveDesignerAssetAbsolutePathById(assetId);
+  if (!fullPath) {
+    return null;
+  }
+
+  return fileToDataUrl(fullPath);
 }
 
 function normalizeHexColor(value) {
@@ -1097,29 +1064,8 @@ function applyMonochromeToneToSvgServer(svgContent, targetColor, options = {}) {
   return svgStringToDataUrl(processed);
 }
 
-async function designerAssetPathToDataUrlWithPalette(uploadPath, paletteOptions = {}) {
-  if (typeof uploadPath === 'string' && /^data:image\/svg\+xml/i.test(uploadPath)) {
-    const embeddedSvg = svgDataUrlToString(uploadPath);
-    if (!embeddedSvg) {
-      return uploadPath;
-    }
-
-    const shouldApplyPalette = paletteOptions.applyPalette !== false;
-    if (!shouldApplyPalette || (paletteOptions.paletteMode && paletteOptions.paletteMode !== 'monochrome')) {
-      return svgStringToDataUrl(embeddedSvg);
-    }
-
-    const targetColor =
-      paletteOptions.backgroundColorOverride ||
-      paletteOptions.toneColor ||
-      '#ffffff';
-    return applyMonochromeToneToSvgServer(embeddedSvg, targetColor, {
-      edgeBackgroundColor: paletteOptions.backgroundColorOverride,
-      pageBackgroundColor: paletteOptions.pageBackgroundColor,
-    });
-  }
-
-  const fullPath = resolveDesignerAssetAbsolutePath(uploadPath);
+async function designerAssetIdToDataUrlWithPalette(assetId, paletteOptions = {}) {
+  const fullPath = await resolveDesignerAssetAbsolutePathById(assetId);
   if (!fullPath) {
     return null;
   }
@@ -1176,9 +1122,10 @@ function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, tar
       const opacity = Math.max(0, Math.min(1, toFiniteNumber(item?.opacity, 1)));
 
       if (item?.type === 'image') {
-        const normalizedSrc =
-          designerAssetPathToDataUrl(item.uploadPath) ||
-          normalizeDesignerAssetUrl(item.uploadPath);
+        const normalizedSrc = item.resolvedSrc || getDesignerAssetUrlById(item.assetId);
+        if (!normalizedSrc) {
+          return null;
+        }
         return {
           id: item.id || `designer-image-${index}`,
           type: 'image',
@@ -1573,6 +1520,7 @@ async function validateExportAssets(bookData, userId, isAdmin = false) {
   const checkedImageIds = new Set();
   const checkedStickerSlugs = new Set();
   const checkedBgImageIds = new Set();
+  const checkedDesignerAssetIds = new Set();
 
   // Check all element images and stickers across all pages
   for (const page of bookData.pages || []) {
@@ -1624,6 +1572,26 @@ async function validateExportAssets(bookData, userId, isAdmin = false) {
     const designerPayload = extractDesignerCanvasPayload(page.background);
     if (designerPayload?.structure?.items) {
       for (const item of designerPayload.structure.items) {
+        if (item.type === 'image') {
+          const assetId = typeof item.assetId === 'string' ? item.assetId : '';
+          if (!assetId) {
+            const errorMsg = isAdmin
+              ? `Designer image assetId missing (${pageInfo})`
+              : 'Designer image asset missing on one of your pages';
+            throw new Error(errorMsg);
+          }
+          if (!checkedDesignerAssetIds.has(assetId)) {
+            checkedDesignerAssetIds.add(assetId);
+            const assetResult = await backgroundImageDesignerService.getDesignerImageAsset(assetId);
+            if (!assetResult) {
+              const errorMsg = isAdmin
+                ? `Designer image asset not found: ${assetId} (${pageInfo})`
+                : 'Designer image asset not found on one of your pages';
+              throw new Error(errorMsg);
+            }
+          }
+        }
+
         if (item.type === 'sticker' && item.stickerId && !checkedStickerSlugs.has(item.stickerId)) {
           checkedStickerSlugs.add(item.stickerId);
           const stickerResult = await stickersService.getSticker(item.stickerId);
@@ -1641,7 +1609,8 @@ async function validateExportAssets(bookData, userId, isAdmin = false) {
   console.log('[PDF Export] Asset validation passed:', {
     imageCount: checkedImageIds.size,
     stickerCount: checkedStickerSlugs.size,
-    backgroundImageCount: checkedBgImageIds.size
+    backgroundImageCount: checkedBgImageIds.size,
+    designerImageAssetCount: checkedDesignerAssetIds.size,
   });
 }
 

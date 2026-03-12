@@ -39,35 +39,11 @@ function getSafeSvgExt(originalName = '') {
   return ext === '.svg' ? '.svg' : '.svg';
 }
 
-function normalizeDesignerAssetUrl(uploadPath) {
-  if (!uploadPath || typeof uploadPath !== 'string') {
-    return uploadPath;
+function getDesignerAssetUrl(assetId) {
+  if (!assetId || typeof assetId !== 'string') {
+    return null;
   }
-
-  // SVGs are rendered natively in the PDF renderer (like stickers).
-  // No format conversion needed – assets are served as-is.
-
-  const uploadsMatch = uploadPath.match(/^https?:\/\/[^/]+\/uploads\/background-images\/(.+)$/i)
-    || uploadPath.match(/^\/uploads\/background-images\/(.+)$/i);
-
-  if (uploadsMatch && uploadsMatch[1]) {
-    return `/api/background-images/designer/assets/${uploadsMatch[1]}`;
-  }
-
-  const rawPath = uploadPath.replace(/^\/+/u, '');
-  if (
-    rawPath.startsWith('_designer/')
-    || rawPath.startsWith('designer/')
-    || rawPath.startsWith('_image_assets/')
-  ) {
-    return `/api/background-images/designer/assets/${rawPath}`;
-  }
-
-  if (/^\/api\/background-images\/designer\/assets\//i.test(uploadPath)) {
-    return uploadPath;
-  }
-
-  return uploadPath;
+  return `/api/background-images/designer/assets/${encodeURIComponent(assetId)}`;
 }
 
 function toFiniteNumber(value, fallback = 0) {
@@ -103,7 +79,10 @@ function mapDesignerCanvasToRenderableElements(canvasStructure, targetWidth, tar
       const opacity = Math.max(0, Math.min(1, toFiniteNumber(item?.opacity, 1)));
 
       if (item?.type === 'image') {
-        const normalizedSrc = normalizeDesignerAssetUrl(item.uploadPath);
+        const normalizedSrc = getDesignerAssetUrl(item.assetId);
+        if (!normalizedSrc) {
+          return null;
+        }
         return {
           id: item.id || `designer-image-${index}`,
           type: 'image',
@@ -391,9 +370,9 @@ router.post('/assets/upload', upload.single('file'), async (req, res) => {
     await fs.mkdir(assetsDir, { recursive: true });
     await fs.mkdir(thumbsDir, { recursive: true });
 
-    const fileId = randomUUID();
-    const mainFileName = `${fileId}${ext}`;
-    const thumbFileName = `${fileId}_thumb${ext}`;
+    const assetId = randomUUID();
+    const mainFileName = `${assetId}${ext}`;
+    const thumbFileName = `${assetId}_thumb${ext}`;
 
     const mainAbsolutePath = path.join(assetsDir, mainFileName);
     const thumbAbsolutePath = path.join(thumbsDir, thumbFileName);
@@ -411,6 +390,7 @@ router.post('/assets/upload', upload.single('file'), async (req, res) => {
     }
 
     const createdAsset = await designerService.createDesignerImageAsset({
+      id: assetId,
       fileName: originalName,
       filePath: `_image_assets/${mainFileName}`,
       thumbnailPath,

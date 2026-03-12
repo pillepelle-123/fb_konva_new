@@ -30,6 +30,7 @@ export function Select({ value: controlledValue, onValueChange, defaultValue, ch
   const [internalValue, setInternalValue] = useState(defaultValue || '');
   const [open, setOpen] = useState(false);
   const [itemLabels, setItemLabels] = useState<Map<string, string>>(new Map());
+  const wrapperRef = useRef<HTMLDivElement>(null);
   
   const isControlled = controlledValue !== undefined;
   const value = isControlled ? controlledValue : internalValue;
@@ -56,9 +57,33 @@ export function Select({ value: controlledValue, onValueChange, defaultValue, ch
       ? new Map(Object.entries(itemTooltips))
       : undefined;
 
+  // Handle click outside to close the select
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener('click', handleClickOutside, true); // Use capture phase
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('click', handleClickOutside, true);
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }
+  }, [open]);
+
   return (
     <SelectContext.Provider value={{ value, onValueChange: handleValueChange, open, setOpen, itemLabels, registerItem, showInfoIcons, itemTooltips: tooltipsMap }}>
-      <div className="relative min-w-0">
+      <div className="relative min-w-0" ref={wrapperRef}>
         {children}
       </div>
     </SelectContext.Provider>
@@ -117,12 +142,6 @@ export function SelectContent({ className, children, position = 'popper' }: Sele
   const { open, setOpen } = context;
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setOpen(false);
@@ -130,10 +149,8 @@ export function SelectContent({ className, children, position = 'popper' }: Sele
     }
 
     if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscape);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('keydown', handleEscape);
       };
     }

@@ -3,6 +3,8 @@ import { Button } from '../../../ui/primitives/button';
 import { Search, Image as ImageIcon } from 'lucide-react';
 import { Label } from '../../../ui/primitives/label';
 import { Separator } from '../../../ui/primitives/separator';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../../ui/primitives/select';
+import { Input } from '../../../ui/primitives/input';
 import { 
   getBackgroundImageCategories,
   searchBackgroundImages,
@@ -19,7 +21,7 @@ interface BackgroundImageSelectorProps {
   onImageSelect?: (imageId: string | null) => void;
 }
 
-export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
+export function BackgroundImageSelector({ onUpload, selectedImageId, onImageSelect }: BackgroundImageSelectorProps) {
   const { state } = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<BackgroundImageCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<'vector' | 'pixel' | 'all'>('all');
@@ -34,7 +36,17 @@ export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedIma
   }, [selectedImageId, selectedImage]);
 
   const categories = getBackgroundImageCategories();
-  const allImages = getBackgroundImagesWithUrl();
+  const allImages = useMemo(() => {
+    const seen = new Set<string>();
+
+    return getBackgroundImagesWithUrl().filter((image) => {
+      if (seen.has(image.id)) {
+        return false;
+      }
+      seen.add(image.id);
+      return true;
+    });
+  }, []);
 
   // Filter images based on category, format, and search
   const filteredImages = useMemo(() => {
@@ -101,14 +113,13 @@ export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedIma
       )}
 
       {/* Search */}
-      <div className="relative flex-shrink-0">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
+      <div className="flex-shrink-0">
+        <Input
+          icon={<Search className="h-4 w-4" />}
           type="text"
           placeholder="Search images..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm"
         />
       </div>
 
@@ -117,30 +128,38 @@ export function BackgroundImageSelector({ onBack: _onBack, onUpload, selectedIma
         {/* Category Filter */}
         <div className="flex-1 min-w-[150px]">
           <Label variant="xs" className="mb-1 block">Category</Label>
-          <select
+          <Select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value as BackgroundImageCategory | 'all')}
-            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"
+            onValueChange={(value) => setSelectedCategory(value as BackgroundImageCategory | 'all')}
           >
-            <option value="all">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map(cat => (
+                <SelectItem key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Format Filter */}
         <div className="flex-1 min-w-[120px]">
           <Label variant="xs" className="mb-1 block">Format</Label>
-          <select
+          <Select
             value={selectedFormat}
-            onChange={(e) => setSelectedFormat(e.target.value as 'vector' | 'pixel' | 'all')}
-            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"
+            onValueChange={(value) => setSelectedFormat(value as 'vector' | 'pixel' | 'all')}
           >
-            <option value="all">All Formats</option>
-            <option value="vector">Vector (SVG)</option>
-            <option value="pixel">Pixel (PNG/JPG)</option>
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="All Formats" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Formats</SelectItem>
+              <SelectItem value="vector">Vector (SVG)</SelectItem>
+              <SelectItem value="pixel">Pixel (PNG/JPG)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

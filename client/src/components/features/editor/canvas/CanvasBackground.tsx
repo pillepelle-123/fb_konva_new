@@ -576,7 +576,13 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
           const finalHeight = scaledImageHeight * transformScale;
 
           return (
-            <Group listening={false}>
+            <Group
+              listening={false}
+              clipX={offsetX}
+              clipY={pageOffsetY}
+              clipWidth={canvasWidth}
+              clipHeight={canvasHeight}
+            >
               <Rect
                 x={offsetX}
                 y={pageOffsetY}
@@ -787,7 +793,13 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({
 
         // Background color layer behind the image (visible in transparent SVG areas)
         return (
-          <Group listening={false}>
+          <Group
+            listening={false}
+            clipX={offsetX}
+            clipY={pageOffsetY}
+            clipWidth={canvasWidth}
+            clipHeight={canvasHeight}
+          >
             <Rect
               x={offsetX}
               y={pageOffsetY}

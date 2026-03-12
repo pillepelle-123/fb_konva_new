@@ -1,4 +1,5 @@
-import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import {
   Button,
   Dialog,
@@ -29,7 +30,7 @@ interface UploadBackgroundImagesDialogProps {
   categories: AdminBackgroundImageCategory[]
   onOpenChange: (open: boolean) => void
   onCreateCategory: (label: string) => Promise<AdminBackgroundImageCategory>
-  onUploadFiles: (params: { category: string; files: File[] }) => Promise<
+  onUploadFiles: (params: { category: string; files: File[]; slugs: string[] }) => Promise<
     {
       originalName: string
       storage: {
@@ -132,7 +133,7 @@ export function UploadBackgroundImagesDialog({
     if (!fileList || fileList.length === 0) return
 
     const files = Array.from(fileList)
-    const nextItems = files.map((file, index) => {
+    const nextItems: UploadItemState[] = files.map((file, index) => {
       const originalName = file.name.replace(/\.[^.]+$/, '')
       const extensionMatch = /\.([0-9a-z]+)$/i.exec(file.name)
       const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'svg'
@@ -207,7 +208,11 @@ export function UploadBackgroundImagesDialog({
 
     setIsSubmitting(true)
     try {
-      const uploadResults = await onUploadFiles({ category: categorySlug, files })
+      const uploadResults = await onUploadFiles({
+        category: categorySlug,
+        files,
+        slugs: items.map((item) => item.slug),
+      })
       if (!uploadResults || uploadResults.length !== items.length) {
         throw new Error('Upload response mismatch')
       }
@@ -259,7 +264,7 @@ export function UploadBackgroundImagesDialog({
         <DialogHeader>
           <DialogTitle>Add background images</DialogTitle>
           <DialogDescription>
-            Upload new SVGs, set category and default values. Files are stored locally.
+            Upload new images, set category and default values. Files are stored locally and thumbnails are generated automatically.
           </DialogDescription>
         </DialogHeader>
 

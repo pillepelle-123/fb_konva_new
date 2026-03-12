@@ -137,6 +137,45 @@ router.get('/designer/:identifier', async (req, res) => {
   }
 })
 
+router.get('/designer/assets/:assetId', requireAppOrigin, async (req, res) => {
+  try {
+    const asset = await backgroundImageDesignerService.getDesignerImageAsset(req.params.assetId)
+    if (!asset || !asset.storage?.filePath) {
+      return res.status(404).json({ error: 'Designer asset not found' })
+    }
+
+    const relativePath = String(asset.storage.filePath).replace(/^\/+/, '')
+    if (!relativePath) {
+      return res.status(404).json({ error: 'Designer asset not found' })
+    }
+
+    const fullPath = path.resolve(path.join(getUploadsSubdir('background-images'), relativePath))
+    if (!isPathWithinUploads(fullPath)) {
+      return res.status(403).json({ error: 'Invalid file path' })
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Designer asset not found' })
+    }
+
+    const ext = path.extname(fullPath).toLowerCase()
+    const mimeTypes = {
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp'
+    }
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream')
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+    res.sendFile(fullPath)
+  } catch (error) {
+    console.error('Error serving designer asset file by id:', error)
+    res.status(500).json({ error: 'Failed to load designer asset' })
+  }
+})
+
 router.get('/designer/assets/*', requireAppOrigin, async (req, res) => {
   try {
     const relativePath = (req.params[0] || '').replace(/^\/+/, '')

@@ -4,6 +4,7 @@ import { Button } from '../../../ui/primitives/button';
 import { StepContainer } from '../shared/step-container';
 import { FormField } from '../../../ui/layout/form-field';
 import { Checkbox } from '../../../ui/primitives/checkbox';
+import { Input } from '../../../ui/primitives/input';
 import { Label } from '../../../ui/primitives/label';
 import { BOOK_ORIENTATIONS, BOOK_PAGE_DIMENSIONS, type BookOrientation, type BookPageSize } from '../../../../constants/book-formats';
 import type { WizardState } from './types';
@@ -122,12 +123,8 @@ export function BasicInfoStep({
           <div className="flex flex-col w-5/6">
             <div className="md:col-span-2">
               <FormField label="Book name">
-                <input
-                  className={`w-full rounded-md border bg-background px-3 py-2 text-sm transition-all ${
-                    !hasBookName 
-                      ? 'border-input animate-pulse-input' 
-                      : 'border-input'
-                  }`}
+                <Input
+                  className={`w-full transition-all ${!hasBookName ? 'animate-pulse-input' : ''}`}
                   value={wizardState.basic.name}
                   onChange={(e) => onChange({ name: e.target.value })}
                   placeholder="E.g. Class of 2025"

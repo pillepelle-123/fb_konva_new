@@ -346,7 +346,7 @@ const MultipleSelector = ({
     const Item = (
       <CommandItem
         value={inputValue}
-        className="cursor-pointer"
+        className="cursor-pointer [&:hover]:bg-secondary [&:hover]:text-accent-foreground"
         onMouseDown={e => {
           e.preventDefault()
           e.stopPropagation()
@@ -424,7 +424,7 @@ const MultipleSelector = ({
     >
       <div
         className={cn(
-          'border-input focus-within:border-ring focus-within:ring-ring/50 has-aria-invalid:ring-destructive/20 dark:has-aria-invalid:ring-destructive/40 has-aria-invalid:border-destructive relative h-8 min-h-8 rounded-md border text-sm transition-[color,box-shadow] outline-none focus-within:ring-[3px] has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 flex items-center',
+          'border-input focus-within:border-[hsl(var(--border))] focus-within:ring-[hsl(var(--border))] has-aria-invalid:ring-destructive/20 dark:has-aria-invalid:ring-destructive/40 has-aria-invalid:border-destructive relative h-8 min-h-8 rounded-md border text-sm transition-[color,box-shadow] outline-none focus-within:ring-2 focus-within:ring-offset-2 has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 flex items-center',
           {
             'p-1': selected.length !== 0,
             'cursor-text': !disabled && selected.length !== 0
@@ -582,6 +582,7 @@ const MultipleSelector = ({
                               }}
                               className={cn(
                                 'cursor-pointer',
+                                !option.disable && '[&:hover]:bg-secondary [&:hover]:text-accent-foreground',
                                 option.disable && 'pointer-events-none cursor-not-allowed opacity-50'
                               )}
                             >

@@ -42,17 +42,8 @@ function getStickerUrl(stickerId: string): string | undefined {
   return `/api/stickers/${stickerId}/file`;
 }
 
-function normalizeDesignerAssetUrl(uploadPath: string): string {
-  if (!uploadPath) {
-    return uploadPath;
-  }
-
-  const match = uploadPath.match(/^\/uploads\/background-images\/(.+)$/);
-  if (match && match[1]) {
-    return `/api/background-images/designer/assets/${match[1]}`;
-  }
-
-  return uploadPath;
+function getDesignerAssetUrl(assetId: string): string {
+  return `/api/background-images/designer/assets/${encodeURIComponent(assetId)}`;
 }
 
 export function DesignerCanvas({
@@ -464,14 +455,17 @@ export function DesignerCanvas({
               switch (asset.type) {
                 case 'image': {
                   const imageAsset = asset as DesignerAssetAbsolute & {
-                    uploadPath: string;
+                    assetId: string;
                     aspectRatioLocked?: boolean;
                   };
+                  if (!imageAsset.assetId) {
+                    return null;
+                  }
                   return (
                     <DesignerBackgroundImageNode
                       key={asset.id}
                       id={asset.id}
-                      src={normalizeDesignerAssetUrl(imageAsset.uploadPath)}
+                      src={getDesignerAssetUrl(imageAsset.assetId)}
                       x={asset.x + pageOffsetX}
                       y={asset.y + pageOffsetY}
                       width={asset.width}

@@ -178,7 +178,7 @@ export default function Navigation() {
               <>
                 <Button
                   variant={isActive('/dashboard') ? "secondary" : "ghost"}
-                  size="sm"
+                  size="default"
                   onClick={(e) => handleNavigation('/dashboard', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/dashboard') 
@@ -192,7 +192,7 @@ export default function Navigation() {
                 
                 <Button
                   variant={isActive('/books') ? "secondary" : "ghost"}
-                  size="sm"
+                  size="default"
                   onClick={(e) => handleNavigation('/books', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/books') 
@@ -206,7 +206,7 @@ export default function Navigation() {
 
                 <Button
                   variant={isActive('/books/create') ? "secondary" : "ghost"}
-                  size="sm"
+                  size="default"
                   onClick={(e) => handleNavigation('/books/create', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/books/create')
@@ -220,7 +220,7 @@ export default function Navigation() {
                 
                 <Button
                   variant={isActive('/images') ? "secondary" : "ghost"}
-                  size="sm"
+                  size="default"
                   onClick={(e) => handleNavigation('/images', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/images') 
@@ -234,7 +234,7 @@ export default function Navigation() {
                 
                 <Button
                   variant={isActive('/friends') ? "secondary" : "ghost"}
-                  size="sm"
+                  size="default"
                   onClick={(e) => handleNavigation('/friends', e)}
                   className={`flex items-center space-x-2 ${
                     isActive('/friends') 
@@ -251,7 +251,7 @@ export default function Navigation() {
                 <Link to="/">
                   <Button
                     variant={isActive('/') ? "secondary" : "ghost"}
-                    size="sm"
+                    size="default"
                     className={`flex items-center space-x-2 ${
                       isActive('/') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
@@ -265,7 +265,7 @@ export default function Navigation() {
                 <Link to="/login">
                   <Button
                     variant={isActive('/login') ? "secondary" : "ghost"}
-                    size="sm"
+                    size="default"
                     className={`flex items-center space-x-2 ${
                       isActive('/login') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
@@ -279,7 +279,7 @@ export default function Navigation() {
                 <Link to="/register">
                   <Button
                     variant={isActive('/register') ? "secondary" : "ghost"}
-                    size="sm"
+                    size="default"
                     className={`flex items-center space-x-2 ${
                       isActive('/register') 
                         ? 'bg-white text-primary hover:bg-white/90 hover:text-primary' 
@@ -302,11 +302,11 @@ export default function Navigation() {
                 <div className="relative shrink-0">
                   <Button
                     ref={desktopNotificationButtonRef}
-                    variant="ghost"
+                    variant="ghost_hover"
                     size="sm"
                     className={`relative p-2 shrink-0 text-white hover:text-white ${
                       notificationOpen ? 'bg-white/10 hover:bg-white/10' : 'hover:bg-transparent'
-                    }`}
+                    } hover:bg-white/10`}
                     onClick={() => setNotificationOpen(!notificationOpen)}
                   >
                     <Bell className="h-5 w-5" />

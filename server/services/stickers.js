@@ -28,23 +28,83 @@ function slugify(value, fallback = 'sticker') {
   return base.length > 0 ? base : fallback
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function normalizeIdentifier(identifier) {
+  if (identifier === null || identifier === undefined) return ''
+  return String(identifier).trim()
+}
+
+function isUuidLike(identifier) {
+  return UUID_REGEX.test(normalizeIdentifier(identifier))
+}
+
+async function isSlugReserved(baseSlug, excludeId) {
+  const { rows: directRows } = await pool.query(
+    `
+      SELECT id
+      FROM stickers
+      WHERE LOWER(slug) = LOWER($1)
+        AND ($2::uuid IS NULL OR id <> $2::uuid)
+      LIMIT 1
+    `,
+    [baseSlug, excludeId || null],
+  )
+
+  if (directRows.length > 0) {
+    return true
+  }
+
+  try {
+    const { rows: historyRows } = await pool.query(
+      `
+        SELECT sticker_id
+        FROM sticker_slug_history
+        WHERE LOWER(slug) = LOWER($1)
+          AND ($2::uuid IS NULL OR sticker_id <> $2::uuid)
+        LIMIT 1
+      `,
+      [baseSlug, excludeId || null],
+    )
+    return historyRows.length > 0
+  } catch (error) {
+    if (error.code === '42P01') {
+      return false
+    }
+    throw error
+  }
+}
+
+async function upsertStickerSlugHistory(stickerId, slug) {
+  if (!stickerId || !slug) return
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO sticker_slug_history (sticker_id, slug)
+        VALUES ($1, $2)
+        ON CONFLICT (sticker_id, slug) DO NOTHING
+      `,
+      [stickerId, slug],
+    )
+  } catch (error) {
+    if (error.code !== '42P01') {
+      throw error
+    }
+  }
+}
+
+function logStickerIdentifierFallback(message, details) {
+  console.warn('[stickers][identifier-fallback]', message, details)
+}
+
 async function ensureUniqueSlug(baseSlug, excludeId) {
   let attempt = 0
   let candidate = baseSlug
 
   while (true) {
-    const { rows } = await pool.query(
-      `
-        SELECT 1
-        FROM stickers
-        WHERE slug = $1
-        ${excludeId ? 'AND id <> $2' : ''}
-        LIMIT 1
-      `,
-      excludeId ? [candidate, excludeId] : [candidate],
-    )
-
-    if (rows.length === 0) {
+    const slugReserved = await isSlugReserved(candidate, excludeId)
+    if (!slugReserved) {
       return candidate
     }
 
@@ -247,23 +307,75 @@ async function listStickers({
 }
 
 async function getSticker(identifier) {
-  const isUuid = /^[0-9a-f-]{36}$/i.test(identifier)
-  const { rows } = await pool.query(
-    `
-      SELECT
-        s.*,
-        c.name AS category_name,
-        c.slug AS category_slug,
-        c.created_at AS category_created_at,
-        c.updated_at AS category_updated_at
-      FROM stickers s
-      JOIN sticker_categories c ON c.id = s.category_id
-      WHERE ${isUuid ? 's.id = $1' : 's.slug = $1'}
-      LIMIT 1
-    `,
-    [identifier],
-  )
-  return rows.length ? mapStickerRow(rows[0]) : null
+  const normalizedIdentifier = normalizeIdentifier(identifier)
+  if (!normalizedIdentifier) return null
+
+  const fetchOne = async (whereClause, value) => {
+    const { rows } = await pool.query(
+      `
+        SELECT
+          s.*,
+          c.name AS category_name,
+          c.slug AS category_slug,
+          c.created_at AS category_created_at,
+          c.updated_at AS category_updated_at
+        FROM stickers s
+        JOIN sticker_categories c ON c.id = s.category_id
+        WHERE ${whereClause}
+        LIMIT 1
+      `,
+      [value],
+    )
+    return rows.length ? rows[0] : null
+  }
+
+  if (isUuidLike(normalizedIdentifier)) {
+    const idRow = await fetchOne('s.id = $1', normalizedIdentifier)
+    if (idRow) {
+      return mapStickerRow(idRow)
+    }
+
+    const slugFallbackRow = await fetchOne('s.slug = $1', normalizedIdentifier)
+    if (slugFallbackRow) {
+      logStickerIdentifierFallback('slug fallback after id miss', { identifier: normalizedIdentifier })
+      return mapStickerRow(slugFallbackRow)
+    }
+  } else {
+    const slugRow = await fetchOne('s.slug = $1', normalizedIdentifier)
+    if (slugRow) {
+      return mapStickerRow(slugRow)
+    }
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+        SELECT
+          s.*,
+          c.name AS category_name,
+          c.slug AS category_slug,
+          c.created_at AS category_created_at,
+          c.updated_at AS category_updated_at
+        FROM stickers s
+        JOIN sticker_categories c ON c.id = s.category_id
+        JOIN sticker_slug_history ssh ON ssh.sticker_id = s.id
+        WHERE LOWER(ssh.slug) = LOWER($1)
+        LIMIT 1
+      `,
+      [normalizedIdentifier],
+    )
+
+    if (rows.length) {
+      logStickerIdentifierFallback('slug history fallback', { identifier: normalizedIdentifier })
+      return mapStickerRow(rows[0])
+    }
+  } catch (error) {
+    if (error.code !== '42P01') {
+      throw error
+    }
+  }
+
+  return null
 }
 
 async function createSticker(payload) {
@@ -318,6 +430,10 @@ async function createSticker(payload) {
     ],
   )
 
+  if (rows[0]?.id && slug) {
+    await upsertStickerSlugHistory(rows[0].id, slug)
+  }
+
   const identifier = rows[0]?.slug || rows[0]?.id
   return identifier ? getSticker(identifier) : null
 }
@@ -332,6 +448,7 @@ async function updateSticker(identifier, payload) {
     payload.slug && payload.slug !== existing.slug
       ? await ensureUniqueSlug(slugify(payload.slug), id)
       : existing.slug
+  const slugChanged = slug !== existing.slug
 
   const name = payload.name || existing.name
   const categoryId = payload.categoryId || existing.category.id
@@ -370,6 +487,11 @@ async function updateSticker(identifier, payload) {
   )
 
   if (!rows.length) return null
+
+  if (rows[0]?.id && slugChanged) {
+    await upsertStickerSlugHistory(rows[0].id, existing.slug)
+    await upsertStickerSlugHistory(rows[0].id, slug)
+  }
 
   return getSticker(slug)
 }

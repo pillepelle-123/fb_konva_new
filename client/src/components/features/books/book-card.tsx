@@ -292,7 +292,7 @@ export default function BookCard({
             <>
               <Button 
                 variant="outline" 
-                size="sm"
+                size="default"
                 onClick={() => onRestore?.(book.id)}
                 className="space-x-2 flex-1"
               >
@@ -302,7 +302,7 @@ export default function BookCard({
               {book.isOwner && (
                 <Button 
                   variant="destructive_outline" 
-                  size="sm"
+                  size="default"
                   onClick={() => onDelete?.(book.id)}
                   className="space-x-2"
                 >
@@ -316,7 +316,7 @@ export default function BookCard({
               <div className="flex-1 min-w-0">
                 <Tooltip content="Edit Book" side="bottom" fullWidth>
                   <Link to={`/editor/${book.id}`} className="block w-full">
-                    <Button variant="default" size="sm" className="w-full space-x-2 bg-primary hover:bg-primary/90">
+                    <Button variant="default" size="default" className="w-full space-x-2 bg-primary hover:bg-primary/90">
                       <FilePenLine className="h-5 w-5" />
                       <span>Edit Book</span>
                     </Button>
@@ -327,7 +327,7 @@ export default function BookCard({
                 <Tooltip key={btn.id} content={btn.label} side="bottom">
                   <Button
                     variant={btn.variant}
-                    size="sm"
+                    size="default"
                     onClick={() => btn.action()}
                     className="space-x-2 shrink-0"
                   >
@@ -339,7 +339,7 @@ export default function BookCard({
                 <Tooltip content="Weitere Aktionen" side="bottom">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="shrink-0">
+                      <Button variant="outline" size="default" className="shrink-0">
                         <Ellipsis className="h-5 w-5" />
                       </Button>
                     </PopoverTrigger>
@@ -349,7 +349,7 @@ export default function BookCard({
                         <Button
                           key={btn.id}
                           variant={btn.variant}
-                          size="sm"
+                          size="default"
                           onClick={() => btn.action()}
                           className="w-full justify-start gap-2"
                         >

@@ -13,6 +13,9 @@
     "migrate:up": "npm --prefix server run migrate:up",
     "migrate:down": "npm --prefix server run migrate:down",
     "migrate:status": "npm --prefix server run migrate:status",
+    "thumbnails:backfill": "node server/scripts/backfill-background-image-thumbnails.js",
+    "thumbnails:backfill:dry-run": "node server/scripts/backfill-background-image-thumbnails.js --dry-run",
+    "thumbnails:backfill:force": "node server/scripts/backfill-background-image-thumbnails.js --force",
     "db:seed": "npm --prefix server run db:seed",
     "db:seed:test": "npm --prefix server run db:seed:test"
   },

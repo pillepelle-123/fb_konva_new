@@ -1777,7 +1777,6 @@ function generateFreehandPath(element, options = {}) {
 
       if (subPathStrings.length > 0) {
         const openPathResult = subPathStrings.join(' ');
-        console.log('🎨 [generateFreehandPath] Using open 4-side subpaths, length:', openPathResult.length);
         return openPathResult;
       }
     }
@@ -1801,10 +1800,7 @@ function generateFreehandPath(element, options = {}) {
       seed: seed
     });
 
-    console.log('🎨 [generateFreehandPath] getStroke returned:', outlineStrpts?.length || 0, 'points');
-
     if (!outlineStrpts || outlineStrpts.length < 2) {
-      console.log('🎨 [generateFreehandPath] Invalid stroke outline, falling back to default');
       return generateDefaultPath(element, options);
     }
 
@@ -1815,13 +1811,9 @@ function generateFreehandPath(element, options = {}) {
     }
     pathString += ' Z'; // Close the path
 
-    console.log('🎨 [generateFreehandPath] Generated path length:', pathString.length, 'chars');
-    console.log('🎨 [generateFreehandPath] Path preview:', pathString.substring(0, 100) + '...');
-
     return pathString;
   } catch (error) {
     // Graceful fallback: use default path
-    console.error('🎨 [generateFreehandPath] Caught error:', error.message);
     return generateDefaultPath(element, options);
   }
 }

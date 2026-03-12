@@ -232,10 +232,11 @@ export type { AdminBackgroundImage, AdminBackgroundImageCategory } from '../type
 
 export async function uploadAdminBackgroundImageFiles(
   token: string | null,
-  params: { category: string; files: File[] },
+  params: { category: string; files: File[]; slugs: string[] },
 ) {
   const formData = new FormData()
   formData.append('category', params.category)
+  formData.append('slugs', JSON.stringify(params.slugs || []))
   params.files.forEach((file) => {
     formData.append('files', file, file.name)
   })

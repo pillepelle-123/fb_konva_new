@@ -1,6 +1,7 @@
 const path = require('path')
 const fs = require('fs/promises')
 const { randomUUID } = require('crypto')
+const sharp = require('sharp')
 const { getUploadsSubdir } = require('../utils/uploads-path')
 
 function slugify(value, fallback = 'file') {
@@ -34,10 +35,11 @@ async function generateFileName(dirPath, desiredName) {
   }
 }
 
-async function saveLocalBackgroundImage({ category, originalName, buffer, uploadPath = 'background-images' }) {
+async function saveLocalBackgroundImage({ category, originalName, preferredName, buffer, uploadPath = 'background-images' }) {
   const categorySlug = slugify(category, 'uncategorized')
   const ext = path.extname(originalName) || '.svg'
-  const baseName = slugify(path.basename(originalName, ext), randomUUID())
+  const fallbackBase = path.basename(originalName, ext)
+  const baseName = slugify(preferredName || fallbackBase, randomUUID())
   
   // Use UPLOADS_DIR from environment or fallback to root/uploads
   const storageDir = getUploadsSubdir(uploadPath)
@@ -47,14 +49,51 @@ async function saveLocalBackgroundImage({ category, originalName, buffer, upload
   const filePath = path.join(targetDir, fileName)
   await fs.writeFile(filePath, buffer)
   const relativePath = path.join(categorySlug, fileName).replace(/\\/g, '/')
+
+  let thumbnailRelativePath = relativePath
+  let thumbnailPublicUrl = null
+
+  try {
+    const fileNameExt = path.extname(fileName).toLowerCase()
+    const fileNameBase = path.basename(fileName, fileNameExt)
+    const isSvg = fileNameExt === '.svg'
+    const thumbExt = isSvg ? '.png' : fileNameExt
+    const thumbFileName = await generateFileName(targetDir, `${fileNameBase}_thumb${thumbExt}`)
+    const thumbAbsolutePath = path.join(targetDir, thumbFileName)
+
+    let thumbPipeline = isSvg
+      ? sharp(buffer, { density: 300 })
+      : sharp(buffer).rotate()
+
+    thumbPipeline = thumbPipeline.resize(512, 512, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+
+    if (thumbExt === '.jpg' || thumbExt === '.jpeg') {
+      thumbPipeline = thumbPipeline.jpeg({ quality: 80 })
+    } else if (thumbExt === '.webp') {
+      thumbPipeline = thumbPipeline.webp({ quality: 80 })
+    } else {
+      thumbPipeline = thumbPipeline.png({ quality: 80 })
+    }
+
+    await thumbPipeline.toFile(thumbAbsolutePath)
+
+    thumbnailRelativePath = path.join(categorySlug, thumbFileName).replace(/\\/g, '/')
+    thumbnailPublicUrl = `/uploads/${uploadPath}/${thumbnailRelativePath.replace(/^\/+/, '')}`
+  } catch (error) {
+    console.warn(`Failed to generate thumbnail for ${originalName}:`, error.message)
+  }
+
   const normalizedRelative = relativePath.replace(/^\/+/, '')
   const publicUrl = `/uploads/${uploadPath}/${normalizedRelative}`
 
   return {
     filePath: relativePath,
-    thumbnailPath: relativePath,
+    thumbnailPath: thumbnailRelativePath,
     publicUrl,
-    thumbnailUrl: publicUrl,
+    thumbnailUrl: thumbnailPublicUrl || publicUrl,
   }
 }
 
@@ -72,8 +111,8 @@ async function deleteLocalBackgroundImage({ filePath, uploadPath = 'background-i
   }
 }
 
-async function saveBackgroundImageFile({ category, originalName, buffer, uploadPath = 'background-images' }) {
-  return saveLocalBackgroundImage({ category, originalName, buffer, uploadPath })
+async function saveBackgroundImageFile({ category, originalName, preferredName, buffer, uploadPath = 'background-images' }) {
+  return saveLocalBackgroundImage({ category, originalName, preferredName, buffer, uploadPath })
 }
 
 async function deleteBackgroundImageFile({ filePath, uploadPath = 'background-images' }) {

@@ -28,23 +28,88 @@ function slugify(value, fallback = 'background-image') {
   return base.length > 0 ? base : fallback
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const NUMERIC_ID_REGEX = /^\d+$/
+
+function normalizeIdentifier(identifier) {
+  if (identifier === null || identifier === undefined) return ''
+  return String(identifier).trim()
+}
+
+function isUuidLike(identifier) {
+  return UUID_REGEX.test(normalizeIdentifier(identifier))
+}
+
+function isNumericId(identifier) {
+  return NUMERIC_ID_REGEX.test(normalizeIdentifier(identifier))
+}
+
+async function isSlugReserved(baseSlug, excludeId) {
+  const { rows: directRows } = await pool.query(
+    `
+      SELECT id
+      FROM background_images
+      WHERE LOWER(slug) = LOWER($1)
+        AND ($2::uuid IS NULL OR id <> $2::uuid)
+      LIMIT 1
+    `,
+    [baseSlug, excludeId || null],
+  )
+
+  if (directRows.length > 0) {
+    return true
+  }
+
+  try {
+    const { rows: historyRows } = await pool.query(
+      `
+        SELECT background_image_id
+        FROM background_image_slug_history
+        WHERE LOWER(slug) = LOWER($1)
+          AND ($2::uuid IS NULL OR background_image_id <> $2::uuid)
+        LIMIT 1
+      `,
+      [baseSlug, excludeId || null],
+    )
+    return historyRows.length > 0
+  } catch (error) {
+    if (error.code === '42P01') {
+      return false
+    }
+    throw error
+  }
+}
+
+async function upsertBackgroundImageSlugHistory(backgroundImageId, slug) {
+  if (!backgroundImageId || !slug) return
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO background_image_slug_history (background_image_id, slug)
+        VALUES ($1, $2)
+        ON CONFLICT (background_image_id, slug) DO NOTHING
+      `,
+      [backgroundImageId, slug],
+    )
+  } catch (error) {
+    if (error.code !== '42P01') {
+      throw error
+    }
+  }
+}
+
+function logBackgroundImageIdentifierFallback(message, details) {
+  console.warn('[background-images][identifier-fallback]', message, details)
+}
+
 async function ensureUniqueSlug(baseSlug, excludeId) {
   let attempt = 0
   let candidate = baseSlug
 
   while (true) {
-    const { rows } = await pool.query(
-      `
-        SELECT 1
-        FROM background_images
-        WHERE slug = $1
-        ${excludeId ? 'AND id <> $2' : ''}
-        LIMIT 1
-      `,
-      excludeId ? [candidate, excludeId] : [candidate],
-    )
-
-    if (rows.length === 0) {
+    const slugReserved = await isSlugReserved(candidate, excludeId)
+    if (!slugReserved) {
       return candidate
     }
 
@@ -275,28 +340,77 @@ async function listBackgroundImages({
 }
 
 async function getBackgroundImage(identifier) {
-  const isUuid = /^[0-9a-f-]{36}$/i.test(identifier)
-  const isNumericId = /^\d+$/.test(String(identifier))
-  let whereClause = 'bi.slug = $1'
-  if (isUuid || isNumericId) {
-    whereClause = 'bi.id = $1'
+  const normalizedIdentifier = normalizeIdentifier(identifier)
+  if (!normalizedIdentifier) return null
+
+  const fetchOne = async (whereClause, value) => {
+    const { rows } = await pool.query(
+      `
+        SELECT
+          bi.*,
+          c.name AS category_name,
+          c.slug AS category_slug,
+          c.created_at AS category_created_at,
+          c.updated_at AS category_updated_at
+        FROM background_images bi
+        JOIN background_image_categories c ON c.id = bi.category_id
+        WHERE ${whereClause}
+        LIMIT 1
+      `,
+      [value],
+    )
+    return rows.length ? rows[0] : null
   }
-  const { rows } = await pool.query(
-    `
-      SELECT
-        bi.*,
-        c.name AS category_name,
-        c.slug AS category_slug,
-        c.created_at AS category_created_at,
-        c.updated_at AS category_updated_at
-      FROM background_images bi
-      JOIN background_image_categories c ON c.id = bi.category_id
-      WHERE ${whereClause}
-      LIMIT 1
-    `,
-    [isNumericId ? parseInt(identifier, 10) : identifier],
-  )
-  return rows.length ? mapImageRow(rows[0]) : null
+
+  const tryIdLookup = isUuidLike(normalizedIdentifier) || isNumericId(normalizedIdentifier)
+  if (tryIdLookup) {
+    const idValue = isNumericId(normalizedIdentifier) ? Number(normalizedIdentifier) : normalizedIdentifier
+    const idRow = await fetchOne('bi.id = $1', idValue)
+    if (idRow) {
+      return mapImageRow(idRow)
+    }
+
+    const slugFallbackRow = await fetchOne('bi.slug = $1', normalizedIdentifier)
+    if (slugFallbackRow) {
+      logBackgroundImageIdentifierFallback('slug fallback after id miss', { identifier: normalizedIdentifier })
+      return mapImageRow(slugFallbackRow)
+    }
+  } else {
+    const slugRow = await fetchOne('bi.slug = $1', normalizedIdentifier)
+    if (slugRow) {
+      return mapImageRow(slugRow)
+    }
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+        SELECT
+          bi.*,
+          c.name AS category_name,
+          c.slug AS category_slug,
+          c.created_at AS category_created_at,
+          c.updated_at AS category_updated_at
+        FROM background_images bi
+        JOIN background_image_categories c ON c.id = bi.category_id
+        JOIN background_image_slug_history bish ON bish.background_image_id = bi.id
+        WHERE LOWER(bish.slug) = LOWER($1)
+        LIMIT 1
+      `,
+      [normalizedIdentifier],
+    )
+
+    if (rows.length) {
+      logBackgroundImageIdentifierFallback('slug history fallback', { identifier: normalizedIdentifier })
+      return mapImageRow(rows[0])
+    }
+  } catch (error) {
+    if (error.code !== '42P01') {
+      throw error
+    }
+  }
+
+  return null
 }
 
 async function createBackgroundImage(payload) {
@@ -377,6 +491,10 @@ async function createBackgroundImage(payload) {
     ],
   )
 
+  if (rows[0]?.id && slug) {
+    await upsertBackgroundImageSlugHistory(rows[0].id, slug)
+  }
+
   const identifier = rows[0]?.slug || rows[0]?.id
   return identifier ? getBackgroundImage(identifier) : null
 }
@@ -391,6 +509,7 @@ async function updateBackgroundImage(identifier, payload) {
     payload.slug && payload.slug !== existing.slug
       ? await ensureUniqueSlug(slugify(payload.slug), id)
       : existing.slug
+  const slugChanged = slug !== existing.slug
 
   const name = payload.name || existing.name
   const categoryId = payload.categoryId || existing.category.id
@@ -475,6 +594,11 @@ async function updateBackgroundImage(identifier, payload) {
 
   if (!rows.length) return null
 
+  if (rows[0]?.id && slugChanged) {
+    await upsertBackgroundImageSlugHistory(rows[0].id, existing.slug)
+    await upsertBackgroundImageSlugHistory(rows[0].id, slug)
+  }
+
   return getBackgroundImage(slug)
 }
 
@@ -499,6 +623,16 @@ async function deleteBackgroundImageFileWithLookup(identifier) {
   if (image.storage?.filePath) {
     await deleteBackgroundImageFile({
       filePath: image.storage.filePath,
+      uploadPath: 'background-images',
+    })
+  }
+
+  if (
+    image.storage?.thumbnailPath &&
+    image.storage.thumbnailPath !== image.storage.filePath
+  ) {
+    await deleteBackgroundImageFile({
+      filePath: image.storage.thumbnailPath,
       uploadPath: 'background-images',
     })
   }

@@ -168,7 +168,7 @@ export function DesignStep({
               value={categoryFilter}
               onValueChange={(value) => setCategoryFilter(value as CategoryFilter)}
             >
-              <SelectTrigger className="h-7 text-xs">
+              <SelectTrigger className="h-9 text-xs">
                 <div className="flex items-center gap-1.5">
                   <Filter className="h-3 w-3 text-muted-foreground" />
                   <span className="text-muted-foreground">Category:</span>

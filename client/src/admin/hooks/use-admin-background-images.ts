@@ -101,7 +101,7 @@ export function useAdminBackgroundImages(params?: AdminBackgroundImageListParams
   })
 
   const uploadFilesMutation = useMutation({
-    mutationFn: (payload: { category: string; files: File[] }) =>
+    mutationFn: (payload: { category: string; files: File[]; slugs: string[] }) =>
       uploadAdminBackgroundImageFiles(token, payload),
   })
 
