@@ -28,6 +28,13 @@ function formatDate(value: string) {
   }).format(new Date(value))
 }
 
+function toDayStart(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
 export default function AdminBooksPage() {
   const [dialogState, setDialogState] = useState<{ open: boolean; book?: AdminBook }>({ open: false })
   const { booksQuery, updateBook, bulkAction, isLoading, createBook, isMutating } = useAdminBooks()
@@ -84,6 +91,25 @@ export default function AdminBooksPage() {
         cell: ({ row }) => <span>{row.original.collaboratorCount}</span>,
       },
       {
+        accessorKey: 'createdAt',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="created" />,
+        filterFn: (row, id, value) => {
+          if (!value || typeof value !== 'object') return true
+
+          const range = value as { from?: string; to?: string }
+          const rowDate = toDayStart(String(row.getValue(id) ?? ''))
+          if (!rowDate) return false
+
+          const fromDate = range.from ? toDayStart(range.from) : null
+          const toDate = range.to ? toDayStart(range.to) : null
+
+          if (fromDate && rowDate < fromDate) return false
+          if (toDate && rowDate > toDate) return false
+          return true
+        },
+        cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
+      },
+      {
         accessorKey: 'updatedAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="updated" />,
         cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>,
@@ -127,6 +153,12 @@ export default function AdminBooksPage() {
           { value: 'draft', label: 'Draft' },
           { value: 'archived', label: 'Archived' },
         ],
+      },
+      {
+        id: 'createdAt',
+        label: 'Created',
+        type: 'range',
+        placeholder: 'Pick created_at range',
       },
     ],
     [],

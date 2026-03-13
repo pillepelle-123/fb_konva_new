@@ -17,6 +17,7 @@ export interface AdminBook {
   status: 'active' | 'archived' | 'draft'
   pageCount: number
   collaboratorCount: number
+  createdAt: string
   updatedAt: string
 }
 

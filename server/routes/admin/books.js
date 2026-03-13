@@ -21,6 +21,13 @@ function parseListParam(value) {
   return Array.isArray(value) ? value : [value]
 }
 
+function parseOptionalDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+  return value
+}
+
 function mapBookRow(row) {
   return {
     id: row.id,
@@ -29,6 +36,7 @@ function mapBookRow(row) {
     status: row.admin_state,
     pageCount: Number(row.page_count) || 0,
     collaboratorCount: Number(row.collaborator_count) || 0,
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
@@ -58,6 +66,20 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
       paramIndex += 1
     }
 
+    const createdAtFrom = parseOptionalDate(filters.createdAtFrom)
+    if (createdAtFrom) {
+      values.push(createdAtFrom)
+      whereClauses.push(`b.created_at >= $${paramIndex}::date`)
+      paramIndex += 1
+    }
+
+    const createdAtTo = parseOptionalDate(filters.createdAtTo)
+    if (createdAtTo) {
+      values.push(createdAtTo)
+      whereClauses.push(`b.created_at < ($${paramIndex}::date + INTERVAL '1 day')`)
+      paramIndex += 1
+    }
+
     const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : ''
 
     const totalResult = await pool.query(
@@ -82,6 +104,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
           b.name,
           COALESCE(owner.name, 'Unbekannt') AS owner_name,
           b.admin_state,
+          b.created_at,
           b.updated_at,
           COALESCE(page_counts.total_pages, 0) AS page_count,
           COALESCE(collaborator_counts.total_collaborators, 0) AS collaborator_count
@@ -129,7 +152,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       `
         INSERT INTO ${schema}.books (name, owner_id, admin_state, archived)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, name, admin_state, updated_at
+        RETURNING id, name, admin_state, created_at, updated_at
       `,
       [name, req.user.id, adminState, archived],
     )
@@ -149,6 +172,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
         status: inserted.admin_state,
         pageCount: 0,
         collaboratorCount: 0,
+        createdAt: inserted.created_at,
         updatedAt: inserted.updated_at,
       },
     })
@@ -202,6 +226,7 @@ router.patch('/:id', authenticateToken, requireAdmin, async (req, res) => {
           id,
           name,
           admin_state,
+          created_at,
           updated_at,
           (SELECT name FROM ${schema}.users WHERE id = books.owner_id) AS owner_name,
           (SELECT COUNT(*) FROM ${schema}.pages WHERE book_id = books.id) AS page_count,
@@ -263,6 +288,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
           b.name,
           COALESCE(owner.name, 'Unbekannt') AS owner_name,
           b.admin_state,
+          b.created_at,
           b.updated_at,
           COALESCE(page_counts.total_pages, 0) AS page_count,
           COALESCE(collaborator_counts.total_collaborators, 0) AS collaborator_count

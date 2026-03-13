@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
-import { Filter, Plus, Search, Trash2 } from 'lucide-react'
+import { CalendarIcon, Filter, Plus, Search, Trash2 } from 'lucide-react'
 import {
   Button,
   Checkbox,
+  DatePicker,
   Input,
   Popover,
   PopoverContent,
@@ -22,13 +23,18 @@ export interface DataTableFilterOption {
   value: string
 }
 
-export type DataTableFilterFieldType = 'single' | 'multi'
+export type DataTableFilterFieldType = 'single' | 'multi' | 'range'
+
+interface DateRangeFilterValue {
+  from: string
+  to: string
+}
 
 export interface DataTableFilterField {
   id: string
   label: string
   type?: DataTableFilterFieldType
-  options: DataTableFilterOption[]
+  options?: DataTableFilterOption[]
   placeholder?: string
   icon?: ReactNode
 }
@@ -84,6 +90,50 @@ export function DataTableToolbar<TData>({
           const column = table.getColumn(filter.id)
           if (!column) return null
           const filterValue = column.getFilterValue()
+
+          if (filter.type === 'range') {
+            const rangeValue = (filterValue as DateRangeFilterValue | undefined) ?? { from: '', to: '' }
+            const hasRange = Boolean(rangeValue.from || rangeValue.to)
+            return (
+              <Popover key={filter.id}>
+                <PopoverTrigger asChild>
+                  <Button variant={hasRange ? 'default' : 'outline'} size="xs" className="gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    {filter.label}
+                    {hasRange ? ' *' : null}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-3" align="start">
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase text-muted-foreground">{filter.label}</div>
+                    <DatePicker
+                      variant="range"
+                      value={rangeValue}
+                      onChange={(nextValue) => {
+                        if (!nextValue.from && !nextValue.to) {
+                          column.setFilterValue(undefined)
+                          return
+                        }
+                        column.setFilterValue(nextValue)
+                      }}
+                      placeholder={filter.placeholder ?? filter.label}
+                    />
+                    {hasRange ? (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="justify-start px-0 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => column.setFilterValue(undefined)}
+                      >
+                        Reset filter
+                      </Button>
+                    ) : null}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )
+          }
+
           if (filter.type === 'multi') {
             const activeValues = Array.isArray(filterValue) ? (filterValue as string[]) : []
             return (
@@ -98,7 +148,7 @@ export function DataTableToolbar<TData>({
                 <PopoverContent className="w-52 p-3" align="start">
                   <div className="flex flex-col gap-2">
                     <div className="text-xs font-medium uppercase text-muted-foreground">{filter.label}</div>
-                    {filter.options.map((option) => {
+                    {(filter.options ?? []).map((option) => {
                       const checked = activeValues.includes(option.value)
                       return (
                         <label key={option.value} className="flex items-center gap-2 text-sm">
@@ -145,7 +195,7 @@ export function DataTableToolbar<TData>({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">All</SelectItem>
-                {filter.options.map((option) => (
+                {(filter.options ?? []).map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

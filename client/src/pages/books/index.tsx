@@ -4,6 +4,7 @@ import { useAuth } from '../../context/auth-context';
 import { Button } from '../../components/ui/primitives/button';
 import { Input } from '../../components/ui/primitives/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/overlays/dialog';
+import { DatePicker } from '../../components/ui/composites/date-picker';
 import BooksGrid from '../../components/features/books/book-grid';
 import { Slider } from '../../components/ui/primitives/slider';
 import MultipleSelector, { type Option } from '../../components/ui/multi-select';
@@ -61,12 +62,16 @@ export default function BooksList() {
   const [filterOrientations, setFilterOrientations] = useState<Option[]>([]);
   const [filterPageCountMin, setFilterPageCountMin] = useState(0);
   const [filterUserRoles, setFilterUserRoles] = useState<Option[]>([]);
+  const [filterCreatedFrom, setFilterCreatedFrom] = useState('');
+  const [filterCreatedTo, setFilterCreatedTo] = useState('');
 
   const [appliedFilterName, setAppliedFilterName] = useState('');
   const [appliedFilterPageSizes, setAppliedFilterPageSizes] = useState<Option[]>([]);
   const [appliedFilterOrientations, setAppliedFilterOrientations] = useState<Option[]>([]);
   const [appliedFilterPageCountMin, setAppliedFilterPageCountMin] = useState(0);
   const [appliedFilterUserRoles, setAppliedFilterUserRoles] = useState<Option[]>([]);
+  const [appliedFilterCreatedFrom, setAppliedFilterCreatedFrom] = useState('');
+  const [appliedFilterCreatedTo, setAppliedFilterCreatedTo] = useState('');
 
   const maxPageCount = useMemo(() => Math.max(...books.map((b) => b.pageCount), 1), [books]);
 
@@ -85,16 +90,46 @@ export default function BooksList() {
       if (appliedOrientationValues.size > 0 && !appliedOrientationValues.has(book.orientation)) return false;
       if (book.pageCount < appliedFilterPageCountMin) return false;
       if (appliedUserRoleValues.size > 0 && !appliedUserRoleValues.has(book.userRole)) return false;
+      if (appliedFilterCreatedFrom || appliedFilterCreatedTo) {
+        if (!book.created_at) return false;
+
+        const createdDate = new Date(book.created_at);
+        createdDate.setHours(0, 0, 0, 0);
+        if (Number.isNaN(createdDate.getTime())) return false;
+
+        if (appliedFilterCreatedFrom) {
+          const fromDate = new Date(appliedFilterCreatedFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (createdDate < fromDate) return false;
+        }
+
+        if (appliedFilterCreatedTo) {
+          const toDate = new Date(appliedFilterCreatedTo);
+          toDate.setHours(0, 0, 0, 0);
+          if (createdDate > toDate) return false;
+        }
+      }
       return true;
     });
-  }, [books, appliedFilterName, appliedPageSizeValues, appliedOrientationValues, appliedFilterPageCountMin, appliedUserRoleValues]);
+  }, [
+    books,
+    appliedFilterName,
+    appliedPageSizeValues,
+    appliedOrientationValues,
+    appliedFilterPageCountMin,
+    appliedUserRoleValues,
+    appliedFilterCreatedFrom,
+    appliedFilterCreatedTo,
+  ]);
 
   const hasActiveFilters =
     appliedFilterName.trim() !== '' ||
     appliedFilterPageSizes.length > 0 ||
     appliedFilterOrientations.length > 0 ||
     appliedFilterPageCountMin > 0 ||
-    appliedFilterUserRoles.length > 0;
+    appliedFilterUserRoles.length > 0 ||
+    appliedFilterCreatedFrom !== '' ||
+    appliedFilterCreatedTo !== '';
 
   const activeFilterCount = [
     appliedFilterName.trim() !== '',
@@ -102,6 +137,7 @@ export default function BooksList() {
     appliedFilterOrientations.length > 0,
     appliedFilterPageCountMin > 0,
     appliedFilterUserRoles.length > 0,
+    appliedFilterCreatedFrom !== '' || appliedFilterCreatedTo !== '',
   ].filter(Boolean).length;
 
   const applyFilters = () => {
@@ -110,6 +146,8 @@ export default function BooksList() {
     setAppliedFilterOrientations(filterOrientations);
     setAppliedFilterPageCountMin(filterPageCountMin);
     setAppliedFilterUserRoles(filterUserRoles);
+    setAppliedFilterCreatedFrom(filterCreatedFrom);
+    setAppliedFilterCreatedTo(filterCreatedTo);
   };
 
   const resetFilters = () => {
@@ -118,11 +156,15 @@ export default function BooksList() {
     setFilterOrientations([]);
     setFilterPageCountMin(0);
     setFilterUserRoles([]);
+    setFilterCreatedFrom('');
+    setFilterCreatedTo('');
     setAppliedFilterName('');
     setAppliedFilterPageSizes([]);
     setAppliedFilterOrientations([]);
     setAppliedFilterPageCountMin(0);
     setAppliedFilterUserRoles([]);
+    setAppliedFilterCreatedFrom('');
+    setAppliedFilterCreatedTo('');
   };
 
   useEffect(() => {
@@ -281,6 +323,18 @@ export default function BooksList() {
             placeholder="All"
             hidePlaceholderWhenSelected
             className="min-h-8"
+          />
+        </div>
+        <div className="flex flex-col shrink-0 w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[260px]">
+          <span className="text-xs text-muted-foreground mb-1">Created</span>
+          <DatePicker
+            variant="range"
+            value={{ from: filterCreatedFrom, to: filterCreatedTo }}
+            onChange={(nextValue) => {
+              setFilterCreatedFrom(nextValue.from);
+              setFilterCreatedTo(nextValue.to);
+            }}
+            placeholder="Pick created date range"
           />
         </div>
       </div>

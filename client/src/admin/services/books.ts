@@ -10,6 +10,7 @@ const adminBookSchema = z.object({
   status: z.enum(['active', 'archived', 'draft']),
   pageCount: z.number(),
   collaboratorCount: z.number(),
+  createdAt: z.string(),
   updatedAt: z.string(),
 })
 

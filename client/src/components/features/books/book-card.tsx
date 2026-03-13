@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/auth-context';
 import { Button } from '../../ui/primitives/button';
-import { Card, CardContent } from '../../ui/composites/card';
+import { Card } from '../../ui/composites/card';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { Popover, PopoverTrigger, PopoverContent } from '../../ui/overlays/popover';
-import { Users, FileText, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis, CircleCheckBig, Circle } from 'lucide-react';
+import { Users, FileText, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, CircleCheckBig, Circle } from 'lucide-react';
 import BookRoleBadge from './book-role-badge';
 import { getConsistentColor } from '../../../utils/consistent-color';
 import { getConsistentIcon } from '../../../utils/consistent-icon';
@@ -39,60 +38,192 @@ interface BookCardProps {
 interface BookCardPreviewProps {
   book: Book;
   isArchived?: boolean;
+  hideActions?: boolean;
   isEditing: boolean;
   editName: string;
   setEditName: (name: string) => void;
   handleRename: () => void;
   setIsEditing: (editing: boolean) => void;
+  onRestore?: (bookId: number) => void;
+  onDelete?: (bookId: number) => void;
+  onArchive?: (bookId: number) => void;
+  onOpenEditor: () => void;
+  onOpenPreview: () => void;
+  onOpenExports: () => void;
+  onOpenManage: () => void;
   multiSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelection?: (bookId: number) => void;
 }
 
-function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, handleRename, setIsEditing, multiSelectMode, isSelected, onToggleSelection }: BookCardPreviewProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const { token } = useAuth();
+function BookCardPreview({
+  book,
+  isArchived,
+  hideActions,
+  isEditing,
+  editName,
+  setEditName,
+  handleRename,
+  setIsEditing,
+  onRestore,
+  onDelete,
+  onArchive,
+  onOpenEditor,
+  onOpenPreview,
+  onOpenExports,
+  onOpenManage,
+  multiSelectMode,
+  isSelected,
+  onToggleSelection
+}: BookCardPreviewProps) {
   const placeholderColor = getConsistentColor(book.name);
   const PlaceholderIcon = getConsistentIcon(book.name);
 
-  useEffect(() => {
-    const fetchBookData = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const response = await fetch(`${apiUrl}/books/${book.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const bookData = await response.json();
-          const firstImage = bookData.pages?.flatMap(page => page.elements || [])
-            .find(element => element.type === 'image' && element.src);
-          
-          if (firstImage?.src) {
-            setPreviewUrl(firstImage.src);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching book data:', error);
-      }
-    };
-
-    fetchBookData();
-  }, [book.id, token]);
-
   return (
-    <div className="relative h-40 overflow-hidden bg-gray-100 rounded-t-lg">
-      {previewUrl ? (
-        <img 
-          src={previewUrl} 
-          alt="Book preview" 
-          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isArchived ? 'grayscale' : ''}`}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: `#${placeholderColor}` }}>
-          <PlaceholderIcon className="h-16 w-16 text-white/80" />
+    <div
+      className={`relative min-h-[420px] overflow-hidden rounded-xl border border-black/20 shadow-inner ${isArchived ? 'grayscale' : ''}`}
+      style={{ backgroundColor: `#${placeholderColor}` }}
+    >
+      <div className="absolute left-0 top-0 h-full w-8 bg-black/20 border-r border-white/30" />
+      <div className="absolute left-[7px] top-8 flex flex-col gap-5">
+        <span className="h-3 w-3 rounded-full bg-white/60" />
+        <span className="h-3 w-3 rounded-full bg-white/60" />
+        <span className="h-3 w-3 rounded-full bg-white/60" />
+      </div>
+      <div className="absolute right-4 bottom-3 flex flex-col gap-1">
+        <span className="h-1 w-14 rounded-full bg-white/60" />
+        <span className="h-1 w-20 rounded-full bg-white/55" />
+        <span className="h-1 w-16 rounded-full bg-white/50" />
+      </div>
+
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/15 to-black/55" />
+
+      <div className="relative z-10 flex min-h-[420px] flex-col p-4 pr-0">
+        <div className="mb-4 flex items-start justify-between gap-2 pl-7">
+          {isEditing ? (
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRename();
+                if (e.key === 'Escape') { setEditName(book.name); setIsEditing(false); }
+              }}
+              className="text-white text-xl bg-transparent border-0 outline-none flex-1 focus:ring-0 font-semibold"
+              autoFocus
+            />
+          ) : (
+            <h3 className="text-white text-xl line-clamp-3 leading-tight font-semibold drop-shadow-sm">
+              {book.name}
+            </h3>
+          )}
+
+          {!isArchived && (
+            <Tooltip content="Edit Book name" side="bottom">
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => { setEditName(book.name); setIsEditing(true); }}
+                className="text-white hover:bg-white/20 p-1 h-7 w-7"
+              >
+                <Pen className="h-5 w-5" />
+              </Button>
+            </Tooltip>
+          )}
         </div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+        <div className="flex flex-1 items-center justify-center pl-6">
+          <PlaceholderIcon className="h-24 w-24 text-white/80 drop-shadow-md" />
+        </div>
+
+        <div className="space-y-3 bg-white/70 p-3 ml-4 backdrop-blur-[1px]">
+          <div className="flex items-center justify-between text-xs text-foreground">
+            <div className="flex items-center space-x-2">
+              <span>{book.pageSize}</span>
+              <span>•</span>
+              <span className="capitalize">{book.orientation}</span>
+            </div>
+            <BookRoleBadge userRole={book.userRole} variant='addressedToUser' />
+          </div>
+
+          <div className="flex items-center space-x-4 text-xs text-foreground">
+            <div className="flex items-center space-x-1">
+              <FileText className="h-3 w-3" />
+              <span>{book.pageCount} pages</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <Users className="h-3 w-3" />
+              <span>{book.collaboratorCount}</span>
+            </div>
+          </div>
+
+          <div className="text-[11px] text-foreground">
+            {book.created_at && (
+              <>
+                Created: {new Date(book.created_at).toLocaleDateString()}
+                {book.updated_at && ` • Updated: ${new Date(book.updated_at).toLocaleDateString()}`}
+              </>
+            )}
+          </div>
+
+          {!hideActions && !multiSelectMode && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {isArchived ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onRestore?.(book.id)}
+                    className="space-x-2"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Restore</span>
+                  </Button>
+                  {book.isOwner && (
+                    <Button
+                      variant="destructive_outline"
+                      size="sm"
+                      onClick={() => onDelete?.(book.id)}
+                      className="space-x-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete</span>
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button variant="default" size="sm" onClick={onOpenEditor} className="space-x-2 bg-white text-black hover:bg-white/90">
+                    <FilePenLine className="h-4 w-4" />
+                    <span>Edit</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={onOpenPreview} className="space-x-2 text-white border-white/60 hover:bg-white/15">
+                    <Eye className="h-4 w-4" />
+                    <span>Preview</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={onOpenExports} className="space-x-2 text-white border-white/60 hover:bg-white/15">
+                    <Download className="h-4 w-4" />
+                    <span>Export</span>
+                  </Button>
+                  {(book.userRole === 'owner' || book.userRole === 'publisher') && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={onOpenManage} className="space-x-2 text-white border-white/60 hover:bg-white/15">
+                        <Settings className="h-4 w-4" />
+                        <span>Manage</span>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => onArchive?.(book.id)} className="space-x-2 text-white border-white/60 hover:bg-white/15">
+                        <Archive className="h-4 w-4" />
+                        <span>Archive</span>
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {multiSelectMode && (
         <div className="absolute top-2 right-2 z-10">
           <Tooltip content={isSelected ? 'Deselect' : 'Select'} side="bottom">
@@ -113,50 +244,9 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
           </Tooltip>
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <div className="flex flex-start items-center gap-2">
-          {isEditing ? (
-            <input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onBlur={handleRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRename();
-                if (e.key === 'Escape') { setEditName(book.name); setIsEditing(false); }
-              }}
-              className="text-primary-foreground text-lg bg-transparent border-0  outline-none flex-1 focus:ring-0"
-              autoFocus
-            />
-          ) : (
-            <h3 className="text-primary-foreground text-lg line-clamp-2 mb-1 ">
-              {book.name}
-            </h3>
-          )}
-          {!isArchived && (
-            <Tooltip content="Edit Book name" side="bottom">
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => { setEditName(book.name); setIsEditing(true); }}
-              className="text-white hover:bg-white/20 p-1 h-6 w-6"
-            >
-              <Pen className="h-5 w-5" />
-            </Button>
-            </Tooltip>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
-
-type ActionButton = {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  variant: 'default' | 'outline' | 'destructive';
-  action: () => void;
-};
 
 export default function BookCard({
   book,
@@ -174,50 +264,6 @@ export default function BookCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(book.name);
   const { token } = useAuth();
-  const actionsContainerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(400);
-
-  const actionButtons: ActionButton[] = [
-    { id: 'edit', label: 'Edit Book', icon: FilePenLine, variant: 'default', action: () => navigate(`/editor/${book.id}`) },
-    { id: 'preview', label: 'Preview Book', icon: Eye, variant: 'outline', action: () => navigate(`/editor/${book.id}?preview=true`) },
-    { id: 'exports', label: 'Exports', icon: Download, variant: 'outline', action: () => navigate(`/books/${book.id}/export`) },
-    ...((book.userRole === 'owner' || book.userRole === 'publisher') ? [
-      { id: 'manage', label: 'Manage Book', icon: Settings, variant: 'outline' as const, action: () => navigate(`/books/${book.id}/manager`) },
-      { id: 'archive', label: 'Archive Book', icon: Archive, variant: 'outline' as const, action: () => onArchive?.(book.id) },
-    ] : []),
-  ];
-
-  useEffect(() => {
-    const el = actionsContainerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const getVisibleCount = (width: number) => {
-    if (width < 180) return 1;
-    if (width < 260) return 2;
-    if (width < 320) return 3;
-    if (width < 380) return 4;
-    return actionButtons.length;
-  };
-
-  let visibleCount = Math.min(getVisibleCount(containerWidth), actionButtons.length);
-  let overflowButtons = actionButtons.slice(visibleCount);
-
-  // Ellipsis only makes sense when it hides 2+ buttons. With 1 overflow button, show it directly.
-  if (overflowButtons.length === 1) {
-    visibleCount += 1;
-    overflowButtons = [];
-  }
-
-  const hasOverflow = overflowButtons.length >= 2;
-  const visibleButtons = actionButtons.slice(0, visibleCount);
 
   const handleRename = async () => {
     if (editName.trim() && editName !== book.name) {
@@ -243,134 +289,29 @@ export default function BookCard({
 
   return (
     <Card
-      className={`group border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${multiSelectMode ? 'cursor-pointer' : 'hover:border-primary/20'} ${isSelected ? 'border-4 border-muted-foreground rounded-xl' : ''}`}
+      className={`group border hover:shadow-md transition-all duration-200 overflow-hidden ${multiSelectMode ? 'cursor-pointer' : 'hover:border-primary/40 rounded-xl shadow-lg'} ${isSelected ? 'border border-muted-foreground rounded-xl' : ''}`}
       onClick={multiSelectMode ? () => onToggleSelection?.(book.id) : undefined}
     >
       <BookCardPreview
         book={book}
         isArchived={isArchived}
+        hideActions={hideActions}
         isEditing={isEditing}
         editName={editName}
         setEditName={setEditName}
         handleRename={handleRename}
         setIsEditing={setIsEditing}
+        onRestore={onRestore}
+        onDelete={onDelete}
+        onArchive={onArchive}
+        onOpenEditor={() => navigate(`/editor/${book.id}`)}
+        onOpenPreview={() => navigate(`/editor/${book.id}?preview=true`)}
+        onOpenExports={() => navigate(`/books/${book.id}/export`)}
+        onOpenManage={() => onPageUserManager?.(book.id) ?? navigate(`/books/${book.id}/manager`)}
         multiSelectMode={multiSelectMode}
         isSelected={isSelected}
         onToggleSelection={onToggleSelection}
       />
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center space-x-2">
-            <span>{book.pageSize}</span>
-            <span>•</span>
-            <span className="capitalize">{book.orientation}</span>
-          </div>
-        </div>
-        
-        <div className="text-xs text-muted-foreground">
-          {book.created_at && (
-            <>
-              Created: {new Date(book.created_at).toLocaleDateString()}
-              {book.updated_at && ` • Updated: ${new Date(book.updated_at).toLocaleDateString()}`}
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center space-x-4 text-muted-foreground">
-            <div className="flex items-center space-x-1">
-              <FileText className="h-3 w-3" />
-              <span>{book.pageCount} pages</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Users className="h-3 w-3" />
-              <span>{book.collaboratorCount}</span>
-            </div>
-          </div>
-                <BookRoleBadge userRole={book.userRole} variant='addressedToUser' />
-        </div>
-
-        {!hideActions && !multiSelectMode && (
-        <div ref={actionsContainerRef} className="flex gap-2 pt-2 min-w-0">
-          {isArchived ? (
-            <>
-              <Button 
-                variant="outline" 
-                size="default"
-                onClick={() => onRestore?.(book.id)}
-                className="space-x-2 flex-1"
-              >
-                <RotateCcw className="h-3 w-3" />
-                <span>Restore</span>
-              </Button>
-              {book.isOwner && (
-                <Button 
-                  variant="destructive_outline" 
-                  size="default"
-                  onClick={() => onDelete?.(book.id)}
-                  className="space-x-2"
-                >
-                  <Trash2 className="h-5 w-5" />
-                  <span>Delete</span>
-                </Button>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="flex-1 min-w-0">
-                <Tooltip content="Edit Book" side="bottom" fullWidth>
-                  <Link to={`/editor/${book.id}`} className="block w-full">
-                    <Button variant="default" size="default" className="w-full space-x-2 bg-primary hover:bg-primary/90">
-                      <FilePenLine className="h-5 w-5" />
-                      <span>Edit Book</span>
-                    </Button>
-                  </Link>
-                </Tooltip>
-              </div>
-              {visibleButtons.slice(1).map((btn) => (
-                <Tooltip key={btn.id} content={btn.label} side="bottom">
-                  <Button
-                    variant={btn.variant}
-                    size="default"
-                    onClick={() => btn.action()}
-                    className="space-x-2 shrink-0"
-                  >
-                    <btn.icon className="h-5 w-5" />
-                  </Button>
-                </Tooltip>
-              ))}
-              {hasOverflow && (
-                <Tooltip content="Weitere Aktionen" side="bottom">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="default" className="shrink-0">
-                        <Ellipsis className="h-5 w-5" />
-                      </Button>
-                    </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2" align="end" side="top">
-                    <div className="flex flex-col gap-1">
-                      {overflowButtons.map((btn) => (
-                        <Button
-                          key={btn.id}
-                          variant={btn.variant}
-                          size="default"
-                          onClick={() => btn.action()}
-                          className="w-full justify-start gap-2"
-                        >
-                          <btn.icon className="h-4 w-4 shrink-0" />
-                          <span>{btn.label}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                  </Popover>
-                </Tooltip>
-              )}
-            </>
-          )}
-        </div>
-        )}
-      </CardContent>
     </Card>
   );
 }
