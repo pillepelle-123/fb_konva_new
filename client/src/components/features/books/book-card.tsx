@@ -5,8 +5,10 @@ import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/overlays/popover';
-import { Users, FileText, Image, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis, CircleCheckBig, Circle } from 'lucide-react';
+import { Users, FileText, RotateCcw, Trash2, Archive, Pen, Settings, FilePenLine, Eye, Download, Ellipsis, CircleCheckBig, Circle } from 'lucide-react';
 import BookRoleBadge from './book-role-badge';
+import { getConsistentColor } from '../../../utils/consistent-color';
+import { getConsistentIcon } from '../../../utils/consistent-icon';
 
 interface Book {
   id: number;
@@ -50,6 +52,8 @@ interface BookCardPreviewProps {
 function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, handleRename, setIsEditing, multiSelectMode, isSelected, onToggleSelection }: BookCardPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { token } = useAuth();
+  const placeholderColor = getConsistentColor(book.name);
+  const PlaceholderIcon = getConsistentIcon(book.name);
 
   useEffect(() => {
     const fetchBookData = async () => {
@@ -84,8 +88,8 @@ function BookCardPreview({ book, isArchived, isEditing, editName, setEditName, h
           className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isArchived ? 'grayscale' : ''}`}
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-          <Image className="h-16 w-16 text-gray-300" />
+        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: `#${placeholderColor}` }}>
+          <PlaceholderIcon className="h-16 w-16 text-white/80" />
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />

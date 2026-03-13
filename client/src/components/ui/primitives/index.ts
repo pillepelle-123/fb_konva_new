@@ -1,4 +1,5 @@
 export { Button } from './button';
+export { Calendar, type CalendarProps } from './calendar';
 export { Checkbox } from './checkbox';
 export { CreatableCombobox, type CreatableComboboxOption, type CreatableComboboxProps } from './creatable-combobox';
 export { IndentedSection } from './indented-section';

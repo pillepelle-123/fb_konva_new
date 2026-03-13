@@ -44,7 +44,8 @@ export function ImageGrid({
       items={items}
       itemsPerPage={itemsPerPage}
       keyExtractor={(item) => item.id}
-      gridClassName="grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+      gridClassName="gap-4"
+      minItemWidth="13.5rem"
       renderItem={(item) => {
         if (customRenderItem) {
           return customRenderItem(item);

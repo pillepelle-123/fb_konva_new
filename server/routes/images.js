@@ -58,6 +58,14 @@ function isUuid(value) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function parseOptionalDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  return value;
+}
+
 // Upload images to local storage (with rate limiting)
 router.post('/upload', uploadLimiter, authenticateToken, upload.array('images', 10), async (req, res) => {
   try {
@@ -306,47 +314,111 @@ router.get('/serve', authenticateToken, async (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     await pool.query('SET search_path TO public');
-    
-    const { page = 1, limit = 15, bookId } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    
-    let query = `
-      SELECT p.*, b.name as book_name 
-      FROM public.images p 
-      LEFT JOIN public.books b ON p.book_id = b.id 
-      WHERE p.uploaded_by = $1
-    `;
-    let params = [req.user.id];
-    
-    if (bookId) {
-      query += ' AND p.book_id = $2';
-      params.push(bookId);
+
+    const pageNumber = Number.parseInt(req.query.page, 10) || 1;
+    const limitNumber = Number.parseInt(req.query.limit, 10) || 15;
+    const usageBookId = req.query.usageBookId ? Number.parseInt(req.query.usageBookId, 10) : null;
+    const uploadedFrom = parseOptionalDate(req.query.uploadedFrom);
+    const uploadedTo = parseOptionalDate(req.query.uploadedTo);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const baseParams = [req.user.id];
+    const filterClauses = ['i.uploaded_by = $1'];
+
+    if (Number.isInteger(usageBookId)) {
+      baseParams.push(usageBookId);
+      filterClauses.push(`EXISTS (
+        SELECT 1
+        FROM public.page_images pi_filter
+        JOIN public.pages p_filter ON p_filter.id = pi_filter.page_id
+        WHERE pi_filter.image_id = i.id
+          AND p_filter.book_id = $${baseParams.length}
+      )`);
     }
-    
-    query += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(parseInt(limit), offset);
-    
-    const result = await pool.query(query, params);
-    
-    const countQuery = bookId 
-      ? 'SELECT COUNT(*) FROM public.images WHERE uploaded_by = $1 AND book_id = $2'
-      : 'SELECT COUNT(*) FROM public.images WHERE uploaded_by = $1';
-    const countParams = bookId ? [req.user.id, bookId] : [req.user.id];
-    const countResult = await pool.query(countQuery, countParams);
-    
+
+    if (uploadedFrom) {
+      baseParams.push(uploadedFrom);
+      filterClauses.push(`i.created_at >= $${baseParams.length}::date`);
+    }
+
+    if (uploadedTo) {
+      baseParams.push(uploadedTo);
+      filterClauses.push(`i.created_at < ($${baseParams.length}::date + INTERVAL '1 day')`);
+    }
+
+    const whereClause = filterClauses.join(' AND ');
+    const result = await pool.query(
+      `SELECT i.*, b.name AS book_name
+       FROM public.images i
+       LEFT JOIN public.books b ON b.id = i.book_id
+       WHERE ${whereClause}
+       ORDER BY i.created_at DESC
+       LIMIT $${baseParams.length + 1} OFFSET $${baseParams.length + 2}`,
+      [...baseParams, limitNumber, offset]
+    );
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*)
+       FROM public.images i
+       WHERE ${whereClause}`,
+      baseParams
+    );
+
+    const availableBooksResult = await pool.query(
+      `SELECT DISTINCT b.id, b.name
+       FROM public.images i
+       JOIN public.page_images pi ON pi.image_id = i.id
+       JOIN public.pages p ON p.id = pi.page_id
+       JOIN public.books b ON b.id = p.book_id
+       WHERE i.uploaded_by = $1
+       ORDER BY b.name ASC`,
+      [req.user.id]
+    );
+
+    const imageIds = result.rows.map((row) => row.id);
+    const assignmentsByImage = new Map();
+
+    if (imageIds.length > 0) {
+      const assignmentsResult = await pool.query(
+        `SELECT DISTINCT
+           pi.image_id,
+           p.book_id,
+           b.name AS book_name,
+           p.page_number
+         FROM public.page_images pi
+         JOIN public.pages p ON p.id = pi.page_id
+         JOIN public.books b ON b.id = p.book_id
+         WHERE pi.image_id = ANY($1::uuid[])
+         ORDER BY b.name ASC, p.page_number ASC`,
+        [imageIds]
+      );
+
+      for (const row of assignmentsResult.rows) {
+        const current = assignmentsByImage.get(row.image_id) || [];
+        current.push({
+          bookId: row.book_id,
+          bookName: row.book_name,
+          pageNumber: row.page_number
+        });
+        assignmentsByImage.set(row.image_id, current);
+      }
+    }
+
     const apiUrl = `${req.protocol}://${req.get('host')}/api`;
     const images = result.rows.map(img => ({
       ...img,
+      assignments: assignmentsByImage.get(img.id) || [],
       fileUrl: `${apiUrl}/images/file/${img.id}`,
       signedUrl: generateSignedUrl(img.id, false),
       signedThumbUrl: generateSignedUrl(img.id, true)
     }));
-    
+
     res.json({
       images,
+      availableBooks: availableBooksResult.rows,
       total: parseInt(countResult.rows[0].count),
-      page: parseInt(page),
-      totalPages: Math.ceil(countResult.rows[0].count / parseInt(limit))
+      page: pageNumber,
+      totalPages: Math.ceil(countResult.rows[0].count / limitNumber)
     });
   } catch (error) {
     console.error('Error fetching images:', error);
@@ -370,17 +442,44 @@ router.delete('/', authenticateToken, async (req, res) => {
     }
 
     const blockedResult = await pool.query(
-      `SELECT DISTINCT pi.image_id
+      `SELECT DISTINCT
+         pi.image_id,
+         i.original_name,
+         p.book_id,
+         b.name AS book_name,
+         p.page_number
        FROM public.page_images pi
        JOIN public.images i ON i.id = pi.image_id
-       WHERE pi.image_id = ANY($1::uuid[]) AND i.uploaded_by = $2`,
+       JOIN public.pages p ON p.id = pi.page_id
+       JOIN public.books b ON b.id = p.book_id
+       WHERE pi.image_id = ANY($1::uuid[])
+         AND i.uploaded_by = $2
+       ORDER BY i.original_name ASC, b.name ASC, p.page_number ASC`,
       [imageIds, req.user.id]
     );
 
     if (blockedResult.rows.length > 0) {
+      const conflictsByImage = blockedResult.rows.reduce((acc, row) => {
+        const existing = acc.get(row.image_id) || {
+          imageId: row.image_id,
+          imageName: row.original_name,
+          usages: []
+        };
+
+        existing.usages.push({
+          bookId: row.book_id,
+          bookName: row.book_name,
+          pageNumber: row.page_number
+        });
+
+        acc.set(row.image_id, existing);
+        return acc;
+      }, new Map());
+
       return res.status(409).json({
         error: 'Cannot delete images that are still used on pages',
-        imageIds: blockedResult.rows.map((row) => row.image_id)
+        imageIds: Array.from(new Set(blockedResult.rows.map((row) => row.image_id))),
+        conflicts: Array.from(conflictsByImage.values())
       });
     }
 

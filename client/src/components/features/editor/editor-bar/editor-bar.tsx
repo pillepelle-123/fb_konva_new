@@ -51,6 +51,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   const {
     state,
     dispatch,
+    hasUnsavedChanges,
     saveBook,
     refreshPageAssignments,
     getVisiblePages,
@@ -167,7 +168,7 @@ export default function EditorBar({ toolSettingsPanelRef, initialPreviewOpen = f
   };
 
   const handleClose = () => {
-    if (state.hasUnsavedChanges) {
+    if (hasUnsavedChanges) {
       setShowCloseConfirm(true);
     } else {
       navigate('/books');

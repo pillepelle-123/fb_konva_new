@@ -37,7 +37,7 @@ export default function Navigation() {
       event.preventDefault();
     }
     
-    if (isInEditor) {
+    if (isInEditor && !!(window as Window & { __editorHasUnsavedChanges?: boolean }).__editorHasUnsavedChanges) {
       setPendingNavigation(path);
       setShowUnsavedDialog(true);
       return;
@@ -165,7 +165,7 @@ export default function Navigation() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex pt-2 items-center">
           {/* Logo */}
-          <Link to={user ? '/dashboard' : '/'} className="flex items-center space-x-2">
+          <Link to={user ? '/dashboard' : '/'} onClick={(e) => handleNavigation(user ? '/dashboard' : '/', e)} className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-background md:mr-2">
               <LibraryBig className="h-7 w-7 text-primary"/>
             </div>

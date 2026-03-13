@@ -1,7 +1,9 @@
+import { Link } from 'react-router-dom';
 import { Button } from '../../ui/primitives/button';
 import { Card, CardContent } from '../../ui/composites/card';
 import { Tooltip } from '../../ui/composites/tooltip';
-import { CircleCheckBig, Circle, Trash2, Calendar } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '../../ui/overlays/popover';
+import { CircleCheckBig, Circle, Trash2, Calendar, Book } from 'lucide-react';
 
 interface ImageData {
   id: string;
@@ -11,6 +13,11 @@ interface ImageData {
   book_id: number;
   created_at: string;
   file_path: string;
+  assignments?: Array<{
+    bookId: number;
+    bookName: string;
+    pageNumber: number;
+  }>;
 }
 
 interface ImageCardProps {
@@ -40,6 +47,9 @@ export default function ImageCard({
   getImageUrl,
   getFileUrlForCanvas
 }: ImageCardProps) {
+  const assignments = Array.isArray(image.assignments) ? image.assignments : [];
+  const assignmentCount = assignments.length;
+
   const handleImageClick = () => {
     if (multiSelectMode) {
       onToggleSelection?.(image.id);
@@ -92,25 +102,68 @@ export default function ImageCard({
       </div>
       
       <CardContent className="p-2 sm:p-3 space-y-2">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center space-x-1">
+        <div className="flex items-center text-sm text-muted-foreground">
+          {/* <div className="flex items-center space-x-1">
             <Calendar className="h-3 w-3" />
             <span>{new Date(image.created_at).toLocaleDateString()}</span>
-          </div>
-
-          {!multiSelectMode && mode !== 'select' && (
-          <Button
-            variant="destructive_outline"
-            size="sm"
-            onClick={() => onDelete?.(image.id)}
-            className="space-x-2"
-          >
-            <Trash2 className="h-5 w-5" />
-            <span className="hidden sm:inline">Delete</span>
-          </Button>
-        )}
-
+          </div> */}
         </div>
+
+        {!multiSelectMode && mode !== 'select' && (
+          <div className="flex items-center justify-between gap-2">
+            {assignmentCount === 0 ? (
+              <Tooltip content="Not assigned to books" side="bottom">
+                <Button variant="ghost" size="sm" className="flex items-center gap-1.5 opacity-40 cursor-default">
+                  <Book className="h-4 w-4" />
+                  <span>0</span>
+                </Button>
+              </Tooltip>
+            ) : (
+              <Tooltip content={`Assigned to ${assignmentCount} book${assignmentCount === 1 ? '' : 's'}`} side="bottom">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="default" className="flex items-center gap-1.5">
+                      <Book className="h-4 w-4" />
+                      <span>{assignmentCount}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3" align="start" side="top">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Assigned books</p>
+                      <div className="space-y-1.5">
+                        {assignments.map((assignment) => (
+                          <div
+                            key={`${image.id}-${assignment.bookId}-${assignment.pageNumber}`}
+                            className="flex items-center justify-between gap-2 rounded-md border p-2"
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {assignment.bookName}, page {assignment.pageNumber}
+                            </span>
+                            <Button asChild variant="link" size="xs" className="h-auto p-0">
+                              <Link to={`/editor/${assignment.bookId}?page=${assignment.pageNumber}`}>
+                                Open
+                              </Link>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </Tooltip>
+            )}
+
+            <Button
+              variant="destructive_outline"
+              size="default"
+              onClick={() => onDelete?.(image.id)}
+              className="space-x-2"
+            >
+              <Trash2 className="h-5 w-5" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

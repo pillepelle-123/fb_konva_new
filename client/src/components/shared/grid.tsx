@@ -9,6 +9,8 @@ interface GridProps<T> {
   keyExtractor: (item: T) => string | number;
   /** Optional: Custom grid layout classes (e.g. "grid-cols-2 md:grid-cols-4") */
   gridClassName?: string;
+  /** Optional: Auto-fit minimum item width for responsive columns. */
+  minItemWidth?: string;
 }
 
 export default function Grid<T>({ 
@@ -17,6 +19,7 @@ export default function Grid<T>({
   renderItem, 
   keyExtractor,
   gridClassName = 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
+  minItemWidth,
 }: GridProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -52,7 +55,10 @@ export default function Grid<T>({
       )}
 
       {/* Items Grid */}
-      <div className={`grid ${gridClassName}`}>
+      <div
+        className={`grid ${gridClassName}`}
+        style={minItemWidth ? { gridTemplateColumns: `repeat(auto-fit, minmax(${minItemWidth}, 1fr))` } : undefined}
+      >
         {currentItems.map(item => (
           <div key={keyExtractor(item)}>
             {renderItem(item)}

@@ -50,8 +50,7 @@ export default function BooksLayout() {
           animate="center"
           exit="exit"
           transition={transition}
-          className="absolute inset-0 w-full min-h-full"
-          style={{ overflow: 'auto' }}
+          className="absolute inset-0 w-full min-h-full overflow-auto"
         >
           {outlet}
         </motion.div>

@@ -24,8 +24,30 @@ function EditorContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded } = useEditor();
+  const { state, dispatch, loadBook, undo, redo, saveBook, canAccessEditor, canEditCanvas, ensurePagesLoaded, hasUnsavedChanges } = useEditor();
   const toolSettingsPanelRef = useRef<ToolSettingsPanelRef>(null);
+
+  // Browser tab title: prefix with * when there are unsaved changes
+  useEffect(() => {
+    const bookName = state.currentBook?.name || 'Freundebuch';
+    document.title = hasUnsavedChanges ? `* ${bookName}` : bookName;
+    (window as Window & { __editorHasUnsavedChanges?: boolean }).__editorHasUnsavedChanges = hasUnsavedChanges;
+    return () => {
+      document.title = 'Freundebuch';
+      (window as Window & { __editorHasUnsavedChanges?: boolean }).__editorHasUnsavedChanges = false;
+    };
+  }, [hasUnsavedChanges, state.currentBook?.name]);
+
+  // Warn before browser tab/window close when there are unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. If you close this tab, your changes will be lost.';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   const openPreviewOnLoad = useMemo(() => {

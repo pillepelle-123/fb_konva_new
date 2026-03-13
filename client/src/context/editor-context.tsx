@@ -926,6 +926,7 @@ export interface EditorState {
   editorSettings: Record<string, Record<string, any>>;
   history: HistoryEntry[];
   historyIndex: number;
+  savedHistoryIndex: number;
   historyBase: HistorySnapshot | null;
   historyActions: string[];
   hasUnsavedChanges: boolean;
@@ -1057,6 +1058,7 @@ const initialState: EditorState = {
   tempAnswers: {},
   history: [],
   historyIndex: -1,
+  savedHistoryIndex: 0,
   historyBase: null,
   historyActions: [],
   magneticSnapping: true,
@@ -1726,6 +1728,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
           historyBase: loadSnapshot,
           history: [{ patches: [], inversePatches: [], command: 'INITIAL', timestamp: Date.now() }],
           historyIndex: 0,
+          savedHistoryIndex: 0,
           historyActions: ['Load Book']
         };
       }
@@ -1734,6 +1737,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         historyBase: null,
         history: [],
         historyIndex: -1,
+        savedHistoryIndex: 0,
         historyActions: []
       };
     }
@@ -3101,7 +3105,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, settingsPanelVisible: !state.settingsPanelVisible };
     
     case 'MARK_SAVED':
-      return { ...state, hasUnsavedChanges: false };
+      return { ...state, hasUnsavedChanges: false, savedHistoryIndex: state.historyIndex };
     
     case 'UPDATE_TOOL_SETTINGS':
       const savedToolState = saveToHistory(state, 'Update Tool Settings', {
@@ -5477,6 +5481,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 export const EditorContext = createContext<{
   state: EditorState;
   dispatch: React.Dispatch<EditorAction>;
+  hasUnsavedChanges: boolean;
   saveBook: () => Promise<void>;
   loadBook: (bookId: number) => Promise<void>;
   applyTemplateToPage: (template: PageTemplate, pageIndex?: number) => void;
@@ -5526,6 +5531,7 @@ export const useEditor = () => {
       return {
         state: initialState,
         dispatch: () => {},
+        hasUnsavedChanges: false,
         saveBook: async () => {},
         loadBook: async () => {},
         applyTemplateToPage: () => {},
@@ -6696,10 +6702,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return { valid: true };
   };
 
+  const hasUnsavedChanges = state.historyIndex !== state.savedHistoryIndex;
+
   return (
     <EditorContext.Provider value={{ 
       state, 
-      dispatch, 
+      dispatch,
+      hasUnsavedChanges,
       saveBook, 
       loadBook, 
       getQuestionText, 

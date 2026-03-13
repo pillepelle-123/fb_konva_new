@@ -1,9 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../ui/primitives/button';
+import { Label } from '../../ui/primitives/label';
+import MultipleSelector, { type Option } from '../../ui/multi-select';
 import { ButtonGroup } from '../../ui/composites/button-group';
+import { DatePicker } from '../../ui/composites/date-picker';
+import AlertDialog from '../../ui/overlays/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/overlays/dialog';
 import { Alert } from '../../ui/composites/alert';
-import { Image, Plus, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck } from 'lucide-react';
+import { Image, Plus, ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X, SquareCheckBig, SquareX, Copy, CopyCheck, Funnel } from 'lucide-react';
 import ImageCard from './image-card';
 import { Tooltip } from '../../ui/composites/tooltip';
 import { PageLoadingState, EmptyStateCard, ResourcePageLayout, ImageGrid, type ImageGridItem } from '../../shared';
@@ -17,9 +22,42 @@ interface ImageData {
   created_at: string;
   file_path: string;
   uploaded_by?: number;
+  assignments?: Array<{
+    bookId: number;
+    bookName: string;
+    pageNumber: number;
+  }>;
   signedUrl?: string;
   signedThumbUrl?: string;
   fileUrl?: string;
+}
+
+interface ImageBookFilterOption {
+  id: number;
+  name: string;
+}
+
+interface ImageDeleteConflictUsage {
+  bookId: number;
+  bookName: string;
+  pageNumber: number;
+}
+
+interface ImageDeleteConflict {
+  imageId: string;
+  imageName: string;
+  usages: ImageDeleteConflictUsage[];
+}
+
+interface DeletePreviewItem {
+  id: string;
+  name: string;
+  assignments: ImageDeleteConflictUsage[];
+}
+
+interface DeletePreview {
+  deletable: Array<{ id: string; name: string }>;
+  blocked: DeletePreviewItem[];
 }
 
 interface ImagesContentProps {
@@ -31,21 +69,31 @@ interface ImagesContentProps {
   showAsContent?: boolean;
 }
 
-export default function ImagesContent({ 
-  token, 
-  onImageSelect, 
+export default function ImagesContent({
+  token,
+  onImageSelect,
   onImageUpload,
-  mode = 'manage', 
+  mode = 'manage',
   onClose,
-  showAsContent = false 
+  showAsContent = false
 }: ImagesContentProps) {
   const [images, setImages] = useState<ImageData[]>([]);
+  const [availableBooks, setAvailableBooks] = useState<ImageBookFilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [filterUsageBooks, setFilterUsageBooks] = useState<Option[]>([]);
+  const [filterUploadedFrom, setFilterUploadedFrom] = useState('');
+  const [filterUploadedTo, setFilterUploadedTo] = useState('');
+  const [appliedUsageBooks, setAppliedUsageBooks] = useState<Option[]>([]);
+  const [appliedUploadedFrom, setAppliedUploadedFrom] = useState('');
+  const [appliedUploadedTo, setAppliedUploadedTo] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string[] | null>(null);
+  const [deleteConflicts, setDeleteConflicts] = useState<ImageDeleteConflict[] | null>(null);
+  const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(null);
   const [lightboxImage, setLightboxImage] = useState<ImageData | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -54,27 +102,65 @@ export default function ImagesContent({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastUploadRef = useRef<string>('');
 
-  useEffect(() => {
-    fetchImages();
-  }, [currentPage]);
+  const selectedFilterBookId = filterUsageBooks[0]?.value ?? '';
+  const selectedAppliedBookId = appliedUsageBooks[0]?.value ?? '';
 
-  const fetchImages = async () => {
+  const hasActiveFilters = selectedAppliedBookId !== '' || appliedUploadedFrom !== '' || appliedUploadedTo !== '';
+  const hasPendingFilterChanges =
+    selectedFilterBookId !== selectedAppliedBookId ||
+    filterUploadedFrom !== appliedUploadedFrom ||
+    filterUploadedTo !== appliedUploadedTo;
+
+  const usageBookOptions = useMemo<Option[]>(
+    () => availableBooks.map((book) => ({ value: String(book.id), label: book.name })),
+    [availableBooks]
+  );
+
+  const fetchImages = useCallback(async () => {
+    setLoading(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/images?page=${currentPage}&limit=15`, {
+      const searchParams = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '15',
+      });
+
+      if (selectedAppliedBookId) {
+        searchParams.set('usageBookId', selectedAppliedBookId);
+      }
+      if (appliedUploadedFrom) {
+        searchParams.set('uploadedFrom', appliedUploadedFrom);
+      }
+      if (appliedUploadedTo) {
+        searchParams.set('uploadedTo', appliedUploadedTo);
+      }
+
+      const response = await fetch(`${apiUrl}/images?${searchParams.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        setImages(data.images);
-        setTotalPages(data.totalPages);
+        const nextTotalPages = Math.max(1, data.totalPages || 1);
+        setAvailableBooks(Array.isArray(data.availableBooks) ? data.availableBooks : []);
+
+        if (currentPage > nextTotalPages) {
+          setCurrentPage(nextTotalPages);
+          return;
+        }
+
+        setImages(Array.isArray(data.images) ? data.images : []);
+        setTotalPages(nextTotalPages);
       }
     } catch (error) {
       console.error('Error fetching images:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, selectedAppliedBookId, appliedUploadedFrom, appliedUploadedTo, token]);
+
+  useEffect(() => {
+    fetchImages();
+  }, [fetchImages]);
 
   const handleFileUpload = async (files: FileList) => {
     if (files.length === 0 || isUploading) return;
@@ -222,12 +308,33 @@ export default function ImagesContent({
         },
         body: JSON.stringify({ imageIds })
       });
+
       if (response.ok) {
+        setDeleteConflicts(null);
         fetchImages();
         setSelectedImages(new Set());
+        return;
       }
+
+      if (response.status === 409) {
+        const data = await response.json();
+        setDeleteConflicts(Array.isArray(data.conflicts) ? data.conflicts : []);
+        return;
+      }
+
+      let errorMessage = 'Delete failed. Please try again.';
+      try {
+        const errorData = await response.json();
+        if (typeof errorData?.error === 'string' && errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // Ignore parse errors and keep default message.
+      }
+      setUploadError(errorMessage);
     } catch (error) {
       console.error('Delete failed:', error);
+      setUploadError('Delete failed. Please try again.');
     }
   };
 
@@ -247,6 +354,23 @@ export default function ImagesContent({
 
   const deselectAllImages = () => {
     setSelectedImages(new Set());
+  };
+
+  const applyFilters = () => {
+    setAppliedUsageBooks(filterUsageBooks);
+    setAppliedUploadedFrom(filterUploadedFrom);
+    setAppliedUploadedTo(filterUploadedTo);
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilterUsageBooks([]);
+    setFilterUploadedFrom('');
+    setFilterUploadedTo('');
+    setAppliedUsageBooks([]);
+    setAppliedUploadedFrom('');
+    setAppliedUploadedTo('');
+    setCurrentPage(1);
   };
 
   const getImageUrl = (image: ImageData) => {
@@ -270,9 +394,136 @@ export default function ImagesContent({
     return `${apiUrl}/images/file/${image.id}`;
   };
 
-  if (loading) {
-    return <PageLoadingState message="Loading images..." withContainer={false} />;
-  }
+  const buildEditorPageLink = (bookId: number, pageNumber: number) => `/editor/${bookId}?page=${pageNumber}`;
+
+  const buildDeletePreview = (imageIds: string[]): DeletePreview => {
+    const deletable: Array<{ id: string; name: string }> = [];
+    const blocked: DeletePreviewItem[] = [];
+    for (const id of imageIds) {
+      const img = images.find((i) => i.id === id);
+      if (!img) continue;
+      if (img.assignments && img.assignments.length > 0) {
+        blocked.push({ id: img.id, name: img.original_name, assignments: img.assignments as ImageDeleteConflictUsage[] });
+      } else {
+        deletable.push({ id: img.id, name: img.original_name });
+      }
+    }
+    return { deletable, blocked };
+  };
+
+  const renderDeleteConflictMessage = () => {
+    if (!deleteConflicts || deleteConflicts.length === 0) {
+      return 'The selected image is still used on one or more pages. You need to remove it from there first.';
+    }
+
+    return (
+      <div className="space-y-4 text-left text-sm text-foreground">
+        <p className="text-muted-foreground">
+          The selected image{deleteConflicts.length !== 1 ? 's are' : ' is'} still used in the following book pages.
+        </p>
+        {deleteConflicts.map((conflict) => (
+          <div key={conflict.imageId} className="space-y-2 rounded-md border p-3">
+            <p className="font-medium">{conflict.imageName}</p>
+            <div className="flex flex-col items-start gap-1">
+              {conflict.usages.map((usage) => (
+                <Button
+                  key={`${conflict.imageId}-${usage.bookId}-${usage.pageNumber}`}
+                  asChild
+                  variant="link"
+                  className="h-auto p-0 text-left whitespace-normal"
+                >
+                  <Link to={buildEditorPageLink(usage.bookId, usage.pageNumber)}>
+                    Open {usage.bookName}, page {usage.pageNumber}
+                  </Link>
+                </Button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const uploadZoneContent = uploadZoneExpanded && showAsContent ? (
+    <div
+      className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+        isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+      } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+    >
+      <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+      <p className="text-base font-medium mb-2">
+        {isUploading ? 'Uploading images...' : 'Drop images here or click "Upload" to add images'}
+      </p>
+      <p className="text-muted-foreground text-sm mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
+      <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
+        <Plus className="h-4 w-4" />
+        <span>Upload</span>
+      </Button>
+      <div className="mt-4 flex justify-end">
+        <Button
+          variant="ghost_hover"
+          size="sm"
+          onClick={() => setUploadZoneExpanded(false)}
+          className="space-x-2 text-muted-foreground"
+        >
+          <ChevronUp className="h-4 w-4" />
+          <span>Hide Drop Zone</span>
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
+  const filterBarContent = filtersExpanded && showAsContent ? (
+    // <div className="rounded-lg border bg-background/80 p-4">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_auto]">
+        <div>
+          <Label variant="sm" htmlFor="images-filter-book" className="text-xs text-muted-foreground mb-1">Assigned Book</Label>
+          <MultipleSelector
+            value={filterUsageBooks}
+            onChange={setFilterUsageBooks}
+            options={usageBookOptions}
+            placeholder="All books"
+            maxSelected={1}
+            hidePlaceholderWhenSelected
+            className="min-h-9"
+          />
+        </div>
+
+        <div>
+          <Label variant="sm" htmlFor="images-filter-uploaded" className="text-xs text-muted-foreground mb-1">Uploaded</Label>
+          <DatePicker
+            variant="range"
+            value={{ from: filterUploadedFrom, to: filterUploadedTo }}
+            onChange={(nextValue) => {
+              setFilterUploadedFrom(nextValue.from);
+              setFilterUploadedTo(nextValue.to);
+            }}
+            placeholder="Pick created date range"
+          />
+        </div>
+
+        <div className="flex items-end gap-2">
+          <Button variant="outline" onClick={clearFilters} disabled={!hasActiveFilters && !hasPendingFilterChanges} className="w-full md:w-auto">
+            Reset Filter
+          </Button>
+          <Button variant="primary" onClick={applyFilters} disabled={!hasPendingFilterChanges} className="w-full md:w-auto">
+            Apply Filter
+          </Button>
+        </div>
+      </div>
+    // </div>
+  ) : null;
+
+  const headerAdditionalContent = showAsContent && (filtersExpanded || uploadZoneExpanded) ? (
+    <div className="space-y-4 pt-4">
+      {filterBarContent}
+      {uploadZoneContent}
+    </div>
+  ) : null;
 
   const imagesHeaderActions = showAsContent ? (
     <>
@@ -317,7 +568,7 @@ export default function ImagesContent({
           </Tooltip>
           <Button
             variant="destructive_outline"
-            onClick={() => setShowDeleteConfirm(Array.from(selectedImages))}
+            onClick={() => setDeletePreview(buildDeletePreview(Array.from(selectedImages)))}
             disabled={selectedImages.size === 0}
             className="space-x-2"
           >
@@ -337,6 +588,14 @@ export default function ImagesContent({
         </Tooltip>
       )}
       <Button
+        variant={filtersExpanded ? 'secondary' : 'outline'}
+        onClick={() => setFiltersExpanded((value) => !value)}
+        className="space-x-2"
+      >
+        <Funnel className="h-4 w-4" />
+        <span>Filter Images</span>
+      </Button>
+      <Button
         variant="default"
         onClick={() => fileInputRef.current?.click()}
         className="sm:hidden space-x-2"
@@ -346,7 +605,7 @@ export default function ImagesContent({
       </Button>
       <Button
         variant="default"
-        onClick={() => setUploadZoneExpanded((v) => !v)}
+        onClick={() => setUploadZoneExpanded((value) => !value)}
         className="hidden sm:inline-flex space-x-2"
       >
         <Plus className="h-5 w-5" />
@@ -360,27 +619,9 @@ export default function ImagesContent({
     </>
   ) : null;
 
-  const uploadZoneContent = uploadZoneExpanded && showAsContent ? (
-    <div
-      className={`mt-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-        isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-      } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-    >
-      <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-      <p className="text-base font-medium mb-2">
-        {isUploading ? 'Uploading images...' : 'Drop images here or click "Upload" to add images'}
-      </p>
-      <p className="text-muted-foreground text-sm mb-4">Supports JPG, PNG, GIF, WebP up to 5MB</p>
-      <Button variant="default" onClick={() => fileInputRef.current?.click()} className="space-x-2">
-        <Plus className="h-4 w-4" />
-        <span>Upload</span>
-      </Button>
-    </div>
-  ) : null;
+  if (loading) {
+    return <PageLoadingState message="Loading images..." withContainer={false} />;
+  }
 
   const mainContent = (
     <>
@@ -443,16 +684,22 @@ export default function ImagesContent({
       {images.length === 0 ? (
         <EmptyStateCard
           icon={<Image className="h-12 w-12" />}
-          title="No images yet"
-          description="Upload your first images to get started."
+          title={hasActiveFilters ? 'No images match your filters' : 'No images yet'}
+          description={hasActiveFilters ? 'Adjust or clear the filters to see more images.' : 'Upload your first images to get started.'}
           primaryAction={{
-            label: (
+            label: hasActiveFilters ? 'Reset Filter' : (
               <>
                 <Plus className="h-4 w-4" />
                 <span>Upload Images</span>
               </>
             ),
-            onClick: () => fileInputRef.current?.click(),
+            onClick: () => {
+              if (hasActiveFilters) {
+                clearFilters();
+                return;
+              }
+              fileInputRef.current?.click();
+            },
           }}
         />
       ) : (
@@ -471,19 +718,28 @@ export default function ImagesContent({
               const imageData = (item as ImageGridItem & { imageData: ImageData }).imageData;
               if (!imageData) return null;
               return (
-                <ImageCard
-                  image={imageData}
-                  multiSelectMode={multiSelectMode}
-                  isSelected={selectedImages.has(imageData.id)}
-                  mode={mode === 'select' ? 'select' : 'view'}
-                  onImageClick={() => setLightboxImage(imageData)}
-                  onImageSelect={onImageSelect}
-                  onToggleSelection={toggleImageSelection}
-                  onDelete={(imageId) => setShowDeleteConfirm([imageId])}
-                  getThumbUrl={getThumbUrl}
-                  getImageUrl={getImageUrl}
-                  getFileUrlForCanvas={getFileUrlForCanvas}
-                />
+                <div className="mx-auto w-full max-w-[15rem] sm:max-w-[15.5rem] xl:max-w-[16rem]">
+                  <ImageCard
+                    image={imageData}
+                    multiSelectMode={multiSelectMode}
+                    isSelected={selectedImages.has(imageData.id)}
+                    mode={mode === 'select' ? 'select' : 'view'}
+                    onImageClick={() => setLightboxImage(imageData)}
+                    onImageSelect={onImageSelect}
+                    onToggleSelection={toggleImageSelection}
+                    onDelete={(imageId) => {
+                      const img = images.find((i) => i.id === imageId);
+                      if (img?.assignments && img.assignments.length > 0) {
+                        handleDeleteImages([imageId]);
+                      } else {
+                        setShowDeleteConfirm([imageId]);
+                      }
+                    }}
+                    getThumbUrl={getThumbUrl}
+                    getImageUrl={getImageUrl}
+                    getFileUrlForCanvas={getFileUrlForCanvas}
+                  />
+                </div>
               );
             }}
           />
@@ -503,7 +759,7 @@ export default function ImagesContent({
             <DialogHeader>
               <DialogTitle>Delete Images</DialogTitle>
               <DialogDescription>
-                Do you permanently delete {showDeleteConfirm?.length} image{showDeleteConfirm?.length !== 1 ? 's' : ''}?
+                Do you want to permanently delete {showDeleteConfirm?.length} image{showDeleteConfirm?.length !== 1 ? 's' : ''}?
                 This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
@@ -523,6 +779,77 @@ export default function ImagesContent({
               >
                 Delete
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog
+          open={!!deleteConflicts}
+          onOpenChange={() => setDeleteConflicts(null)}
+          title="Image is still used in books"
+          message={renderDeleteConflictMessage()}
+          onClose={() => setDeleteConflicts(null)}
+        />
+
+        <Dialog open={!!deletePreview} onOpenChange={() => setDeletePreview(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete images</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-sm max-h-[60vh] overflow-y-auto">
+              {(deletePreview?.blocked.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="font-medium text-destructive">Cannot be deleted — still used in books</p>
+                  {deletePreview!.blocked.map((img) => (
+                    <div key={img.id} className="rounded-md border p-3 space-y-1">
+                      <p className="font-medium">{img.name}</p>
+                      <div className="flex flex-col items-start gap-0.5">
+                        {img.assignments.map((a) => (
+                          <Button
+                            key={`${img.id}-${a.bookId}-${a.pageNumber}`}
+                            asChild
+                            variant="link"
+                            className="h-auto p-0 text-left text-xs"
+                          >
+                            <Link to={buildEditorPageLink(a.bookId, a.pageNumber)}>
+                              Open {a.bookName}, page {a.pageNumber}
+                            </Link>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(deletePreview?.deletable.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="font-medium">Will be permanently deleted</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    {deletePreview!.deletable.map((img) => (
+                      <li key={img.id}>{img.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setDeletePreview(null)} className="flex-1">
+                Cancel
+              </Button>
+              {(deletePreview?.deletable.length ?? 0) > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (deletePreview) {
+                      handleDeleteImages(deletePreview.deletable.map((i) => i.id));
+                      setDeletePreview(null);
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  Delete {deletePreview!.deletable.length} image{deletePreview!.deletable.length !== 1 ? 's' : ''}
+                </Button>
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -560,7 +887,7 @@ export default function ImagesContent({
         title="My Images"
         icon={<Image className="h-6 w-6 text-foreground" />}
         actions={imagesHeaderActions}
-        headerAdditionalContent={uploadZoneContent}
+        headerAdditionalContent={headerAdditionalContent}
         description="Manage your uploaded images"
         actionsAlignRightOnMobile
       >
