@@ -289,7 +289,7 @@ export default function BookCard({
 
   return (
     <Card
-      className={`group border hover:shadow-md transition-all duration-200 overflow-hidden ${multiSelectMode ? 'cursor-pointer' : 'hover:border-primary/40 rounded-xl shadow-lg'} ${isSelected ? 'border border-muted-foreground rounded-xl' : ''}`}
+      className={`group border transition-all duration-200 overflow-hidden hover:[box-shadow:0_18px_40px_rgba(0,0,0,0.35)] ${multiSelectMode ? 'cursor-pointer shadow-sm' : 'hover:border-primary/40 rounded-xl shadow-lg'} ${isSelected ? 'border border-muted-foreground rounded-xl' : ''}`}
       onClick={multiSelectMode ? () => onToggleSelection?.(book.id) : undefined}
     >
       <BookCardPreview

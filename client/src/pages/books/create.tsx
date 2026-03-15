@@ -744,14 +744,62 @@ export default function BookCreatePage() {
 
       const hasManualAssignments = existingAssignments.length > 0;
 
+      // Send invitations first so temporary invite IDs can be mapped to real user IDs.
+      const inviteIdMap = new Map<number, number>();
+      const invitedUserIds = new Set<number>();
+      await Promise.all(
+        wizardState.team.invites.map(async (invite) => {
+          try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/invitations/send`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                name: invite.name,
+                email: invite.email,
+                bookId: newBook.id,
+              }),
+            });
+
+            if (!response.ok) {
+              console.warn('Failed to send invitation', invite.email);
+              return;
+            }
+
+            const inviteResult = await response.json().catch(() => null);
+            const mappedUserId = Number(inviteResult?.userId ?? inviteResult?.user?.id);
+            if (Number.isInteger(mappedUserId) && mappedUserId > 0) {
+              invitedUserIds.add(mappedUserId);
+              if (typeof invite.tempFriendId === 'number') {
+                inviteIdMap.set(invite.tempFriendId, mappedUserId);
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to send invitation', invite.email, error);
+          }
+        }),
+      );
+
+      const resolvedAssignments = existingAssignments.map((assignment) => ({
+        pageNumber: assignment.pageNumber,
+        userId: inviteIdMap.get(assignment.userId) ?? assignment.userId,
+      }));
+
       // Only create page assignments if they were manually assigned in the wizard
       // Assignable pages: 1 to totalPages-2 (first-page, content, last-page; excludes front/back cover)
       if (hasManualAssignments) {
-        const filteredAssignments = existingAssignments.filter(
+        const allValidFriendIds = new Set<number>([
+          ...Array.from(validFriendIds),
+          ...Array.from(invitedUserIds),
+        ]);
+
+        const filteredAssignments = resolvedAssignments.filter(
           (assignment) =>
             assignment.pageNumber >= 1 &&
             assignment.pageNumber <= totalPages - 2 &&
-            validFriendIds.has(assignment.userId),
+            allValidFriendIds.has(assignment.userId),
         );
 
         if (filteredAssignments.length > 0) {
@@ -772,28 +820,6 @@ export default function BookCreatePage() {
         }
       }
       // Removed automatic assignment logic - users must explicitly assign pages or use "Auto-assign" button
-
-      // Send invitations for new users (these will generate invitation URLs with tokens)
-      await Promise.all(
-        wizardState.team.invites.map(async (invite) => {
-          try {
-            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/invitations/send`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`,
-              },
-              body: JSON.stringify({
-                name: invite.name,
-                email: invite.email,
-                bookId: newBook.id,
-              }),
-            });
-          } catch (error) {
-            console.warn('Failed to send invitation', invite.email, error);
-          }
-        }),
-      );
 
       // Create questions in order from orderedQuestions
       const orderedQuestions = wizardState.questions.orderedQuestions || [];

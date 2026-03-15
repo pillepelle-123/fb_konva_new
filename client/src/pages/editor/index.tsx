@@ -208,6 +208,24 @@ function EditorContent() {
               const newBook = await response.json();
               const wizardFriends = tempBook?.wizardFriends || [];
               const wizardFriendInvites = tempBook?.wizardFriendInvites || [];
+              const wizardAssignmentState = tempBook?.wizardAssignmentState;
+              const wizardPageAssignmentsSource =
+                tempBook?.wizardPageAssignments ||
+                wizardAssignmentState?.pageAssignments ||
+                tempBook?.assignmentState?.pageAssignments ||
+                tempBook?.pageAssignments ||
+                {};
+              const wizardTotalPages =
+                Number(wizardAssignmentState?.totalPages) ||
+                Number(tempBook?.totalPages) ||
+                Number(tempBook?.pages?.length) ||
+                0;
+              const existingAssignments = Object.entries(wizardPageAssignmentsSource).map(([page, userId]) => ({
+                pageNumber: Number(page),
+                userId: Number(userId),
+              }));
+              const hasManualAssignments = existingAssignments.length > 0;
+              const validFriendIds = new Set<number>();
               
               if (wizardFriends.length > 0) {
                 try {
@@ -228,15 +246,22 @@ function EditorContent() {
                       }),
                     ),
                   );
+                  wizardFriends.forEach((friend: any) => {
+                    const friendId = Number(friend?.id);
+                    if (Number.isInteger(friendId) && friendId > 0) {
+                      validFriendIds.add(friendId);
+                    }
+                  });
                 } catch (friendError) {
                   console.warn('Failed to add wizard friends to book:', friendError);
                 }
               }
 
+              const inviteIdMap = new Map<number, number>();
               if (wizardFriendInvites.length > 0) {
                 for (const invite of wizardFriendInvites) {
                   try {
-                    await fetch(`${apiUrl}/invitations/send`, {
+                    const inviteResponse = await fetch(`${apiUrl}/invitations/send`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -248,8 +273,58 @@ function EditorContent() {
                         bookId: newBook.id,
                       }),
                     });
+
+                    if (!inviteResponse.ok) {
+                      console.warn('Failed to send wizard invitation:', invite.email);
+                      continue;
+                    }
+
+                    const inviteResult = await inviteResponse.json().catch(() => null);
+                    const invitedUserId = Number(inviteResult?.userId ?? inviteResult?.user?.id);
+                    if (Number.isInteger(invitedUserId) && invitedUserId > 0) {
+                      validFriendIds.add(invitedUserId);
+                      if (typeof invite?.tempFriendId === 'number') {
+                        inviteIdMap.set(invite.tempFriendId, invitedUserId);
+                      }
+                    }
                   } catch (inviteError) {
                     console.warn('Failed to send wizard invitation:', inviteError);
+                  }
+                }
+              }
+
+              if (hasManualAssignments) {
+                const resolvedAssignments = existingAssignments.map((assignment) => ({
+                  pageNumber: assignment.pageNumber,
+                  userId: inviteIdMap.get(assignment.userId) ?? assignment.userId,
+                }));
+
+                const filteredAssignments = resolvedAssignments.filter((assignment) => {
+                  if (!validFriendIds.has(assignment.userId)) {
+                    return false;
+                  }
+
+                  if (wizardTotalPages > 2) {
+                    return assignment.pageNumber >= 1 && assignment.pageNumber <= wizardTotalPages - 2;
+                  }
+
+                  return assignment.pageNumber >= 1;
+                });
+
+                if (filteredAssignments.length > 0) {
+                  try {
+                    await fetch(`${apiUrl}/page-assignments/book/${newBook.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        assignments: filteredAssignments,
+                      }),
+                    });
+                  } catch (assignmentError) {
+                    console.warn('Failed to apply wizard page assignments:', assignmentError);
                   }
                 }
               }

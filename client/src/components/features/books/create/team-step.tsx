@@ -64,6 +64,12 @@ type PageTile = {
   chunkStartPage: number | null;
 };
 
+type AssignmentChunk = {
+  friendId: number;
+  startPage: number;
+  endPage: number;
+};
+
 interface TeamStepProps {
   wizardState: WizardState;
   onTeamChange: (data: Partial<WizardState['team']>) => void;
@@ -194,6 +200,10 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
     (friend) => friend.id === activeDraggedFriendId,
   );
 
+  const normalizeManualDragStartPage = (pageNumber: number): number => {
+    return Math.max(pageNumber, CONTENT_START_PAGE);
+  };
+
   const handleSelectFriend = (value?: string) => {
     if (!value) return;
     const friendId = Number(value);
@@ -275,15 +285,10 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
 
   const handleFacingPagesToggle = (checked: boolean) => {
     if (pagesPerUser % 2 !== 0) return;
-    
-    // Adjust assignments to ensure they're within page pairs when enabling facing pages
-    const adjustedState = checked
-      ? adjustAssignmentsForFacingPages(assignmentState, pagesPerUser, totalPages)
-      : assignmentState; // When disabling, keep assignments as is
-    
+
     onTeamChange({
       friendFacingPages: checked,
-      assignmentState: adjustedState,
+      assignmentState,
     });
   };
 
@@ -339,8 +344,9 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       ) {
         const targetFriendId = assignmentState.pageAssignments[targetPageNumber];
         if (targetFriendId === undefined) {
-          // Move: target is unassigned – die Drop-Seite ist immer die erste Seite des Assignment-Bereichs
-          const targetStart = targetPageNumber;
+          // Move: target is unassigned.
+          // For facing pages, normalize to the first page of the corresponding page pair.
+          const targetStart = normalizeManualDragStartPage(targetPageNumber);
           const targetEnd = targetStart + pagesPerUser - 1;
           if (targetEnd >= totalPages - 1) {
             setActiveDraggedFriendId(null);
@@ -373,8 +379,9 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
             onTeamChange({ assignmentState: nextState2 });
           }
         } else if (targetFriendId === sourceChunk.friendId) {
-          // Shift nach hinten: Drop auf eigene Seite – diese wird neue erste Seite
-          const targetStart = targetPageNumber;
+          // Shift within own assignment area.
+          // For facing pages, normalize to the first page of the corresponding page pair.
+          const targetStart = normalizeManualDragStartPage(targetPageNumber);
           const targetEnd = targetStart + pagesPerUser - 1;
           if (targetEnd >= totalPages - 1 || targetStart === sourceChunk.startPage) {
             setActiveDraggedFriendId(null);
@@ -413,6 +420,7 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
           ) {
             targetStart--;
           }
+          targetStart = normalizeManualDragStartPage(targetStart);
           const newAssignments = { ...assignmentState.pageAssignments };
           for (let i = 0; i < pagesPerUser; i++) {
             delete newAssignments[sourceChunk.startPage + i];
@@ -459,27 +467,34 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
       }
 
       if (pageNumber !== undefined) {
-        let startPage = pageNumber;
-        // Special handling for pagesPerUser === 4 and friendFacingPages === true
-        if (
-          wizardState.team.friendFacingPages &&
-          pagesPerUser === 4 &&
-          startPage % 2 === 0 &&
-          startPage !== CONTENT_START_PAGE
-        ) {
-          // For even pages, assign the 4 pages surrounding it: one preceding and two succeeding
-          // e.g., if dropped on page 6, assign pages 5, 6, 7, 8
-          startPage = startPage - 1;
-        } else if (
-          wizardState.team.friendFacingPages &&
-          pagesPerUser % 2 === 0 &&
-          pagesPerUser !== 4 &&
-          startPage % 2 === 0 &&
-          startPage !== CONTENT_START_PAGE
-        ) {
-          // For other even page settings (e.g., pagesPerUser === 2), adjust to previous odd page
-          startPage = Math.max(startPage - 1, CONTENT_START_PAGE);
+        const targetFriendId = assignmentState.pageAssignments[pageNumber];
+
+        if (targetFriendId !== undefined) {
+          const reassignedState = insertCollaboratorAtAssignedPage(
+            assignmentState,
+            friendId,
+            pageNumber,
+            pagesPerUser,
+            totalPages,
+            96,
+          );
+
+          if (reassignedState === 'max-pages') {
+            toast.error('Maximum pages reached. Cannot insert collaborator here.');
+            setActiveDraggedFriendId(null);
+            setActiveDraggedPageChunk(null);
+            return;
+          }
+
+          if (reassignedState) {
+            onTeamChange({ assignmentState: reassignedState });
+            setActiveDraggedFriendId(null);
+            setActiveDraggedPageChunk(null);
+            return;
+          }
         }
+
+        const startPage = normalizeManualDragStartPage(pageNumber);
         
         // Check if there's enough space for the assignment
         // If not enough space, automatically add pages as needed
@@ -1042,7 +1057,6 @@ export function TeamStep({ wizardState, onTeamChange, availableFriends }: TeamSt
                 assignableBlocksCount={assignableBlocksCount}
                 assignedBlocksCount={assignedBlocksCount}
                 pagesPerUser={pagesPerUser}
-                friendFacingPages={wizardState.team.friendFacingPages}
                 assignmentState={assignmentState}
                 onTeamChange={onTeamChange}
                 onShowRemoveAddedPagesDialog={() => setShowResetAddedPagesDialog(true)}
@@ -1191,7 +1205,7 @@ function CollaboratorDraggableCard({
           className={cn(
             'rounded-lg border bg-card flex items-center justify-center transition-colors min-h-[80px] w-full relative px-3 overflow-visible mt-2',
             disableDrag 
-              ? ' cursor-not-allowed' 
+              ? 'cursor-not-allowed opacity-50' 
               : 'hover:bg-muted/50 cursor-grab active:cursor-grabbing',
             (isDragging || isActive) && 'ring-2 ring-primary/40 shadow-sm',
           )}
@@ -1303,7 +1317,6 @@ interface BookTimelineProps {
   assignableBlocksCount: number;
   assignedBlocksCount: number;
   pagesPerUser: 1 | 2 | 3 | 4;
-  friendFacingPages: boolean;
   maxPages?: number;
   assignmentState: TeamAssignmentState;
   onTeamChange: (data: Partial<WizardState['team']>) => void;
@@ -1325,7 +1338,6 @@ function BookTimeline({
   assignableBlocksCount,
   assignedBlocksCount,
   pagesPerUser,
-  friendFacingPages,
   maxPages = 96,
   assignmentState,
   onTeamChange,
@@ -1395,7 +1407,7 @@ function BookTimeline({
             >
               +4
             </Button>
-            <Button
+            {/* <Button
               variant="outline"
               size="md"
               onClick={() => {
@@ -1415,7 +1427,7 @@ function BookTimeline({
               title="Add 8 pages"
             >
               +8
-            </Button>
+            </Button> */}
             <Button
               variant="outline"
               size="md"
@@ -1475,7 +1487,6 @@ function BookTimeline({
                       activeFriendId={activeFriendId}
                       activeDraggedPageChunk={activeDraggedPageChunk}
                       pagesPerUser={pagesPerUser}
-                      friendFacingPages={friendFacingPages}
                       totalPages={totalPages}
                       pageAssignments={pageAssignments}
                     />
@@ -1499,7 +1510,6 @@ interface PageAssignmentTileProps {
   activeFriendId: number | null;
   activeDraggedPageChunk: { startPage: number; friendId: number } | null;
   pagesPerUser: 1 | 2 | 3 | 4;
-  friendFacingPages: boolean;
   totalPages: number;
   pageAssignments: Record<number, number>;
 }
@@ -1513,7 +1523,6 @@ function PageAssignmentTile({
   activeFriendId,
   activeDraggedPageChunk,
   pagesPerUser,
-  friendFacingPages,
   totalPages,
   pageAssignments,
 }: PageAssignmentTileProps) {
@@ -1527,10 +1536,9 @@ function PageAssignmentTile({
         (
           page.pageNumber === CONTENT_START_PAGE || // First content page is always assignable
           pagesPerUser <= 2 ||
-          !friendFacingPages ||
+          pagesPerUser === 4 ||
           !isEvenPagesSetting ||
-          isOddPage ||
-          (pagesPerUser === 4 && friendFacingPages) // All pages assignable when pagesPerUser is 4 and facing pages is enabled
+          isOddPage
         ),
     );
   const isAddedPage = page.pageNumber >= DEFAULT_ASSIGNMENT_PAGE_COUNT;
@@ -1753,6 +1761,112 @@ function clearAssignmentChunk(
   };
 }
 
+function getAssignmentChunks(
+  state: TeamAssignmentState,
+  currentTotalPages: number,
+): AssignmentChunk[] {
+  const assignments = state.pageAssignments;
+  const sortedPages = Object.keys(assignments)
+    .map(Number)
+    .filter((page) => page >= CONTENT_START_PAGE && page < currentTotalPages - 1)
+    .sort((a, b) => a - b);
+
+  if (sortedPages.length === 0) {
+    return [];
+  }
+
+  const chunks: AssignmentChunk[] = [];
+  let currentChunk: AssignmentChunk | null = null;
+
+  for (const page of sortedPages) {
+    const friendId = assignments[page];
+    if (
+      !currentChunk ||
+      currentChunk.friendId !== friendId ||
+      currentChunk.endPage + 1 !== page
+    ) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = { friendId, startPage: page, endPage: page };
+    } else {
+      currentChunk.endPage = page;
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
+function insertCollaboratorAtAssignedPage(
+  state: TeamAssignmentState,
+  friendId: number,
+  targetPageNumber: number,
+  pagesPerUser: number,
+  currentTotalPages: number,
+  maxTotalPages: number,
+): TeamAssignmentState | 'max-pages' | null {
+  const chunks = getAssignmentChunks(state, currentTotalPages);
+  const insertionIndex = chunks.findIndex(
+    (chunk) => targetPageNumber >= chunk.startPage && targetPageNumber <= chunk.endPage,
+  );
+
+  if (insertionIndex === -1) {
+    return null;
+  }
+
+  const targetChunk = chunks[insertionIndex];
+  const rebuiltChunks: AssignmentChunk[] = [];
+
+  for (let index = 0; index < chunks.length; index++) {
+    const chunk = chunks[index];
+    if (index < insertionIndex) {
+      rebuiltChunks.push(chunk);
+      continue;
+    }
+
+    rebuiltChunks.push({
+      ...chunk,
+      startPage: chunk.startPage + pagesPerUser,
+      endPage: chunk.endPage + pagesPerUser,
+    });
+  }
+
+  rebuiltChunks.splice(insertionIndex, 0, {
+    friendId,
+    startPage: targetChunk.startPage,
+    endPage: targetChunk.startPage + pagesPerUser - 1,
+  });
+
+  const lastAssignedPage = rebuiltChunks.reduce(
+    (maxPage, chunk) => Math.max(maxPage, chunk.endPage),
+    CONTENT_START_PAGE,
+  );
+  const requiredTotalPages = ensureEvenTotalPages(
+    Math.max(state.totalPages, lastAssignedPage + 2),
+  );
+
+  if (requiredTotalPages > maxTotalPages) {
+    return 'max-pages';
+  }
+
+  const pageAssignments: Record<number, number> = {};
+  rebuiltChunks.forEach((chunk) => {
+    for (let pageNumber = chunk.startPage; pageNumber <= chunk.endPage; pageNumber++) {
+      pageAssignments[pageNumber] = chunk.friendId;
+    }
+  });
+
+  return {
+    ...state,
+    totalPages: requiredTotalPages,
+    pageAssignments,
+  };
+}
+
 function clearAssignmentsForFriend(
   state: TeamAssignmentState,
   friendId: number,
@@ -1965,159 +2079,6 @@ function adjustAssignmentsForPageCountChange(
       // (right after this chunk's new end)
       currentPage = currentPage + newPagesPerUser;
     }
-  }
-
-  return {
-    ...state,
-    totalPages: ensureEvenTotalPages(Math.max(totalPages, state.totalPages)),
-    pageAssignments: newAssignments,
-  };
-}
-
-function adjustAssignmentsForFacingPages(
-  state: TeamAssignmentState,
-  pagesPerUser: number,
-  currentTotalPages: number,
-): TeamAssignmentState {
-  // Only adjust if pagesPerUser is 2 or 4
-  if (pagesPerUser !== 2 && pagesPerUser !== 4) {
-    return state;
-  }
-
-  // If no assignments, return state as is
-  if (Object.keys(state.pageAssignments).length === 0) {
-    return state;
-  }
-
-  // Extract all assignment chunks (groups of consecutive pages assigned to the same friend)
-  const chunks: Array<{ friendId: number; startPage: number; endPage: number }> = [];
-  const assignments = state.pageAssignments;
-  const sortedPages = Object.keys(assignments)
-    .map(Number)
-    .filter(page => page >= CONTENT_START_PAGE && page < currentTotalPages - 1) // Only assignable pages (1 to n-2)
-    .sort((a, b) => a - b);
-
-  if (sortedPages.length === 0) {
-    return state;
-  }
-
-  // Group consecutive pages by friendId into chunks
-  let currentChunk: { friendId: number; startPage: number; endPage: number } | null = null;
-  for (const page of sortedPages) {
-    const friendId = assignments[page];
-    if (!currentChunk || currentChunk.friendId !== friendId || currentChunk.endPage + 1 !== page) {
-      // Start a new chunk
-      if (currentChunk) {
-        chunks.push(currentChunk);
-      }
-      currentChunk = { friendId, startPage: page, endPage: page };
-    } else {
-      // Extend current chunk
-      currentChunk.endPage = page;
-    }
-  }
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  if (chunks.length === 0) {
-    return state;
-  }
-
-  const newAssignments: Record<number, number> = {};
-  let totalPages = currentTotalPages;
-
-  // Helper function to check if a range of pages fits within page pairs
-  // For 2 pages: must be in same pair (e.g., 5,6 or 7,8)
-  // For 4 pages: must be in two consecutive pairs (e.g., 5,6,7,8 or 7,8,9,10)
-  const isWithinPairs = (startPage: number, pagesPerUser: number): boolean => {
-    if (pagesPerUser === 2) {
-      // Must be in same pair: startPage must be odd, endPage must be even, and consecutive
-      return startPage % 2 === 1 && (startPage + 1) % 2 === 0;
-    } else if (pagesPerUser === 4) {
-      // Must be in two consecutive pairs: startPage odd, endPage even, spanning exactly 2 pairs
-      const endPage = startPage + 3;
-      return startPage % 2 === 1 && endPage % 2 === 0;
-    }
-    return false;
-  };
-
-  // Helper function to find the next valid pair-aligned start page
-  const getNextPairAlignedStart = (startPage: number, pagesPerUser: number): number => {
-    if (pagesPerUser === 2) {
-      // Find next odd page (start of a pair)
-      return startPage % 2 === 1 ? startPage : startPage + 1;
-    } else if (pagesPerUser === 4) {
-      // Find next odd page (start of first pair in the two-pair range)
-      return startPage % 2 === 1 ? startPage : startPage + 1;
-    }
-    return startPage;
-  };
-
-  let currentPage = chunks[0].startPage;
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    
-    // Check if there's a gap before this chunk
-    const hasGapBefore = i === 0 
-      ? chunk.startPage > 4
-      : chunks[i - 1].endPage + 1 < chunk.startPage;
-    
-    if (hasGapBefore) {
-      // There's a gap, find the next valid pair-aligned start
-      currentPage = getNextPairAlignedStart(chunk.startPage, pagesPerUser);
-      // Ensure it's at least 4 (page 4 is assignable, but for facing pages we might want to start at 5)
-      if (currentPage < CONTENT_START_PAGE) {
-        currentPage = 4;
-      }
-      // For facing pages, if starting at 4, we might want to move to 5 to have a proper pair
-      // But page 4 is special - let's check if the chunk originally started at 4
-      if (currentPage === CONTENT_START_PAGE && chunk.startPage === CONTENT_START_PAGE) {
-        // If it's page 4 and we need facing pages, move to 5 (start of pair 5,6)
-        currentPage = CONTENT_START_PAGE + 1;
-      }
-    } else if (i > 0) {
-      // No gap - place after previous chunk, but align to page pair
-      // Previous chunk ended at currentPage - 1 (before we update it)
-      const prevChunkEnd = currentPage - 1; // End of previous chunk
-      const nextPage = prevChunkEnd + 1;
-      currentPage = getNextPairAlignedStart(nextPage, pagesPerUser);
-    } else {
-      // First chunk - align to page pair
-      currentPage = getNextPairAlignedStart(chunk.startPage, pagesPerUser);
-      // Special handling for page 4
-      if (currentPage === CONTENT_START_PAGE && chunk.startPage === CONTENT_START_PAGE) {
-        // If it's page 4 and we need facing pages, move to 5 (start of pair 5,6)
-        currentPage = CONTENT_START_PAGE + 1;
-      }
-    }
-    
-    // Ensure currentPage is at least 4 (page 4 is assignable)
-    if (currentPage < CONTENT_START_PAGE) {
-      currentPage = 4;
-    }
-    
-    // Verify the assignment fits within page pairs
-    if (!isWithinPairs(currentPage, pagesPerUser)) {
-      // If not, find the next valid pair-aligned start
-      currentPage = getNextPairAlignedStart(currentPage, pagesPerUser);
-    }
-    
-    // Assign new pages for this chunk
-    for (let offset = 0; offset < pagesPerUser; offset++) {
-      const pageNumber = currentPage + offset;
-      if (pageNumber >= CONTENT_START_PAGE) {
-        newAssignments[pageNumber] = chunk.friendId;
-        // Ensure totalPages is sufficient
-        if (pageNumber >= totalPages) {
-          totalPages = pageNumber + 1;
-        }
-      }
-    }
-    
-    // Update currentPage to point to where the next chunk should start
-    currentPage = currentPage + pagesPerUser;
   }
 
   return {
