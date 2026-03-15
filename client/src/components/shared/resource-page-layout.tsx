@@ -21,7 +21,7 @@ export default function ResourcePageLayout({
     <div className="w-full min-h-full">
       <div className="w-full">
         <div className="container mx-auto px-4">
-          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
+          <div className="sticky top-0 z-30 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-sm border-b">
             <div className="flex justify-between items-center gap-4">
               <div className="hidden sm:flex items-center gap-2 min-w-0">
                 <span className="shrink-0 text-foreground [&>svg]:h-6 [&>svg]:w-6">{icon}</span>

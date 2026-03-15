@@ -1,6 +1,16 @@
 import React from 'react';
 import { Modal } from '../../../ui/overlays/modal';
 
+let imageSelectionContentPromise: Promise<any> | null = null;
+
+export function preloadImageSelectionContent() {
+  if (!imageSelectionContentPromise) {
+    imageSelectionContentPromise = import('../../images/images-content');
+  }
+
+  return imageSelectionContentPromise;
+}
+
 type ImageSelectionModalProps = {
   showImageModal: boolean;
   onImageModalClose: () => void;
@@ -18,7 +28,7 @@ export const ImageSelectionModal: React.FC<ImageSelectionModalProps> = ({
 
   React.useEffect(() => {
     if (showImageModal && !ImagesContent) {
-      import('../../images/images-content').then((module) => {
+      preloadImageSelectionContent().then((module) => {
         setImagesContent(() => module.default);
       });
     }
@@ -39,6 +49,11 @@ export const ImageSelectionModal: React.FC<ImageSelectionModalProps> = ({
             onImageUpload={(imageId: string, imageUrl: string) => onImageSelect(imageId, imageUrl)}
             onClose={onImageModalClose}
           />
+        </div>
+      )}
+      {!ImagesContent && showImageModal && (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          Loading images...
         </div>
       )}
     </Modal>

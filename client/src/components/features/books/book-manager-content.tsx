@@ -12,7 +12,6 @@ import { Tooltip } from '../../ui/composites/tooltip';
 import { Switch } from '../../ui/primitives/switch';
 import { Card, CardContent } from '../../ui/composites/card';
 import InviteUserDialog from './invite-user-dialog';
-import UnsavedChangesDialog from '../../ui/overlays/unsaved-changes-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../ui/overlays/dialog';
 import ConfirmationDialog from '../../ui/overlays/confirmation-dialog';
 import { QuestionList } from '../questions/question-list';
@@ -140,7 +139,6 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteError, setInviteError] = useState<string>('');
   const [activeTab, setActiveTab] = useState(initialTab || 'pages-assignments');
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -196,7 +194,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     return result;
   }, [isStandalone, standalonePageAssignmentsMap, state?.pageAssignments, tempState.hasRemovedAssignment, tempState.pendingAssignment, currentPage]);
   
-  const hasChanges = () => {
+  const hasChanges = useCallback(() => {
     // Compare basic properties
     if (JSON.stringify(tempState.bookFriends) !== JSON.stringify(originalState.bookFriends)) return true;
     if (JSON.stringify(tempState.pendingPermissions) !== JSON.stringify(originalState.pendingPermissions)) return true;
@@ -218,7 +216,7 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
     }
     
     return false;
-  };
+  }, [tempState, originalState]);
   
   const handlePageOrderChange = useCallback((newPageOrder: number[]) => {
     setTempState(prev => ({ ...prev, pendingPageOrder: newPageOrder }));
@@ -586,11 +584,8 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
   };
   
   const handleCancel = useCallback(() => {
-    if (hasChanges()) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
+    hasChanges();
+    onClose();
   }, [hasChanges, onClose]);
   
   const handleSave = useCallback(async () => {
@@ -609,20 +604,6 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
       // Don't close on error - let user see the error
     }
   }, [isStandalone, onClose, saveToDatabase, saveToEditorContext]);
-  
-  const handleSaveAndExit = async () => {
-    await handleSave();
-    setShowUnsavedDialog(false);
-  };
-  
-  const handleExitWithoutSaving = () => {
-    setShowUnsavedDialog(false);
-    onClose();
-  };
-  
-  const handleCancelDialog = () => {
-    setShowUnsavedDialog(false);
-  };
   
   const handleQuestionAdd = (id: string, text: string) => {
     setTempState(prev => ({
@@ -1435,15 +1416,6 @@ export default function BookManagerContent({ bookId, onClose, isStandalone = fal
         }}
         onInvite={handleInviteUser}
         errorMessage={inviteError}
-      />
-      
-      <UnsavedChangesDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        onSaveAndExit={handleSaveAndExit}
-        onExitWithoutSaving={handleExitWithoutSaving}
-        onCancel={handleCancelDialog}
-        title="Unsaved Book Manager Changes"
       />
       
       {/* Delete Question Confirmation Dialog */}

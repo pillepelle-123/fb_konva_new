@@ -9,7 +9,7 @@ import AddPageConfirmationDialog from '../../ui/overlays/add-page-confirmation-d
 
 const ANIMATION_DURATION_MS = 200;
 const COMPACT_ROW_HEIGHT = 40;
-const EXPANDED_PANEL_HEIGHT = 90;
+const EXPANDED_PANEL_HEIGHT = 96;
 
 export function StatusBar() {
   const { state, dispatch, getVisiblePages, ensurePagesLoaded } = useEditor();
@@ -132,21 +132,23 @@ export function StatusBar() {
           >
             <div className="flex items-center gap-2 px-2 h-10 shrink-0">
               {state.userRole !== 'author' && (
-                <Tooltip
-                  content="Open page order panel"
-                  side="right"
-                  backgroundColor="bg-background"
-                  textColor="text-foreground"
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPageExplorerPanel(true)}
-                    className="h-8 w-8 p-0 flex items-center justify-center"
+                <div className="flex-shrink-0 self-start pt-1">
+                  <Tooltip
+                    content="Open page order panel"
+                    side="right"
+                    backgroundColor="bg-background"
+                    textColor="text-foreground"
                   >
-                    <PanelBottomOpen className="h-5 w-5" />
-                  </Button>
-                </Tooltip>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPageExplorerPanel(true)}
+                      className="h-8 w-8 p-0 flex items-center justify-center"
+                    >
+                      <PanelBottomOpen className="h-5 w-5" />
+                    </Button>
+                  </Tooltip>
+                </div>
               )}
               <div className="flex-1 min-w-0 p-0">
                 <div className="max-w-full">
@@ -159,14 +161,14 @@ export function StatusBar() {
             className="overflow-hidden transition-all ease-in-out shrink-0"
             style={{ height: showPageExplorerPanel ? EXPANDED_PANEL_HEIGHT : 0, transitionDuration: `${ANIMATION_DURATION_MS}ms` }}
           >
-            <div className="flex items-end gap-2 px-2 pb-2 pt-1 min-h-[70px]">
+            <div className="flex items-start gap-2 px-2 pb-2 pt-1 min-h-[70px]">
               <Tooltip
                 content="Close page order panel"
                 side="top"
                 backgroundColor="bg-background"
                 textColor="text-foreground"
               >
-                <div className="flex-shrink-0 pb-1">
+                <div className="flex-shrink-0 self-start pt-1">
                   <Button
                     variant="ghost"
                     size="sm"

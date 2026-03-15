@@ -5982,13 +5982,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     
     try {
 
+      const canManageBook =
+        state.currentBook.owner_id === user?.id || state.userRole === 'publisher';
+
       
       // Save questions and answers to database
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
       
       // Save questions first (skip for authors and answer_only users)
-      if (user?.role !== 'author' && state.userRole !== 'author' && state.editorInteractionLevel !== 'answer_only') {
+      if (canManageBook && state.editorInteractionLevel !== 'answer_only') {
         for (const [questionId, questionData] of Object.entries(state.tempQuestions)) {
           if (questionData && questionData.trim()) {
             try {
@@ -6127,7 +6130,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Save page assignments if any exist (publishers only)
-      if (user?.role !== 'author' && state.userRole !== 'author' && Object.keys(state.pageAssignments).length > 0) {
+      if (canManageBook && Object.keys(state.pageAssignments).length > 0) {
         const assignments = Object.entries(state.pageAssignments)
           .filter(([_, assignedUser]) => assignedUser !== null)
           .map(([pageNumber, assignedUser]) => ({
@@ -6153,7 +6156,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       
       // Save book friends and permissions (publishers only)
       
-      if (user?.role !== 'author' && state.userRole !== 'author' && state.bookFriends && state.bookFriends.length > 0) {
+      if (canManageBook && state.bookFriends && state.bookFriends.length > 0) {
         // First, add any new friends to the book
         for (const friend of state.bookFriends) {
           try {

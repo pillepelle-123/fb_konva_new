@@ -5,8 +5,9 @@ import { Qna2EditorModal } from '../qna2-editor-modal';
 import { Alert } from '../../../ui/composites/alert';
 import { Tooltip } from '../../../ui/composites/tooltip';
 import { QrCodeModal } from '../qr-code/qr-code-modal';
-import { ImageSelectionModal } from './image-selection-modal';
-import { StickerSelectionModal } from './sticker-selection-modal';
+import { ImageSelectionModal, preloadImageSelectionContent } from './image-selection-modal';
+import { StickerSelectionModal, preloadStickerSelectorContent } from './sticker-selection-modal';
+import { loadStickerRegistry } from '../../../../data/templates/stickers';
 
 interface CanvasOverlaysProps {
   // Context Menu props
@@ -137,6 +138,54 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   inactivePageTooltip,
   outsidePageTooltip
 }) => {
+  React.useEffect(() => {
+    let timeoutHandle: number | null = null;
+    let idleHandle: number | null = null;
+    let cancelled = false;
+
+    const preloadSelectionUi = () => {
+      if (cancelled) return;
+      preloadImageSelectionContent();
+      preloadStickerSelectorContent();
+      void loadStickerRegistry();
+    };
+
+    const schedulePreload = () => {
+      const win = window as Window & {
+        requestIdleCallback?: (callback: IdleRequestCallback) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      };
+
+      if (typeof win.requestIdleCallback === 'function') {
+        idleHandle = win.requestIdleCallback(() => {
+          preloadSelectionUi();
+        });
+        return;
+      }
+
+      timeoutHandle = window.setTimeout(() => {
+        preloadSelectionUi();
+      }, 800);
+    };
+
+    schedulePreload();
+
+    return () => {
+      cancelled = true;
+      const win = window as Window & {
+        cancelIdleCallback?: (handle: number) => void;
+      };
+
+      if (idleHandle !== null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleHandle);
+      }
+
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
+  }, []);
+
   return (
     <>
       {/* Context Menu */}

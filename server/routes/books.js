@@ -1684,33 +1684,23 @@ router.post('/:id/friends', authenticateToken, loadBookPermissions, requireBookP
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    // User must already be a friend to add to book - no automatic friendship creation
-    const friendship = await pool.query(
-      'SELECT * FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
-      [userId, userToAdd]
-    );
-
-    if (friendship.rows.length === 0) {
-      return res.status(403).json({ error: 'User must be a friend to add to this book. Add them as a friend first.' });
-    }
-
-    // Check if user is already in book_friends
+    // If the user is already a collaborator on the book, allow permission updates
+    // without requiring a separate friendship record. This covers invited/temporary
+    // users that were added via the invitation flow.
     const existingFriend = await pool.query(
       'SELECT * FROM public.book_friends WHERE book_id = $1 AND user_id = $2',
       [bookId, userToAdd]
     );
 
     if (existingFriend.rows.length > 0) {
-      // Automatically set permissions for publishers
       let finalPageAccessLevel = page_access_level || 'own_page';
       let finalEditorInteractionLevel = editor_interaction_level || 'full_edit';
-      
+
       if ((book_role || role) === 'publisher') {
         finalPageAccessLevel = 'all_pages';
         finalEditorInteractionLevel = 'full_edit_with_settings';
       }
-      
-      // Update existing friend's permissions instead of returning error
+
       const result = await pool.query(
         'UPDATE public.book_friends SET book_role = $1, page_access_level = $2, editor_interaction_level = $3 WHERE book_id = $4 AND user_id = $5 RETURNING *',
         [book_role || role, finalPageAccessLevel, finalEditorInteractionLevel, bookId, userToAdd]
@@ -1729,6 +1719,16 @@ router.post('/:id/friends', authenticateToken, loadBookPermissions, requireBookP
       }
 
       return res.json({ success: true, friend: result.rows[0] });
+    }
+
+    // User must already be a friend to add to book - no automatic friendship creation
+    const friendship = await pool.query(
+      'SELECT * FROM public.friendships WHERE user_id = LEAST($1::int, $2::int) AND friend_id = GREATEST($1::int, $2::int) AND ended_at IS NULL',
+      [userId, userToAdd]
+    );
+
+    if (friendship.rows.length === 0) {
+      return res.status(403).json({ error: 'User must be a friend to add to this book. Add them as a friend first.' });
     }
 
     // Automatically set permissions for publishers

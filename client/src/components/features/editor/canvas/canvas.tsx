@@ -73,6 +73,32 @@ const CanvasPageEditArea = React.memo(function CanvasPageEditArea({ width, heigh
   );
 });
 
+function isCanvasBackgroundTarget(target: Konva.Node | null | undefined): boolean {
+  if (!target) return false;
+
+  const stage = target.getStage?.();
+  if (stage && target === stage) return true;
+
+  if (target.getClassName?.() !== 'Rect') return false;
+
+  const targetId = typeof target.id === 'function' ? target.id() : '';
+  const targetName = typeof target.name === 'function' ? target.name() : '';
+
+  if (targetId === 'canvas-page-edit-area' || targetName.split(' ').includes('canvas-page-bounds')) {
+    return true;
+  }
+
+  if (!targetId) {
+    const parent = target.getParent?.();
+    if (parent && parent.getClassName?.() === 'Group' && parent.id?.()) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 /** Muted-foreground mit 50% Opacity für Konva (--muted-foreground/70) */
 function getMutedForegroundColor(): string {
   if (typeof document === 'undefined') return 'rgba(100, 116, 139, 0.5)';
@@ -2069,8 +2095,7 @@ export default function Canvas() {
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
-        const isBackgroundClick = e.target === e.target.getStage() || 
-          (e.target.getClassName() === 'Rect' && !e.target.id());
+        const isBackgroundClick = isCanvasBackgroundTarget(e.target);
         
         if (isBackgroundClick) {
           // Only allow starting lines inside the active page
@@ -2089,8 +2114,7 @@ export default function Canvas() {
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
-        const isBackgroundClick = e.target === e.target.getStage() || 
-          (e.target.getClassName() === 'Rect' && !e.target.id());
+        const isBackgroundClick = isCanvasBackgroundTarget(e.target);
         
         if (isBackgroundClick) {
           // Only allow starting shapes inside the active page
@@ -2108,8 +2132,7 @@ export default function Canvas() {
       if (pos) {
         const x = (pos.x - stagePos.x) / zoom - activePageOffsetX;
         const y = (pos.y - stagePos.y) / zoom - pageOffsetY;
-        const isBackgroundClick = e.target === e.target.getStage() || 
-          (e.target.getClassName() === 'Rect' && !e.target.id());
+        const isBackgroundClick = isCanvasBackgroundTarget(e.target);
         
         if (isBackgroundClick) {
           // Only allow starting text boxes inside the active page
@@ -2131,18 +2154,7 @@ export default function Canvas() {
       
       // Check if clicking on background (stage or page boundary)
       // A Rect without an ID could be a hit-area Rect inside a Group, so check parent
-      let isBackgroundClick = e.target === e.target.getStage();
-      if (!isBackgroundClick && e.target.getClassName() === 'Rect' && !e.target.id()) {
-        // Check if this Rect is inside a Group (element) - if so, it's not a background click
-        const parent = e.target.getParent();
-        if (parent && parent.getClassName() === 'Group' && parent.id()) {
-          // This Rect is inside a Group with an ID, so it's an element click
-          isBackgroundClick = false;
-        } else {
-          // This Rect has no parent Group with ID, so it's a background Rect
-          isBackgroundClick = true;
-        }
-      }
+      const isBackgroundClick = isCanvasBackgroundTarget(e.target);
       
       // If clicking on an element (not background), check if we should start group move
       if (!isBackgroundClick) {
@@ -2255,8 +2267,7 @@ export default function Canvas() {
       if (!canCreateElements) return;
       
       // Check if clicked on background
-      const isBackgroundClick = e.target === e.target.getStage() || 
-        (e.target.getClassName() === 'Rect' && !e.target.id());
+      const isBackgroundClick = isCanvasBackgroundTarget(e.target);
       
       if (isBackgroundClick) {
         let newElement: CanvasElement | null = null;
@@ -3716,22 +3727,14 @@ export default function Canvas() {
     
     // If style painter is active, deactivate it on any click that's not on an element
     if (state.stylePainterActive && e.evt.button === 0) {
-      const clickedOnElement = e.target !== e.target.getStage() && 
-        (e.target.getClassName() !== 'Rect' || e.target.id());
+      const clickedOnElement = !isCanvasBackgroundTarget(e.target);
       
       if (!clickedOnElement) {
         dispatch({ type: 'TOGGLE_STYLE_PAINTER' });
         return;
       }
     }
-    
-    // Hit-Area- und QnA2-Overlay-Rects haben id – nicht als Hintergrund-Klick werten
-    const targetId = (e.target.id?.() ?? e.target.attrs?.id ?? '') + '';
-    const isCanvasItemHit = targetId.startsWith('hit-area-') || targetId.startsWith('qna2-overlay-');
-    const isBackgroundClick = !isCanvasItemHit && (
-      e.target === e.target.getStage() || 
-      (e.target.getClassName() === 'Rect' && !e.target.id())
-    );
+    const isBackgroundClick = isCanvasBackgroundTarget(e.target);
     
     if (isBackgroundClick) {
       // Don't clear selection if we're currently dragging a group
@@ -5761,24 +5764,25 @@ export default function Canvas() {
                 // not by zIndex. So we need to ensure elements are rendered in the sorted order.
                 // The sorted array is already in the correct order, so we just need to render them in that order.
                 return sorted.map((element, index) => {
+                  const isElementInteractive = permissionsReady && shouldElementBeInteractive(element);
+
                   // Normal rendering
                   return (
                     <Group
                       key={`${element.id}-${element.questionId || 'no-question'}-${index}`}
-                      listening={true}
+                      listening={isElementInteractive}
                     >
                   <CanvasItemComponent
                     element={element}
                     interactive={(() => {
-                      const inter = permissionsReady && shouldElementBeInteractive(element);
-                      if (element.textType === 'qna2' && !inter) {
+                      if (element.textType === 'qna2' && !isElementInteractive) {
                         debugQna2Selection('CanvasItemComponent interactive=FALSE', {
                           elementId: element.id,
                           permissionsReady,
                           shouldBeInteractive: shouldElementBeInteractive(element)
                         });
                       }
-                      return inter;
+                      return isElementInteractive;
                     })()}
                     isSelected={state.selectedElementIds.includes(element.id)}
                     isDragging={isDragging && state.selectedElementIds.length === 1 && state.selectedElementIds.includes(element.id)}
